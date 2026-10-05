@@ -1,0 +1,266 @@
+/* Meeha News - account pages (login/register/my-account/lost-password) */
+
+.meeha-account-form,
+.meeha-account-page {
+	max-width: 420px;
+	margin: 32px auto;
+	font-family: 'Hind Siliguri', sans-serif;
+}
+
+.meeha-account-form {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	background: #FBFBF9;
+	border: 1px solid #E6E6E2;
+	border-radius: 14px;
+	padding: 28px;
+}
+
+.meeha-account-form h2,
+.meeha-account-page h2 {
+	font-family: 'Baloo Da 2', sans-serif;
+	font-size: 22px;
+	font-weight: 700;
+	color: #14171F;
+	margin: 0 0 4px;
+}
+
+.meeha-account-form h3 {
+	font-family: 'Baloo Da 2', sans-serif;
+	font-size: 16px;
+	font-weight: 700;
+	color: #14171F;
+	margin: 8px 0 0;
+}
+
+.meeha-account-form__hint {
+	font-size: 13px;
+	color: #565A66;
+	margin: 0;
+}
+
+.meeha-account-form input,
+.meeha-account-page input {
+	width: 100%;
+	padding: 11px 14px;
+	border: 1px solid #E6E6E2;
+	border-radius: 8px;
+	font-family: inherit;
+	font-size: 14px;
+	box-sizing: border-box;
+}
+
+.meeha-account-form label {
+	font-size: 13px;
+	color: #565A66;
+	display: block;
+}
+
+.meeha-account-form input:disabled {
+	background: #F1F1EF;
+	color: #8a8f99;
+}
+
+.meeha-account-form__submit {
+	font-family: inherit;
+	font-weight: 700;
+	font-size: 14px;
+	color: #fff;
+	background: #146356;
+	border: none;
+	border-radius: 999px;
+	padding: 12px;
+	cursor: pointer;
+}
+
+.meeha-account-form__submit:hover {
+	background: #0E4A40;
+}
+
+.meeha-account-form__submit:disabled {
+	opacity: 0.6;
+	cursor: wait;
+}
+
+.meeha-account-msg {
+	font-size: 13px;
+	color: #146356;
+	margin: 0;
+}
+
+.meeha-account-msg--error {
+	color: #C0392B;
+}
+
+.meeha-account-links {
+	font-size: 13px;
+	color: #565A66;
+	text-align: center;
+	margin: 0;
+}
+
+.meeha-account-links a {
+	color: #146356;
+	font-weight: 600;
+}
+
+/* My Account page */
+.meeha-account-page {
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+}
+
+.meeha-account-avatar-block {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+}
+
+.meeha-account-avatar {
+	width: 72px;
+	height: 72px;
+	border-radius: 50%;
+	object-fit: cover;
+	border: 2px solid #E6E6E2;
+}
+
+.meeha-account-avatar-upload {
+	font-size: 13px;
+	font-weight: 600;
+	color: #146356;
+	border: 1px solid #146356;
+	border-radius: 999px;
+	padding: 8px 16px;
+	cursor: pointer;
+}
+
+.meeha-account-avatar-upload:hover {
+	background: #EAF3F1;
+}
+
+.meeha-account-logout {
+	display: inline-block;
+	text-align: center;
+	font-size: 13px;
+	font-weight: 600;
+	color: #C0392B;
+	text-decoration: none;
+}
+
+/* Area fields + checkbox on My Account */
+.meeha-account-form select {
+	width: 100%;
+	padding: 11px 14px;
+	border: 1px solid #E6E6E2;
+	border-radius: 8px;
+	font-family: inherit;
+	font-size: 14px;
+	margin-bottom: 8px;
+	box-sizing: border-box;
+}
+
+.meeha-account-checkbox-label {
+	display: flex !important;
+	align-items: center;
+	gap: 8px;
+	font-size: 13px !important;
+}
+
+.meeha-account-checkbox-label input {
+	width: auto !important;
+}
+
+/* My Account tabs - profile / correspondent dashboard / security */
+.meeha-account-tabs {
+	display: flex;
+	gap: 4px;
+	border-bottom: 1px solid #E6E6E2;
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+	scrollbar-width: none;
+}
+.meeha-account-tabs::-webkit-scrollbar {
+	display: none;
+}
+
+.meeha-account-tab {
+	flex-shrink: 0;
+	font-family: 'Hind Siliguri', sans-serif;
+	font-size: 14px;
+	font-weight: 600;
+	color: #565A66;
+	background: none;
+	border: none;
+	border-bottom: 2px solid transparent;
+	padding: 12px 14px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.meeha-account-tab:hover {
+	color: #146356;
+}
+
+.meeha-account-tab.is-active {
+	color: #146356;
+	border-bottom-color: #146356;
+}
+
+.meeha-account-tab-panel {
+	padding-top: 4px;
+}
+
+@media ( max-width: 480px ) {
+	.meeha-account-tab {
+		padding: 12px 10px;
+		font-size: 13px;
+	}
+}
+
+
+/* সোশ্যাল লগইন বাটন (Google / Facebook) */
+.meeha-social-login {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	max-width: 420px;
+	margin: 0 auto 8px;
+}
+.meeha-social-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	text-align: center;
+	padding: 11px 14px;
+	border-radius: 8px;
+	font-weight: 600;
+	font-size: 15px;
+	text-decoration: none;
+	border: 1px solid var( --meeha-border, #ddd );
+	background: #fff;
+	color: #222;
+	transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.meeha-social-btn__icon {
+	display: inline-flex;
+	flex-shrink: 0;
+}
+.meeha-social-btn:hover {
+	box-shadow: 0 2px 8px rgba( 0, 0, 0, 0.12 );
+}
+.meeha-social-btn--google { border-color: #dadce0; }
+.meeha-social-btn--facebook { background: #1877F2; border-color: #1877F2; color: #fff; }
+.meeha-social-or {
+	text-align: center;
+	margin: 12px 0;
+	color: #888;
+	font-size: 13px;
+}
+
+/* hidden অ্যাট্রিবিউট যেন display:flex/block-এর কারণে উপেক্ষিত না হয় (ওটিপি ধাপ) */
+.meeha-account-form[hidden] {
+	display: none !important;
+}

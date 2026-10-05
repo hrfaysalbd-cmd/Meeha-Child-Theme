@@ -1,0 +1,1011 @@
+/* ============================================
+   Meeha News — site-wide header (header.php)
+   Loads on every page (not conditional like homepage/single CSS), so
+   tokens (:root) are duplicated here too - header colors/fonts must not
+   break even when homepage.css isn't loaded.
+============================================ */
+
+:root {
+	--meeha-bg:        #FFFFFF;
+	--meeha-bg-soft:   #FAFAF8;
+	--meeha-ink:       #14171F;
+	--meeha-ink-soft:  #565A66;
+	--meeha-border:    #E6E6E2;
+	--meeha-accent:    #025AB2;
+	--meeha-accent-dk: #01468A;
+	--meeha-breaking:  #B33B2E;
+
+	--meeha-font-display: 'Baloo Da 2', 'Hind Siliguri', sans-serif;
+	--meeha-font-body:    'Hind Siliguri', sans-serif;
+	--meeha-font-utility: 'Inter', 'Hind Siliguri', sans-serif;
+
+	--meeha-max-width: 1200px;
+	--meeha-header-h: 64px;
+}
+
+.meeha-skip-link {
+	position: absolute;
+	left: -9999px;
+	top: 0;
+	z-index: 10000;
+	background: var( --meeha-accent );
+	color: #fff;
+	padding: 12px 18px;
+	font-family: var( --meeha-font-utility );
+	font-weight: 600;
+	border-radius: 0 0 6px 0;
+}
+.meeha-skip-link:focus {
+	left: 0;
+}
+
+.meeha-container {
+	max-width: var( --meeha-max-width );
+	margin: 0 auto;
+	padding: 0 20px;
+}
+
+/* ============================================
+   Header shell
+============================================ */
+.meeha-header {
+	background: var( --meeha-bg );
+	border-bottom: 1px solid var( --meeha-border );
+	font-family: var( --meeha-font-body );
+	position: relative;
+	z-index: 500;
+}
+
+.meeha-header--sticky {
+	position: sticky;
+	top: 0;
+}
+
+.meeha-header.is-scrolled {
+	box-shadow: 0 2px 14px rgba( 20, 23, 31, 0.08 );
+}
+
+.meeha-header * {
+	box-sizing: border-box;
+}
+
+.meeha-header a {
+	text-decoration: none;
+	color: inherit;
+}
+
+/* ============================================
+   Top bar
+============================================ */
+.meeha-topbar {
+	background: var( --meeha-accent );
+	color: rgba( 255, 255, 255, 0.92 );
+}
+
+.meeha-topbar__inner {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	height: 40px;
+	font-family: var( --meeha-font-utility );
+	font-size: 13.5px;
+}
+
+.meeha-topbar__date {
+	white-space: nowrap;
+	flex: 1;
+	min-width: 0;
+}
+
+.meeha-topbar__right {
+	display: flex;
+	align-items: center;
+	gap: 18px;
+	flex-shrink: 0;
+}
+
+.meeha-topbar__social {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.meeha-topbar__social a {
+	display: flex;
+	opacity: 0.85;
+	transition: opacity 0.15s ease;
+}
+.meeha-topbar__social a:hover {
+	opacity: 1;
+}
+.meeha-topbar__social svg {
+	width: 16px;
+	height: 16px;
+}
+
+.meeha-topbar__account {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.meeha-topbar__account-link {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	font-weight: 600;
+}
+.meeha-topbar__account-link svg {
+	width: 15px;
+	height: 15px;
+	flex-shrink: 0;
+}
+.meeha-topbar__account-link span {
+	max-width: 140px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.meeha-topbar__logout {
+	opacity: 0.8;
+	border-left: 1px solid rgba( 255, 255, 255, 0.3 );
+	padding-left: 10px;
+}
+.meeha-topbar__logout:hover {
+	opacity: 1;
+}
+
+/* ============================================
+   Main header row - logo, nav, actions
+============================================ */
+.meeha-header__main-inner {
+	display: flex;
+	align-items: center;
+	gap: 20px;
+	height: var( --meeha-header-h );
+}
+
+.meeha-icon-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 46px;
+	height: 46px;
+	border: none;
+	background: transparent;
+	color: var( --meeha-ink );
+	cursor: pointer;
+	border-radius: 10px;
+	flex-shrink: 0;
+	transition: background 0.15s ease;
+}
+.meeha-icon-btn:hover {
+	background: var( --meeha-bg-soft );
+}
+.meeha-icon-btn svg {
+	width: 26px;
+	height: 26px;
+}
+
+.meeha-menu-toggle {
+	display: inline-flex;
+}
+
+.meeha-header__logo {
+	display: flex;
+	align-items: center;
+	margin-right: auto;
+	/* No flex-shrink:0 on mobile - a wide logo image was pushing the
+	   search/account icons off-screen. Let the logo shrink instead
+	   (min-width:0 + max-width) so the icons stay visible; flex-shrink:0
+	   is restored for desktop only, further below. */
+	min-width: 0;
+	max-width: 58%;
+}
+
+.meeha-logo-link {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	line-height: 1.15;
+	min-width: 0;
+	max-width: 100%;
+}
+
+.meeha-logo-link img,
+.meeha-logo-img {
+	max-height: 46px;
+	max-width: 100%;
+	width: auto;
+	display: block;
+}
+
+.meeha-logo-text {
+	font-family: var( --meeha-font-display );
+	font-weight: 800;
+	font-size: 26px;
+	color: var( --meeha-accent );
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
+}
+
+.meeha-logo-tagline {
+	font-family: var( --meeha-font-utility );
+	font-size: 11.5px;
+	color: var( --meeha-ink-soft );
+	margin-top: 2px;
+	white-space: nowrap;
+}
+
+.meeha-header__actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-left: auto;
+}
+
+.meeha-account-toggle {
+	display: none;
+}
+
+/* ============================================
+   Mobile second row - floating compact menu + hamburger
+   (hidden entirely on desktop, where nav + "More" live in the first row)
+============================================ */
+.meeha-header__mobile-row {
+	border-top: 1px solid var( --meeha-border );
+	background: var( --meeha-bg-soft );
+}
+
+.meeha-mobile-row__inner {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	height: 52px;
+}
+
+.meeha-mobile-compact-menu {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: 1;
+	min-width: 0;
+	overflow-x: auto;
+	list-style: none;
+	margin: 0;
+	padding: 2px 0;
+	scrollbar-width: none; /* Firefox */
+}
+.meeha-mobile-compact-menu::-webkit-scrollbar {
+	display: none; /* Chrome/Safari */
+}
+
+.meeha-mobile-compact-menu li {
+	flex-shrink: 0;
+}
+
+.meeha-mobile-compact-menu a {
+	display: block;
+	padding: 7px 14px;
+	border-radius: 999px;
+	background: var( --meeha-bg );
+	border: 1px solid var( --meeha-border );
+	font-family: var( --meeha-font-utility );
+	font-weight: 600;
+	font-size: 13.5px;
+	white-space: nowrap;
+	color: var( --meeha-ink );
+}
+.meeha-mobile-compact-menu a:hover,
+.meeha-mobile-compact-menu li.current-menu-item a {
+	color: var( --meeha-accent );
+	border-color: var( --meeha-accent );
+}
+
+.meeha-header__mobile-row .meeha-menu-toggle {
+	flex-shrink: 0;
+}
+
+/* ============================================
+   Desktop navigation
+============================================ */
+.meeha-header__nav {
+	display: none;
+	min-width: 0; /* can shrink as a flex item, but never overflows */
+}
+
+.meeha-nav-menu {
+	display: flex;
+	align-items: center;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	gap: 2px;
+	font-family: var( --meeha-font-utility );
+	font-weight: 600;
+	font-size: 16px;
+	flex-wrap: nowrap;
+	overflow: hidden; /* clips overflow before JS builds the "More" panel */
+}
+
+.meeha-nav-menu.meeha-nav-menu--desktop {
+	overflow: visible; /* so the "More" panel isn't clipped once JS builds it */
+}
+
+.meeha-nav-menu > li {
+	position: relative;
+}
+
+.meeha-nav-menu > li > a {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 10px 12px;
+	border-radius: 6px;
+	white-space: nowrap;
+	transition: color 0.15s ease, background 0.15s ease;
+}
+
+.meeha-nav-menu > li > a:hover,
+.meeha-nav-menu > li.current-menu-item > a,
+.meeha-nav-menu > li.current-menu-ancestor > a {
+	color: var( --meeha-accent );
+	background: var( --meeha-bg-soft );
+}
+
+.meeha-nav-menu .sub-menu {
+	list-style: none;
+	margin: 0;
+	padding: 8px;
+	position: absolute;
+	top: 100%;
+	left: 0;
+	min-width: 220px;
+	background: var( --meeha-bg );
+	border: 1px solid var( --meeha-border );
+	border-radius: 10px;
+	box-shadow: 0 12px 28px rgba( 20, 23, 31, 0.12 );
+	opacity: 0;
+	visibility: hidden;
+	transform: translateY( 6px );
+	transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+	z-index: 50;
+}
+
+.meeha-nav-menu .menu-item-has-children:hover > .sub-menu,
+.meeha-nav-menu .menu-item-has-children:focus-within > .sub-menu {
+	opacity: 1;
+	visibility: visible;
+	transform: translateY( 0 );
+}
+
+.meeha-nav-menu .sub-menu a {
+	display: block;
+	padding: 9px 12px;
+	border-radius: 6px;
+	font-weight: 500;
+	color: var( --meeha-ink );
+}
+.meeha-nav-menu .sub-menu a:hover {
+	background: var( --meeha-bg-soft );
+	color: var( --meeha-accent );
+}
+
+.meeha-nav-fallback {
+	display: flex;
+	flex-wrap: wrap;
+	list-style: none;
+	margin: 0;
+	padding: 10px 0;
+	gap: 4px;
+}
+
+/* ============================================
+   "More" flyout - on desktop, items beyond the configured count move into
+   this row/column grid panel. meeha-header.js moves the extra <li>s here
+   after page load.
+============================================ */
+.meeha-nav-more {
+	position: relative;
+}
+
+.meeha-nav-more-toggle {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	background: none;
+	border: none;
+	font: inherit;
+	font-family: var( --meeha-font-utility );
+	font-weight: 600;
+	color: var( --meeha-accent );
+	cursor: pointer;
+	padding: 10px 12px;
+	border-radius: 6px;
+	white-space: nowrap;
+}
+.meeha-nav-more-toggle:hover,
+.meeha-nav-more.is-open .meeha-nav-more-toggle {
+	background: var( --meeha-bg-soft );
+}
+.meeha-nav-more-toggle svg {
+	transition: transform 0.15s ease;
+}
+.meeha-nav-more.is-open .meeha-nav-more-toggle svg {
+	transform: rotate( 180deg );
+}
+
+.meeha-nav-more-panel {
+	position: absolute;
+	top: 100%;
+	right: 0;
+	margin-top: 4px;
+	background: var( --meeha-bg );
+	border: 1px solid var( --meeha-border );
+	border-radius: 12px;
+	box-shadow: 0 16px 36px rgba( 20, 23, 31, 0.15 );
+	padding: 18px 22px;
+	display: grid;
+	grid-template-columns: repeat( 3, minmax( 170px, 1fr ) );
+	gap: 4px 28px;
+	min-width: 480px;
+	max-width: 760px;
+	max-height: 70vh;
+	overflow-y: auto;
+	opacity: 0;
+	visibility: hidden;
+	transform: translateY( 6px );
+	transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+	z-index: 60;
+}
+
+.meeha-nav-more.is-open .meeha-nav-more-panel {
+	opacity: 1;
+	visibility: visible;
+	transform: translateY( 0 );
+}
+
+/* Items inside the panel are grid cells, not hover-flyouts - submenus
+   (if any) are always visible under each cell */
+.meeha-nav-more-panel > li {
+	list-style: none;
+	break-inside: avoid;
+}
+.meeha-nav-more-panel > li > a {
+	display: block;
+	padding: 9px 4px;
+	font-weight: 600;
+	font-size: 15px;
+	color: var( --meeha-ink );
+	border-bottom: 1px solid var( --meeha-border );
+	white-space: normal;
+}
+.meeha-nav-more-panel > li > a:hover {
+	color: var( --meeha-accent );
+}
+.meeha-nav-more-panel .sub-menu {
+	position: static;
+	opacity: 1;
+	visibility: visible;
+	transform: none;
+	list-style: none;
+	margin: 0;
+	padding: 4px 0 10px;
+	border: none;
+	box-shadow: none;
+	background: transparent;
+}
+.meeha-nav-more-panel .sub-menu a {
+	display: block;
+	padding: 6px 4px;
+	font-size: 13.5px;
+	font-weight: 500;
+	color: var( --meeha-ink-soft );
+	border-radius: 4px;
+}
+.meeha-nav-more-panel .sub-menu a:hover {
+	color: var( --meeha-accent );
+	background: var( --meeha-bg-soft );
+}
+
+/* ============================================
+   Search panel (dropdown, desktop and mobile)
+============================================ */
+.meeha-search-panel {
+	border-top: 1px solid var( --meeha-border );
+	background: var( --meeha-bg-soft );
+	overflow: hidden;
+}
+
+.meeha-search-panel[hidden] {
+	display: none;
+}
+
+.meeha-search-panel .meeha-container {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding-top: 14px;
+	padding-bottom: 14px;
+}
+
+.meeha-search-form {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	background: var( --meeha-bg );
+	border: 1px solid var( --meeha-border );
+	border-radius: 999px;
+	padding: 8px 8px 8px 16px;
+}
+
+.meeha-search-form svg {
+	width: 18px;
+	height: 18px;
+	color: var( --meeha-ink-soft );
+	flex-shrink: 0;
+}
+
+.meeha-search-form__input {
+	flex: 1;
+	border: none;
+	outline: none;
+	background: transparent;
+	font-family: var( --meeha-font-body );
+	font-size: 15px;
+	min-width: 0;
+}
+
+.meeha-search-form__submit {
+	background: var( --meeha-accent );
+	color: #fff;
+	border: none;
+	border-radius: 999px;
+	padding: 8px 18px;
+	font-family: var( --meeha-font-utility );
+	font-weight: 600;
+	font-size: 13.5px;
+	cursor: pointer;
+	flex-shrink: 0;
+	transition: background 0.15s ease;
+}
+.meeha-search-form__submit:hover {
+	background: var( --meeha-accent-dk );
+}
+
+.meeha-search-close {
+	flex-shrink: 0;
+}
+
+/* ============================================
+   Mobile off-canvas drawer
+============================================ */
+.meeha-drawer-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba( 20, 23, 31, 0.55 );
+	z-index: 900;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+}
+.meeha-drawer-overlay[hidden] {
+	display: none;
+}
+.meeha-drawer-overlay.is-visible {
+	opacity: 1;
+}
+
+.meeha-drawer {
+	position: fixed;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	width: min( 86vw, 360px );
+	background: var( --meeha-bg );
+	z-index: 901;
+	transform: translateX( 100% );
+	transition: transform 0.25s ease;
+	display: flex;
+	flex-direction: column;
+	overflow-y: auto;
+	box-shadow: -8px 0 24px rgba( 20, 23, 31, 0.18 );
+}
+
+.meeha-drawer.is-open {
+	transform: translateX( 0 );
+}
+
+.meeha-drawer__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 16px 18px;
+	border-bottom: 1px solid var( --meeha-border );
+}
+
+.meeha-drawer__title {
+	font-family: var( --meeha-font-display );
+	font-weight: 700;
+	font-size: 18px;
+	color: var( --meeha-accent );
+}
+
+.meeha-drawer__search {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 14px 18px;
+	padding: 8px 14px;
+	background: var( --meeha-bg-soft );
+	border: 1px solid var( --meeha-border );
+	border-radius: 999px;
+}
+.meeha-drawer__search svg {
+	width: 17px;
+	height: 17px;
+	color: var( --meeha-ink-soft );
+	flex-shrink: 0;
+}
+.meeha-drawer__search input {
+	flex: 1;
+	border: none;
+	background: transparent;
+	outline: none;
+	font-family: var( --meeha-font-body );
+	font-size: 14.5px;
+	min-width: 0;
+}
+
+.meeha-drawer__nav {
+	padding: 4px 10px;
+}
+
+.meeha-drawer__nav .meeha-nav-menu,
+.meeha-drawer__nav .meeha-nav-fallback {
+	display: block;
+	font-size: 15px;
+}
+
+.meeha-drawer__nav .meeha-nav-menu li,
+.meeha-drawer__nav .meeha-nav-fallback li {
+	border-bottom: 1px solid var( --meeha-border );
+}
+
+.meeha-drawer__nav .meeha-nav-menu > li > a,
+.meeha-drawer__nav .meeha-nav-fallback > li > a {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 13px 8px;
+	border-radius: 0;
+}
+
+.meeha-drawer__nav .sub-menu {
+	list-style: none;
+	margin: 0 0 6px;
+	padding: 0 0 0 14px;
+	display: none;
+}
+
+.meeha-drawer__nav li.is-open > .sub-menu {
+	display: block;
+}
+
+.meeha-drawer__nav .sub-menu a {
+	display: block;
+	padding: 10px 8px;
+	color: var( --meeha-ink-soft );
+}
+
+.meeha-submenu-toggle {
+	background: none;
+	border: none;
+	width: 32px;
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var( --meeha-ink-soft );
+	cursor: pointer;
+	flex-shrink: 0;
+	transition: transform 0.2s ease;
+}
+.meeha-submenu-toggle svg {
+	width: 16px;
+	height: 16px;
+}
+li.is-open > .meeha-submenu-toggle {
+	transform: rotate( 180deg );
+}
+
+.meeha-drawer__social {
+	display: flex;
+	gap: 14px;
+	list-style: none;
+	margin: 16px 18px;
+	padding-top: 16px;
+	border-top: 1px solid var( --meeha-border );
+}
+.meeha-drawer__social a {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 34px;
+	height: 34px;
+	border-radius: 999px;
+	background: var( --meeha-bg-soft );
+	color: var( --meeha-accent );
+}
+.meeha-drawer__social svg {
+	width: 16px;
+	height: 16px;
+}
+
+/* ============================================
+   Ad banner below header
+============================================ */
+.meeha-header-ad {
+	background: var( --meeha-bg-soft );
+	border-bottom: 1px solid var( --meeha-border );
+	padding: 12px 0;
+	text-align: center;
+}
+
+.meeha-header-ad__label {
+	display: block;
+	font-family: var( --meeha-font-utility );
+	font-size: 10.5px;
+	letter-spacing: 0.06em;
+	color: var( --meeha-ink-soft );
+	text-transform: uppercase;
+	margin-bottom: 6px;
+}
+
+.meeha-header-ad__link {
+	display: inline-block;
+	max-width: 100%;
+}
+
+.meeha-header-ad picture {
+	display: inline-block;
+	max-width: 100%;
+}
+
+.meeha-header-ad img {
+	max-width: 100%;
+	height: auto;
+	border-radius: 4px;
+	display: inline-block;
+}
+
+/* Compact banner size, selectable in Admin > Meeha হোমপেজ > হেডার */
+.meeha-header-ad--compact {
+	padding: 10px 0;
+}
+.meeha-header-ad--compact picture,
+.meeha-header-ad--compact img {
+	max-width: 336px;
+	max-height: 100px;
+	width: auto;
+}
+
+/* ============================================
+   Headline ticker - below header, site-wide
+============================================ */
+.meeha-ticker {
+	display: flex;
+	align-items: center;
+	background: var( --meeha-bg-soft );
+	border-bottom: 1px solid var( --meeha-border );
+	padding: 10px 20px;
+	overflow: hidden;
+	gap: 10px;
+}
+
+.meeha-ticker__label {
+	flex-shrink: 0;
+	background: var( --meeha-breaking );
+	color: #fff;
+	font-family: var( --meeha-font-utility );
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.03em;
+	padding: 4px 12px;
+	border-radius: 3px;
+}
+
+.meeha-ticker__track {
+	overflow: hidden;
+	flex: 1;
+	min-width: 0;
+}
+
+.meeha-ticker__list {
+	display: flex;
+	gap: 40px;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	white-space: nowrap;
+	width: max-content;
+	animation: meeha-ticker-scroll 35s linear infinite;
+}
+
+.meeha-ticker__list li a {
+	font-family: var( --meeha-font-body );
+	font-size: 14px;
+	font-weight: 500;
+	color: var( --meeha-ink );
+	text-decoration: none;
+}
+.meeha-ticker__list li a:hover {
+	color: var( --meeha-accent );
+}
+
+.meeha-ticker__toggle {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border: none;
+	border-radius: 50%;
+	background: var( --meeha-bg );
+	color: var( --meeha-ink-soft );
+	cursor: pointer;
+}
+.meeha-ticker__toggle:hover {
+	color: var( --meeha-accent );
+}
+
+/* hover/focus pauses automatically (mouse users); the toggle button
+   (below) gives keyboard/touch users the same control explicitly */
+.meeha-ticker:hover .meeha-ticker__list,
+.meeha-ticker:focus-within .meeha-ticker__list {
+	animation-play-state: paused;
+}
+
+.meeha-ticker.is-paused .meeha-ticker__list {
+	animation-play-state: paused;
+}
+
+@keyframes meeha-ticker-scroll {
+	from { transform: translateX( 0 ); }
+	to   { transform: translateX( -50% ); }
+}
+
+@media ( prefers-reduced-motion: reduce ) {
+	.meeha-ticker__list {
+		animation: none;
+		overflow-x: auto;
+	}
+	.meeha-ticker__list li[aria-hidden="true"] {
+		display: none; /* without the animation, the duplicated copy would just look like repeated text */
+	}
+}
+
+@media ( max-width: 480px ) {
+	.meeha-ticker {
+		padding: 8px 14px;
+	}
+	.meeha-ticker__label {
+		font-size: 11px;
+		padding: 3px 9px;
+	}
+	.meeha-ticker__list li a {
+		font-size: 13px;
+	}
+}
+
+/* ============================================
+   Breakpoint - tablet & desktop (>=992px)
+============================================ */
+@media ( min-width: 992px ) {
+	:root {
+		--meeha-header-h: 76px;
+	}
+
+	.meeha-menu-toggle {
+		display: none;
+	}
+
+	.meeha-header__logo {
+		margin-right: 36px;
+		/* Protect the logo from being squeezed out by a long nav (flex:1) on
+		   desktop only - this rule caused the mobile icon-overlap bug instead */
+		flex-shrink: 0;
+		max-width: none;
+	}
+
+	.meeha-logo-text {
+		font-size: 27px;
+	}
+
+	.meeha-header__nav {
+		display: block;
+		flex: 1;
+	}
+
+	.meeha-account-toggle {
+		display: none;
+	}
+
+	.meeha-topbar__account {
+		display: flex;
+	}
+
+	.meeha-header__mobile-row {
+		display: none;
+	}
+}
+
+/* Tablet (768-992px): topbar shows social icons only, account link
+   hidden (already duplicated as an icon in the main row) */
+@media ( max-width: 991.98px ) {
+	.meeha-topbar__account {
+		display: none;
+	}
+	.meeha-account-toggle {
+		display: inline-flex;
+	}
+}
+
+/* Mobile (<768px): date is short now, so up to 3 social icons still fit;
+   account link stays hidden (already duplicated in the main row). */
+@media ( max-width: 767.98px ) {
+	.meeha-topbar__right {
+		display: flex;
+	}
+	.meeha-topbar__social li:nth-child( n+4 ) {
+		display: none;
+	}
+	.meeha-topbar__date {
+		font-size: 12.5px;
+		white-space: nowrap;
+	}
+}
+
+@media ( max-width: 360px ) {
+	/* very narrow screens: hide social icons entirely, keep the date clear */
+	.meeha-topbar__right {
+		display: none;
+	}
+}
+
+/* If no social links are set (and no account link either), the right
+   side is empty - center the date instead of leaving it flush left.
+   Classes are added precisely from header.php's PHP. */
+@media ( max-width: 991.98px ) {
+	.meeha-topbar--center-mobile .meeha-topbar__inner {
+		justify-content: center;
+	}
+	.meeha-topbar--center-mobile .meeha-topbar__date {
+		flex: 0 1 auto;
+	}
+}
+@media ( min-width: 992px ) {
+	.meeha-topbar--center-desktop .meeha-topbar__inner {
+		justify-content: center;
+	}
+	.meeha-topbar--center-desktop .meeha-topbar__date {
+		flex: 0 1 auto;
+	}
+}
+
+@media ( max-width: 480px ) {
+	.meeha-logo-text {
+		font-size: 22px;
+	}
+	.meeha-logo-tagline {
+		display: none; /* hide tagline on very small screens, keep just the name */
+	}
+}

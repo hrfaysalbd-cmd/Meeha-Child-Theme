@@ -1,0 +1,13 @@
+/*
+Theme Name: Meeha News Child
+Theme URI: https://meeha.news
+Description: Meeha News-এর জন্য কাস্টম চাইল্ড থিম — Newsmatic-এর ওপর ভিত্তি করে তৈরি, হাতে-লেখা হোমপেজ টেমপ্লেট সহ।
+Author: Meeha News
+Template: newsmatic
+Version: 1.0.0
+Text Domain: meeha-child
+*/
+
+/* মূল স্টাইল parent থিম থেকেই আসবে (functions.php-তে enqueue করা হয়েছে)।
+   এই ফাইলে শুধু ছোটখাটো override রাখুন, বড় ডিজাইন থাকবে
+   assets/css/meeha-homepage.css -তে। */

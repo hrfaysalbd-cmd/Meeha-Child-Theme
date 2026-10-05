@@ -1,0 +1,108 @@
+/* Meeha News — photocard browse: search + tabs */
+
+.meeha-pc-browse {
+	font-family: var( --meeha-pc-font-body );
+	margin-bottom: 24px;
+}
+
+.meeha-pc-browse__search {
+	position: relative;
+	max-width: 480px;
+	margin: 0 auto 20px;
+}
+
+.meeha-pc-browse__search svg {
+	position: absolute;
+	left: 16px;
+	top: 50%;
+	transform: translateY( -50% );
+	width: 18px;
+	height: 18px;
+	color: var( --meeha-pc-muted );
+	pointer-events: none;
+}
+
+.meeha-pc-browse__search input {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 12px 16px 12px 44px;
+	border: 1px solid var( --meeha-pc-border );
+	border-radius: 999px;
+	font-family: var( --meeha-pc-font-body );
+	font-size: 15px;
+	color: var( --meeha-pc-ink );
+	background: #fff;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.meeha-pc-browse__search input:focus {
+	outline: none;
+	border-color: var( --meeha-pc-accent );
+	box-shadow: 0 0 0 3px rgba( 20, 99, 86, 0.12 );
+}
+
+.meeha-pc-browse__tabs {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 8px;
+	margin-bottom: 28px;
+}
+
+.meeha-pc-tab {
+	font-family: var( --meeha-pc-font-utility );
+	font-size: 14px;
+	font-weight: 600;
+	color: var( --meeha-pc-muted );
+	background: #fff;
+	border: 1px solid var( --meeha-pc-border );
+	border-radius: 999px;
+	padding: 9px 18px;
+	cursor: pointer;
+	transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+	white-space: nowrap;
+}
+
+.meeha-pc-tab:hover {
+	border-color: var( --meeha-pc-accent );
+	color: var( --meeha-pc-accent );
+}
+
+.meeha-pc-tab.is-active {
+	background: var( --meeha-pc-accent );
+	border-color: var( --meeha-pc-accent );
+	color: #fff;
+}
+
+.meeha-pc-browse__empty {
+	text-align: center;
+	color: var( --meeha-pc-muted );
+	font-family: var( --meeha-pc-font-body );
+	padding: 32px 0;
+}
+
+#meeha-pc-grid {
+	transition: opacity 0.15s ease;
+}
+
+#meeha-pc-more {
+	display: block;
+	margin: 24px auto 0;
+}
+
+@media ( max-width: 480px ) {
+	.meeha-pc-browse__tabs {
+		justify-content: flex-start;
+		overflow-x: auto;
+		flex-wrap: nowrap;
+		-webkit-overflow-scrolling: touch;
+		scrollbar-width: none;
+		padding-bottom: 4px;
+	}
+	.meeha-pc-browse__tabs::-webkit-scrollbar {
+		display: none;
+	}
+	.meeha-pc-tab {
+		flex-shrink: 0;
+	}
+}

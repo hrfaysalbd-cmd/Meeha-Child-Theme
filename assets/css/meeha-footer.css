@@ -1,0 +1,304 @@
+/* ============================================
+   Meeha News — কাস্টম ফুটার
+   রেফারেন্স: BBC/Al Jazeera/Prothom Alo-ধাঁচের ডার্ক ফুটার, ব্র্যান্ড নীল
+   অ্যাকসেন্ট হিসেবে (পুরো ব্যাকগ্রাউন্ড নীল নয় - প্যারেন্ট থিমের উইজেট
+   এভাবেই ভেঙে "পুরোপুরি নীল" দেখাচ্ছিল, এখানে সেটা ইচ্ছাকৃতভাবে এড়ানো হলো)
+============================================ */
+.meeha-footer {
+	background: #10151f;
+	color: #c7ccd6;
+	font-family: var( --meeha-font-body, sans-serif );
+	margin-top: var( --meeha-space-lg, 32px );
+}
+
+.meeha-footer a {
+	color: #c7ccd6;
+	text-decoration: none;
+	transition: color 0.15s ease;
+}
+
+.meeha-footer a:hover {
+	color: #fff;
+}
+
+.meeha-footer__inner {
+	max-width: 1200px;
+	margin: 0 auto;
+	padding: 0 20px;
+}
+
+/* ---------- নিউজলেটার ব্যান্ড ---------- */
+.meeha-footer__newsletter {
+	background: var( --meeha-accent, #025AB2 );
+	padding: 28px 0;
+}
+
+.meeha-footer__newsletter .meeha-footer__inner {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.meeha-footer__newsletter-text h2 {
+	color: #fff;
+	font-family: var( --meeha-font-display, serif );
+	font-size: 20px;
+	margin: 0 0 4px;
+}
+
+.meeha-footer__newsletter-text p {
+	color: rgba( 255, 255, 255, 0.85 );
+	font-size: 13.5px;
+	margin: 0;
+}
+
+.meeha-footer__newsletter-form {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.meeha-footer__newsletter-form input[type="email"] {
+	padding: 10px 14px;
+	border-radius: 8px;
+	border: none;
+	font-size: 14px;
+	min-width: 220px;
+}
+
+.meeha-footer__newsletter-form button {
+	padding: 10px 20px;
+	border-radius: 8px;
+	border: none;
+	background: #10151f;
+	color: #fff;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.15s ease;
+}
+
+.meeha-footer__newsletter-form button:hover {
+	background: #000;
+}
+
+.meeha-footer__newsletter-msg {
+	width: 100%;
+	color: #fff;
+	font-size: 13px;
+	margin: 6px 0 0;
+}
+
+/* ---------- মূল অংশ: ব্র্যান্ড + কুইক-লিংক কলাম ---------- */
+.meeha-footer__main {
+	padding: 40px 0 24px;
+	border-bottom: 1px solid rgba( 255, 255, 255, 0.08 );
+}
+
+.meeha-footer__grid {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 32px;
+}
+
+.meeha-footer__brand .meeha-footer__logo img {
+	max-height: 40px;
+	width: auto;
+}
+
+.meeha-footer__brand .meeha-footer__logo {
+	background: #fff;
+	display: inline-block;
+	padding: 8px 14px;
+	border-radius: 8px;
+	margin-bottom: 4px;
+}
+
+.meeha-footer__sitename a {
+	font-family: var( --meeha-font-display, serif );
+	font-size: 22px;
+	font-weight: 700;
+	color: #fff;
+}
+
+.meeha-footer__about {
+	font-size: 13.5px;
+	line-height: 1.6;
+	margin: 14px 0 18px;
+	color: #9aa1af;
+	max-width: 320px;
+}
+
+.meeha-footer__social {
+	list-style: none;
+	display: flex;
+	gap: 10px;
+	margin: 0;
+	padding: 0;
+}
+
+.meeha-footer__social a {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+	background: rgba( 255, 255, 255, 0.08 );
+	color: #fff;
+}
+
+.meeha-footer__social a:hover {
+	background: var( --meeha-accent, #025AB2 );
+}
+
+.meeha-footer__social svg {
+	width: 16px;
+	height: 16px;
+}
+
+.meeha-footer__col-title {
+	color: #fff;
+	font-family: var( --meeha-font-display, serif );
+	font-size: 15px;
+	font-weight: 700;
+	margin: 0 0 14px;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+
+.meeha-footer__col-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.meeha-footer__col-list a {
+	font-size: 14px;
+}
+
+/* ---------- নিচের বার: কপিরাইট + মেনু ---------- */
+.meeha-footer__bottom {
+	padding: 16px 0;
+}
+
+.meeha-footer__bottom-inner {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.meeha-footer__copyright {
+	font-size: 12.5px;
+	color: #7d8494;
+	margin: 0;
+}
+
+.meeha-footer__bottom-menu {
+	list-style: none;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px;
+	margin: 0;
+	padding: 0;
+}
+
+.meeha-footer__bottom-menu a {
+	font-size: 12.5px;
+	color: #9aa1af;
+}
+
+/* ---------- স্ক্রল-টু-টপ ---------- */
+.meeha-scroll-top {
+	position: fixed;
+	right: 18px;
+	bottom: 18px;
+	width: 44px;
+	height: 44px;
+	border-radius: 50%;
+	border: none;
+	background: var( --meeha-accent, #025AB2 );
+	color: #fff;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	box-shadow: 0 4px 14px rgba( 0, 0, 0, 0.25 );
+	opacity: 0;
+	visibility: hidden;
+	transform: translateY( 10px );
+	transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s ease;
+	z-index: 999;
+}
+
+.meeha-scroll-top.is-visible {
+	opacity: 1;
+	visibility: visible;
+	transform: translateY( 0 );
+}
+
+.meeha-scroll-top:hover {
+	background: var( --meeha-accent-dk, #01468A );
+}
+
+.meeha-scroll-top svg {
+	width: 20px;
+	height: 20px;
+}
+
+/* ============================================
+   ট্যাবলেট
+============================================ */
+@media ( min-width: 640px ) {
+	.meeha-footer__grid {
+		grid-template-columns: repeat( 2, 1fr );
+	}
+}
+
+/* ============================================
+   ডেক্সটপ
+============================================ */
+@media ( min-width: 1024px ) {
+	.meeha-footer__grid {
+		grid-template-columns: 1.4fr repeat( 3, 1fr );
+	}
+}
+
+/* ============================================
+   মোবাইল - কুইক-লিংক কলামগুলো অ্যাকর্ডিয়নে ভাঁজ হয়ে থাকে
+   (স্ক্রলের দৈর্ঘ্য কমাতে), শিরোনামে ট্যাপ করলে খোলে
+============================================ */
+@media ( max-width: 639px ) {
+	.meeha-footer__col-title {
+		position: relative;
+		cursor: pointer;
+		padding-right: 24px;
+	}
+	.meeha-footer__col-title::after {
+		content: '+';
+		position: absolute;
+		right: 0;
+		top: 0;
+		font-size: 18px;
+	}
+	.meeha-footer__col.is-open .meeha-footer__col-title::after {
+		content: '−';
+	}
+	.meeha-footer__col-list {
+		display: none;
+		padding-top: 4px;
+	}
+	.meeha-footer__col.is-open .meeha-footer__col-list {
+		display: flex;
+	}
+	.meeha-footer__bottom-inner {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+}

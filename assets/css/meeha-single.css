@@ -1,0 +1,1604 @@
+/* ============================================
+   Meeha News — Single Article Design System
+   এই পেজের সবচেয়ে গুরুত্বপূর্ণ কাজ: আরামদায়ক পড়ার অভিজ্ঞতা তৈরি করা।
+============================================ */
+
+:root {
+	--meeha-bg:        #FFFFFF;
+	--meeha-bg-soft:   #FAFAF8;
+	--meeha-ink:       #14171F;
+	--meeha-ink-soft:  #565A66;
+	--meeha-border:    #E6E6E2;
+	--meeha-accent:    #025AB2;
+	--meeha-accent-dk: #01468A;
+
+	--meeha-font-display: 'Baloo Da 2', 'Hind Siliguri', sans-serif;
+	--meeha-font-body:    'Hind Siliguri', sans-serif;
+	--meeha-font-utility: 'Inter', 'Hind Siliguri', sans-serif;
+
+	--meeha-space-xs: 8px;
+	--meeha-space-sm: 16px;
+	--meeha-space-md: 24px;
+	--meeha-space-lg: 40px;
+
+	--meeha-radius: 6px;
+	--meeha-reading-width: 680px; /* আরামদায়ক লাইন-লেংথ — বেশি চওড়া হলে চোখ ক্লান্ত হয় */
+}
+
+/* ============================================
+   সাব-হেডার — ক্যাটাগরি + টপিক, হেডারের ঠিক নিচে
+============================================ */
+.meeha-subheader {
+	background: var( --meeha-bg-soft );
+	border-bottom: 1px solid var( --meeha-border );
+}
+
+.meeha-subheader__inner {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	height: 42px;
+	font-family: var( --meeha-font-utility );
+	font-size: 13.5px;
+}
+
+.meeha-subheader__category {
+	font-weight: 700;
+	color: var( --meeha-accent );
+	text-decoration: none;
+	white-space: nowrap;
+}
+.meeha-subheader__category:hover {
+	color: var( --meeha-accent-dk );
+}
+
+.meeha-subheader__sep {
+	color: var( --meeha-border );
+}
+
+.meeha-subheader__topic {
+	color: var( --meeha-ink-soft );
+	font-weight: 500;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* ============================================
+   রিডিং প্রোগ্রেস বার
+============================================ */
+#meeha-progress {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 3px;
+	background: transparent;
+	z-index: 9999;
+}
+
+#meeha-progress__bar {
+	height: 100%;
+	width: 0%;
+	background: var( --meeha-accent );
+	transition: width 0.1s linear;
+}
+
+/* ============================================
+   বেস
+============================================ */
+#meeha-single {
+	background: var( --meeha-bg );
+	color: var( --meeha-ink );
+	font-family: var( --meeha-font-body );
+}
+
+#meeha-single * {
+	box-sizing: border-box;
+}
+
+.meeha-single-layout {
+	max-width: 1100px;
+	margin: 0 auto;
+	padding: 0 var( --meeha-space-md );
+}
+
+.meeha-article {
+	padding: var( --meeha-space-lg ) 0;
+}
+
+/* ফিচার্ড ইমেজ না থাকলে এই প্লেসহোল্ডার (হোমপেজের মতোই ধারাবাহিক ডিজাইন) */
+.meeha-card__placeholder {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+	background: linear-gradient( 135deg, var( --meeha-accent ) 0%, var( --meeha-accent-dk ) 100% );
+	color: #fff;
+	font-family: var( --meeha-font-display );
+	font-weight: 700;
+	font-size: 32px;
+}
+
+/* ============================================
+   আর্টিকেল হেডার
+============================================ */
+.meeha-article__header {
+	margin-bottom: var( --meeha-space-md );
+}
+
+.meeha-eyebrow {
+	display: inline-block;
+	font-family: var( --meeha-font-utility );
+	font-size: 13px;
+	font-weight: 600;
+	letter-spacing: 0.05em;
+	color: var( --meeha-accent );
+	border-left: 3px solid var( --meeha-accent );
+	padding-left: 8px;
+	margin-bottom: var( --meeha-space-sm );
+}
+
+.meeha-article__title {
+	font-family: var( --meeha-font-display );
+	font-weight: 700;
+	font-size: 28px;
+	line-height: 1.3;
+	margin: 0 0 var( --meeha-space-sm );
+}
+
+.meeha-article__subtitle {
+	font-family: var( --meeha-font-body );
+	font-size: 18px;
+	color: var( --meeha-ink-soft );
+	line-height: 1.5;
+	margin: 0 0 var( --meeha-space-md );
+}
+
+.meeha-byline {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: var( --meeha-space-sm ) 0;
+	border-top: 1px solid var( --meeha-border );
+	border-bottom: 1px solid var( --meeha-border );
+}
+
+.meeha-byline__avatar {
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.meeha-byline__text {
+	display: flex;
+	flex-direction: column;
+}
+
+.meeha-byline__name {
+	font-family: var( --meeha-font-body );
+	font-weight: 600;
+	font-size: 15px;
+}
+
+.meeha-byline__meta {
+	font-family: var( --meeha-font-utility );
+	font-size: 13px;
+	color: var( --meeha-ink-soft );
+}
+
+/* ============================================
+   শেয়ার বাটন
+============================================ */
+.meeha-share {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: var( --meeha-space-md ) 0;
+}
+
+.meeha-share__btn {
+	font-family: var( --meeha-font-utility );
+	font-size: 13px;
+	font-weight: 500;
+	padding: 8px 16px;
+	min-height: 40px; /* মোবাইলে সহজে ট্যাপ করার জন্য যথেষ্ট বড় */
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	border: 1px solid var( --meeha-border );
+	border-radius: 999px;
+	background: var( --meeha-bg );
+	color: var( --meeha-ink );
+	cursor: pointer;
+}
+
+.meeha-share__count {
+	font-size: 11px;
+	font-weight: 700;
+	color: var( --meeha-ink-soft );
+	background: rgba( 0, 0, 0, 0.06 );
+	border-radius: 999px;
+	padding: 1px 7px;
+	min-width: 14px;
+	text-align: center;
+}
+
+.meeha-share__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	font-size: 12px;
+	font-weight: 700;
+	color: #fff;
+	flex-shrink: 0;
+}
+
+.meeha-share__btn--fb .meeha-share__icon { background: #1877F2; }
+.meeha-share__btn--wa .meeha-share__icon { background: #25D366; }
+.meeha-share__btn--x .meeha-share__icon { background: #000; font-size: 11px; }
+.meeha-share__btn--copy .meeha-share__icon {
+	background: none;
+	font-size: 15px;
+	width: auto;
+	height: auto;
+}
+
+.meeha-share__total {
+	font-family: var( --meeha-font-utility );
+	font-size: 12px;
+	color: var( --meeha-ink-soft );
+	margin: 6px 0 0;
+}
+
+.meeha-share__total-label-short {
+	display: none;
+}
+
+/* সারাংশ + শেয়ার বাটন + মোট শেয়ার — সব একসাথে একটা কমপ্যাক্ট রো-তে */
+.meeha-toolbar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 10px 0;
+}
+
+.meeha-toolbar .meeha-summary-btn,
+.meeha-toolbar .meeha-listen-btn {
+	margin-bottom: 0;
+}
+
+.meeha-toolbar .meeha-share {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 0;
+}
+
+.meeha-toolbar .meeha-share__total {
+	margin: 0;
+	flex-basis: 100%;
+}
+
+@media ( max-width: 480px ) {
+	/* মোবাইলে শেয়ার বাটনের টেক্সট লেবেল লুকিয়ে শুধু আইকন + কাউন্ট রাখা হচ্ছে।
+	   আগে শুধু .meeha-toolbar-এর ভেতরের বাটনে প্রযোজ্য ছিল, তাই নিচের
+	   (bottom) শেয়ার বাটনে টেক্সট থেকেই যাচ্ছিল — এখন সব জায়গাতেই প্রযোজ্য।
+	   সারাংশ বাটনের টেক্সট ইচ্ছাকৃতভাবে রাখা হয়েছে — আইকন-অনলি বাটন ইউজারের
+	   কাছে অপরিচিত মনে হওয়ার আশঙ্কা আছে। */
+	.meeha-share__label {
+		display: none;
+	}
+
+	.meeha-share__btn {
+		padding: 0;
+		gap: 0;
+		flex: 0 0 auto;
+		justify-content: center;
+	}
+
+	.meeha-share__total-label-long {
+		display: none;
+	}
+
+	.meeha-share__total-label-short {
+		display: inline;
+	}
+}
+
+.meeha-share__btn:hover {
+	border-color: var( --meeha-accent );
+	color: var( --meeha-accent );
+}
+
+.meeha-share__copy.meeha-share__copied {
+	background: var( --meeha-accent );
+	color: #fff;
+	border-color: var( --meeha-accent );
+}
+
+/* ============================================
+   "সারাংশ পড়ুন" বাটন ও পপ-আপ কার্ড
+============================================ */
+.meeha-summary-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	background: var( --meeha-bg-soft );
+	border: 1px solid var( --meeha-accent );
+	color: var( --meeha-accent );
+	font-family: var( --meeha-font-body );
+	font-weight: 600;
+	font-size: 14px;
+	padding: 10px 20px;
+	border-radius: 999px;
+	cursor: pointer;
+	margin: var( --meeha-space-sm ) 0;
+	min-height: 44px;
+}
+
+.meeha-listen-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	background: var( --meeha-bg-soft );
+	border: 1px solid var( --meeha-accent );
+	color: var( --meeha-accent );
+	font-family: var( --meeha-font-body );
+	font-weight: 600;
+	font-size: 14px;
+	padding: 10px 20px;
+	border-radius: 999px;
+	cursor: pointer;
+	margin: var( --meeha-space-sm ) 0;
+	min-height: 44px;
+}
+
+.meeha-listen-btn:hover {
+	background: var( --meeha-accent );
+	color: #fff;
+}
+
+.meeha-summary-btn::before {
+	content: '✦';
+}
+
+.meeha-summary-btn:hover {
+	background: var( --meeha-accent );
+	color: #fff;
+}
+
+.meeha-summary-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba( 20, 23, 31, 0.6 );
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: var( --meeha-space-md );
+	z-index: 10000;
+}
+
+.meeha-summary-overlay[hidden] {
+	display: none;
+}
+
+.meeha-summary-card {
+	position: relative;
+	background: var( --meeha-bg );
+	border-radius: 12px;
+	max-width: 560px;
+	width: 100%;
+	max-height: 80vh;
+	overflow-y: auto;
+	padding: var( --meeha-space-lg ) var( --meeha-space-md ) var( --meeha-space-md );
+	box-shadow: 0 20px 60px rgba( 0, 0, 0, 0.25 );
+}
+
+.meeha-summary-close {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+	border: none;
+	background: var( --meeha-bg-soft );
+	color: var( --meeha-ink );
+	font-size: 22px;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.meeha-summary-close:hover {
+	background: var( --meeha-border );
+}
+
+.meeha-summary-card__title {
+	font-family: var( --meeha-font-display );
+	font-weight: 700;
+	font-size: 20px;
+	color: var( --meeha-accent );
+	margin: 0 0 var( --meeha-space-sm );
+}
+
+.meeha-summary-card__body {
+	font-family: var( --meeha-font-body );
+	font-size: 16px;
+	line-height: 1.8;
+}
+
+.meeha-summary-card__body p {
+	margin: 0 0 12px;
+}
+
+/* ============================================
+   ফিচার্ড ইমেজ
+============================================ */
+.meeha-article__figure {
+	max-width: 900px;
+	margin: 0 auto var( --meeha-space-lg );
+	padding: 0 var( --meeha-space-md );
+}
+
+.meeha-article__figure img {
+	width: 100%;
+	height: auto;
+	border-radius: var( --meeha-radius );
+}
+
+.meeha-article__figure figcaption {
+	font-family: var( --meeha-font-utility );
+	font-size: 13px;
+	color: var( --meeha-ink-soft );
+	margin-top: 8px;
+	text-align: center;
+}
+
+/* ============================================
+   আর্টিকেল বডি — সবচেয়ে গুরুত্বপূর্ণ টাইপোগ্রাফি
+============================================ */
+.meeha-article__body {
+	font-family: AdorshoLipi, arial, sans-serif !important;
+	font-size: 18px;
+	line-height: 1.85; /* বাংলা কনজাংক্টের জন্য বাড়তি লাইন-হাইট দরকার */
+	color: var( --meeha-ink );
+}
+
+.meeha-article__body p {
+	margin: 0 0 var( --meeha-space-md );
+}
+
+/* প্রথম প্যারাগ্রাফ একটু বড়, সংবাদপত্রের "লিড" ঘরানায় */
+.meeha-article__body > p:first-of-type {
+	font-size: 20px;
+	font-weight: 500;
+	border-left: 3px solid var( --meeha-accent );
+	padding-left: var( --meeha-space-sm );
+}
+
+.meeha-article__body h2,
+.meeha-article__body h3 {
+	font-family: var( --meeha-font-display );
+	font-weight: 700;
+	margin: var( --meeha-space-lg ) 0 var( --meeha-space-sm );
+}
+
+.meeha-article__body h2 { font-size: 24px; }
+.meeha-article__body h3 { font-size: 20px; }
+
+.meeha-article__body a {
+	color: var( --meeha-accent );
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+.meeha-article__body blockquote {
+	margin: var( --meeha-space-md ) 0;
+	padding: var( --meeha-space-sm ) var( --meeha-space-md );
+	border-left: 3px solid var( --meeha-accent );
+	background: var( --meeha-bg-soft );
+	font-style: italic;
+	font-size: 19px;
+}
+
+.meeha-article__body img {
+	max-width: 100%;
+	height: auto;
+	border-radius: var( --meeha-radius );
+	margin: var( --meeha-space-sm ) 0;
+}
+
+.meeha-article__body ul,
+.meeha-article__body ol {
+	padding-left: 1.4em;
+	margin: 0 0 var( --meeha-space-md );
+}
+
+.meeha-article__body li {
+	margin-bottom: 8px;
+}
+
+/* ============================================
+   "আরও পড়ুন" — কিছু প্যারাগ্রাফ পড়ার পর বাকিটা ফেইড হয়ে
+   বাটনের পেছনে লুকিয়ে থাকে, ক্লিক করলে পুরোটা খুলে যায়
+============================================ */
+.meeha-article__body-wrap {
+	position: relative;
+}
+
+.meeha-article__body-wrap.meeha-truncated .meeha-article__body {
+	max-height: 620px;
+	overflow: hidden;
+}
+
+.meeha-readmore-fade {
+	display: none;
+}
+
+.meeha-article__body-wrap.meeha-truncated .meeha-readmore-fade {
+	display: block;
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: 130px;
+	background: linear-gradient( to bottom, rgba( 255, 255, 255, 0 ) 0%, var( --meeha-bg ) 85% );
+	pointer-events: none;
+}
+
+.meeha-readmore-btn {
+	display: block;
+	margin: var( --meeha-space-sm ) auto var( --meeha-space-lg );
+	padding: 12px 36px;
+	background: var( --meeha-accent );
+	color: #fff;
+	border: none;
+	border-radius: 999px;
+	font-family: var( --meeha-font-body );
+	font-weight: 600;
+	font-size: 15px;
+	cursor: pointer;
+	min-height: 44px; /* মোবাইলে ট্যাপ-ফ্রেন্ডলি */
+}
+
+.meeha-readmore-btn:hover {
+	background: var( --meeha-accent-dk );
+}
+
+.meeha-readmore-btn[hidden] {
+	display: none;
+}
+
+/* ============================================
+   ট্যাগ
+============================================ */
+.meeha-tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: var( --meeha-space-lg ) 0 var( --meeha-space-sm );
+}
+
+.meeha-tags a {
+	font-family: var( --meeha-font-utility );
+	font-size: 13px;
+	padding: 6px 14px;
+	background: var( --meeha-bg-soft );
+	border-radius: 999px;
+	color: var( --meeha-ink-soft );
+	text-decoration: none;
+}
+
+.meeha-tags a:hover {
+	background: var( --meeha-accent );
+	color: #fff;
+}
+
+/* ============================================
+   লেখক বক্স
+============================================ */
+.meeha-author-box {
+	display: flex;
+	gap: var( --meeha-space-sm );
+	margin-top: var( --meeha-space-lg );
+	padding: var( --meeha-space-md );
+	background: var( --meeha-bg-soft );
+	border-radius: var( --meeha-radius );
+}
+
+.meeha-author-box img {
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.meeha-author-box__name {
+	font-family: var( --meeha-font-display );
+	font-weight: 700;
+	font-size: 16px;
+}
+
+.meeha-author-box__bio {
+	font-size: 14px;
+	color: var( --meeha-ink-soft );
+	margin: 4px 0 0;
+}
+
+/* ============================================
+   প্রাসঙ্গিক খবর সেকশন (হোমপেজের গ্রিড স্টাইল পুনর্ব্যবহার)
+============================================ */
+.meeha-container {
+	max-width: 1200px;
+	margin: 0 auto;
+	padding: 0 var( --meeha-space-md );
+}
+
+.meeha-section {
+	padding: var( --meeha-space-lg ) 0;
+	border-top: 1px solid var( --meeha-border );
+}
+
+.meeha-section__head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: var( --meeha-space-md );
+}
+
+.meeha-eyebrow-bar {
+	width: 6px;
+	height: 22px;
+	background: var( --meeha-accent );
+	border-radius: 2px;
+}
+
+.meeha-section__head h2 {
+	font-family: var( --meeha-font-display );
+	font-weight: 700;
+	font-size: 22px;
+	margin: 0;
+}
+
+.meeha-grid {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: var( --meeha-space-md );
+}
+
+.meeha-card__image {
+	aspect-ratio: 4 / 3;
+	overflow: hidden;
+	border-radius: var( --meeha-radius );
+	margin-bottom: 10px;
+}
+
+.meeha-card__image img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.meeha-card__title {
+	font-family: var( --meeha-font-display );
+	font-weight: 600;
+	font-size: 17px;
+	line-height: 1.35;
+	margin: 0 0 6px;
+}
+
+/* .meeha-card-এর মূল রুল meeha-homepage.css-এ, কিন্তু এই পেজে সেটা লোড না হলেও
+   (যেমন কোনো কারণে নির্ভরতা বদলে গেলে) যেন টাইটেলের নিচে ডিফল্ট লিংক-আন্ডারলাইন
+   না আসে, তাই এখানেও একই রিসেট নিরাপত্তা হিসেবে রাখা হলো */
+.meeha-card {
+	color: inherit;
+	text-decoration: none;
+}
+
+.meeha-card:hover .meeha-card__title {
+	color: var( --meeha-accent );
+}
+
+.meeha-meta {
+	font-family: var( --meeha-font-utility );
+	font-size: 13px;
+	color: var( --meeha-ink-soft );
+}
+
+/* ============================================
+   সাইডবার — ডেস্কটপে খালি জায়গার বদলে দরকারি কনটেন্ট,
+   মোবাইলে আর্টিকেলের নিচে চলে আসে
+============================================ */
+.meeha-sidebar {
+	padding: var( --meeha-space-lg ) 0 0;
+}
+
+.meeha-sidebar__block {
+	margin-bottom: var( --meeha-space-lg );
+}
+
+.meeha-sidebar__block--soft {
+	background: var( --meeha-bg-soft );
+	padding: var( --meeha-space-md );
+	border-radius: var( --meeha-radius );
+}
+
+.meeha-sidebar__list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: var( --meeha-space-sm );
+}
+
+.meeha-sidebar__list li {
+	padding-bottom: var( --meeha-space-sm );
+	border-bottom: 1px solid var( --meeha-border );
+}
+
+.meeha-sidebar__list li:last-child {
+	border-bottom: none;
+	padding-bottom: 0;
+}
+
+.meeha-sidebar__list a {
+	display: flex;
+	gap: 10px;
+	align-items: flex-start;
+	color: inherit;
+	text-decoration: none;
+}
+
+.meeha-sidebar__thumb {
+	width: 72px;
+	height: 54px;
+	border-radius: 4px;
+	overflow: hidden;
+	flex-shrink: 0;
+	display: block;
+}
+
+.meeha-sidebar__thumb img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.meeha-sidebar__thumb .meeha-card__placeholder {
+	font-size: 18px;
+}
+
+.meeha-sidebar__title {
+	font-family: var( --meeha-font-display );
+	font-weight: 600;
+	font-size: 14px;
+	line-height: 1.4;
+}
+
+.meeha-sidebar__list a:hover .meeha-sidebar__title {
+	color: var( --meeha-accent );
+}
+
+.meeha-popular__list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.meeha-popular__list li {
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+	padding-bottom: 10px;
+	margin-bottom: 10px;
+	border-bottom: 1px solid var( --meeha-border );
+}
+
+.meeha-popular__list li:last-child {
+	border-bottom: none;
+	margin-bottom: 0;
+	padding-bottom: 0;
+}
+
+.meeha-popular__rank {
+	font-family: var( --meeha-font-utility );
+	font-size: 18px;
+	font-weight: 600;
+	color: var( --meeha-accent );
+	opacity: 0.4;
+	flex-shrink: 0;
+	min-width: 26px;
+}
+
+.meeha-popular__list a {
+	font-family: var( --meeha-font-display );
+	font-weight: 600;
+	font-size: 14px;
+	line-height: 1.4;
+	color: inherit;
+	text-decoration: none;
+}
+
+.meeha-popular__list a:hover {
+	color: var( --meeha-accent );
+}
+
+.meeha-sidebar__ad {
+	text-align: center;
+}
+
+.meeha-sidebar__ad-label {
+	display: block;
+	font-family: var( --meeha-font-utility );
+	font-size: 11px;
+	color: var( --meeha-ink-soft );
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	margin-bottom: 8px;
+}
+
+/* ============================================
+   মন্তব্য অংশ — WordPress ডিফল্ট আউটপুট স্টাইল করা
+============================================ */
+.meeha-comments {
+	max-width: var( --meeha-reading-width );
+	margin: 0 auto;
+	padding: var( --meeha-space-lg ) 0;
+}
+
+.meeha-comments-heading,
+.meeha-comments h3.comment-reply-title {
+	font-family: var( --meeha-font-display );
+	font-weight: 700;
+	font-size: 17px;
+	margin: 0 0 14px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid var( --meeha-border );
+}
+
+.meeha-comments-count {
+	font-family: var( --meeha-font-utility );
+	font-weight: 500;
+	font-size: 13px;
+	color: var( --meeha-ink-soft );
+}
+
+.meeha-comments .comment-list {
+	list-style: none;
+	margin: 0 0 var( --meeha-space-md );
+	padding: 0;
+}
+
+.meeha-comments .comment-list .children {
+	list-style: none;
+	margin: 0;
+	padding-left: 32px;
+}
+
+.meeha-comments .comment-body {
+	padding: 10px 0;
+	border-bottom: 1px solid var( --meeha-border );
+}
+
+/* .comment-meta -> .comment-author (avatar + নাম) সবসময় পাশাপাশি থাকবে */
+.meeha-comments .comment-author {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.meeha-comments .avatar {
+	border-radius: 50%;
+	flex-shrink: 0;
+	display: block;
+	width: 32px !important;
+	height: 32px !important;
+}
+
+.meeha-comments .comment-author .fn {
+	font-family: var( --meeha-font-display );
+	font-weight: 600;
+	font-style: normal;
+	font-size: 13px;
+}
+
+/* ডিফল্ট ইংরেজি "says:" শব্দটা লুকানো হচ্ছে — বাংলা সাইটে অপ্রয়োজনীয় */
+.meeha-comments .comment-author .says {
+	display: none;
+}
+
+.meeha-comments .comment-metadata {
+	font-family: var( --meeha-font-utility );
+	font-size: 11px;
+	color: var( --meeha-ink-soft );
+	margin: 2px 0 0 40px; /* অ্যাভাটারের ঠিক নিচে না গিয়ে নামের লাইন বরাবর শুরু হবে */
+}
+
+.meeha-comments .comment-metadata a {
+	color: inherit;
+}
+
+.meeha-comments .comment-content p {
+	margin: 6px 0 0;
+	font-size: 14px;
+	line-height: 1.6;
+}
+
+.meeha-comments .reply {
+	margin-top: 6px;
+}
+
+.meeha-comments .reply a {
+	font-family: var( --meeha-font-utility );
+	font-size: 12px;
+	font-weight: 600;
+	color: var( --meeha-accent );
+}
+
+/* ============================================
+   কমেন্ট নেভিগেশন (আগের/পরের পেজ)
+============================================ */
+.meeha-comments .comment-navigation {
+	display: flex;
+	justify-content: space-between;
+	font-family: var( --meeha-font-utility );
+	font-size: 13px;
+	font-weight: 600;
+	color: var( --meeha-accent );
+	margin-bottom: var( --meeha-space-sm );
+}
+
+/* Prothom-Alo-style compact form: soft card, small inputs, fields in a row on desktop */
+.meeha-comments .comment-respond {
+	background: #FBFBF9;
+	border: 1px solid var( --meeha-border );
+	border-radius: 10px;
+	padding: 14px;
+}
+
+.meeha-comments .comment-form {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.meeha-comments .comment-form input,
+.meeha-comments .comment-form textarea {
+	width: 100%;
+	padding: 8px 12px;
+	border: 1px solid var( --meeha-border );
+	border-radius: 8px;
+	font-family: var( --meeha-font-body );
+	font-size: 13px;
+	margin-bottom: 0;
+	box-sizing: border-box;
+}
+
+.meeha-comments .comment-form textarea {
+	min-height: 70px;
+}
+
+.meeha-comments .comment-form label {
+	font-family: var( --meeha-font-utility );
+	font-size: 11px;
+	color: var( --meeha-ink-soft );
+	display: block;
+	margin-bottom: 3px;
+}
+
+.meeha-comments .comment-form-comment {
+	flex: 1 1 100%;
+	margin: 0;
+}
+
+/* নাম/ইমেইল/ফোন — মোবাইলে একটার নিচে একটা, বড় স্ক্রিনে পাশাপাশি একই লাইনে */
+.meeha-comments .comment-form-author,
+.meeha-comments .comment-form-email,
+.meeha-comments .comment-form-phone {
+	flex: 1 1 100%;
+	margin: 0;
+}
+
+@media ( min-width: 600px ) {
+	.meeha-comments .comment-form-author,
+	.meeha-comments .comment-form-email,
+	.meeha-comments .comment-form-phone {
+		flex: 1 1 calc( 33.33% - 6px );
+	}
+}
+
+.meeha-comments .comment-form-register {
+	flex: 1 1 100%;
+	margin: 2px 0 0;
+}
+
+.meeha-comments .comment-form-register label {
+	font-size: 12px;
+	color: var( --meeha-ink );
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	cursor: pointer;
+}
+
+.meeha-comments .meeha-comment-submit,
+.meeha-comments .comment-form input[type="submit"] {
+	width: auto;
+	background: var( --meeha-accent );
+	color: #fff;
+	border: none;
+	padding: 9px 22px;
+	border-radius: 999px;
+	font-family: var( --meeha-font-body );
+	font-weight: 600;
+	font-size: 13px;
+	cursor: pointer;
+	min-height: 38px;
+	margin-top: 4px;
+}
+
+.meeha-comments .meeha-comment-submit:hover,
+.meeha-comments .comment-form input[type="submit"]:hover {
+	background: var( --meeha-accent-dk );
+}
+
+.meeha-comments .comment-notes,
+.meeha-comments .logged-in-as,
+.meeha-comments .meeha-comment-note {
+	font-family: var( --meeha-font-utility );
+	font-size: 11px;
+	color: var( --meeha-ink-soft );
+	margin: 0 0 4px;
+	flex: 1 1 100%;
+}
+
+.meeha-comments-closed {
+	font-family: var( --meeha-font-utility );
+	font-size: 14px;
+	color: var( --meeha-ink-soft );
+	text-align: center;
+	padding: var( --meeha-space-md ) 0;
+	border-top: 1px solid var( --meeha-border );
+}
+
+/* ============================================
+   অ্যাক্সেসিবিলিটি
+============================================ */
+#meeha-single a:focus-visible,
+#meeha-single button:focus-visible,
+#meeha-single input:focus-visible {
+	outline: 2px solid var( --meeha-accent );
+	outline-offset: 2px;
+}
+
+/* ============================================
+   মোবাইল স্ট্যান্ডার্ড — ৪৮০px পর্যন্ত (বেশিরভাগ ফোন)
+============================================ */
+@media ( max-width: 480px ) {
+	.meeha-article {
+		padding: var( --meeha-space-md ) var( --meeha-space-sm );
+	}
+
+	.meeha-article__title {
+		font-size: 24px;
+	}
+
+	.meeha-article__subtitle {
+		font-size: 16px;
+	}
+
+	.meeha-article__body {
+		font-size: 17px;
+	}
+
+	.meeha-article__body > p:first-of-type {
+		font-size: 18px;
+	}
+
+	.meeha-readmore-btn {
+		width: 100%;
+	}
+}
+
+/* মোবাইল ও ট্যাবলেটে (1024px-এর নিচে) সাইডবার আর্টিকেলের নিচে স্ট্যাক হয়,
+   তাই একটা স্পষ্ট বিভাজক রেখা দরকার */
+@media ( max-width: 1023px ) {
+	.meeha-sidebar {
+		border-top: 1px solid var( --meeha-border );
+		margin-top: var( --meeha-space-md );
+	}
+
+	.meeha-comments-wrap {
+		border-top: 1px solid var( --meeha-border );
+		margin-top: var( --meeha-space-md );
+		padding-top: var( --meeha-space-md );
+	}
+}
+
+/* ============================================
+   ট্যাবলেট+ (768px থেকে)
+============================================ */
+@media ( min-width: 768px ) {
+	.meeha-article__title {
+		font-size: 36px;
+	}
+
+	.meeha-grid {
+		grid-template-columns: repeat( 2, 1fr );
+	}
+}
+
+/* ============================================
+   ডেস্কটপ (1024px+) — এখানেই সাইডবার পাশে বসে,
+   এর নিচে (মোবাইল/ট্যাবলেটে) আর্টিকেলের পরে স্ট্যাক হয়ে থাকে
+============================================ */
+@media ( min-width: 1024px ) {
+	.meeha-single-layout {
+		display: grid;
+		grid-template-columns: 1fr 340px;
+		grid-template-areas:
+			"article sidebar"
+			"comments comments";
+		gap: var( --meeha-space-lg );
+		align-items: start;
+	}
+
+	.meeha-single-layout .meeha-article {
+		grid-area: article;
+	}
+
+	.meeha-single-layout .meeha-comments-wrap {
+		grid-area: comments;
+	}
+
+	.meeha-single-layout .meeha-sidebar {
+		grid-area: sidebar;
+	}
+
+	.meeha-single-layout.meeha-no-sidebar {
+		grid-template-columns: 1fr;
+		grid-template-areas:
+			"article"
+			"comments";
+		max-width: var( --meeha-reading-width );
+	}
+
+	.meeha-sidebar {
+		position: sticky;
+		top: var( --meeha-space-md );
+		padding-top: var( --meeha-space-lg );
+	}
+
+	.meeha-grid {
+		grid-template-columns: repeat( 4, 1fr );
+	}
+}
+/* ============================================
+   "সারাংশ পড়ুন" বাটন
+============================================ */
+.meeha-summary-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-family: 'Hind Siliguri', sans-serif;
+	font-weight: 600;
+	font-size: 14px;
+	color: var( --meeha-accent );
+	background: #EAF3F1;
+	border: 1px solid var( --meeha-accent );
+	border-radius: 999px;
+	padding: 8px 16px;
+	margin-bottom: 14px;
+	cursor: pointer;
+}
+
+.meeha-summary-btn:hover {
+	background: var( --meeha-accent );
+	color: #fff;
+}
+
+/* সারাংশ পপ-আপের নিচের দুইটা একশন বাটন */
+.meeha-summary-actions {
+	display: flex;
+	gap: 10px;
+	margin-top: 20px;
+	flex-wrap: wrap;
+}
+
+.meeha-summary-actions__btn {
+	flex: 1 1 auto;
+	text-align: center;
+	font-family: 'Hind Siliguri', sans-serif;
+	font-weight: 600;
+	font-size: 14px;
+	padding: 12px 16px;
+	border-radius: 999px;
+	text-decoration: none;
+	border: none;
+	cursor: pointer;
+}
+
+.meeha-summary-actions__btn--primary {
+	background: var( --meeha-accent );
+	color: #fff;
+}
+
+.meeha-summary-actions__btn--primary:hover {
+	background: var( --meeha-accent-dk );
+}
+
+.meeha-summary-actions__btn--secondary {
+	background: #F1F1EF;
+	color: #565A66;
+}
+
+.meeha-summary-actions__btn--secondary:hover {
+	background: #E4E4E0;
+	color: #14171F;
+}
+
+/* ============================================
+   মোবাইলে "সম্পর্কিত খবর" (ও অন্যান্য .meeha-container সেকশন) যেন
+   কোনোভাবেই স্ক্রিনের একদম কানায় লেগে না যায় — parent থিমের কোনো
+   গ্লোবাল স্টাইলের সাথে সংঘর্ষ হলেও এই প্যাডিং যেন টিকে থাকে
+============================================ */
+@media ( max-width: 768px ) {
+	.meeha-container {
+		box-sizing: border-box;
+		width: 100%;
+		padding-left: var( --meeha-space-sm );
+		padding-right: var( --meeha-space-sm );
+	}
+
+	.meeha-section.meeha-container {
+		padding-left: var( --meeha-space-sm );
+		padding-right: var( --meeha-space-sm );
+	}
+
+	.meeha-grid {
+		padding: 0;
+	}
+
+	.meeha-card {
+		box-sizing: border-box;
+	}
+}
+
+/* Most Read section - used on homepage and single post sidebar */
+.meeha-most-read {
+	background: #FBFBF9;
+	border: 1px solid #E6E6E2;
+	border-radius: 12px;
+	padding: 18px;
+	margin-bottom: 20px;
+}
+
+.meeha-most-read__title {
+	font-family: 'Baloo Da 2', sans-serif;
+	font-size: 16px;
+	font-weight: 700;
+	color: var( --meeha-ink );
+	margin: 0 0 14px;
+	padding-bottom: 10px;
+	border-bottom: 2px solid var( --meeha-accent );
+	display: inline-block;
+}
+
+.meeha-most-read__list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.meeha-most-read__item {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+}
+
+.meeha-most-read__rank {
+	flex: 0 0 24px;
+	font-family: 'Baloo Da 2', sans-serif;
+	font-weight: 800;
+	font-size: 18px;
+	color: var( --meeha-accent );
+}
+
+.meeha-most-read__link {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	text-decoration: none;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.meeha-most-read__thumb {
+	flex: 0 0 56px;
+	width: 56px;
+	height: 56px;
+	border-radius: 6px;
+	overflow: hidden;
+	background: #E6E6E2;
+}
+
+.meeha-most-read__thumb img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.meeha-most-read__title-text {
+	font-family: 'Hind Siliguri', sans-serif;
+	font-size: 14px;
+	font-weight: 600;
+	color: var( --meeha-ink );
+	line-height: 1.4;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.meeha-most-read__link:hover .meeha-most-read__title-text {
+	color: var( --meeha-accent );
+}
+
+/* Report button + form */
+.meeha-report-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-family: 'Hind Siliguri', sans-serif;
+	font-weight: 600;
+	font-size: 14px;
+	color: #C0392B;
+	background: #FCEDEB;
+	border: 1px solid #C0392B;
+	border-radius: 999px;
+	padding: 8px 16px;
+	margin: 8px 0 14px;
+	cursor: pointer;
+}
+
+.meeha-report-btn:hover {
+	background: #C0392B;
+	color: #fff;
+}
+
+.meeha-report-form {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.meeha-report-form select,
+.meeha-report-form input[type="text"],
+.meeha-report-form input[type="tel"],
+.meeha-report-form input[type="email"],
+.meeha-report-form textarea {
+	width: 100%;
+	padding: 10px 12px;
+	border: 1px solid var( --meeha-border );
+	border-radius: 8px;
+	font-family: 'Hind Siliguri', sans-serif;
+	font-size: 14px;
+	box-sizing: border-box;
+}
+
+.meeha-report-form label {
+	font-family: 'Hind Siliguri', sans-serif;
+	font-size: 13px;
+	color: var( --meeha-ink-soft );
+	display: block;
+}
+
+.meeha-report-form__file-label input {
+	margin-top: 4px;
+}
+
+/* Reaction system */
+.meeha-reactions {
+	text-align: center;
+	margin: 24px 0;
+	padding: 20px;
+	background: #FBFBF9;
+	border: 1px solid var( --meeha-border );
+	border-radius: 12px;
+}
+
+.meeha-reactions__title {
+	font-family: 'Hind Siliguri', sans-serif;
+	font-weight: 600;
+	font-size: 14px;
+	color: var( --meeha-ink-soft );
+	margin: 0 0 12px;
+}
+
+.meeha-reactions__row {
+	display: flex;
+	justify-content: center;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
+.meeha-reactions__btn {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2px;
+	background: #fff;
+	border: 1px solid var( --meeha-border );
+	border-radius: 12px;
+	padding: 10px 14px;
+	cursor: pointer;
+	transition: transform 0.15s ease;
+}
+
+.meeha-reactions__btn:hover {
+	transform: scale( 1.08 );
+	border-color: var( --meeha-accent );
+}
+
+.meeha-reactions__btn.is-active {
+	background: var( --meeha-accent );
+	border-color: var( --meeha-accent );
+}
+
+.meeha-reactions__btn.is-active .meeha-reactions__count {
+	color: #fff;
+}
+
+.meeha-reactions__emoji {
+	font-size: 22px;
+	line-height: 1;
+}
+
+.meeha-reactions__count {
+	font-family: 'Inter', sans-serif;
+	font-size: 12px;
+	font-weight: 600;
+	color: var( --meeha-ink-soft );
+}
+
+/* Author designation next to byline name */
+.meeha-byline__title {
+	font-weight: 500;
+	color: var( --meeha-ink-soft );
+	font-size: 0.9em;
+}
+
+/* Commenter's area shown next to their name */
+.meeha-comment-area {
+	font-weight: 400;
+	font-size: 0.85em;
+	color: var( --meeha-ink-soft );
+}
+
+/* Area-based news sidebar widget */
+.meeha-area-widget select,
+.meeha-area-widget input[type="text"] {
+	width: 100%;
+	padding: 8px 10px;
+	margin-bottom: 8px;
+	border: 1px solid var( --meeha-border );
+	border-radius: 8px;
+	font-family: 'Hind Siliguri', sans-serif;
+	font-size: 13px;
+	box-sizing: border-box;
+}
+
+.meeha-area-widget__search {
+	width: 100%;
+	font-family: 'Hind Siliguri', sans-serif;
+	font-weight: 600;
+	font-size: 13px;
+	color: #fff;
+	background: var( --meeha-accent );
+	border: none;
+	border-radius: 8px;
+	padding: 10px;
+	cursor: pointer;
+}
+
+.meeha-area-widget__search:hover {
+	background: var( --meeha-accent-dk );
+}
+
+.meeha-area-widget__results {
+	margin-top: 12px;
+}
+
+.meeha-area-widget__list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.meeha-area-widget__list a {
+	font-size: 13px;
+	color: var( --meeha-ink );
+	text-decoration: none;
+	line-height: 1.4;
+	display: block;
+}
+
+.meeha-area-widget__list a:hover {
+	color: var( --meeha-accent );
+}
+
+/* Floating reading controls - icon-only (no card background), sticky to
+   screen edge: right on mobile, left on desktop/tablet */
+.meeha-font-control {
+	position: fixed;
+	top: 50%;
+	transform: translateY( -50% );
+	right: 3px;
+	z-index: 40;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	background: none;
+	border: none;
+	padding: 0;
+	box-shadow: none;
+}
+
+.meeha-font-control__btn {
+	width: 38px;
+	height: 38px;
+	border-radius: 50%;
+	border: none;
+	background: transparent;
+	color: var( --meeha-accent );
+	font-size: 20px;
+	font-weight: 700;
+	line-height: 1;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	filter: drop-shadow( 0 2px 3px rgba( 0, 0, 0, 0.3 ) );
+	transition: transform 0.15s ease;
+}
+
+.meeha-font-control__btn:hover,
+.meeha-font-control__btn:focus-visible {
+	transform: scale( 1.12 );
+	background: transparent;
+	color: var( --meeha-accent );
+}
+
+.meeha-font-control__listen {
+	margin-top: 0;
+	padding-top: 0;
+	border-top: none;
+	border-radius: 50%;
+	background: transparent;
+	color: var( --meeha-accent );
+	font-size: 17px;
+}
+
+.meeha-font-control__listen:hover,
+.meeha-font-control__listen:focus-visible {
+	background: transparent;
+	color: var( --meeha-accent );
+}
+
+@media ( min-width: 768px ) {
+	.meeha-font-control {
+		right: auto;
+		left: 14px;
+	}
+}
