@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Bengali:wght@600;800&family=Hind+Siliguri:wght@500;600;700&display=block" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  #stage { position: relative; overflow: hidden; }
+  #stage.preview { background: url(sample.jpg) center/cover; }
+  .abs { position: absolute; }
+  .serif { font-family: 'Noto Serif Bengali', serif; }
+  .sans { font-family: 'Hind Siliguri', sans-serif; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+const q = new URLSearchParams(location.search);
+const W = +q.get('w') || 1080, H = +q.get('h') || 1080;
+const id = q.get('id');
+const stage = document.getElementById('stage');
+stage.style.width = W + 'px';
+stage.style.height = H + 'px';
+if (q.get('preview')) stage.classList.add('preview');
+
+const BLUE = '#025AB2', RED = '#D62828', GREEN = '#006A4E', BDRED = '#F42A41', GOLD = '#C9A227';
+
+// Small helpers ---------------------------------------------------------
+const el = (html) => { stage.insertAdjacentHTML('beforeend', html); };
+const box = (css) => el(`<div class="abs" style="${css}"></div>`);
+const label = (text, css, cls = 'serif') => el(`<div class="abs ${cls}" style="${css}">${text}</div>`);
+const svg = (inner, css, vb) => el(`<svg class="abs" style="${css}" viewBox="${vb}" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`);
+const rnd = (seed => () => (seed = (seed * 16807) % 2147483647) / 2147483647)(42);
+
+// Corner bracket (news style)
+function brackets(color, inset, len, thick) {
+  const s = `background:${color};`;
+  box(`${s}left:${inset}px;top:${inset}px;width:${len}px;height:${thick}px`);
+  box(`${s}left:${inset}px;top:${inset}px;width:${thick}px;height:${len}px`);
+  box(`${s}right:${inset}px;bottom:${inset}px;width:${len}px;height:${thick}px`);
+  box(`${s}right:${inset}px;bottom:${inset}px;width:${thick}px;height:${len}px`);
+}
+
+// Gold corner ornament (SVG, drawn for top-left; rotated for others)
+function ornament(color, size, inset) {
+  const path = `<path d="M4 96 V30 Q4 4 30 4 H96" fill="none" stroke="${color}" stroke-width="5"/>
+    <path d="M18 96 V38 Q18 18 38 18 H96" fill="none" stroke="${color}" stroke-width="2"/>
+    <circle cx="30" cy="30" r="7" fill="${color}"/>
+    <path d="M44 30 Q60 22 76 30 Q60 38 44 30Z M30 44 Q22 60 30 76 Q38 60 30 44Z" fill="${color}"/>`;
+  const pos = [
+    [`left:${inset}px;top:${inset}px`, 0],
+    [`right:${inset}px;top:${inset}px`, 90],
+    [`right:${inset}px;bottom:${inset}px`, 180],
+    [`left:${inset}px;bottom:${inset}px`, 270],
+  ];
+  for (const [p, r] of pos) svg(path, `${p};width:${size}px;height:${size}px;transform:rotate(${r}deg)`, '0 0 100 100');
+}
+
+// Pill / tab label
+function tab(text, { bg, fg, top, bottom, size = 44, pad = '14px 44px', radius = 999, cls = 'serif', border = '' }) {
+  const v = top !== undefined ? `top:${top}px` : `bottom:${bottom}px`;
+  label(text, `${v};left:50%;transform:translateX(-50%);background:${bg};color:${fg};font-size:${size}px;font-weight:800;line-height:1.25;padding:${pad};border-radius:${radius}px;white-space:nowrap;${border};box-shadow:0 6px 18px rgba(0,0,0,.18)`, cls);
+}
+
+// Shaheed Minar silhouette (simplified)
+function shaheedMinar(color, css) {
+  const col = (x, w, h) => `<path d="M${x} 230 V${230 - h} H${x + w} V230" fill="none" stroke="${color}" stroke-width="8" stroke-linejoin="round"/>`;
+  svg(`<circle cx="150" cy="78" r="58" fill="${BDRED}"/>
+    ${col(26, 36, 90)}${col(74, 36, 118)}
+    <path d="M122 230 V58 L150 20 L178 58 V230" fill="none" stroke="${color}" stroke-width="10" stroke-linejoin="round"/>
+    <path d="M122 58 H178 M122 110 H178" stroke="${color}" stroke-width="5"/>
+    ${col(190, 36, 118)}${col(238, 36, 90)}
+    <rect x="6" y="230" width="288" height="14" rx="2" fill="${color}"/>`, css, '0 0 300 248');
+}
+
+// Frames ---------------------------------------------------------------
+const F = {
+  // ---- শোক ----------------------------------------------------------
+  'shok-kalo-border'() {
+    const b = Math.round(W * 0.03);
+    box(`inset:0;border:${b}px solid #111`);
+    box(`inset:${b + 12}px;border:2px solid rgba(255,255,255,.75)`);
+    // black mourning ribbon, top-left
+    const rib = `M28 150 L58 80 C72 50 68 14 50 14 C32 14 28 50 42 80 L72 150`;
+    svg(`<path d="${rib}" fill="none" stroke="#fff" stroke-width="22" stroke-linejoin="round"/><path d="${rib}" fill="none" stroke="#111" stroke-width="14" stroke-linejoin="round"/>`,
+      `left:${b + 30}px;top:${b + 26}px;width:${W * 0.1}px;height:${W * 0.16}px`, '0 0 100 160');
+    tab('গভীর শোক', { bg: '#111', fg: '#fff', bottom: b - 2, size: Math.round(W * 0.036), radius: 0, pad: '10px 48px', border: 'border:2px solid rgba(255,255,255,.75)' });
+  },
+  'shok-kona-fita'() {
+    box(`inset:0;border:14px solid #1a1a1a`);
+    // diagonal black sash across top-left corner
+    const s = W * 0.5;
+    el(`<div class="abs" style="left:${-s * 0.33}px;top:${s * 0.13}px;width:${s}px;height:${W * 0.075}px;background:#111;transform:rotate(-45deg);transform-origin:center;box-shadow:0 0 0 3px rgba(255,255,255,.6) inset"></div>`);
+    label('শ্রদ্ধাঞ্জলি', `left:${W * 0.05}px;top:${W * 0.105}px;transform:rotate(-45deg);color:#fff;font-size:${W * 0.03}px;font-weight:800`);
+  },
+
+  // ---- জন্মদিন -------------------------------------------------------
+  'jonmodin-confetti'() {
+    const colors = ['#F94144', '#F8961E', '#F9C74F', '#90BE6D', '#43AA8B', '#577590', '#C77DFF'];
+    const band = W * 0.07;
+    for (let i = 0; i < 260; i++) {
+      const edge = Math.floor(rnd() * 4);
+      let x = rnd() * W, y = rnd() * H;
+      if (edge === 0) y = rnd() * band; else if (edge === 1) y = H - rnd() * band;
+      else if (edge === 2) x = rnd() * band; else x = W - rnd() * band;
+      const c = colors[Math.floor(rnd() * colors.length)];
+      const sz = 8 + rnd() * 14, round = rnd() > .5 ? '50%' : '2px';
+      box(`left:${x}px;top:${y}px;width:${sz}px;height:${sz * (round === '2px' ? .45 : 1)}px;background:${c};border-radius:${round};transform:rotate(${rnd() * 180}deg)`);
+    }
+    // balloons, top-right
+    const bal = (cx, cy, c) => `<ellipse cx="${cx}" cy="${cy}" rx="34" ry="42" fill="${c}"/><ellipse cx="${cx - 12}" cy="${cy - 16}" rx="8" ry="12" fill="rgba(255,255,255,.45)"/><path d="M${cx} ${cy + 42} l-6 10 h12z" fill="${c}"/><path d="M${cx} ${cy + 52} q-14 40 8 80 t-6 70" fill="none" stroke="#666" stroke-width="2"/>`;
+    svg(bal(60, 60, '#F94144') + bal(130, 90, '#F9C74F') + bal(95, 150, '#577590'), `right:${W * 0.03}px;top:${W * 0.03}px;width:${W * 0.2}px;height:${W * 0.3}px`, '0 0 180 300');
+    tab('শুভ জন্মদিন', { bg: 'linear-gradient(90deg,#F72585,#F8961E)', fg: '#fff', top: W * 0.035, size: Math.round(W * 0.05) });
+  },
+  'jonmodin-sonali'() {
+    box(`inset:${W * 0.022}px;border:6px solid ${GOLD};box-shadow:0 0 0 3px rgba(0,0,0,.15)`);
+    box(`inset:${W * 0.04}px;border:2px solid ${GOLD}`);
+    ornament(GOLD, W * 0.13, W * 0.012);
+    tab('শুভ জন্মদিন', { bg: '#1b1b1b', fg: GOLD, bottom: W * 0.006, size: Math.round(W * 0.044), radius: 6, pad: '10px 54px', border: `border:3px solid ${GOLD}` });
+  },
+
+  // ---- দিবস ---------------------------------------------------------
+  'bijoy-dibos'() {
+    const b = W * 0.028;
+    box(`inset:0;border:${b}px solid ${GREEN}`);
+    box(`inset:${b}px;border:4px solid ${BDRED}`);
+    svg(`<circle cx="50" cy="50" r="46" fill="${BDRED}" stroke="#fff" stroke-width="4"/>`, `right:${b + 20}px;top:${b + 20}px;width:${W * 0.11}px;height:${W * 0.11}px`, '0 0 100 100');
+    tab('মহান বিজয় দিবস', { bg: GREEN, fg: '#fff', bottom: b - 4, size: Math.round(W * 0.042), radius: 0, pad: '10px 52px', border: `border-top:4px solid ${BDRED}` });
+    label('১৬ ডিসেম্বর', `left:50%;transform:translateX(-50%);top:${b + 18}px;background:${BDRED};color:#fff;font-size:${W * 0.026}px;font-weight:700;padding:6px 26px;border-radius:999px`, 'sans');
+  },
+  'swadhinota-dibos'() {
+    const b = W * 0.028;
+    // green-red split border
+    box(`left:0;top:0;width:100%;height:${b}px;background:${GREEN}`);
+    box(`left:0;bottom:0;width:100%;height:${b}px;background:${GREEN}`);
+    box(`left:0;top:0;width:${b}px;height:100%;background:${BDRED}`);
+    box(`right:0;top:0;width:${b}px;height:100%;background:${BDRED}`);
+    box(`inset:${b + 10}px;border:2px solid rgba(255,255,255,.85)`);
+    svg(`<circle cx="50" cy="50" r="40" fill="${BDRED}"/><circle cx="50" cy="50" r="48" fill="none" stroke="#fff" stroke-width="3"/>`, `left:${b + 22}px;top:${b + 22}px;width:${W * 0.1}px;height:${W * 0.1}px`, '0 0 100 100');
+    tab('মহান স্বাধীনতা ও জাতীয় দিবস', { bg: GREEN, fg: '#fff', bottom: b + 18, size: Math.round(W * 0.036), radius: 8, pad: '10px 40px' });
+    label('২৬ মার্চ', `right:${b + 24}px;top:${b + 24}px;background:#fff;color:${GREEN};font-size:${W * 0.028}px;font-weight:700;padding:4px 22px;border-radius:999px`, 'sans');
+  },
+  'ekushe-february'() {
+    const b = W * 0.024;
+    box(`inset:0;border:${b}px solid #121212`);
+    box(`inset:${b + 10}px;border:2px solid rgba(255,255,255,.7)`);
+    // alphabet strip on left
+    const letters = 'অ আ ক খ গ ঘ চ ছ জ ঝ ট ঠ ড ঢ ত থ দ ধ ন প ফ ব ভ ম'.split(' ');
+    const step = W * 0.058, rows = Math.floor((H * 0.7) / step);
+    box(`left:${b + 12}px;top:${b + 12}px;width:${W * 0.07}px;height:${rows * step + 30}px;background:rgba(0,0,0,.45)`);
+    letters.slice(0, rows).forEach((l, i) => {
+      label(l, `left:${b + 12}px;width:${W * 0.07}px;text-align:center;top:${b + 24 + i * step}px;color:#fff;font-size:${W * 0.036}px;font-weight:600`);
+    });
+    shaheedMinar('#fff', `right:${b + 22}px;bottom:${b + 22}px;width:${W * 0.3}px;height:${W * 0.248}px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.6))`);
+    tab('অমর একুশে', { bg: '#121212', fg: '#fff', top: b - 4, size: Math.round(W * 0.042), radius: 0, pad: '8px 52px', border: `border-bottom:4px solid ${BDRED}` });
+  },
+  'pohela-boishakh'() {
+    const b = W * 0.05;
+    box(`inset:0;border:${b}px solid ${RED}`);
+    // alpana dots/petals along border
+    const n = 18, step = W / n;
+    let petals = '';
+    for (let i = 0; i < n; i++) {
+      const c = step * i + step / 2;
+      petals += `<circle cx="${c}" cy="${b / 2}" r="${b * .22}" fill="#fff"/><circle cx="${c}" cy="${H - b / 2}" r="${b * .22}" fill="#fff"/>`;
+    }
+    for (let i = 0; i < Math.floor(H / step); i++) {
+      const c = step * i + step / 2;
+      petals += `<circle cx="${b / 2}" cy="${c}" r="${b * .22}" fill="#fff"/><circle cx="${W - b / 2}" cy="${c}" r="${b * .22}" fill="#fff"/>`;
+    }
+    svg(petals, `left:0;top:0;width:${W}px;height:${H}px`, `0 0 ${W} ${H}`);
+    box(`inset:${b}px;border:3px dashed #fff`);
+    tab('শুভ নববর্ষ', { bg: '#fff', fg: RED, top: b * 0.55, size: Math.round(W * 0.05), radius: 999, border: `border:4px solid ${RED}` });
+  },
+  'eid-mubarak'() {
+    const b = W * 0.026, gold = '#E0B84F';
+    box(`inset:0;border:${b}px solid #0B4F3C`);
+    box(`inset:${b + 8}px;border:2px solid ${gold}`);
+    ornament(gold, W * 0.11, b + 2);
+    svg(`<defs><mask id="moon"><rect width="110" height="110" fill="#fff"/><circle cx="66" cy="44" r="38" fill="#000"/></mask></defs><circle cx="48" cy="56" r="44" fill="${gold}" mask="url(#moon)"/>
+      <path d="M92 30 l4 10 10 1-8 6 3 10-9-6-9 6 3-10-8-6 10-1z" fill="${gold}"/>`, `right:${b + 44}px;top:${b + 36}px;width:${W * 0.17}px;height:${W * 0.17}px`, '0 0 110 110');
+    tab('ঈদ মোবারক', { bg: '#0B4F3C', fg: gold, bottom: b - 4, size: Math.round(W * 0.046), radius: 6, pad: '10px 56px', border: `border:3px solid ${gold}` });
+  },
+  'sharodiya-shubhechha'() {
+    const b = W * 0.03, saffron = '#F28C28';
+    box(`inset:0;border:${b}px solid ${RED}`);
+    box(`inset:${b}px;border:6px solid ${saffron}`);
+    // kash-flower sprays at bottom corners
+    const kash = (flip) => {
+      let s = '';
+      for (let i = 0; i < 7; i++) {
+        const x = 20 + i * 14, h = 120 + (i % 3) * 30;
+        s += `<path d="M${x} 200 Q${x + 6} ${200 - h / 2} ${x + 20} ${200 - h}" stroke="#7a8b4a" stroke-width="3" fill="none"/>
+          <ellipse cx="${x + 20}" cy="${200 - h}" rx="9" ry="26" fill="#fff" transform="rotate(20 ${x + 20} ${200 - h})" opacity=".95"/>`;
+      }
+      return `<g ${flip ? 'transform="translate(150 0) scale(-1 1)"' : ''}>${s}</g>`;
+    };
+    svg(kash(false), `left:${b + 8}px;bottom:${b + 8}px;width:${W * 0.15}px;height:${W * 0.2}px`, '0 0 150 200');
+    svg(kash(true), `right:${b + 8}px;bottom:${b + 8}px;width:${W * 0.15}px;height:${W * 0.2}px`, '0 0 150 200');
+    tab('শারদীয় শুভেচ্ছা', { bg: RED, fg: '#fff', top: b - 4, size: Math.round(W * 0.044), radius: 0, pad: '10px 52px', border: `border-bottom:5px solid ${saffron}` });
+  },
+
+  // ---- নিউজ ফটোকার্ড (ফিচার ইমেজ) ---------------------------------------
+  'news-nil-bracket'() {
+    brackets('#fff', W * 0.04, W * 0.08, 6);
+    box(`left:0;bottom:0;width:100%;height:10px;background:${BLUE}`);
+  },
+  'news-breaking'() {
+    const h = W * 0.085;
+    box(`left:0;top:0;width:100%;height:${h}px;background:${RED}`);
+    box(`left:${W * 0.045}px;top:${h / 2 - 12}px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 0 0 7px rgba(255,255,255,.35)`);
+    label('ব্রেকিং নিউজ', `left:${W * 0.045 + 44}px;top:${h / 2}px;transform:translateY(-50%);color:#fff;font-size:${W * 0.045}px;font-weight:800`);
+    box(`left:0;bottom:0;width:100%;height:10px;background:${RED}`);
+  },
+  'news-exclusive'() {
+    box(`inset:${W * 0.025}px;border:3px solid rgba(255,255,255,.9)`);
+    label('এক্সক্লুসিভ', `left:${W * 0.025}px;top:${W * 0.06}px;background:${GOLD};color:#111;font-size:${W * 0.038}px;font-weight:800;padding:8px 34px 8px 30px;clip-path:polygon(0 0,100% 0,92% 50%,100% 100%,0 100%)`);
+  },
+  'news-sorboshesh'() {
+    box(`left:0;top:0;width:${W * 0.012}px;height:100%;background:${BLUE}`);
+    label('সর্বশেষ', `left:${W * 0.012}px;top:${W * 0.05}px;background:${BLUE};color:#fff;font-size:${W * 0.038}px;font-weight:800;padding:8px 34px;border-radius:0 8px 8px 0`);
+    box(`left:0;bottom:0;width:100%;height:8px;background:${BLUE}`);
+  },
+  'news-meeha-special'() {
+    box(`inset:0;border:${W * 0.016}px solid ${BLUE}`);
+    brackets('#fff', W * 0.045, W * 0.06, 5);
+    label('মিহা স্পেশাল', `right:${W * 0.045}px;top:${W * 0.045}px;background:#fff;color:${BLUE};font-size:${W * 0.032}px;font-weight:800;padding:6px 26px;border-radius:999px`);
+  },
+};
+
+if (F[id]) F[id]();
+document.fonts.ready.then(() => { document.body.dataset.ready = '1'; });
+</script>
+</body>
+</html>
