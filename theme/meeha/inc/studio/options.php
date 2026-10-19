@@ -28,13 +28,13 @@ function meeha_studio_types() {
 		),
 		'opinion'    => array(
 			'label'   => 'মতামত',
-			'presets' => array( 'blue' => 'মিহা নীল', 'navy' => 'রাতের নীল', 'paper' => 'সাদা কাগজ' ),
+			'presets' => array( 'blue' => 'মিহা নীল', 'navy' => 'রাতের নীল', 'paper' => 'সাদা কাগজ', 'kagoj' => 'কাগজের পাতা', 'potrika' => 'খবরের কাগজ', 'moncho' => 'নীল মঞ্চ', 'uddhriti' => 'বড় উদ্ধৃতি' ),
 			'photo'   => false,
 			'ad'      => true,
 		),
 		'feature'    => array(
 			'label'   => 'ফিচার',
-			'presets' => array( 'shade' => 'ছায়া', 'vf2' => 'দুই কোণ', 'band' => 'নীল পাটাতন' ),
+			'presets' => array( 'shade' => 'ছায়া', 'vf2' => 'দুই কোণ', 'band' => 'নীল পাটাতন', 'dheu' => 'সবুজ ঢেউ' ),
 			'photo'   => true,
 			'ad'      => true,
 		),
@@ -52,13 +52,13 @@ function meeha_studio_types() {
 		),
 		'literature' => array(
 			'label'   => 'সাহিত্য',
-			'presets' => array( 'paper' => 'কাগজ', 'window' => 'জানালা ছবি', 'modern' => 'আধুনিক' ),
+			'presets' => array( 'paper' => 'কাগজ', 'window' => 'জানালা ছবি', 'modern' => 'আধুনিক', 'diary' => 'ডায়েরির পাতা', 'split' => 'ছবি পাশে', 'kalo' => 'কালো মলাট' ),
 			'photo'   => true,
 			'ad'      => true,
 		),
 		'poem'       => array(
 			'label'   => 'কবিতা',
-			'presets' => array( 'paper' => 'কাগজ ও লতা', 'night' => 'রাতের আকাশ', 'photo' => 'ছবির ওপর' ),
+			'presets' => array( 'paper' => 'কাগজ ও লতা', 'night' => 'রাতের আকাশ', 'photo' => 'ছবির ওপর', 'nodi' => 'নদী ও নৌকা', 'shada' => 'সাদা মিনিমাল' ),
 			'photo'   => true,
 			'ad'      => true,
 		),
@@ -82,7 +82,7 @@ function meeha_studio_types() {
 		),
 		'category'   => array(
 			'label'   => 'বিভাগ ফ্রেম',
-			'presets' => array( 'shade' => 'ছায়া', 'vf2' => 'দুই কোণ', 'band' => 'নীল পাটাতন' ),
+			'presets' => array( 'shade' => 'ছায়া', 'vf2' => 'দুই কোণ', 'band' => 'নীল পাটাতন', 'rongpata' => 'রঙের পাটা', 'kona' => 'রঙিন কোণ', 'chhapa' => 'সাদা পাতা' ),
 			'photo'   => true,
 			'ad'      => true,
 		),
@@ -116,8 +116,6 @@ function meeha_studio_deco_presets() {
 		'exclusive'    => 'এক্সক্লুসিভ ট্যাগ',
 		'special'      => 'মিহা স্পেশাল',
 		'bracket'      => 'নীল কর্নার ব্র্যাকেট',
-		'dheu'         => 'সবুজ ঢেউ',
-		'dheubreaking' => 'ঢেউ ব্রেকিং',
 	);
 	return array(
 		'news'       => $news,
@@ -154,12 +152,14 @@ function meeha_studio_deco_presets() {
  */
 function meeha_studio_news_presets() {
 	return array(
-		'classic'  => 'ক্লাসিক',
-		'overlay'  => 'ছায়া',
-		'band'     => 'নীল পাটাতন',
-		'frame'    => 'সাদা ফ্রেম',
-		'split'    => 'পাশাপাশি',
-		'headline' => 'বড় শিরোনাম',
+		'classic'      => 'ক্লাসিক',
+		'overlay'      => 'ছায়া',
+		'band'         => 'নীল পাটাতন',
+		'frame'        => 'সাদা ফ্রেম',
+		'split'        => 'পাশাপাশি',
+		'headline'     => 'বড় শিরোনাম',
+		'dheu'         => 'সবুজ ঢেউ',
+		'dheubreaking' => 'ঢেউ ব্রেকিং',
 	);
 }
 

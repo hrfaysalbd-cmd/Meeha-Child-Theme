@@ -1,5 +1,5 @@
 {
-    "generated": "2026-10-19T06:29:08+00:00",
+    "generated": "2026-10-19T10:26:11+00:00",
     "bundles": {
         "core": {
             "css": [
@@ -310,8 +310,8 @@
             "critical": [],
             "deps": [],
             "js_file": "cards.min.js",
-            "js_ver": "2bca2ac7b6",
-            "js_bytes": 121834
+            "js_ver": "d59609cb85",
+            "js_bytes": 148190
         }
     },
     "critical": {
