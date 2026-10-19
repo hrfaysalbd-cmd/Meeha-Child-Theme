@@ -1559,7 +1559,8 @@
 		surjo: [ 'classic', 'news-surjo-nil', 'সূর্য নীল' ], nokshi: [ 'overlay', 'news-nokshi-lalsobuj', 'নকশি লাল-সবুজ' ],
 		sonali: [ 'band', 'news-bishesh-sonali', 'বিশেষ সোনালি' ], sorboshesh: [ 'band', 'news-sorboshesh', 'সর্বশেষ ট্যাগ' ],
 		breakingband: [ 'overlay', 'news-breaking', 'ব্রেকিং ব্যান্ড' ], exclusive: [ 'classic', 'news-exclusive', 'এক্সক্লুসিভ ট্যাগ' ],
-		special: [ 'classic', 'news-meeha-special', 'মিহা স্পেশাল' ], bracket: [ 'overlay', 'news-nil-bracket', 'নীল কর্নার ব্র্যাকেট' ]
+		special: [ 'classic', 'news-meeha-special', 'মিহা স্পেশাল' ], bracket: [ 'overlay', 'news-nil-bracket', 'নীল কর্নার ব্র্যাকেট' ],
+		dheu: [ 'overlay', 'news-dheu-sobuj', 'সবুজ ঢেউ' ], dheubreaking: [ 'overlay', 'news-dheu-breaking', 'ঢেউ ব্রেকিং' ]
 	};
 	var DECO = {
 		news: DECO_NEWS,
@@ -1597,7 +1598,8 @@
 		var t = templates[ type ];
 		if ( ! t ) { return Promise.reject( new Error( 'অজানা কার্ডের ধরন: ' + type ) ); }
 		data = data || {}; opts = opts || {};
-		var dz = opts.frame ? null : decoOf( type, opts.preset || ( 'news' === type ? cfg().newsDefault : '' ) );
+		/* on a story the design goes on the card inside it (story() renders that card at 1080 × 1350) */
+		var dz = opts.frame || '1080x1920' === opts.size ? null : decoOf( type, opts.preset || ( 'news' === type ? cfg().newsDefault : '' ) );
 		if ( dz ) {
 			opts = Object.assign( {}, opts, { preset: dz[ 0 ], frameMode: 'overlay', frame: base() + 'assets/frames/png/' + dz[ 1 ] + '-' + ( SIZES[ opts.size ] ? opts.size : '1080x1080' ) + '.png' } );
 			if ( 'day' === type ) { data = Object.assign( {}, data, { theme: dz[ 0 ] } ); }
@@ -1866,7 +1868,7 @@
 	}
 
 	root.MeehaCards = {
-		version: '2.0.5',
+		version: '2.0.6',
 		configure: configure,
 		preview: preview,
 		render: render,
