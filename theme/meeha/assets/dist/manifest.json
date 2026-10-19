@@ -1,0 +1,439 @@
+{
+    "generated": "2026-10-13T10:43:49+00:00",
+    "bundles": {
+        "core": {
+            "css": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css"
+            ],
+            "js": [],
+            "critical": [],
+            "deps": [],
+            "css_file": "core.min.css",
+            "css_ver": "d5eea81537",
+            "css_bytes": 40889
+        },
+        "base": {
+            "css": [
+                "assets/css/dialogs.css",
+                "assets/css/footer.css"
+            ],
+            "js": [
+                "assets/js/meeha.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "base.min.css",
+            "css_ver": "432b635b25",
+            "css_bytes": 10509,
+            "js_file": "base.min.js",
+            "js_ver": "cb667a8078",
+            "js_bytes": 7297
+        },
+        "page": {
+            "css": [
+                "assets/css/page.css"
+            ],
+            "js": [],
+            "critical": [
+                "assets/css/page.css"
+            ],
+            "deps": [],
+            "css_file": "page.min.css",
+            "css_ver": "e13742d1a8",
+            "css_bytes": 3931
+        },
+        "404": {
+            "css": [
+                "assets/css/page.css"
+            ],
+            "js": [],
+            "critical": [
+                "assets/css/page.css"
+            ],
+            "deps": [],
+            "css_file": "404.min.css",
+            "css_ver": "e13742d1a8",
+            "css_bytes": 3931
+        },
+        "account": {
+            "css": [
+                "assets/css/page.css",
+                "assets/css/account.css"
+            ],
+            "js": [
+                "assets/js/account.js"
+            ],
+            "critical": [
+                "assets/css/page.css"
+            ],
+            "deps": [],
+            "css_file": "account.min.css",
+            "css_ver": "c6c4e0766b",
+            "css_bytes": 11678,
+            "js_file": "account.min.js",
+            "js_ver": "10dcfd83cc",
+            "js_bytes": 11349
+        },
+        "editor": {
+            "css": [
+                "assets/css/tokens.css",
+                "assets/css/editor.css"
+            ],
+            "js": [],
+            "critical": [],
+            "deps": [],
+            "css_file": "editor.min.css",
+            "css_ver": "826c6a1890",
+            "css_bytes": 5090
+        },
+        "glance": {
+            "css": [
+                "assets/css/glance.css"
+            ],
+            "js": [
+                "assets/js/glance.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "glance.min.css",
+            "css_ver": "9e336bc5ff",
+            "css_bytes": 5053,
+            "js_file": "glance.min.js",
+            "js_ver": "a9c473c121",
+            "js_bytes": 4396
+        },
+        "latest": {
+            "css": [
+                "assets/css/latest.css"
+            ],
+            "js": [
+                "assets/js/latest.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "latest.min.css",
+            "css_ver": "67a2f5afb1",
+            "css_bytes": 3049,
+            "js_file": "latest.min.js",
+            "js_ver": "e5eac53b93",
+            "js_bytes": 3695
+        },
+        "report": {
+            "css": [
+                "assets/css/report.css"
+            ],
+            "js": [
+                "assets/js/report.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "report.min.css",
+            "css_ver": "1ab28be681",
+            "css_bytes": 4131,
+            "js_file": "report.min.js",
+            "js_ver": "c89991421d",
+            "js_bytes": 4676
+        },
+        "area": {
+            "css": [],
+            "js": [
+                "assets/js/area.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "js_file": "area.min.js",
+            "js_ver": "1e3b64af43",
+            "js_bytes": 3192
+        },
+        "home": {
+            "css": [
+                "assets/css/home.css"
+            ],
+            "js": [
+                "assets/js/home.js"
+            ],
+            "critical": [
+                "assets/css/home.css"
+            ],
+            "deps": [],
+            "css_file": "home.min.css",
+            "css_ver": "ef790bc07b",
+            "css_bytes": 5929,
+            "js_file": "home.min.js",
+            "js_ver": "fdea147781",
+            "js_bytes": 2821
+        },
+        "archive": {
+            "css": [
+                "assets/css/archive.css"
+            ],
+            "js": [
+                "assets/js/home.js"
+            ],
+            "critical": [
+                "assets/css/archive.css"
+            ],
+            "deps": [],
+            "css_file": "archive.min.css",
+            "css_ver": "822e0d3db6",
+            "css_bytes": 9552,
+            "js_file": "archive.min.js",
+            "js_ver": "fdea147781",
+            "js_bytes": 2821
+        },
+        "search": {
+            "css": [
+                "assets/css/archive.css"
+            ],
+            "js": [
+                "assets/js/search.js"
+            ],
+            "critical": [
+                "assets/css/archive.css"
+            ],
+            "deps": [],
+            "css_file": "search.min.css",
+            "css_ver": "822e0d3db6",
+            "css_bytes": 9552,
+            "js_file": "search.min.js",
+            "js_ver": "d26d38aaab",
+            "js_bytes": 1148
+        },
+        "metrics": {
+            "css": [],
+            "js": [
+                "assets/js/metrics.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "js_file": "metrics.min.js",
+            "js_ver": "d03b18cf3f",
+            "js_bytes": 3472
+        },
+        "single": {
+            "css": [
+                "assets/css/single.css"
+            ],
+            "js": [
+                "assets/js/single.js"
+            ],
+            "critical": [
+                "assets/css/single.css"
+            ],
+            "deps": [],
+            "css_file": "single.min.css",
+            "css_ver": "f6f7265bbd",
+            "css_bytes": 17432,
+            "js_file": "single.min.js",
+            "js_ver": "657cc99513",
+            "js_bytes": 11589
+        },
+        "literature": {
+            "css": [
+                "assets/css/literary-font.css",
+                "assets/css/literature.css"
+            ],
+            "js": [],
+            "critical": [
+                "assets/css/literary-font.css",
+                "assets/css/literature.css"
+            ],
+            "deps": [],
+            "css_file": "literature.min.css",
+            "css_ver": "c07beb2351",
+            "css_bytes": 14168
+        },
+        "literary-font": {
+            "css": [
+                "assets/css/literary-font.css"
+            ],
+            "js": [],
+            "critical": [],
+            "deps": [],
+            "css_file": "literary-font.min.css",
+            "css_ver": "9382fdb155",
+            "css_bytes": 300
+        },
+        "quotes": {
+            "css": [
+                "assets/css/quotes.css"
+            ],
+            "js": [
+                "assets/js/quotes.js"
+            ],
+            "critical": [
+                "assets/css/quotes.css"
+            ],
+            "deps": [],
+            "css_file": "quotes.min.css",
+            "css_ver": "7448b0ba1e",
+            "css_bytes": 14257,
+            "js_file": "quotes.min.js",
+            "js_ver": "7c4a6e3545",
+            "js_bytes": 7574
+        },
+        "quote-cards": {
+            "css": [
+                "assets/css/quotes.css"
+            ],
+            "js": [],
+            "critical": [],
+            "deps": [],
+            "css_file": "quote-cards.min.css",
+            "css_ver": "7448b0ba1e",
+            "css_bytes": 14257
+        },
+        "comments": {
+            "css": [
+                "assets/css/comments.css"
+            ],
+            "js": [
+                "assets/js/comments.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "comments.min.css",
+            "css_ver": "cd572a3a27",
+            "css_bytes": 4310,
+            "js_file": "comments.min.js",
+            "js_ver": "d81f15c288",
+            "js_bytes": 1549
+        },
+        "cards": {
+            "css": [],
+            "js": [
+                "assets/js/cards.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "js_file": "cards.min.js",
+            "js_ver": "566108a3f1",
+            "js_bytes": 102982
+        }
+    },
+    "critical": {
+        "default": {
+            "file": "critical-default.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css"
+            ],
+            "bytes": 40889,
+            "gzip": 8689
+        },
+        "page": {
+            "file": "critical-page.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/page.css"
+            ],
+            "bytes": 44820,
+            "gzip": 9447
+        },
+        "404": {
+            "file": "critical-404.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/page.css"
+            ],
+            "bytes": 44820,
+            "gzip": 9447
+        },
+        "account": {
+            "file": "critical-account.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/page.css"
+            ],
+            "bytes": 44820,
+            "gzip": 9447
+        },
+        "home": {
+            "file": "critical-home.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/home.css"
+            ],
+            "bytes": 46818,
+            "gzip": 9556
+        },
+        "archive": {
+            "file": "critical-archive.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/archive.css"
+            ],
+            "bytes": 50441,
+            "gzip": 10156
+        },
+        "search": {
+            "file": "critical-search.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/archive.css"
+            ],
+            "bytes": 50441,
+            "gzip": 10156
+        },
+        "single": {
+            "file": "critical-single.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/single.css"
+            ],
+            "bytes": 58321,
+            "gzip": 11828
+        },
+        "literature": {
+            "file": "critical-literature.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/literary-font.css",
+                "assets/css/literature.css"
+            ],
+            "bytes": 55057,
+            "gzip": 11128
+        },
+        "quotes": {
+            "file": "critical-quotes.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/quotes.css"
+            ],
+            "bytes": 55146,
+            "gzip": 12380
+        }
+    }
+}

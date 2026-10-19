@@ -1,0 +1,18 @@
+/*
+Theme Name: Meeha News
+Theme URI: https://meeha.news/
+Author: Meeha News
+Author URI: https://meeha.news/
+Description: মিহা নিউজের নিজস্ব, স্বতন্ত্র (standalone) থিম — অনুসন্ধানী ও সর্বশেষ বাংলা সংবাদের জন্য দ্রুত, মোবাইল-প্রথম ও অ্যাক্সেসিবল নকশা। কোনো প্যারেন্ট থিম, Elementor বা jQuery লাগে না।
+Version: 2.0.3
+Requires at least: 6.4
+Tested up to: 7.2
+Requires PHP: 7.4
+License: GNU General Public License v2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+Text Domain: meeha
+Tags: news, blog, custom-logo, custom-menu, featured-images, threaded-comments, translation-ready, accessibility-ready, rtl-language-support
+*/
+
+/* The real stylesheets live in assets/css (source) and assets/dist (built bundles, see tools/build.php).
+   This file only carries the theme header; it is not enqueued on the front end. */

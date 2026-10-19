@@ -1,0 +1,124 @@
+/* meeha.js — progressive enhancement only. Every feature works (or degrades to a plain link / stacked
+   content) without it. Loaded with `defer`. No layout reads in scroll handlers (IntersectionObserver instead).
+   Exposes window.MeehaUI = { openDialog(id), bn(n) }. */
+(() => {
+  const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+  const bn = n => String(n).replace(/\d/g, d => '০১২৩৪৫৬৭৮৯'[d]);
+  const idle = fn => ('requestIdleCallback' in window ? requestIdleCallback(fn, { timeout: 3000 }) : setTimeout(fn, 1200));
+  const afterLoad = fn => (document.readyState === 'complete' ? idle(fn) : addEventListener('load', () => idle(fn), { once: true }));
+
+  /* ---- recent searches (localStorage, max 5, clearable) ---- */
+  const RKEY = 'm-recent-search';
+  const recent = () => { try { return JSON.parse(store.get(RKEY) || '[]').filter(x => typeof x === 'string').slice(0, 5); } catch (e) { return []; } };
+  const renderRecent = () => {
+    const wrap = $('[data-recent]'), list = $('[data-recent-list]'); if (!wrap || !list) return;
+    const items = recent(); wrap.hidden = !items.length; list.textContent = '';
+    items.forEach(q => {
+      const li = document.createElement('li'), a = document.createElement('a');
+      a.href = (list.dataset.home || '/') + '?s=' + encodeURIComponent(q);
+      a.innerHTML = '<svg class="m-icon" aria-hidden="true"><use href="' + (list.dataset.sprite || '') + '#i-clock"></use></svg>';
+      a.appendChild(document.createTextNode(q)); li.appendChild(a); list.appendChild(li);
+    });
+  };
+  $$('form[role=search]').forEach(f => f.addEventListener('submit', () => {
+    const q = (($('input[name=s]', f) || {}).value || '').trim(); if (!q) return;
+    store.set(RKEY, JSON.stringify([q, ...recent().filter(x => x !== q)].slice(0, 5)));
+  }));
+  const clr = $('[data-recent-clear]'); if (clr) clr.addEventListener('click', () => { store.set(RKEY, '[]'); renderRecent(); });
+
+  /* ---- dialogs: drawer + search. Triggers are real links (fallback pages) upgraded to dialogs ---- */
+  const openDialog = id => {
+    const d = document.getElementById(id); if (!d || !d.showModal) return false;
+    if (id === 'm-search') renderRecent();
+    if (!d.open) d.showModal();
+    const f = $('input[type=search]', d); if (f && id === 'm-search') f.focus();
+    return true;
+  };
+  $$('[data-open]').forEach(t => t.addEventListener('click', e => { if (openDialog(t.dataset.open)) e.preventDefault(); }));
+  $$('dialog').forEach(d => {
+    d.addEventListener('click', e => { if (e.target === d) d.close(); });          // backdrop click
+    $$('[data-close]', d).forEach(b => b.addEventListener('click', () => d.close()));
+  });
+  document.addEventListener('keydown', e => {
+    const s = $('#m-search'); if (!s || s.open || !s.showModal) return;
+    const t = document.activeElement, typing = t && (/INPUT|TEXTAREA|SELECT/.test(t.tagName) || t.isContentEditable);
+    if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey)) { e.preventDefault(); openDialog('m-search'); }
+  });
+
+  /* ---- masthead: tuck on scroll-down (mobile); nav gets .is-stuck once the masthead leaves (desktop) ---- */
+  const mh = $('.m-masthead'), nav = $('.m-nav');
+  if (mh) {
+    let last = -1, ticking = false; // read scroll position lazily (no forced layout at load)
+    const mobile = matchMedia('(max-width: 1023.98px)');
+    addEventListener('scroll', () => {
+      if (ticking || !mobile.matches) return; ticking = true;
+      requestAnimationFrame(() => { const y = scrollY; if (last < 0) last = y; mh.classList.toggle('is-tucked', y > 240 && y > last); last = y; ticking = false; });
+    }, { passive: true });
+    if (nav && 'IntersectionObserver' in window) new IntersectionObserver(([en]) => nav.classList.toggle('is-stuck', !en.isIntersecting)).observe(mh);
+  }
+
+  /* ---- tabs (most-read windows etc.) — without JS all panels are visible with their own headings ---- */
+  $$('[data-tabs]').forEach(w => {
+    const tabs = $$('[role=tab]', w), panels = $$('[role=tabpanel]', w); if (!tabs.length) return;
+    const pick = i => { tabs.forEach((t, j) => { t.setAttribute('aria-selected', i === j); t.tabIndex = i === j ? 0 : -1; if (panels[j]) panels[j].hidden = i !== j; }); };
+    tabs.forEach((t, i) => { t.addEventListener('click', () => pick(i)); t.addEventListener('keydown', e => { const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (d) { const n = (i + d + tabs.length) % tabs.length; pick(n); tabs[n].focus(); } }); });
+    pick(Math.max(0, tabs.findIndex(t => t.getAttribute('aria-selected') === 'true')));
+  });
+
+  /* ---- scroll-snap rails: prev/next buttons; edge state via IntersectionObserver (no scroll reads) ---- */
+  $$('[data-rail]').forEach(w => {
+    const rail = $('.m-rail', w), [prev, next] = $$('.m-railnav button', w); if (!rail || !prev || !next) return;
+    const step = () => rail.clientWidth * .9;
+    prev.onclick = () => rail.scrollBy({ left: -step(), behavior: 'smooth' }); next.onclick = () => rail.scrollBy({ left: step(), behavior: 'smooth' });
+    const first = rail.firstElementChild, lastEl = rail.lastElementChild;
+    if (!first || !('IntersectionObserver' in window)) return;
+    prev.disabled = true;
+    const io = new IntersectionObserver(ens => ens.forEach(en => { const vis = en.intersectionRatio > .9; if (en.target === first) prev.disabled = vis; if (en.target === lastEl) next.disabled = vis; }), { root: rail, threshold: [0, .9, 1] });
+    io.observe(first); if (lastEl !== first) io.observe(lastEl);
+  });
+
+  /* ---- theme: system / light / dark ---- */
+  const root = document.documentElement, saved = store.get('m-theme');
+  if (saved) root.dataset.theme = saved;
+  $$('[data-theme-set]').forEach(b => {
+    b.setAttribute('aria-pressed', (saved || 'system') === b.dataset.themeSet);
+    b.addEventListener('click', () => { const v = b.dataset.themeSet; if (v === 'system') delete root.dataset.theme; else root.dataset.theme = v; store.set('m-theme', v === 'system' ? '' : v); $$('[data-theme-set]').forEach(x => x.setAttribute('aria-pressed', x === b)); });
+  });
+
+  /* ---- literary font: attach Tiro Bangla only when a literature block is within one viewport ---- */
+  const lit = $('[data-lit-font]');
+  if (lit && 'IntersectionObserver' in window) {
+    const io = new IntersectionObserver(([en]) => { if (!en.isIntersecting) return; io.disconnect(); if ($('link[data-meeha-lit]')) return; const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = lit.dataset.litFont; l.dataset.meehaLit = ''; document.head.appendChild(l); }, { rootMargin: '100% 0px' });
+    io.observe(lit);
+  }
+
+  /* ---- filter panels: open on the desktop sidebar, collapsed sheet on phones ---- */
+  if (matchMedia('(min-width: 1024px)').matches) $$('details[data-open-desktop]').forEach(d => { d.open = true; });
+
+  /* ---- copy link + native share ---- */
+  $$('[data-copy]').forEach(b => b.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(b.dataset.copy || location.href); const s = b.lastElementChild || b; const o = s.textContent; s.textContent = 'কপি হয়েছে'; setTimeout(() => { s.textContent = o; }, 1800); } catch (e) {}
+  }));
+  $$('[data-share]').forEach(b => { if (!navigator.share) { b.hidden = true; return; } b.hidden = false; b.addEventListener('click', () => navigator.share({ title: document.title, url: b.dataset.url || location.href }).catch(() => {})); });
+
+  /* ---- ads: third-party code and GAM only after load + idle ---- */
+  afterLoad(() => {
+    $$('template.m-ad__defer').forEach(t => {
+      const frag = t.content.cloneNode(true);
+      $$('script', frag).forEach(old => { const s = document.createElement('script'); [...old.attributes].forEach(a => s.setAttribute(a.name, a.value)); s.text = old.textContent; old.replaceWith(s); });
+      t.replaceWith(frag);
+    });
+    const units = $$('.m-ad__gam[data-gam-unit]');
+    if (units.length) {
+      window.googletag = window.googletag || { cmd: [] };
+      const g = document.createElement('script'); g.async = true; g.src = 'https://securepubads.g.doubleclick.net/tag/js/gpt.js'; document.head.appendChild(g);
+      googletag.cmd.push(() => {
+        units.forEach(u => { let sizes = [[300, 250]]; try { sizes = JSON.parse(u.dataset.gamSizes); } catch (e) {} googletag.defineSlot(u.dataset.gamUnit, sizes, u.id).addService(googletag.pubads()); });
+        googletag.pubads().collapseEmptyDivs(); googletag.enableServices(); units.forEach(u => googletag.display(u.id));
+      });
+    }
+  });
+
+  window.MeehaUI = { openDialog, bn };
+})();

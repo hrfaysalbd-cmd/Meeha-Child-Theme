@@ -1,0 +1,27 @@
+{
+	"_comment": "Owner D. `single` = post singles (critical: single.css). `literature` = literature landing + literature singles (Tiro Bangla). `literary-font` = lazy font sheet for the homepage teaser (meeha_literary_font_url()). `quotes` = উক্তি archive/single/taxonomy; `quote-cards` = quote cards only (home rail, shortcodes). `comments` = loaded on demand.",
+	"single": {
+		"css": [ "assets/css/single.css" ],
+		"js": [ "assets/js/single.js" ],
+		"critical": [ "assets/css/single.css" ]
+	},
+	"literature": {
+		"css": [ "assets/css/literary-font.css", "assets/css/literature.css" ],
+		"critical": [ "assets/css/literary-font.css", "assets/css/literature.css" ]
+	},
+	"literary-font": {
+		"css": [ "assets/css/literary-font.css" ]
+	},
+	"quotes": {
+		"css": [ "assets/css/quotes.css" ],
+		"js": [ "assets/js/quotes.js" ],
+		"critical": [ "assets/css/quotes.css" ]
+	},
+	"quote-cards": {
+		"css": [ "assets/css/quotes.css" ]
+	},
+	"comments": {
+		"css": [ "assets/css/comments.css" ],
+		"js": [ "assets/js/comments.js" ]
+	}
+}

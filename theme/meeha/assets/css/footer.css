@@ -1,0 +1,74 @@
+/* =====================================================================
+   footer.css — newsletter (the ONLY MailPoet placement), editorial info,
+   link columns, correspondent CTA, social, legal bar  (non-critical)
+   ===================================================================== */
+.m-footer { margin-top: 0; background: var(--m-blue-900); color: var(--m-on-dark-muted); font-size: var(--m-fs-sm); line-height: 1.7; }
+.m-footer a { color: var(--m-on-dark); }
+.m-footer a:hover { color: #9CC8F5; text-decoration: underline; text-underline-offset: 3px; }
+
+/* newsletter band */
+.m-news { border-bottom: 1px solid rgba(255,255,255,.12); }
+.m-news__inner { display: grid; gap: var(--m-s4); padding-block: var(--m-s6); }
+.m-news__title { color: #fff; font: 700 var(--m-fs-xl)/1.4 var(--m-font-head); }
+.m-news__text { margin-top: 4px; }
+.m-news__form { display: grid; gap: 8px; }
+.m-news__field { display: flex; gap: 8px; }
+.m-news__field .m-input { flex: 1; min-width: 0; border-color: rgba(255,255,255,.25); background: rgba(255,255,255,.06); color: #fff; }
+.m-news__field .m-input::placeholder { color: var(--m-on-dark-muted); }
+.m-news__field .m-btn { background: #fff; color: var(--m-blue-900); }
+.m-news__field .m-btn:hover { background: #D6E6F7; }
+.m-news__fine { font-size: var(--m-fs-xs); }
+@media (min-width: 1024px) { .m-news__inner { grid-template-columns: 1fr 1fr; align-items: center; gap: var(--m-s7); } }
+
+/* main grid */
+.m-footer__main { display: grid; gap: var(--m-s6); padding-block: var(--m-s6); }
+.m-footer__brand { display: grid; gap: var(--m-s4); align-content: start; }
+.m-footer__brand .m-logo { width: 190px; height: 32px; fill: #fff; }
+.m-footer__about { max-width: 34em; }
+.m-footer__org { display: grid; gap: 2px; margin: 0; }
+.m-footer__org div { display: grid; grid-template-columns: 96px 1fr; gap: 8px; }
+.m-footer__org dt { color: var(--m-on-dark-muted); }
+.m-footer__org dd { margin: 0; color: var(--m-on-dark); }
+.m-footer__cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--m-s5) var(--m-s4); }
+.m-footer__h { margin-bottom: 8px; color: #fff; font: 700 1rem/1.5 var(--m-font-head); }
+.m-footer__links { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.m-footer__links a { display: inline-block; padding: 4px 0; color: var(--m-on-dark-muted); }
+.m-footer__links a:hover { color: #fff; }
+.m-footer__aside { display: grid; gap: var(--m-s5); align-content: start; }
+.m-cta-corr { display: grid; gap: 8px; padding: var(--m-s4); border: 1px solid rgba(255,255,255,.18); border-radius: var(--m-r-md); }
+.m-cta-corr__title { color: #fff; font: 700 1.125rem/1.4 var(--m-font-head); }
+.m-cta-corr .m-btn { justify-self: start; background: #fff; color: var(--m-blue-900); }
+.m-cta-corr .m-btn:hover { background: #D6E6F7; color: var(--m-blue-900); text-decoration: none; }
+.m-social { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.m-social a { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid rgba(255,255,255,.2); border-radius: 50%; color: #fff; }
+.m-social a:hover { background: rgba(255,255,255,.1); border-color: #fff; }
+.m-social .m-icon { width: 18px; height: 18px; }
+@media (min-width: 768px) { .m-footer__cols { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1024px) {
+  .m-footer__main { grid-template-columns: 4fr 5fr 3fr; gap: var(--m-s7); padding-block: var(--m-s7); }
+}
+
+/* legal bar */
+.m-footer__legal { border-top: 1px solid rgba(255,255,255,.12); }
+.m-footer__legal-inner { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 24px; padding-block: var(--m-s4) var(--m-s5); font-size: var(--m-fs-xs); }
+.m-footer__legal ul { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0; padding: 0; list-style: none; }
+.m-footer__legal a { color: var(--m-on-dark-muted); }
+.m-totop { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---------- WordPress integration (theme port) ---------- */
+.m-footer__brand img.m-logo { width: auto; max-width: 190px; height: 32px; object-fit: contain; background: none; }
+.m-footer__gnews { margin-top: 12px; }
+.m-footer__gnews a { display: inline-flex; align-items: center; gap: 6px; }
+/* MailPoet form inside the newsletter band (MailPoet's own CSS + fonts are dequeued) */
+.m-news__slot .mailpoet_form, .m-news__slot form.mailpoet_form { margin: 0 !important; padding: 0 !important; background: none !important; border: 0 !important; width: auto !important; }
+.m-news__slot form.mailpoet_form { display: flex !important; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.m-news__slot .mailpoet_paragraph, .m-news__slot .mailpoet_form_paragraph { margin: 0 !important; padding: 0 !important; }
+.m-news__slot .mailpoet_paragraph:has(.mailpoet_text), .m-news__slot .mailpoet_text { flex: 1 1 200px; min-width: 0; }
+.m-news__slot .mailpoet_text, .m-news__slot input[type="email"], .m-news__slot input[type="text"] { width: 100% !important; min-height: 44px; padding: 10px 14px !important; border: 1px solid rgba(255,255,255,.25) !important; border-radius: var(--m-r-sm) !important; background: rgba(255,255,255,.06) !important; color: #fff !important; font: 400 var(--m-fs-ui)/1.4 var(--m-font-body) !important; }
+.m-news__slot .mailpoet_text::placeholder { color: var(--m-on-dark-muted); }
+.m-news__slot .mailpoet_submit, .m-news__slot input[type="submit"], .m-news__slot button[type="submit"] { min-height: 44px; padding: 8px 20px !important; border: 0 !important; border-radius: var(--m-r-pill) !important; background: #fff !important; color: var(--m-blue-900) !important; font: 600 var(--m-fs-sm)/1.4 var(--m-font-body) !important; cursor: pointer; width: auto !important; }
+.m-news__slot .mailpoet_submit:hover { background: #D6E6F7 !important; }
+.m-news__slot .mailpoet_message, .m-news__slot .mailpoet_validate_success, .m-news__slot .mailpoet_validate_error { flex-basis: 100%; margin: 0; color: #fff; font-size: var(--m-fs-sm); }
+.m-news__slot .mailpoet_validate_error { color: #FFB4AB; }
+.m-news__slot .mailpoet_form_loading { display: none; }
+.m-news__slot .m-news__fine { margin-top: 8px; }

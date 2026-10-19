@@ -1,0 +1,10 @@
+/* literary-font.css — Tiro Bangla (81.9 KB woff2, Bengali subset).
+   Literature templates: enqueued normally. Homepage: injected by meeha.js
+   only when the সাহিত্য teaser is within one viewport (IntersectionObserver,
+   rootMargin 100%), so it never competes with the LCP image. */
+@font-face {
+  font-family: "Meeha Literary";
+  src: local("Tiro Bangla"), local("TiroBangla-Regular"), url("../fonts/meeha-literary-bn-400.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+  unicode-range: U+0951-0952, U+0964-0965, U+0980-09FE, U+1CD0-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1;
+}

@@ -1,0 +1,50 @@
+{
+  "_comment": "Owner A (foundation). `core` is the critical base: inlined in <head> (with each template's own `critical` files appended) or, with critical CSS off, a normal stylesheet. `base` loads on every page. `page` / `404` are A's templates. `editor` feeds add_editor_style().",
+  "core": {
+    "css": [
+      "assets/css/tokens.css",
+      "assets/css/base.css",
+      "assets/css/header.css",
+      "assets/css/components.css"
+    ]
+  },
+  "base": {
+    "css": [
+      "assets/css/dialogs.css",
+      "assets/css/footer.css"
+    ],
+    "js": [
+      "assets/js/meeha.js"
+    ]
+  },
+  "page": {
+    "css": [
+      "assets/css/page.css"
+    ],
+    "critical": [
+      "assets/css/page.css"
+    ]
+  },
+  "404": {
+    "css": [
+      "assets/css/page.css"
+    ],
+    "critical": [
+      "assets/css/page.css"
+    ]
+  },
+  "account": {
+    "css": [
+      "assets/css/page.css"
+    ],
+    "critical": [
+      "assets/css/page.css"
+    ]
+  },
+  "editor": {
+    "css": [
+      "assets/css/tokens.css",
+      "assets/css/editor.css"
+    ]
+  }
+}

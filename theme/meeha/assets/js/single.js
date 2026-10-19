@@ -1,0 +1,189 @@
+/* single.js — single post enhancements (owner D). Deferred; everything degrades without JS.
+   - A−/A+ font size (localStorage meeha_font_scale, 0.85–1.4; applied pre-paint by an inline <head> script)
+   - "সারাংশ পড়ুন" native <dialog> (copy / share / close)
+   - "ফটোকার্ড ডাউনলোড" on the lead image: tooltip on hover/focus/long-press, lazy cards.js, preview dialog
+     (MeehaCards.preview: ডাউনলোড / ছবি কপি / ক্যাপশন কপি / বন্ধ করুন)
+   - reactions via window.MeehaMetrics.react() (C) or REST meeha/v1/react; choice remembered in meeha_reaction_{id}
+   - collapsed comments: thread + comments CSS/JS (+ comment-reply) loaded on demand
+   - literature recitation: YouTube facade + styled <audio> */
+(() => {
+  const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+  const bn = n => String(n).replace(/\d/g, d => '০১২৩৪৫৬৭৮৯'[d]);
+  const bnShort = n => {
+    n = Math.max(0, Math.round(+n || 0));
+    if (n < 1000) return bn(n);
+    const f = (v, u) => bn((v >= 10 ? Math.floor(v) : Math.floor(v * 10) / 10).toString()) + ' ' + u;
+    if (n < 100000) return f(n / 1000, 'হাজার');
+    if (n < 10000000) return f(n / 100000, 'লাখ');
+    return f(n / 10000000, 'কোটি');
+  };
+  const copyText = async text => {
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) {
+      const t = document.createElement('textarea'); t.value = text; t.setAttribute('readonly', ''); t.style.position = 'fixed'; t.style.opacity = '0';
+      document.body.appendChild(t); t.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (er) {} t.remove(); return ok;
+    }
+  };
+  const flash = (el, text, ms = 1800) => { const o = el.textContent; el.textContent = text; setTimeout(() => { el.textContent = o; }, ms); };
+
+  /* ---------- font size ---------- */
+  const fs = $('.m-fontsize');
+  if (fs) {
+    const root = document.documentElement, MIN = 0.85, MAX = 1.4;
+    const step = Math.max(1, Math.min(30, parseInt(fs.dataset.fontStep, 10) || 10)) / 100;
+    let scale = parseFloat(store.get('meeha_font_scale'));
+    if (!(scale >= MIN && scale <= MAX)) scale = 1;
+    const btns = $$('[data-font]');
+    const apply = () => {
+      scale = Math.round(Math.min(MAX, Math.max(MIN, scale)) * 100) / 100;
+      if (scale === 1) root.style.removeProperty('--m-font-scale'); else root.style.setProperty('--m-font-scale', scale);
+      store.set('meeha_font_scale', String(scale));
+      btns.forEach(b => { b.disabled = b.dataset.font === '+' ? scale >= MAX - 0.001 : scale <= MIN + 0.001; });
+    };
+    btns.forEach(b => b.addEventListener('click', () => { scale += (b.dataset.font === '+' ? step : -step); apply(); }));
+    apply();
+  }
+
+  /* ---------- collapsible dek ("+" সম্পূর্ণ সারাংশ / "−" ছোট করুন; toggle only when the text is clamped) ---------- */
+  $$('[data-dek]').forEach(box => {
+    const t = $('.m-dek__text', box), b = $('.m-dek__toggle', box);
+    if (!t || !b) return;
+    const check = () => { if (!box.classList.contains('is-open')) box.classList.toggle('is-clamped', t.scrollHeight > t.clientHeight + 2); };
+    b.addEventListener('click', () => {
+      const open = !box.classList.contains('is-open');
+      box.classList.toggle('is-open', open);
+      b.setAttribute('aria-expanded', String(open));
+      const l = open ? 'সারাংশ ছোট করুন' : 'সম্পূর্ণ সারাংশ'; b.setAttribute('aria-label', l); b.title = l;
+      check();
+    });
+    check();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(check);
+    let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(check, 150); }, { passive: true });
+  });
+
+  /* ---------- summary dialog ---------- */
+  const dlg = $('#m-summary');
+  if (dlg && dlg.showModal) {
+    $$('[data-summary-open]').forEach(b => b.addEventListener('click', () => { if (!dlg.open) dlg.showModal(); }));
+    dlg.addEventListener('click', e => { if (e.target === dlg || e.target.closest('[data-close]')) dlg.close(); });
+    const cp = $('[data-summary-copy]', dlg), sh = $('[data-summary-share]', dlg), txt = () => ($('#m-summary-text', dlg) || {}).innerText || '';
+    if (cp) cp.addEventListener('click', async () => { const s = cp.lastElementChild; flash(s, (await copyText(txt().trim())) ? 'কপি হয়েছে' : 'কপি করা যায়নি'); });
+    if (sh) sh.addEventListener('click', () => {
+      const url = sh.dataset.url || location.href, title = sh.dataset.title || document.title, text = txt().trim();
+      if (navigator.share) { navigator.share({ title, text, url }).catch(() => {}); return; }
+      window.open('https://wa.me/?text=' + encodeURIComponent(title + '\n\n' + text + '\n' + url), '_blank', 'noopener');
+    });
+  } else if (dlg) { $$('[data-summary-open]').forEach(b => { b.hidden = true; }); }
+
+  /* ---------- ফটোকার্ড ডাউনলোড ---------- */
+  let cardsP = null;
+  const loadCards = src => cardsP || (cardsP = new Promise((res, rej) => {
+    if (window.MeehaCards) { res(window.MeehaCards); return; }
+    const s = document.createElement('script'); s.src = src; s.async = true;
+    s.onload = () => (window.MeehaCards ? res(window.MeehaCards) : rej(new Error('cards')));
+    s.onerror = () => { cardsP = null; rej(new Error('load')); };
+    document.head.appendChild(s);
+  }));
+  $$('.m-cardbtn[data-card]').forEach(btn => {
+    const tip = $('.m-cardbtn__tip', btn), label = tip ? tip.textContent : '', status = btn.parentNode.querySelector('[data-card-status]') || $('[data-card-status]');
+    let timer = 0, longPressed = false, busy = false;
+    const setTip = (t, cls) => { btn.classList.remove('is-tip', 'is-error'); if (cls) btn.classList.add(cls); if (tip) tip.textContent = t; };
+    const reset = () => { setTip(label); };
+    btn.addEventListener('touchstart', () => { longPressed = false; clearTimeout(timer); timer = setTimeout(() => { longPressed = true; setTip(label, 'is-tip'); setTimeout(() => btn.classList.remove('is-tip'), 1800); }, 450); }, { passive: true });
+    ['touchend', 'touchmove', 'touchcancel'].forEach(ev => btn.addEventListener(ev, () => clearTimeout(timer), { passive: true }));
+    btn.addEventListener('contextmenu', e => { if (longPressed) e.preventDefault(); });
+    btn.addEventListener('click', async e => {
+      e.preventDefault();
+      if (longPressed) { longPressed = false; return; }   // a long-press only shows the tooltip
+      if (busy) return;
+      let pl; try { pl = JSON.parse(btn.dataset.card); } catch (er) { return; }
+      busy = true; btn.classList.add('is-busy'); btn.setAttribute('aria-busy', 'true'); setTip('তৈরি হচ্ছে…'); if (status) status.textContent = 'ফটোকার্ড তৈরি হচ্ছে…';
+      try {
+        const MC = await loadCards(pl.src);
+        if (MC.configure && pl.config) MC.configure(pl.config);   // logo/fonts/base from PHP, not from the script URL
+        if (MC.preview) {
+          // preview dialog with ডাউনলোড / ছবি কপি / ক্যাপশন কপি (renders inside the dialog)
+          MC.preview(pl, { opener: btn });
+          reset(); if (status) status.textContent = '';
+        } else {
+          const canvas = await MC.render(pl.type, pl.data, pl.opts || {});
+          await MC.download(canvas, pl.filename || 'meeha-card.png');
+          setTip('ডাউনলোড হয়েছে', 'is-tip'); if (status) status.textContent = 'ফটোকার্ড ডাউনলোড হয়েছে।';
+          setTimeout(reset, 1800);
+        }
+      } catch (er) {
+        setTip('দুঃখিত, কার্ড তৈরি করা যায়নি। আবার চেষ্টা করুন।', 'is-error'); if (status) status.textContent = 'দুঃখিত, ফটোকার্ড তৈরি করা যায়নি।';
+        setTimeout(reset, 3500);
+      } finally { busy = false; btn.classList.remove('is-busy'); btn.removeAttribute('aria-busy'); }
+    });
+  });
+
+  /* ---------- reactions ---------- */
+  $$('[data-reactions]').forEach(box => {
+    const id = box.dataset.postId, key = 'meeha_reaction_' + id, btns = $$('[data-react]', box);
+    const mark = t => btns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.react === t)));
+    const setCount = (b, n) => { const c = $('b', b); if (!c) return; c.dataset.count = String(Math.max(0, n)); c.textContent = bnShort(n); };
+    const valid = btns.map(b => b.dataset.react);
+    let cur = store.get(key); if (valid.indexOf(cur) < 0) cur = null; mark(cur);
+    const apply = counts => { if (!counts || typeof counts !== 'object') return; const c = counts.counts && typeof counts.counts === 'object' ? counts.counts : counts; btns.forEach(b => { if (typeof c[b.dataset.react] === 'number') setCount(b, c[b.dataset.react]); }); };
+    btns.forEach(b => b.addEventListener('click', () => {
+      const type = b.dataset.react; if (type === cur) return;
+      const prev = cur; cur = type; store.set(key, type); mark(type);
+      setCount(b, +($('b', b).dataset.count || 0) + 1);
+      const pb = prev && btns.find(x => x.dataset.react === prev); if (pb) setCount(pb, +($('b', pb).dataset.count || 0) - 1);
+      b.setAttribute('aria-busy', 'true');
+      let p;
+      if (window.MeehaMetrics && typeof window.MeehaMetrics.react === 'function') {
+        try { p = Promise.resolve(window.MeehaMetrics.react(+id, type, prev || undefined)); } catch (e) { p = Promise.reject(e); }
+      } else {
+        p = fetch(box.dataset.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ id: +id, type, prev: prev || undefined }) })
+          .then(r => (r.ok ? r.json() : null));
+      }
+      p.then(apply).catch(() => {}).finally(() => b.removeAttribute('aria-busy'));
+    }));
+  });
+
+  /* ---------- comments on demand ---------- */
+  const cbox = $('[data-comments]');
+  if (cbox) {
+    const thread = $('#m-comments-thread', cbox), openBtn = $('[data-comments-open]', cbox);
+    const addCss = href => new Promise(res => { if (!href || $('link[data-m-cmt]')) { res(); return; } const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = href; l.dataset.mCmt = ''; l.onload = l.onerror = () => res(); document.head.appendChild(l); setTimeout(res, 1500); });
+    const addJs = src => { if (!src || $('script[src="' + src + '"]')) return; const s = document.createElement('script'); s.src = src; s.async = true; document.body.appendChild(s); };
+    let loaded = false;
+    const open = async (focus) => {
+      if (!loaded) { loaded = true; await addCss(cbox.dataset.css); addJs(cbox.dataset.reply); addJs(cbox.dataset.js); }
+      if (thread) thread.hidden = false;
+      cbox.classList.add('is-open');
+      if (openBtn) openBtn.setAttribute('aria-expanded', 'true');
+      if (focus && thread) { thread.setAttribute('tabindex', '-1'); thread.focus({ preventScroll: true }); thread.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
+    };
+    if (openBtn) openBtn.addEventListener('click', () => open(true));
+    if (cbox.classList.contains('is-open')) open(false);
+    const wants = () => /^#(comments|respond|comment-\d+|m-comments)/.test(location.hash) || /[?&]replytocom=/.test(location.search);
+    if (wants()) open(false).then(() => { const t = document.getElementById(location.hash.slice(1)); if (t) t.scrollIntoView(); });
+    addEventListener('hashchange', () => { if (wants()) open(false); });
+  }
+
+  /* ---------- recitation ---------- */
+  $$('.m-recite__video[data-yt]').forEach(v => {
+    const b = $('.m-recite__play', v); if (!b) return;
+    b.addEventListener('click', () => {
+      const f = document.createElement('iframe');
+      f.src = 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(v.dataset.yt) + '?autoplay=1&rel=0';
+      f.title = b.getAttribute('aria-label') || 'আবৃত্তি'; f.allow = 'autoplay; encrypted-media; picture-in-picture'; f.allowFullscreen = true;
+      v.textContent = ''; v.appendChild(f);
+    });
+  });
+  $$('[data-recite]').forEach(w => {
+    const a = $('audio', w), b = $('.m-recite__play', w), bar = $('.m-recite__track i', w), track = $('.m-recite__track', w), t = $('.m-recite__time', w);
+    if (!a || !b) return;
+    w.classList.add('is-js');
+    const fmt = s => { s = Math.max(0, Math.floor(s || 0)); return bn(Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0')); };
+    const upd = () => { if (bar) bar.style.width = (a.duration ? (a.currentTime / a.duration) * 100 : 0) + '%'; if (t) t.textContent = fmt(a.currentTime) + (a.duration ? ' / ' + fmt(a.duration) : ''); };
+    b.addEventListener('click', () => { if (a.paused) a.play().catch(() => {}); else a.pause(); });
+    a.addEventListener('play', () => { b.setAttribute('aria-pressed', 'true'); b.setAttribute('aria-label', 'আবৃত্তি থামান'); });
+    a.addEventListener('pause', () => { b.setAttribute('aria-pressed', 'false'); b.setAttribute('aria-label', 'আবৃত্তি শুনুন'); });
+    a.addEventListener('timeupdate', upd); a.addEventListener('loadedmetadata', upd);
+    if (track) track.addEventListener('click', e => { if (!a.duration) return; const r = track.getBoundingClientRect(); a.currentTime = ((e.clientX - r.left) / r.width) * a.duration; });
+  });
+})();

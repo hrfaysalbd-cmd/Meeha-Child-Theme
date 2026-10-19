@@ -1,0 +1,118 @@
+/* quotes.js — উক্তি pages (owner D). Deferred; everything degrades without JS.
+   - poll: REST vote (no nonce), live total every 15 s while visible, results only after close;
+     all text from the server is inserted with textContent (no innerHTML)
+   - "ছবি ডাউনলোড": lazy cards.js (E) → PNG; download counter
+   - archive "আরও উক্তি দেখুন": appends the next page in place (plain link without JS) */
+(() => {
+  const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+  const bn = n => String(n).replace(/\d/g, d => '০১২৩৪৫৬৭৮৯'[d]);
+  const en = s => String(s).replace(/[০-৯]/g, d => '০১২৩৪৫৬৭৮৯'.indexOf(d));
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+  /* ---------- poll ---------- */
+  $$('form[data-poll]').forEach(form => {
+    const id = form.dataset.poll, ep = form.dataset.endpoint, key = 'meeha_poll_voted_' + id;
+    const msg = $('[data-poll-msg]', form), note = $('[data-poll-note]', form);
+    const say = (t, err) => { if (!msg) return; msg.textContent = t; msg.classList.toggle('is-error', !!err); };
+    const noteFor = t => t.closed ? bn(t.total_bn || t.total) + ' জন ভোট দিয়েছেন। ভোট শেষ হয়েছে।' : (t.total_bn || bn(t.total)) + ' জন ভোট দিয়েছেন। ফলাফল জানা যাবে ' + t.ends_label + '-এ (ভোট চলবে ' + t.remaining + ')।';
+    const showResults = t => {
+      $$('.m-poll__choices, .m-poll__fields, .m-poll__checks, .m-poll__privacy, .m-hp, button[type=submit]', form).forEach(n => n.remove());
+      $$('.m-poll__opt', form).forEach(n => n.remove());
+      const ref = note || msg;
+      (t.options || []).forEach((o, i) => {
+        const r = t.results && t.results[o.key] ? t.results[o.key] : { pct: 0 };
+        const box = el('div', 'm-poll__opt' + (i ? ' m-poll__opt--no' : '')), row = el('div', 'm-poll__row'), bar = el('div', 'm-poll__bar'), fill = el('i');
+        row.appendChild(el('span', '', o.label)); row.appendChild(el('span', '', bn(r.pct) + '%'));
+        fill.style.width = Math.max(0, Math.min(100, +r.pct || 0)) + '%'; bar.appendChild(fill);
+        box.appendChild(row); box.appendChild(bar); form.insertBefore(box, ref);
+      });
+      form.classList.add('is-closed');
+    };
+    const update = t => { if (!t || !t.enabled) return; if (note) note.textContent = noteFor(t); if (t.closed && !form.classList.contains('is-closed')) showResults(t); };
+    if (store.get(key) && !form.classList.contains('is-closed')) { form.classList.add('is-voted'); say('আপনি এই উক্তিতে ভোট দিয়েছেন। ফলাফল জানা যাবে মেয়াদ শেষে।'); }
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      if (!fd.get('choice')) { say('অনুগ্রহ করে একটি অপশন বেছে নিন।', true); return; }
+      if (String(fd.get('name') || '').trim().length < 2) { say('আপনার নাম লিখুন।', true); form.elements.name.focus(); return; }
+      const phone = en(String(fd.get('phone') || '')).replace(/[^0-9]/g, '');
+      if (phone.length < 6 || phone.length > 15) { say('সঠিক ফোন নম্বর দিন।', true); form.elements.phone.focus(); return; }
+      const btn = $('button[type=submit]', form); if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
+      say('পাঠানো হচ্ছে…');
+      const body = {}; fd.forEach((v, k) => { if (k !== 'action' && k !== 'post_id') body[k] = v; });
+      try {
+        const r = await fetch(ep, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) { say(j && j.message ? j.message : 'ভোট নেওয়া যায়নি। আবার চেষ্টা করুন।', true); if (j && j.code === 'meeha_poll_dup') { store.set(key, '1'); } return; }
+        store.set(key, '1'); form.classList.add('is-voted'); say(j.message || 'আপনার ভোট সংরক্ষিত হয়েছে।'); update(j.tally);
+      } catch (er) { say('সংযোগে সমস্যা। আবার চেষ্টা করুন।', true); }
+      finally { if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); } }
+    });
+
+    if (form.classList.contains('is-closed') || !ep) return;
+    let t = 0;
+    const tick = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try { const r = await fetch(ep, { credentials: 'same-origin' }); if (r.ok) update(await r.json()); } catch (e) {}
+      if (form.classList.contains('is-closed')) clearInterval(t);
+    };
+    t = setInterval(tick, 15000);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') tick(); });
+  });
+
+  /* ---------- quote card download ---------- */
+  let cardsP = null;
+  const loadCards = src => cardsP || (cardsP = new Promise((res, rej) => {
+    if (window.MeehaCards) { res(window.MeehaCards); return; }
+    const s = document.createElement('script'); s.src = src; s.async = true;
+    s.onload = () => (window.MeehaCards ? res(window.MeehaCards) : rej(new Error('cards')));
+    s.onerror = () => { cardsP = null; rej(new Error('load')); };
+    document.head.appendChild(s);
+  }));
+  $$('.m-qdl[data-card]').forEach(btn => {
+    const lab = $('[data-label]', btn), orig = lab ? lab.textContent : '', status = $('[data-card-status]');
+    let busy = false;
+    btn.addEventListener('click', async () => {
+      if (busy) return;
+      let pl; try { pl = JSON.parse(btn.dataset.card); } catch (e) { return; }
+      busy = true; btn.setAttribute('aria-busy', 'true'); btn.classList.remove('is-error'); if (lab) lab.textContent = 'তৈরি হচ্ছে…';
+      const track = () => { if (btn.dataset.track) fetch(btn.dataset.track, { method: 'POST', credentials: 'same-origin' }).catch(() => {}); };
+      try {
+        const MC = await loadCards(pl.src);
+        if (MC.configure && pl.config) MC.configure(pl.config);
+        if (MC.preview) {
+          MC.preview(pl, { opener: btn, onDownload: track });   // preview dialog; the counter counts real downloads
+          if (lab) lab.textContent = orig;
+        } else {
+          const c = await MC.render(pl.type, pl.data, pl.opts || {});
+          await MC.download(c, pl.filename || 'meeha-quote.png');
+          if (lab) lab.textContent = 'ডাউনলোড হয়েছে'; if (status) status.textContent = 'ছবি ডাউনলোড হয়েছে।';
+          track();
+        }
+      } catch (e) {
+        btn.classList.add('is-error'); if (lab) lab.textContent = 'ছবি তৈরি করা যায়নি — আবার চেষ্টা করুন'; if (status) status.textContent = 'দুঃখিত, ছবি তৈরি করা যায়নি।';
+      } finally { busy = false; btn.removeAttribute('aria-busy'); setTimeout(() => { if (lab) lab.textContent = orig; btn.classList.remove('is-error'); }, 3000); }
+    });
+  });
+
+  /* ---------- archive load more ---------- */
+  const more = $('[data-loadmore]'), grid = $('[data-qgrid]');
+  if (more && grid && window.DOMParser) {
+    more.addEventListener('click', async e => {
+      e.preventDefault();
+      if (more.getAttribute('aria-busy')) return;
+      more.setAttribute('aria-busy', 'true'); const o = more.textContent; more.textContent = 'লোড হচ্ছে…';
+      try {
+        const r = await fetch(more.href, { credentials: 'same-origin' }); if (!r.ok) throw new Error();
+        const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+        const items = $$('[data-qgrid] > li', doc); items.forEach(li => grid.appendChild(document.importNode(li, true)));
+        const next = $('[data-loadmore]', doc);
+        if (next && items.length) { more.href = next.href; more.textContent = o; more.removeAttribute('aria-busy'); }
+        else { more.parentNode.remove(); }
+        const pager = $('.m-qarchive .m-pager'), np = $('.m-qarchive .m-pager', doc); if (pager && np) pager.replaceWith(document.importNode(np, true));
+      } catch (er) { location.href = more.href; }
+    });
+  }
+})();

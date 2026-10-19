@@ -1,0 +1,74 @@
+/* metrics.js — view beacon + share/reaction counters (owner C). No nonce, no cookies needed.
+   - View: one beacon after the page has been VISIBLE for `delay` ms in total (hidden time does not count);
+     sessionStorage skips repeat beacons for the same post within 30 min (the server dedupes per IP for 24 h).
+   - Shares: every [data-share-net] control (A's share bar, D's buttons) is counted on click; the link itself
+     opens as usual. Native share / copy fall back to this script when A's handler is absent.
+   - API for D: window.MeehaMetrics.share(id, net) → Promise<{counts,total}|null>
+                window.MeehaMetrics.react(id, type, prev?) → Promise<{counts,mine,changed}|null>
+     react() stores the server-confirmed choice in localStorage `meeha_reaction_{id}` (legacy key). */
+(() => {
+  const cfg = window.MeehaMetricsConfig || {};
+  const base = cfg.rest || '/wp-json/meeha/v1/';
+  const ss = { get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} } };
+  const ls = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+  const form = data => { const p = new URLSearchParams(); Object.keys(data).forEach(k => { if (data[k] !== undefined && data[k] !== null && data[k] !== '') p.append(k, data[k]); }); return p; };
+
+  const beacon = (path, data) => {
+    const body = form(data);
+    if (navigator.sendBeacon) { try { if (navigator.sendBeacon(base + path, body)) return true; } catch (e) {} }
+    try { fetch(base + path, { method: 'POST', body, keepalive: true, credentials: 'omit' }); } catch (e) {}
+    return true;
+  };
+  const post = (path, data) => {
+    if (!window.fetch) { beacon(path, data); return Promise.resolve(null); }
+    return fetch(base + path, { method: 'POST', body: form(data), keepalive: true, credentials: 'omit' })
+      .then(r => (r.ok ? r.json() : null)).catch(() => null);
+  };
+
+  /* ---- view beacon ---- */
+  const id = parseInt(cfg.id, 10) || 0;
+  if (id && cfg.beacon) {
+    const key = 'meeha_v_' + id, last = parseInt(ss.get(key) || '0', 10);
+    if (!last || Date.now() - last > 30 * 60 * 1000) {
+      const need = Math.max(1000, parseInt(cfg.delay, 10) || 5000);
+      let shown = 0, since = document.visibilityState === 'visible' ? Date.now() : 0, timer = 0, done = false;
+      const fire = () => { if (done) return; done = true; clearTimeout(timer); ss.set(key, String(Date.now())); beacon('view', { id }); document.removeEventListener('visibilitychange', vis); };
+      const arm = () => { clearTimeout(timer); timer = setTimeout(() => { shown += Date.now() - since; since = Date.now(); if (shown >= need) fire(); else arm(); }, Math.max(50, need - shown)); };
+      const vis = () => {
+        if (document.visibilityState === 'visible') { since = Date.now(); arm(); }
+        else if (since) { shown += Date.now() - since; since = 0; clearTimeout(timer); if (shown >= need) fire(); }
+      };
+      document.addEventListener('visibilitychange', vis);
+      if (since) arm();
+    }
+  }
+
+  /* ---- public API ---- */
+  const share = (pid, net) => {
+    pid = parseInt(pid, 10); net = String(net || '').toLowerCase();
+    if (!pid || !net) return Promise.resolve(null);
+    return post('share', { id: pid, network: net });
+  };
+  const react = (pid, type, prev) => {
+    pid = parseInt(pid, 10); type = String(type || '');
+    if (!pid || !type) return Promise.resolve(null);
+    if (prev === undefined || prev === type) prev = ''; // informational only: the server trusts its own per-visitor record
+    return post('react', { id: pid, type, prev }).then(r => { if (r && r.mine) ls.set('meeha_reaction_' + pid, r.mine); return r; });
+  };
+  window.MeehaMetrics = { share, react, beacon: (path, data) => beacon(path, data) };
+
+  /* ---- share controls ---- */
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-share-net]'); if (!b) return;
+    const holder = b.closest('[data-post-id]');
+    const pid = b.dataset.postId || (holder && holder.dataset.postId) || id;
+    const net = b.dataset.shareNet;
+    if (net === 'native') {
+      if (!navigator.share) return;
+      if (!b.hasAttribute('data-share')) { navigator.share({ title: document.title, url: b.dataset.url || location.href }).then(() => share(pid, net)).catch(() => {}); return; }
+    } else if (net === 'copy' && !b.hasAttribute('data-copy') && navigator.clipboard) {
+      navigator.clipboard.writeText(b.dataset.url || location.href).catch(() => {});
+    }
+    share(pid, net);
+  });
+})();

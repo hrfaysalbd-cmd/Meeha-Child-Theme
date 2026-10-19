@@ -1,0 +1,389 @@
+/**
+ * Meeha — account pages: login (+ OTP step), register, lost password, My Account.
+ * Anonymous forms post to REST meeha/v1/account/* (no nonce, rate-limited server side).
+ * My Account uses admin-ajax with the logged-in user's nonce (refreshed if stale).
+ * Every form also works without JS (wp-login.php / admin-post.php fallbacks).
+ */
+( function () {
+	'use strict';
+
+	var BN = { '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4', '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9' };
+	function toAscii( s ) {
+		return String( s || '' ).replace( /[০-৯]/g, function ( d ) { return BN[ d ]; } );
+	}
+
+	function say( el, text, type ) {
+		if ( ! el ) {
+			return;
+		}
+		el.textContent = text || '';
+		el.classList.toggle( 'is-error', type === 'error' );
+		el.classList.toggle( 'is-ok', type === 'ok' );
+	}
+
+	function busy( btn, on ) {
+		if ( ! btn ) {
+			return;
+		}
+		if ( on ) {
+			btn.dataset.label = btn.textContent;
+			btn.textContent = 'অপেক্ষা করুন…';
+			btn.disabled = true;
+		} else {
+			btn.textContent = btn.dataset.label || btn.textContent;
+			btn.disabled = false;
+		}
+	}
+
+	function parse( res ) {
+		return res.json().catch( function () {
+			return { success: false, data: { message: 'সমস্যা হয়েছে, আবার চেষ্টা করুন।' } };
+		} );
+	}
+
+	function rest( root, path, fields ) {
+		var body = new URLSearchParams();
+		Object.keys( fields ).forEach( function ( k ) {
+			body.append( k, fields[ k ] );
+		} );
+		return fetch( root.getAttribute( 'data-rest' ) + path, {
+			method: 'POST',
+			credentials: 'same-origin',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+			body: body.toString()
+		} ).then( parse );
+	}
+
+	function val( form, name ) {
+		var el = form.elements[ name ];
+		return el ? ( el.type === 'checkbox' ? ( el.checked ? '1' : '' ) : el.value ) : '';
+	}
+
+	function requireFilled( form, msgEl ) {
+		if ( form.checkValidity() ) {
+			return true;
+		}
+		var bad = form.querySelector( ':invalid' );
+		if ( bad ) {
+			bad.focus();
+		}
+		say( msgEl, 'লাল চিহ্নিত ঘরগুলো সঠিকভাবে পূরণ করুন।', 'error' );
+		form.classList.add( 'was-validated' );
+		return false;
+	}
+
+	function go( url ) {
+		window.location.assign( url || '/' );
+	}
+
+	/* ---------- password show/hide ---------- */
+	document.querySelectorAll( '[data-pw-toggle]' ).forEach( function ( b ) {
+		b.hidden = false;
+		b.addEventListener( 'click', function () {
+			var input = document.getElementById( b.getAttribute( 'aria-controls' ) );
+			if ( ! input ) {
+				return;
+			}
+			var show = input.type === 'password';
+			input.type = show ? 'text' : 'password';
+			b.setAttribute( 'aria-pressed', show ? 'true' : 'false' );
+			b.textContent = show ? 'লুকান' : 'দেখান';
+		} );
+	} );
+
+	/* ---------- login + OTP ---------- */
+	document.querySelectorAll( '[data-meeha-account="login"]' ).forEach( function ( root ) {
+		var login = root.querySelector( '#meeha-login-form' );
+		var otp = root.querySelector( '#meeha-otp-form' );
+		if ( ! login ) {
+			return;
+		}
+		var loginMsg = root.querySelector( '#meeha-login-msg' );
+		var otpMsg = root.querySelector( '#meeha-otp-msg' );
+
+		function showOtp( data ) {
+			login.hidden = true;
+			otp.hidden = false;
+			otp.elements.token.value = data.token || '';
+			root.querySelector( '#meeha-otp-hint' ).textContent = data.message || '';
+			say( otpMsg, '' );
+			otp.elements.code.value = '';
+			otp.elements.code.focus();
+		}
+		function backToLogin( message ) {
+			otp.hidden = true;
+			login.hidden = false;
+			say( loginMsg, message || '', message ? 'error' : '' );
+			login.elements.pwd.value = '';
+			login.elements.pwd.focus();
+		}
+
+		login.addEventListener( 'submit', function ( e ) {
+			e.preventDefault();
+			if ( ! requireFilled( login, loginMsg ) ) {
+				return;
+			}
+			var btn = login.querySelector( '[type="submit"]' );
+			busy( btn, true );
+			say( loginMsg, '' );
+			rest( root, 'login', {
+				username: val( login, 'log' ),
+				password: val( login, 'pwd' ),
+				redirect_to: val( login, 'redirect_to' )
+			} ).then( function ( res ) {
+				var d = res.data || {};
+				if ( res.success && d.otp_required ) {
+					showOtp( d );
+				} else if ( res.success ) {
+					say( loginMsg, d.message, 'ok' );
+					go( d.redirect );
+					return;
+				} else {
+					say( loginMsg, d.message || 'লগইন করা যায়নি।', 'error' );
+				}
+				busy( btn, false );
+			} ).catch( function () {
+				say( loginMsg, 'সংযোগে সমস্যা হয়েছে, আবার চেষ্টা করুন।', 'error' );
+				busy( btn, false );
+			} );
+		} );
+
+		if ( ! otp ) {
+			return;
+		}
+		otp.elements.code.addEventListener( 'input', function () {
+			var v = toAscii( otp.elements.code.value ).replace( /\D/g, '' ).slice( 0, 6 );
+			if ( v !== otp.elements.code.value ) {
+				otp.elements.code.value = v;
+			}
+		} );
+		otp.addEventListener( 'submit', function ( e ) {
+			e.preventDefault();
+			var code = toAscii( otp.elements.code.value ).replace( /\D/g, '' );
+			if ( code.length !== 6 ) {
+				say( otpMsg, '৬ সংখ্যার ওটিপি দিন।', 'error' );
+				otp.elements.code.focus();
+				return;
+			}
+			var btn = otp.querySelector( '[type="submit"]' );
+			busy( btn, true );
+			rest( root, 'login-otp', { token: otp.elements.token.value, code: code } ).then( function ( res ) {
+				var d = res.data || {};
+				if ( res.success ) {
+					say( otpMsg, d.message, 'ok' );
+					go( d.redirect );
+					return;
+				}
+				busy( btn, false );
+				if ( d.restart ) {
+					backToLogin( d.message );
+					return;
+				}
+				say( otpMsg, d.message || 'ওটিপি সঠিক নয়।', 'error' );
+			} ).catch( function () {
+				busy( btn, false );
+				say( otpMsg, 'সংযোগে সমস্যা হয়েছে, আবার চেষ্টা করুন।', 'error' );
+			} );
+		} );
+		var resend = root.querySelector( '#meeha-otp-resend' );
+		if ( resend ) {
+			resend.addEventListener( 'click', function () {
+				resend.disabled = true;
+				rest( root, 'login-otp-resend', { token: otp.elements.token.value } ).then( function ( res ) {
+					var d = res.data || {};
+					if ( res.success ) {
+						if ( d.token ) {
+							otp.elements.token.value = d.token;
+						}
+						say( otpMsg, d.message, 'ok' );
+					} else if ( d.restart ) {
+						backToLogin( d.message );
+					} else {
+						say( otpMsg, d.message, 'error' );
+					}
+					setTimeout( function () { resend.disabled = false; }, 15000 );
+				} ).catch( function () {
+					resend.disabled = false;
+				} );
+			} );
+		}
+		var back = root.querySelector( '#meeha-otp-back' );
+		if ( back ) {
+			back.addEventListener( 'click', function () { backToLogin( '' ); } );
+		}
+	} );
+
+	/* ---------- register ---------- */
+	document.querySelectorAll( '[data-meeha-account="register"]' ).forEach( function ( root ) {
+		var form = root.querySelector( '#meeha-register-form' );
+		if ( ! form ) {
+			return;
+		}
+		var msg = root.querySelector( '#meeha-register-msg' );
+		form.addEventListener( 'submit', function ( e ) {
+			e.preventDefault();
+			if ( ! requireFilled( form, msg ) ) {
+				return;
+			}
+			var btn = form.querySelector( '[type="submit"]' );
+			busy( btn, true );
+			say( msg, '' );
+			rest( root, 'register', {
+				name: val( form, 'name' ),
+				email: val( form, 'email' ),
+				phone: val( form, 'phone' ),
+				password: val( form, 'password' ),
+				redirect_to: val( form, 'redirect_to' ),
+				meeha_newsletter_consent: val( form, 'meeha_newsletter_consent' ),
+				website: val( form, 'website' )
+			} ).then( function ( res ) {
+				var d = res.data || {};
+				if ( res.success ) {
+					say( msg, d.message, 'ok' );
+					if ( d.redirect ) {
+						setTimeout( function () { go( d.redirect ); }, 600 );
+					}
+					return;
+				}
+				say( msg, d.message || 'একাউন্ট তৈরি করা যায়নি।', 'error' );
+				busy( btn, false );
+			} ).catch( function () {
+				say( msg, 'সংযোগে সমস্যা হয়েছে, আবার চেষ্টা করুন।', 'error' );
+				busy( btn, false );
+			} );
+		} );
+	} );
+
+	/* ---------- lost password ---------- */
+	document.querySelectorAll( '[data-meeha-account="lost"]' ).forEach( function ( root ) {
+		var form = root.querySelector( '#meeha-lost-password-form' );
+		if ( ! form ) {
+			return;
+		}
+		var msg = root.querySelector( '#meeha-lost-password-msg' );
+		form.addEventListener( 'submit', function ( e ) {
+			e.preventDefault();
+			if ( ! requireFilled( form, msg ) ) {
+				return;
+			}
+			var btn = form.querySelector( '[type="submit"]' );
+			busy( btn, true );
+			rest( root, 'lost-password', { email: val( form, 'user_login' ), website: val( form, 'website' ) } ).then( function ( res ) {
+				var d = res.data || {};
+				say( msg, d.message || '', res.success ? 'ok' : 'error' );
+				busy( btn, false );
+				if ( res.success ) {
+					form.reset();
+				}
+			} ).catch( function () {
+				say( msg, 'সংযোগে সমস্যা হয়েছে, আবার চেষ্টা করুন।', 'error' );
+				busy( btn, false );
+			} );
+		} );
+	} );
+
+	/* ---------- My Account (logged in; admin-ajax + nonce) ---------- */
+	var my = document.querySelector( '[data-meeha-account="my"]' );
+	if ( ! my ) {
+		return;
+	}
+	var ajax = my.getAttribute( 'data-ajax' );
+	var nonce = my.getAttribute( 'data-nonce' );
+
+	function freshNonce() {
+		return fetch( ajax + '?action=meeha_account_nonce', { credentials: 'same-origin' } ).then( parse ).then( function ( r ) {
+			if ( r.success && r.data && r.data.nonce ) {
+				nonce = r.data.nonce;
+			}
+			return nonce;
+		} );
+	}
+
+	function ajaxPost( action, form, retried ) {
+		var fd = new FormData( form );
+		fd.set( 'action', action );
+		fd.set( 'nonce', nonce );
+		return fetch( ajax, { method: 'POST', credentials: 'same-origin', body: fd } ).then( parse ).then( function ( res ) {
+			if ( ! res.success && res.data && res.data.stale_nonce && ! retried ) {
+				return freshNonce().then( function () { return ajaxPost( action, form, true ); } );
+			}
+			return res;
+		} );
+	}
+
+	function wire( formId, action, msgId, onOk ) {
+		var form = document.getElementById( formId );
+		if ( ! form ) {
+			return;
+		}
+		var msg = document.getElementById( msgId );
+		form.addEventListener( 'submit', function ( e ) {
+			e.preventDefault();
+			if ( ! requireFilled( form, msg ) ) {
+				return;
+			}
+			var btn = form.querySelector( '[type="submit"]' );
+			busy( btn, true );
+			ajaxPost( action, form ).then( function ( res ) {
+				var d = res.data || {};
+				say( msg, d.message || ( res.success ? '' : 'সমস্যা হয়েছে।' ), res.success ? 'ok' : 'error' );
+				busy( btn, false );
+				if ( res.success && onOk ) {
+					onOk( d, form );
+				}
+			} ).catch( function () {
+				say( msg, 'সংযোগে সমস্যা হয়েছে, আবার চেষ্টা করুন।', 'error' );
+				busy( btn, false );
+			} );
+		} );
+	}
+
+	wire( 'meeha-profile-form', 'meeha_ajax_profile_update', 'meeha-profile-msg', function ( d, form ) {
+		var name = form.elements.name && form.elements.name.value;
+		var head = my.querySelector( '.m-acct__name' );
+		if ( name && head ) {
+			head.textContent = name;
+		}
+	} );
+	wire( 'meeha-password-form', 'meeha_ajax_password_change', 'meeha-password-msg', function ( d, form ) {
+		form.reset();
+	} );
+
+	var avatarForm = document.getElementById( 'meeha-avatar-form' );
+	var avatarInput = document.getElementById( 'meeha-avatar-input' );
+	if ( avatarForm && avatarInput ) {
+		var avatarMsg = document.getElementById( 'meeha-avatar-msg' );
+		avatarInput.addEventListener( 'change', function () {
+			var f = avatarInput.files && avatarInput.files[ 0 ];
+			if ( ! f ) {
+				return;
+			}
+			if ( [ 'image/jpeg', 'image/png', 'image/webp' ].indexOf( f.type ) < 0 ) {
+				say( avatarMsg, 'শুধু JPG, PNG বা WebP ছবি দেওয়া যাবে।', 'error' );
+				avatarInput.value = '';
+				return;
+			}
+			if ( f.size > 2 * 1024 * 1024 ) {
+				say( avatarMsg, 'ছবির আকার সর্বোচ্চ ২ MB হতে পারে।', 'error' );
+				avatarInput.value = '';
+				return;
+			}
+			say( avatarMsg, 'আপলোড হচ্ছে…' );
+			avatarForm.classList.add( 'is-busy' );
+			ajaxPost( 'meeha_ajax_avatar_upload', avatarForm ).then( function ( res ) {
+				var d = res.data || {};
+				avatarForm.classList.remove( 'is-busy' );
+				say( avatarMsg, d.message || '', res.success ? 'ok' : 'error' );
+				if ( res.success && d.url ) {
+					document.querySelectorAll( '[data-avatar-img]' ).forEach( function ( img ) {
+						img.src = d.url;
+					} );
+				}
+				avatarInput.value = '';
+			} ).catch( function () {
+				avatarForm.classList.remove( 'is-busy' );
+				say( avatarMsg, 'আপলোড ব্যর্থ হয়েছে।', 'error' );
+			} );
+		} );
+	}
+}() );

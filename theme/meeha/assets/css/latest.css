@@ -1,0 +1,58 @@
+/* =====================================================================
+   latest.css — [meeha_latest_feed] "সর্বশেষ" live page (owner B).
+   Cards come from the shared m-story component (components.css).
+   ===================================================================== */
+.m-lf { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--m-s5); }
+.m-lf [hidden] { display: none !important; }
+/* isolation: page.php wraps shortcode output in .m-prose — neutralise its element styles here */
+.m-prose .m-lf a { color: inherit; text-decoration: none; }
+.m-prose .m-lf :is(ul, ol) { padding-left: 0; list-style: none; }
+.m-prose .m-lf li + li { margin-top: 0; }
+.m-prose .m-lf :is(h2, h3) { margin-top: 0; }
+.m-lf__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding-bottom: 12px; border-bottom: 1px solid var(--m-line); }
+.m-lf__live { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; color: var(--m-muted); font-size: var(--m-fs-sm); line-height: 1.6; }
+.m-lf__live .m-kicker { font-size: var(--m-fs-sm); }
+
+/* "নতুন খবর" pill — floats at the bottom so it is seen wherever the reader is */
+.m-lf__fresh { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 40; box-shadow: var(--m-shadow-pop); transform: translateX(-50%); animation: m-lf-in .25s var(--m-ease); }
+@keyframes m-lf-in { from { opacity: 0; transform: translate(-50%, 12px); } }
+
+.m-lf__hero { padding-bottom: var(--m-s5); border-bottom: 1px solid var(--m-line); }
+.m-lf__hero .m-story__title { font-size: var(--m-fs-xl); }
+.m-lf__top { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--m-s5); }
+
+.m-lf__grid { display: grid; gap: var(--m-s4); margin: 0; padding: 0; list-style: none; }
+.m-lf__grid > li { min-width: 0; }
+.m-lf__grid > li + li { padding-top: var(--m-s4); border-top: 1px solid var(--m-line); }
+.m-lf__grid--more:empty { display: none; }
+@media (min-width: 768px) {
+  .m-lf__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--m-s5) var(--m-gap); }
+  .m-lf__grid > li + li { padding-top: 0; border-top: 0; }
+}
+.m-lf__top + .m-lf__grid--more { margin-top: calc(-1 * var(--m-s1)); }
+.m-lf .m-loadmore { margin-top: 0; }
+
+.m-lf__cats { margin-top: var(--m-s4); padding-top: var(--m-s5); border-top: 3px solid var(--m-ink); }
+.m-lf__cats .m-sechead { margin-bottom: var(--m-s4); }
+.m-lf__chips { display: flex; gap: 8px; margin: 0 calc(-1 * var(--m-gutter)) var(--m-s5); padding: 0 var(--m-gutter) 4px; overflow-x: auto; scrollbar-width: none; }
+.m-lf__chips::-webkit-scrollbar { display: none; }
+.m-lf__chips .m-chip { flex: none; }
+@media (min-width: 768px) { .m-lf__chips { flex-wrap: wrap; margin-inline: 0; padding-inline: 0; overflow: visible; } }
+.m-lf [data-latest-cat] { transition: opacity .15s; }
+.m-lf__all { margin-top: var(--m-s4); text-align: right; }
+.m-lf__all .m-sechead__more { margin-left: 0; }
+
+/* restore component styles that .m-prose would otherwise override (higher specificity) */
+.m-lf .m-sechead__title { font: 700 var(--m-fs-h2)/1.3 var(--m-font-head); color: var(--m-ink); }
+.m-lf .m-story__title { font: 700 var(--m-fs-lg)/var(--m-lh-tight) var(--m-font-head); color: var(--m-ink); }
+.m-lf .m-story--sm .m-story__title, .m-lf .m-story--row .m-story__title { font-size: var(--m-fs-md); line-height: 1.45; }
+@media (max-width: 767.98px) { .m-lf .m-story--rowm .m-story__title { font-size: var(--m-fs-md); line-height: 1.45; } }
+.m-lf .m-lf__hero .m-story__title { font-size: var(--m-fs-xl); line-height: var(--m-lh-tight); }
+.m-lf .m-story__title a:hover { color: var(--m-blue); }
+.m-lf a.m-kicker { color: var(--m-blue); }
+.m-lf a.m-chip { color: var(--m-text); }
+.m-lf a.m-chip:hover { color: var(--m-blue); }
+.m-lf a.m-chip[aria-current] { color: var(--m-paper); }
+.m-lf a.m-sechead__more { color: var(--m-blue); }
+.m-lf a.m-btn--ghost { color: var(--m-ink); }
+.m-lf a.m-btn--ghost:hover { color: var(--m-blue); }
