@@ -20,6 +20,8 @@
 const q = new URLSearchParams(location.search);
 const W = +q.get('w') || 1080, H = +q.get('h') || 1080;
 const id = q.get('id');
+// deco=1: the frame for a theme preset that already draws its own title, date and ribbon — leave the text labels out
+const DECO = !!q.get('deco');
 const stage = document.getElementById('stage');
 stage.style.width = W + 'px';
 stage.style.height = H + 'px';
@@ -60,6 +62,7 @@ function ornament(color, size, inset) {
 
 // Pill / tab label
 function tab(text, { bg, fg, top, bottom, size = 44, pad = '14px 44px', radius = 999, cls = 'serif', border = '' }) {
+  if (DECO) return;
   const v = top !== undefined ? `top:${top}px` : `bottom:${bottom}px`;
   label(text, `${v};left:50%;transform:translateX(-50%);background:${bg};color:${fg};font-size:${size}px;font-weight:800;line-height:1.25;padding:${pad};border-radius:${radius}px;white-space:nowrap;${border};box-shadow:0 6px 18px rgba(0,0,0,.18)`, cls);
 }
@@ -83,9 +86,11 @@ const F = {
     box(`inset:0;border:${b}px solid #111`);
     box(`inset:${b + 12}px;border:2px solid rgba(255,255,255,.75)`);
     // black mourning ribbon, top-left
+    if (!DECO) {
     const rib = `M28 150 L58 80 C72 50 68 14 50 14 C32 14 28 50 42 80 L72 150`;
     svg(`<path d="${rib}" fill="none" stroke="#fff" stroke-width="22" stroke-linejoin="round"/><path d="${rib}" fill="none" stroke="#111" stroke-width="14" stroke-linejoin="round"/>`,
       `left:${b + 30}px;top:${b + 26}px;width:${W * 0.1}px;height:${W * 0.16}px`, '0 0 100 160');
+    }
     tab('গভীর শোক', { bg: '#111', fg: '#fff', bottom: b - 2, size: Math.round(W * 0.036), radius: 0, pad: '10px 48px', border: 'border:2px solid rgba(255,255,255,.75)' });
   },
   'shok-kona-fita'() {
@@ -128,7 +133,7 @@ const F = {
     box(`inset:${b}px;border:4px solid ${BDRED}`);
     svg(`<circle cx="50" cy="50" r="46" fill="${BDRED}" stroke="#fff" stroke-width="4"/>`, `right:${b + 20}px;top:${b + 20}px;width:${W * 0.11}px;height:${W * 0.11}px`, '0 0 100 100');
     tab('মহান বিজয় দিবস', { bg: GREEN, fg: '#fff', bottom: b - 4, size: Math.round(W * 0.042), radius: 0, pad: '10px 52px', border: `border-top:4px solid ${BDRED}` });
-    label('১৬ ডিসেম্বর', `left:50%;transform:translateX(-50%);top:${b + 18}px;background:${BDRED};color:#fff;font-size:${W * 0.026}px;font-weight:700;padding:6px 26px;border-radius:999px`, 'sans');
+    if (!DECO) label('১৬ ডিসেম্বর', `left:50%;transform:translateX(-50%);top:${b + 18}px;background:${BDRED};color:#fff;font-size:${W * 0.026}px;font-weight:700;padding:6px 26px;border-radius:999px`, 'sans');
   },
   'swadhinota-dibos'() {
     const b = W * 0.028;
@@ -140,7 +145,7 @@ const F = {
     box(`inset:${b + 10}px;border:2px solid rgba(255,255,255,.85)`);
     svg(`<circle cx="50" cy="50" r="40" fill="${BDRED}"/><circle cx="50" cy="50" r="48" fill="none" stroke="#fff" stroke-width="3"/>`, `left:${b + 22}px;top:${b + 22}px;width:${W * 0.1}px;height:${W * 0.1}px`, '0 0 100 100');
     tab('মহান স্বাধীনতা ও জাতীয় দিবস', { bg: GREEN, fg: '#fff', bottom: b + 18, size: Math.round(W * 0.036), radius: 8, pad: '10px 40px' });
-    label('২৬ মার্চ', `right:${b + 24}px;top:${b + 24}px;background:#fff;color:${GREEN};font-size:${W * 0.028}px;font-weight:700;padding:4px 22px;border-radius:999px`, 'sans');
+    if (!DECO) label('২৬ মার্চ', `right:${b + 24}px;top:${b + 24}px;background:#fff;color:${GREEN};font-size:${W * 0.028}px;font-weight:700;padding:4px 22px;border-radius:999px`, 'sans');
   },
   'ekushe-february'() {
     const b = W * 0.024;
@@ -153,7 +158,7 @@ const F = {
     letters.slice(0, rows).forEach((l, i) => {
       label(l, `left:${b + 12}px;width:${W * 0.07}px;text-align:center;top:${b + 24 + i * step}px;color:#fff;font-size:${W * 0.036}px;font-weight:600`);
     });
-    shaheedMinar('#fff', `right:${b + 22}px;bottom:${b + 22}px;width:${W * 0.3}px;height:${W * 0.248}px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.6))`);
+    if (!DECO) shaheedMinar('#fff', `right:${b + 22}px;bottom:${b + 22}px;width:${W * 0.3}px;height:${W * 0.248}px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.6))`);
     tab('অমর একুশে', { bg: '#121212', fg: '#fff', top: b - 4, size: Math.round(W * 0.042), radius: 0, pad: '8px 52px', border: `border-bottom:4px solid ${BDRED}` });
   },
   'pohela-boishakh'() {

@@ -46,23 +46,16 @@ function meeha_studio_readymade_frames() {
 	if ( ! meeha_studio_opt( 'readymade_frames', 1 ) ) {
 		return array();
 	}
-	$news = array( 'news', 'feature', 'breaking', 'category' );
+	$news = array( 'breaking' ); // every other type gets the ready-made designs as built-in presets (meeha_studio_deco_presets()).
 	$defs = array(
 		'news-nil-bracket'     => array( 'নীল কর্নার ব্র্যাকেট', $news ),
 		'news-breaking'        => array( 'ব্রেকিং ব্যান্ড', $news ),
 		'news-exclusive'       => array( 'এক্সক্লুসিভ ট্যাগ', $news ),
 		'news-sorboshesh'      => array( 'সর্বশেষ ট্যাগ', $news ),
 		'news-meeha-special'   => array( 'মিহা স্পেশাল', $news ),
-		'shok-kalo-border'     => array( 'কালো পাড় ও ফিতা', array( 'condolence' ) ),
-		'shok-kona-fita'       => array( 'কোণের ফিতা (শ্রদ্ধাঞ্জলি)', array( 'condolence' ) ),
-		'jonmodin-confetti'    => array( 'কনফেটি ও বেলুন', array( 'birthday' ) ),
-		'jonmodin-sonali'      => array( 'সোনালি পাড়', array( 'birthday' ) ),
-		'bijoy-dibos'          => array( 'বিজয় দিবস', array( 'day' ) ),
-		'swadhinota-dibos'     => array( 'স্বাধীনতা দিবস', array( 'day' ) ),
-		'ekushe-february'      => array( 'অমর একুশে', array( 'day' ) ),
-		'pohela-boishakh'      => array( 'পহেলা বৈশাখ', array( 'day' ) ),
-		'eid-mubarak'          => array( 'ঈদ মোবারক', array( 'day' ) ),
-		'sharodiya-shubhechha' => array( 'শারদীয় শুভেচ্ছা', array( 'day' ) ),
+		'news-surjo-nil'       => array( 'সূর্য নীল', $news ),
+		'news-nokshi-lalsobuj' => array( 'নকশি লাল-সবুজ', $news ),
+		'news-bishesh-sonali'  => array( 'বিশেষ সোনালি', $news ),
 	);
 	$out = array();
 	foreach ( $defs as $file => $d ) {

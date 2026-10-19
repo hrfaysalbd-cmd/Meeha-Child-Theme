@@ -20,10 +20,10 @@
 	};
 	/* draw a small live thumbnail of a built-in preset into a canvas */
 	var thumbQ = Promise.resolve();
-	function thumb( cv, type, preset, data, size ) {
+	function thumb( cv, type, preset, data, size, extra ) {
 		thumbQ = thumbQ.then( function () {
 			if ( ! cv.isConnected ) { return null; }
-			return MC.render( type, data, { preset: preset, size: size || '1080x1080' } ).then( function ( c ) {
+			return MC.render( type, data, Object.assign( { preset: preset, size: size || '1080x1080' }, extra || {} ) ).then( function ( c ) {
 				var x = cv.getContext( '2d' ), k = Math.min( cv.width / c.width, cv.height / c.height );
 				x.clearRect( 0, 0, cv.width, cv.height );
 				x.drawImage( c, ( cv.width - c.width * k ) / 2, ( cv.height - c.height * k ) / 2, c.width * k, c.height * k );
@@ -224,14 +224,20 @@
 				var tc = document.createElement( 'canvas' ); tc.width = 192; tc.height = 192; tc.className = 'ms-thumbc'; tc.setAttribute( 'aria-hidden', 'true' ); sw.appendChild( tc );
 				var td = cardData(); if ( 'day' === state.type ) { td.theme = r.preset; }
 				thumb( tc, state.type, r.preset, td, state.size );
+			} else if ( ! r.builtin ) {
+				/* an own / ready-made frame: show it on a live card, as it will come out (not the bare transparent PNG) */
+				var fc = document.createElement( 'canvas' ); fc.width = 192; fc.height = 192; fc.className = 'ms-thumbc'; fc.setAttribute( 'aria-hidden', 'true' ); sw.appendChild( fc );
+				var fd = cardData(), fx = { frame: r.frame.url };
+				if ( 'quote' === state.type ) { fx.builtinFrame = false; }
+				thumb( fc, state.type, framePreset(), fd, state.size, fx );
 			} else {
 				var img = document.createElement( 'img' ); img.alt = ''; img.loading = 'lazy';
-				img.src = r.builtin ? S.frameBase + 'quote-' + r.preset + '.svg' : r.frame.url;
-				sw.className += ' sw-img' + ( r.builtin ? '' : ' sw-checker' ); sw.appendChild( img );
+				img.src = S.frameBase + 'quote-' + r.preset + '.svg';
+				sw.className += ' sw-img'; sw.appendChild( img );
 			}
 			lab.appendChild( inp ); lab.appendChild( sw ); lab.appendChild( document.createTextNode( r.label ) );
 			if ( r.builtin && 0 === i ) { var tg = document.createElement( 'span' ); tg.className = 'tag'; tg.textContent = 'বিল্ট-ইন'; lab.appendChild( tg ); }
-			if ( ! r.builtin ) { var tu = document.createElement( 'span' ); tu.className = 'tag tag--own'; tu.textContent = solo() ? 'নিজের নকশা' : 'আপলোড'; lab.appendChild( tu ); li.className = 'is-own'; }
+			if ( ! r.builtin ) { var tu = document.createElement( 'span' ); tu.className = 'tag tag--own'; tu.textContent = r.frame.readymade ? 'রেডিমেড' : ( solo() ? 'নিজের নকশা' : 'আপলোড' ); lab.appendChild( tu ); li.className = 'is-own'; }
 			inp.addEventListener( 'change', function () {
 				state.sel[ state.type ] = r.key;
 				if ( 'quote' === state.type && r.builtin ) { state.quoteFrame = r.preset; }
@@ -618,13 +624,20 @@
 		var cat = S.categories.filter( function ( c ) { return String( c.id ) === String( f.category_id ); } )[ 0 ] || {};
 		return Object.assign( d, { category: cat.name || '', color: cat.color || '', title: f.title, image: img } );
 	}
+	/* the layout an own frame sits on: the type's first stock preset (news: the default from settings) */
+	function framePreset() {
+		var presets = Object.keys( typeConf().presets ), nd = S.newsDefault;
+		if ( 'quote' === state.type ) { return state.quoteFrame; }
+		if ( 'day' === state.type ) { return state.dayTheme; }
+		if ( 'news' === state.type && nd && presets.indexOf( nd ) > -1 && ! MC.isDeco( 'news', nd ) ) { return nd; }
+		return presets[ 0 ];
+	}
 	function cardOpts() {
 		var key = selKey(), o = { size: state.size };
-		var presets = Object.keys( typeConf().presets );
 		if ( 0 === key.indexOf( 'b:' ) ) { o.preset = key.slice( 2 ); } else {
 			var id = key.slice( 2 ), f = S.frames.filter( function ( x ) { return x.id === id; } )[ 0 ];
 			if ( f ) { o.frame = f.url; }
-			o.preset = 'quote' === state.type ? state.quoteFrame : ( 'day' === state.type ? state.dayTheme : ( 'news' === state.type ? ( S.newsDefault || presets[ 0 ] ) : presets[ 0 ] ) );
+			o.preset = framePreset();
 			if ( 'quote' === state.type ) { o.builtinFrame = false; }
 			if ( f && solo() ) { var ft = ftState(); o.frameText = { ink: ft.ink, pos: ft.pos, hide: Object.assign( {}, ft.hide ) }; }
 		}

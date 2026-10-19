@@ -87,7 +87,62 @@ function meeha_studio_types() {
 			'ad'      => true,
 		),
 	);
+	foreach ( meeha_studio_deco_presets() as $type => $deco ) {
+		if ( isset( $types[ $type ] ) ) {
+			$types[ $type ]['presets'] += $deco;
+		}
+	}
 	return apply_filters( 'meeha_studio_types', $types );
+}
+
+/**
+ * রেডিমেড নকশা: built-in presets that are a stock layout plus a bundled PNG frame (assets/frames/png/).
+ * The layout + file for each id live in cards.js (DECO); keep the ids in sync. Off with the readymade_frames setting.
+ *
+ * @return array type => [ preset => label ]
+ */
+function meeha_studio_deco_presets() {
+	// Read the stored option directly: meeha_studio_opt() can fall back to the settings fields, which list these presets.
+	$stored = get_option( 'meeha_opt_photocard', array() );
+	if ( is_array( $stored ) && array_key_exists( 'readymade_frames', $stored ) && empty( $stored['readymade_frames'] ) ) {
+		return array();
+	}
+	$news = array(
+		'surjo'        => 'সূর্য নীল',
+		'nokshi'       => 'নকশি লাল-সবুজ',
+		'sonali'       => 'বিশেষ সোনালি',
+		'sorboshesh'   => 'সর্বশেষ ট্যাগ',
+		'breakingband' => 'ব্রেকিং ব্যান্ড',
+		'exclusive'    => 'এক্সক্লুসিভ ট্যাগ',
+		'special'      => 'মিহা স্পেশাল',
+		'bracket'      => 'নীল কর্নার ব্র্যাকেট',
+	);
+	return array(
+		'news'       => $news,
+		'feature'    => $news,
+		'category'   => $news,
+		'opinion'    => array(
+			'sompadokiyo' => 'সম্পাদকীয়',
+			'bishleshon'  => 'বিশ্লেষণ',
+			'kolom'       => 'খোলা কলম',
+		),
+		'day'        => array(
+			'bijoy'       => 'বিজয় দিবস (সবুজ পাড়)',
+			'swadhinota'  => 'স্বাধীনতা দিবস (লাল-সবুজ পাড়)',
+			'ekushe'      => 'অমর একুশে (বর্ণমালা ও মিনার)',
+			'boishakhpar' => 'শুভ নববর্ষ (লাল ফোঁটা)',
+			'eidpar'      => 'ঈদ মোবারক (সোনালি পাড়)',
+			'sharodiya'   => 'শারদীয় শুভেচ্ছা (কাশফুল)',
+		),
+		'birthday'   => array(
+			'utsob'  => 'কনফেটি ও বেলুন',
+			'sonali' => 'সোনালি পাড়',
+		),
+		'condolence' => array(
+			'kalopar'  => 'কালো পাড়',
+			'konafita' => 'কোণের ফিতা (শ্রদ্ধাঞ্জলি)',
+		),
+	);
 }
 
 /**
@@ -315,7 +370,7 @@ function meeha_studio_settings_fields() {
 			'type'    => 'select',
 			'label'   => 'নিউজ কার্ডের ডিফল্ট ফ্রেম',
 			'default' => 'classic',
-			'options' => meeha_studio_news_presets(),
+			'options' => meeha_studio_news_presets() + ( meeha_studio_deco_presets()['news'] ?? array() ),
 			'desc'    => 'পোস্টের ছবির কোণের ডাউনলোড বোতাম এই ফ্রেমে কার্ড বানায়; স্টুডিওতেও এটি আগে বাছাই থাকে।',
 		),
 		array(
@@ -412,7 +467,7 @@ function meeha_studio_settings_fields() {
 		array( 'key' => 'size_landscape', 'type' => 'checkbox', 'label' => '১২০০ × ৬৩০ (লিংক প্রিভিউ) মাপ চালু', 'default' => 1 ),
 		array( 'key' => 'size_story', 'type' => 'checkbox', 'label' => '১০৮০ × ১৯২০ (ফেসবুক/ইনস্টাগ্রাম স্টোরি) মাপ চালু', 'default' => 1, 'desc' => 'স্টোরিতে কার্ডটি মাঝখানে বসে, পেছনে তারই ঝাপসা রং; ওপরে লোগো, নিচে ছোট লেখা। অ্যাপের নিজের বোতামের জায়গা ফাঁকা থাকে।' ),
 		array( 'key' => 'story_cta', 'type' => 'text', 'label' => 'স্টোরির নিচের লেখা', 'default' => 'বিস্তারিত পড়ুন meeha.news-এ', 'desc' => 'স্টোরি মাপে কার্ডের নিচে বসে। শোক কার্ডে বসে না।' ),
-		array( 'key' => 'readymade_frames', 'type' => 'checkbox', 'label' => 'রেডিমেড ফ্রেম দেখান', 'default' => 1, 'desc' => 'থিমের সঙ্গে আসা ১৫টি স্বচ্ছ PNG ফ্রেম (নিউজ, শোক, জন্মদিন, দিবস), চার মাপেই। বন্ধ করলে স্টুডিওতে শুধু বিল্ট-ইন নকশা আর আপলোড করা ফ্রেম থাকে।' ),
+		array( 'key' => 'readymade_frames', 'type' => 'checkbox', 'label' => 'রেডিমেড নকশা ও ফ্রেম দেখান', 'default' => 1, 'desc' => 'নিউজ, ফিচার ও বিভাগে ৮টি, মতামতে ৩টি, দিবসে ৬টি, জন্মদিনে ২টি আর শোকে ২টি রেডিমেড নকশা (লেখা-ছবির লেআউটসহ), ব্রেকিং কার্ডে রেডিমেড ফ্রেম; চার মাপেই। বন্ধ করলে শুধু আগের বিল্ট-ইন নকশা আর আপলোড করা ফ্রেম থাকে।' ),
 		array( 'key' => 'ad_default', 'type' => 'checkbox', 'label' => 'নতুন কার্ডে বিজ্ঞাপন স্ট্রিপ ডিফল্টে টিক দেওয়া থাকবে', 'default' => 0, 'desc' => 'শোক কার্ডে কখনো বিজ্ঞাপন বসে না।' ),
 		array( 'type' => 'heading', 'label' => 'অনুমতি, ইতিহাস ও তারিখ' ),
 		array( 'key' => 'upload_role_meeha_publisher', 'type' => 'checkbox', 'label' => 'প্রকাশক (meeha_publisher) নিজের ফ্রেম আপলোড করতে পারবেন', 'default' => 1, 'desc' => 'অ্যাডমিনিস্ট্রেটর সবসময় পারেন।' ),
