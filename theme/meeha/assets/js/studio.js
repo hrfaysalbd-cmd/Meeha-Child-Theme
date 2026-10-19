@@ -14,7 +14,9 @@
 		category: { category: 'বিভাগ', title: 'খবরের শিরোনাম এখানে বসবে' },
 		birthday: { heading: 'শুভ জন্মদিন', name: 'নাম', role: 'পরিচয়', message: 'শুভকামনা' },
 		day: { title: 'দিবসের নাম', subtitle: 'তারিখ', message: 'শুভেচ্ছা বার্তা' },
-		condolence: { heading: 'গভীর শোক', name: 'নাম', role: 'পরিচয়', message: 'শ্রদ্ধা' }
+		condolence: { heading: 'গভীর শোক', name: 'নাম', role: 'পরিচয়', message: 'শ্রদ্ধা' },
+		literature: { label: 'গল্প', title: 'শিরোনাম এখানে', author: 'লেখকের নাম', excerpt: 'লেখার সবচেয়ে সুন্দর দুই-তিন লাইন এখানে বসবে।' },
+		poem: { label: 'কবিতা', title: 'কবিতার নাম', author: 'কবির নাম', poem: 'প্রথম পঙ্‌ক্তি\nদ্বিতীয় পঙ্‌ক্তি\nতৃতীয় পঙ্‌ক্তি\nচতুর্থ পঙ্‌ক্তি' }
 	};
 	/* draw a small live thumbnail of a built-in preset into a canvas */
 	var thumbQ = Promise.resolve();
@@ -104,6 +106,7 @@
 	setVal( 'ms-d-head', S.defaults.birthday_heading );
 	setVal( 'ms-d-msg', S.defaults.birthday_message );
 	setVal( 'ms-n-date', S.dates && S.dates.gregorian ? S.dates.gregorian : '' );
+	setVal( 'ms-l-label', S.litLabel || 'সাহিত্য' );
 	state.sel.news = 'b:' + ( S.newsDefault || 'classic' );
 	state.dayTheme = 'generic'; state.dayIdx = 0;
 	function applyDay( i ) {
@@ -186,6 +189,9 @@
 		qsa( '[data-for]', form ).forEach( function ( el ) { el.hidden = ! inType( el, t ) || ( el.parentElement.closest( '[data-for]' ) && ! inType( el.parentElement, t ) ); } );
 		var n = 0;
 		qsa( '.postbox', form ).forEach( function ( box ) { var s = box.querySelector( '.ms-n' ); if ( s && ! box.hidden ) { n++; s.textContent = bn( n ) + '. '; } } );
+		var ll = val( 'ms-l-label' );
+		if ( 'poem' === t && ( ! ll || ll === ( S.litLabel || 'সাহিত্য' ) ) ) { setVal( 'ms-l-label', 'কবিতা' ); }
+		if ( 'literature' === t && ( ! ll || 'কবিতা' === ll ) ) { setVal( 'ms-l-label', S.litLabel || 'সাহিত্য' ); }
 		paintImage(); renderFrames(); syncAd(); schedule( true );
 		try { history.replaceState( null, '', location.pathname + '?page=meeha-photocard-studio&type=' + t ); } catch ( e ) { /* ignore */ }
 	}
@@ -406,7 +412,7 @@
 	}() );
 
 	/* ------------------------------------------------------------ post-ID autofill */
-	function fetchSource( v ) {
+	function fetchSource( v, opt ) {
 		v = ( v || '' ).trim();
 		if ( ! v ) { return Promise.resolve(); }
 		v = v.replace( /[০-৯]/g, function ( d ) { return '০১২৩৪৫৬৭৮৯'.indexOf( d ); } );
@@ -415,6 +421,9 @@
 		return api( 'card-source?post=' + encodeURIComponent( v ) ).then( function ( r ) {
 			var t = state.type;
 			if ( r.quote && 'quote' !== t ) { state.type = t = 'quote'; applyType(); }
+			/* a সাহিত্য post opens the সাহিত্য / কবিতা card; a pick from the recent list may also switch to মতামত */
+			var want = r.lit_genre ? ( 'poem' === r.lit_genre ? 'poem' : 'literature' ) : '';
+			if ( opt && opt.suggest && S.types[ opt.suggest ] && opt.suggest !== t && ( want || /^(literature|poem)$/.test( t ) || 'opinion' === opt.suggest ) ) { state.type = t = opt.suggest; applyType(); } else if ( want && 'news' === t ) { state.type = t = want; applyType(); }
 			if ( 'opinion' === t ) {
 				setVal( 'ms-o-title', r.title ); setVal( 'ms-o-name', r.author_name ); setVal( 'ms-o-role', r.author_title );
 				state.authorPhoto = r.author_photo || '';
@@ -423,6 +432,12 @@
 				if ( r.image ) { setImage( { id: r.image_id, url: r.image, name: 'ফিচার ছবি' } ); }
 			} else if ( 'quote' === t && r.quote ) {
 				pickQuote( r.quote );
+			} else if ( 'literature' === t || 'poem' === t ) {
+				setVal( 'ms-l-title', r.title ); setVal( 'ms-l-author', r.lit_writer || r.author_name );
+				setVal( 'ms-l-label', r.lit_label || ( 'poem' === t ? 'কবিতা' : S.litLabel || 'সাহিত্য' ) );
+				setVal( 'ms-l-excerpt', r.lit_excerpt || r.summary || r.excerpt || '' );
+				if ( r.poem_lines && r.poem_lines.length ) { setVal( 'ms-l-poem', r.poem_lines.join( '\n' ) ); }
+				if ( r.image ) { setImage( { id: r.image_id, url: r.image, name: 'ফিচার ছবি' } ); }
 			} else {
 				setVal( 'feature' === t || 'category' === t ? 'ms-f-title' : 'ms-b-title', r.title );
 				if ( 'feature' === t ) { setVal( 'ms-f-kicker', r.kicker || r.category || S.defaults.feature_kicker ); }
@@ -436,10 +451,72 @@
 			var s = document.createElement( 'span' ); s.textContent = [ r.author_name, r.author_title ].filter( Boolean ).join( ' · ' );
 			box.appendChild( im ); box.appendChild( b ); box.appendChild( s ); box.hidden = false;
 			msg( 'ms-status', 'তথ্য বসানো হয়েছে — দরকার হলে বদলে নিন।', 'ok' );
+			markRecent( r.id );
 			schedule();
 		} ).catch( function ( e ) { box.hidden = true; msg( 'ms-status', e.message, 'err' ); } );
 	}
 	$( 'ms-fetch' ).addEventListener( 'click', function () { fetchSource( val( 'ms-post' ) ); } );
+
+	/* ------------------------------------------------------------ সাম্প্রতিক পোস্ট (latest published, ‹ › paging, refresh, search) */
+	var recent = { offset: 0, per: 5, more: false, search: '', items: [], picked: 0, seq: 0 };
+	function markRecent( id ) {
+		recent.picked = +id || 0;
+		qsa( '.ms-recent__item', $( 'ms-rlist' ) ).forEach( function ( b ) { var on = +b.getAttribute( 'data-id' ) === recent.picked; b.classList.toggle( 'is-on', on ); b.setAttribute( 'aria-pressed', on ? 'true' : 'false' ); } );
+	}
+	function paintRecent( note, err ) {
+		var ul = $( 'ms-rlist' ); ul.innerHTML = '';
+		if ( note ) { var li0 = document.createElement( 'li' ); li0.className = 'ms-recent__msg' + ( err ? ' is-err' : '' ); li0.textContent = note; ul.appendChild( li0 ); }
+		recent.items.forEach( function ( p ) {
+			var li = document.createElement( 'li' ), b = document.createElement( 'button' );
+			b.type = 'button'; b.className = 'ms-recent__item'; b.setAttribute( 'data-id', p.id );
+			if ( p.thumb ) { var im = document.createElement( 'img' ); im.src = p.thumb; im.alt = ''; im.loading = 'lazy'; b.appendChild( im ); } else { var ph = document.createElement( 'span' ); ph.className = 'ms-recent__ph'; b.appendChild( ph ); }
+			var tx = document.createElement( 'span' ); tx.className = 'ms-recent__text';
+			var t = document.createElement( 'b' ); t.textContent = p.title;
+			var m = document.createElement( 'small' ); m.textContent = [ 'আইডি ' + bn( p.id ), p.category, p.date ].filter( Boolean ).join( ' · ' );
+			tx.appendChild( t ); tx.appendChild( m ); b.appendChild( tx );
+			b.addEventListener( 'click', function () { setVal( 'ms-post', String( p.id ) ); fetchSource( String( p.id ), { suggest: p.type } ); } );
+			li.appendChild( b ); ul.appendChild( li );
+		} );
+		$( 'ms-rprev' ).disabled = recent.offset <= 0;
+		$( 'ms-rnext' ).disabled = ! recent.more;
+		markRecent( recent.picked );
+	}
+	function loadRecent( offset ) {
+		var seq = ++recent.seq;
+		recent.offset = Math.max( 0, offset || 0 );
+		if ( ! recent.items.length ) { paintRecent( 'আনা হচ্ছে…' ); }
+		$( 'ms-rrefresh' ).disabled = true;
+		return api( 'card-recent?offset=' + recent.offset + '&search=' + encodeURIComponent( recent.search ) ).then( function ( r ) {
+			if ( seq !== recent.seq ) { return; }
+			recent.items = r.items || []; recent.per = r.per || 5; recent.more = !! r.more;
+			paintRecent( recent.items.length ? '' : ( recent.search ? 'এই শব্দে কোনো প্রকাশিত পোস্ট পাওয়া যায়নি।' : 'এখনো কোনো প্রকাশিত পোস্ট নেই।' ) );
+		} ).catch( function ( e ) {
+			if ( seq !== recent.seq ) { return; }
+			recent.items = []; paintRecent( 'পোস্টের তালিকা আনা যায়নি: ' + e.message, true );
+		} ).then( function () { $( 'ms-rrefresh' ).disabled = false; } );
+	}
+	$( 'ms-rprev' ).addEventListener( 'click', function () { loadRecent( recent.offset - recent.per ); } );
+	$( 'ms-rnext' ).addEventListener( 'click', function () { loadRecent( recent.offset + recent.per ); } );
+	$( 'ms-rrefresh' ).addEventListener( 'click', function () { recent.items = []; loadRecent( 0 ); } );
+	( function () {
+		var t = 0, inp = $( 'ms-rsearch' );
+		inp.addEventListener( 'input', function () { clearTimeout( t ); t = setTimeout( function () { recent.search = inp.value.trim(); recent.items = []; loadRecent( 0 ); }, 350 ); } );
+		inp.addEventListener( 'keydown', function ( e ) { if ( 'Enter' === e.key ) { e.preventDefault(); } } );
+	}() );
+
+	/* "নির্বাচিত লেখা হাইলাইট করুন": wrap the selection in ** … ** (or unwrap it) */
+	qsa( '.ms-mark' ).forEach( function ( btn ) {
+		btn.addEventListener( 'mousedown', function ( e ) { e.preventDefault(); } ); /* keep the textarea selection */
+		btn.addEventListener( 'click', function () {
+			var ta = $( btn.getAttribute( 'data-target' ) ); if ( ! ta ) { return; }
+			var a = ta.selectionStart, b = ta.selectionEnd, v = ta.value;
+			if ( a === b ) { msg( 'ms-status', 'আগে লেখার যে অংশ রঙিন করতে চান তা মাউস দিয়ে বাছুন।', 'warn' ); ta.focus(); return; }
+			var sel = v.slice( a, b ), out = /^\*\*[\s\S]*\*\*$/.test( sel ) ? sel.slice( 2, -2 ) : '**' + sel.replace( /\*\*/g, '' ).trim() + '**';
+			ta.value = v.slice( 0, a ) + out + v.slice( b );
+			ta.focus(); ta.setSelectionRange( a, a + out.length );
+			schedule();
+		} );
+	} );
 	$( 'ms-post' ).addEventListener( 'keydown', function ( e ) { if ( 'Enter' === e.key ) { e.preventDefault(); fetchSource( this.value ); } } );
 
 	/* ------------------------------------------------------------ quotes */
@@ -499,8 +576,11 @@
 	$( 'ms-ad' ).addEventListener( 'change', function () { state.ad = this.checked; syncAd(); schedule(); } );
 	$( 'ms-adsel' ).addEventListener( 'change', function () { state.adId = this.value; schedule(); } );
 	qsa( 'input[name="ms-size"]' ).forEach( function ( r ) {
-		r.addEventListener( 'change', function () { state.size = r.value; renderFrames(); syncAd(); schedule( true ); } );
+		r.addEventListener( 'change', function () { state.size = r.value; syncStory(); renderFrames(); syncAd(); schedule( true ); } );
 	} );
+
+	function syncStory() { var f = $( 'ms-story-f' ); if ( f ) { f.hidden = '1080x1920' !== state.size; } }
+	syncStory();
 
 	/* ------------------------------------------------------------ build + render */
 	/* CTA pill ("বিস্তারিত কমেন্টে") for news-type cards: text field + "দেখান" checkbox ('' = hidden) */
@@ -510,6 +590,7 @@
 			var on = $( 'ms-cta-on' ), tx = $( 'ms-cta' );
 			d.cta = on && on.checked && tx ? tx.value : '';
 		}
+		if ( '1080x1920' === state.size ) { d.story_cta = val( 'ms-story-cta' ); }
 		return d;
 	}
 	function cardData0() {
@@ -528,6 +609,8 @@
 		if ( 'quote' === t ) {
 			return { text: f.text, speaker: f.speaker, role: f.role, type_label: f.type_label, year: f.year, frame: state.quoteFrame, speaker_photo: $( 'ms-q-photo' ).checked ? state.speakerPhoto : '' };
 		}
+		if ( 'literature' === t ) { return Object.assign( d, { label: f.label, title: f.title, author: f.author, excerpt: f.excerpt, image: img } ); }
+		if ( 'poem' === t ) { return Object.assign( d, { label: f.label, title: f.title, author: f.author, poem: f.poem, image: img } ); }
 		if ( 'condolence' === t ) {
 			var dl = [ f.born ? 'জন্ম: ' + f.born : '', f.died ? 'মৃত্যু: ' + f.died : '' ].filter( Boolean ).join( ' | ' );
 			return Object.assign( d, { pre: f.pre, heading: f.heading, name: f.name, role: f.role, dates_line: dl, message: f.message, image: img } );
@@ -562,11 +645,12 @@
 			if ( seq !== state.seq ) { return; }
 			view.width = c.width; view.height = c.height;
 			view.getContext( '2d' ).drawImage( c, 0, 0 );
-			var scale = c.width > 1080 ? 0.5 : 0.5;
+			var scale = c.height > 1400 ? 0.36 : 0.5; /* স্টোরি stays on screen */
 			stage.style.width = Math.round( c.width * scale ) + 'px'; stage.style.height = Math.round( c.height * scale ) + 'px';
 			stage.classList.toggle( 'is-photo', hasPhoto() && !! state.image );
 			state.last = { canvas: c, type: state.type, data: data, opts: opts };
-			$( 'ms-meta' ).textContent = bn( wh[ 0 ] ) + ' × ' + bn( wh[ 1 ] ) + ' · নীল ডটেড রেখা = নিরাপদ এলাকা (৬০ পিক্সেল)' + ( opts.ad ? ' · বিজ্ঞাপনসহ' : '' );
+			$( 'ms-meta' ).textContent = bn( wh[ 0 ] ) + ' × ' + bn( wh[ 1 ] ) + ( 1920 === wh[ 1 ] ? ' · স্টোরি: ওপরে-নিচে অ্যাপের বোতামের জায়গা ফাঁকা রাখা হয়েছে' : ' · নীল ডটেড রেখা = নিরাপদ এলাকা (৬০ পিক্সেল)' ) + ( opts.ad ? ' · বিজ্ঞাপনসহ' : '' );
+			stage.classList.toggle( 'is-story', 1920 === wh[ 1 ] );
 			$( 'ms-busy' ).hidden = true;
 			document.dispatchEvent( new CustomEvent( 'meeha:studio-rendered', { detail: { type: state.type, size: state.size, ad: !! opts.ad } } ) );
 		} ).catch( function ( e ) { $( 'ms-busy' ).hidden = true; msg( 'ms-status', e.message, 'err' ); } );
@@ -620,6 +704,7 @@
 	paintHistory();
 	applyType();
 	if ( S.init.post ) { setVal( 'ms-post', String( S.init.post ) ); fetchSource( String( S.init.post ) ); }
+	loadRecent( 0 );
 	if ( 'quote' === state.type ) { loadQuotes( '' ); }
 	qsa( '.ms-tabs .nav-tab[data-type="quote"]' ).forEach( function ( a ) { a.addEventListener( 'click', function () { if ( ! $( 'ms-qlist' ).children.length ) { loadQuotes( '' ); } } ); } );
 }() );

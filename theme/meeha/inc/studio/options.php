@@ -50,6 +50,18 @@ function meeha_studio_types() {
 			'photo'   => false,
 			'ad'      => true,
 		),
+		'literature' => array(
+			'label'   => 'সাহিত্য',
+			'presets' => array( 'paper' => 'কাগজ', 'window' => 'জানালা ছবি', 'modern' => 'আধুনিক' ),
+			'photo'   => true,
+			'ad'      => true,
+		),
+		'poem'       => array(
+			'label'   => 'কবিতা',
+			'presets' => array( 'paper' => 'কাগজ ও লতা', 'night' => 'রাতের আকাশ', 'photo' => 'ছবির ওপর' ),
+			'photo'   => true,
+			'ad'      => true,
+		),
 		'birthday'   => array(
 			'label'   => 'জন্মদিন',
 			'presets' => array( 'confetti' => 'উৎসব', 'night' => 'তারার রাত', 'balloon' => 'বেলুন' ),
@@ -189,8 +201,12 @@ function meeha_studio_sizes( $only_enabled = true ) {
 		'1080x1080' => '১০৮০ × ১০৮০ (বর্গ)',
 		'1080x1350' => '১০৮০ × ১৩৫০ (পোর্ট্রেট)',
 		'1200x630'  => '১২০০ × ৬৩০ (লিংক)',
+		'1080x1920' => '১০৮০ × ১৯২০ (স্টোরি)',
 	);
 	if ( $only_enabled ) {
+		if ( ! meeha_studio_opt( 'size_story', 1 ) ) {
+			unset( $all['1080x1920'] );
+		}
 		if ( ! meeha_studio_opt( 'size_portrait', 1 ) ) {
 			unset( $all['1080x1350'] );
 		}
@@ -345,6 +361,8 @@ function meeha_studio_settings_fields() {
 		array( 'key' => 'default_credit', 'type' => 'text', 'label' => 'ছবির ডিফল্ট ক্রেডিট', 'default' => 'মিহা নিউজ' ),
 		array( 'key' => 'opinion_label', 'type' => 'text', 'label' => 'মতামত কার্ডের লেবেল', 'default' => 'মতামত' ),
 		array( 'key' => 'feature_kicker', 'type' => 'text', 'label' => 'ফিচার কার্ডের ডিফল্ট কিকার', 'default' => 'মিহা স্পেশাল' ),
+		array( 'key' => 'literature_label', 'type' => 'text', 'label' => 'সাহিত্য কার্ডের ডিফল্ট লেবেল', 'default' => 'সাহিত্য', 'desc' => 'সাহিত্যের পোস্ট আনলে তার ধরন (গল্প, প্রবন্ধ…) নিজে থেকে বসে।' ),
+		array( 'key' => 'recent_count', 'type' => 'number', 'label' => 'স্টুডিওতে সাম্প্রতিক পোস্ট (কয়টি দেখাবে)', 'default' => 5, 'min' => 3, 'max' => 20 ),
 		array( 'key' => 'condolence_heading', 'type' => 'text', 'label' => 'শোক কার্ডের শিরোনাম', 'default' => 'গভীর শোক' ),
 		array(
 			'key'     => 'condolence_pre',
@@ -392,6 +410,9 @@ function meeha_studio_settings_fields() {
 		),
 		array( 'key' => 'size_portrait', 'type' => 'checkbox', 'label' => '১০৮০ × ১৩৫০ (পোর্ট্রেট) মাপ চালু', 'default' => 1 ),
 		array( 'key' => 'size_landscape', 'type' => 'checkbox', 'label' => '১২০০ × ৬৩০ (লিংক প্রিভিউ) মাপ চালু', 'default' => 1 ),
+		array( 'key' => 'size_story', 'type' => 'checkbox', 'label' => '১০৮০ × ১৯২০ (ফেসবুক/ইনস্টাগ্রাম স্টোরি) মাপ চালু', 'default' => 1, 'desc' => 'স্টোরিতে কার্ডটি মাঝখানে বসে, পেছনে তারই ঝাপসা রং; ওপরে লোগো, নিচে ছোট লেখা। অ্যাপের নিজের বোতামের জায়গা ফাঁকা থাকে।' ),
+		array( 'key' => 'story_cta', 'type' => 'text', 'label' => 'স্টোরির নিচের লেখা', 'default' => 'বিস্তারিত পড়ুন meeha.news-এ', 'desc' => 'স্টোরি মাপে কার্ডের নিচে বসে। শোক কার্ডে বসে না।' ),
+		array( 'key' => 'readymade_frames', 'type' => 'checkbox', 'label' => 'রেডিমেড ফ্রেম দেখান', 'default' => 1, 'desc' => 'থিমের সঙ্গে আসা ১৫টি স্বচ্ছ PNG ফ্রেম (নিউজ, শোক, জন্মদিন, দিবস), চার মাপেই। বন্ধ করলে স্টুডিওতে শুধু বিল্ট-ইন নকশা আর আপলোড করা ফ্রেম থাকে।' ),
 		array( 'key' => 'ad_default', 'type' => 'checkbox', 'label' => 'নতুন কার্ডে বিজ্ঞাপন স্ট্রিপ ডিফল্টে টিক দেওয়া থাকবে', 'default' => 0, 'desc' => 'শোক কার্ডে কখনো বিজ্ঞাপন বসে না।' ),
 		array( 'type' => 'heading', 'label' => 'অনুমতি, ইতিহাস ও তারিখ' ),
 		array( 'key' => 'upload_role_meeha_publisher', 'type' => 'checkbox', 'label' => 'প্রকাশক (meeha_publisher) নিজের ফ্রেম আপলোড করতে পারবেন', 'default' => 1, 'desc' => 'অ্যাডমিনিস্ট্রেটর সবসময় পারেন।' ),
@@ -705,11 +726,13 @@ function meeha_cards_config() {
 				'serif'   => $fonts . 'meeha-serif-bn-700.woff2',
 				'sans'    => $fonts . 'meeha-sans-bn-400.woff2',
 				'sans600' => $fonts . 'meeha-sans-bn-600.woff2',
+				'lit'     => $fonts . 'meeha-literary-bn-400.woff2',
 			),
 			'logo'      => $logo,
 			'newsDefault' => (string) meeha_studio_opt( 'news_default_frame', 'classic' ),
 			'watermark' => (string) meeha_studio_opt( 'watermark', 'meeha.news' ),
 			'cta'       => (string) meeha_studio_opt( 'news_cta', 'বিস্তারিত কমেন্টে' ),
+			'storyCta'  => (string) meeha_studio_opt( 'story_cta', 'বিস্তারিত পড়ুন meeha.news-এ' ),
 		)
 	);
 }

@@ -32,6 +32,60 @@ function meeha_studio_frames_all() {
 		$r['url'] = trailingslashit( $up['baseurl'] ) . str_replace( '\\', '/', $r['file'] );
 		$out[]    = $r;
 	}
+	return array_merge( $out, meeha_studio_readymade_frames() );
+}
+
+/**
+ * Ready-made transparent PNG frames shipped with the theme (2.0.4): assets/frames/png/{id}-{WxH}.png, in all four
+ * sizes. Rows look like uploaded frames (so the studio lists them by type and size) but carry `builtin` and can
+ * never be deleted. Switch off: মিহা থিম › ফটোকার্ড › রেডিমেড ফ্রেম.
+ *
+ * @return array
+ */
+function meeha_studio_readymade_frames() {
+	if ( ! meeha_studio_opt( 'readymade_frames', 1 ) ) {
+		return array();
+	}
+	$news = array( 'news', 'feature', 'breaking', 'category' );
+	$defs = array(
+		'news-nil-bracket'     => array( 'নীল কর্নার ব্র্যাকেট', $news ),
+		'news-breaking'        => array( 'ব্রেকিং ব্যান্ড', $news ),
+		'news-exclusive'       => array( 'এক্সক্লুসিভ ট্যাগ', $news ),
+		'news-sorboshesh'      => array( 'সর্বশেষ ট্যাগ', $news ),
+		'news-meeha-special'   => array( 'মিহা স্পেশাল', $news ),
+		'shok-kalo-border'     => array( 'কালো পাড় ও ফিতা', array( 'condolence' ) ),
+		'shok-kona-fita'       => array( 'কোণের ফিতা (শ্রদ্ধাঞ্জলি)', array( 'condolence' ) ),
+		'jonmodin-confetti'    => array( 'কনফেটি ও বেলুন', array( 'birthday' ) ),
+		'jonmodin-sonali'      => array( 'সোনালি পাড়', array( 'birthday' ) ),
+		'bijoy-dibos'          => array( 'বিজয় দিবস', array( 'day' ) ),
+		'swadhinota-dibos'     => array( 'স্বাধীনতা দিবস', array( 'day' ) ),
+		'ekushe-february'      => array( 'অমর একুশে', array( 'day' ) ),
+		'pohela-boishakh'      => array( 'পহেলা বৈশাখ', array( 'day' ) ),
+		'eid-mubarak'          => array( 'ঈদ মোবারক', array( 'day' ) ),
+		'sharodiya-shubhechha' => array( 'শারদীয় শুভেচ্ছা', array( 'day' ) ),
+	);
+	$out = array();
+	foreach ( $defs as $file => $d ) {
+		foreach ( array_keys( meeha_studio_sizes( false ) ) as $size ) {
+			if ( ! file_exists( MEEHA_DIR . '/assets/frames/png/' . $file . '-' . $size . '.png' ) ) {
+				continue;
+			}
+			foreach ( $d[1] as $type ) {
+				$out[] = array(
+					'id'          => 'r' . substr( md5( $file . $type . $size ), 0, 10 ),
+					'type'        => $type,
+					'size'        => $size,
+					'label'       => $d[0],
+					'file'        => '',
+					'url'         => MEEHA_URI . '/assets/frames/png/' . $file . '-' . $size . '.png',
+					'uploaded_by' => 0,
+					'date'        => '',
+					'alpha'       => 1,
+					'builtin'     => 1,
+				);
+			}
+		}
+	}
 	return $out;
 }
 
@@ -71,6 +125,7 @@ function meeha_studio_frame_public( $r ) {
 		'by'         => $u ? $u->display_name : '',
 		'date'       => (string) $r['date'],
 		'can_delete' => meeha_studio_can_delete_frame( $r ),
+		'readymade'  => ! empty( $r['builtin'] ),
 	);
 }
 
@@ -81,6 +136,9 @@ function meeha_studio_frame_public( $r ) {
  * @return bool
  */
 function meeha_studio_can_delete_frame( $r ) {
+	if ( ! empty( $r['builtin'] ) ) {
+		return false; // ready-made frames ship with the theme.
+	}
 	if ( meeha_studio_can_manage() ) {
 		return true;
 	}

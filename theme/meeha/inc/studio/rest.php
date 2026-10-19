@@ -2,6 +2,7 @@
 /**
  * Studio REST routes (all require `meeha_make_cards`; cookie auth + wp_rest nonce):
  *   GET    meeha/v1/card-source?post=ID|URL     → title, author, designation, photo, category, image, …
+ *   GET    meeha/v1/card-recent?offset=&search= → latest published posts for the "সাম্প্রতিক পোস্ট" picker (2.0.4)
  *   GET    meeha/v1/card-quotes?search=&page=   → উক্তি picker
  *   GET    meeha/v1/card-frames?type=&size=     → custom frames
  *   POST   meeha/v1/card-frames  (multipart: file, type, size, label)
@@ -62,6 +63,19 @@ add_action(
 							return trim( (string) $v );
 						},
 					),
+				),
+			)
+		);
+		register_rest_route(
+			'meeha/v1',
+			'/card-recent',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => 'meeha_studio_rest_recent',
+				'permission_callback' => 'meeha_studio_rest_can',
+				'args'                => array(
+					'offset' => array( 'type' => 'integer', 'default' => 0, 'minimum' => 0, 'maximum' => 500 ),
+					'search' => array( 'type' => 'string', 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ),
 				),
 			)
 		);
@@ -317,7 +331,62 @@ function meeha_studio_rest_card_source( $req ) {
 	if ( 'meeha_photocard' === $p->post_type ) {
 		$out['quote'] = meeha_studio_quote_data( $p );
 	}
+	// 2.0.4: সাহিত্য / কবিতা cards — genre label, writer (poet field first), poem lines, a longer excerpt.
+	if ( 'post' === $p->post_type && function_exists( 'meeha_lit_genre_of' ) ) {
+		$gid = meeha_lit_genre_of( $p );
+		if ( '' !== $gid ) {
+			$g                  = function_exists( 'meeha_lit_genre' ) ? meeha_lit_genre( $gid ) : null;
+			$out['lit_genre']   = $gid;
+			$out['lit_label']   = $g && ! empty( $g['label'] ) ? (string) $g['label'] : '';
+			$out['lit_writer']  = function_exists( 'meeha_lit_writer' ) ? html_entity_decode( (string) meeha_lit_writer( $p ), ENT_QUOTES, 'UTF-8' ) : $out['author_name'];
+			$out['poem_lines']  = ! $locked && function_exists( 'meeha_lit_poem_lines' ) ? meeha_lit_poem_lines( $p, 16 ) : array();
+			$out['lit_excerpt'] = $locked ? '' : html_entity_decode( wp_trim_words( wp_strip_all_tags( strip_shortcodes( $p->post_content ) ), 60, '…' ), ENT_QUOTES, 'UTF-8' );
+		}
+	}
 	return rest_ensure_response( apply_filters( 'meeha_card_source', $out, $p ) );
+}
+
+/**
+ * GET card-recent: five latest published posts (newest first), paged by offset, optional search.
+ *
+ * @param WP_REST_Request $req Request.
+ * @return WP_REST_Response
+ */
+function meeha_studio_rest_recent( $req ) {
+	$n = max( 3, min( 20, (int) meeha_studio_opt( 'recent_count', 5 ) ) );
+	$q = new WP_Query(
+		array(
+			'post_type'           => 'post',
+			'post_status'         => 'publish',
+			'posts_per_page'      => $n + 1, // one extra tells the client whether "পরের" exists.
+			'offset'              => (int) $req['offset'],
+			's'                   => (string) $req['search'],
+			'orderby'             => 'date',
+			'order'               => 'DESC',
+			'ignore_sticky_posts' => true,
+			'no_found_rows'       => true,
+		)
+	);
+	$items = array();
+	foreach ( array_slice( $q->posts, 0, $n ) as $p ) {
+		$cat = function_exists( 'meeha_primary_category' ) ? meeha_primary_category( $p ) : null;
+		$items[] = array(
+			'id'       => $p->ID,
+			'title'    => html_entity_decode( wp_strip_all_tags( get_the_title( $p ) ), ENT_QUOTES, 'UTF-8' ),
+			'date'     => function_exists( 'meeha_bn_digits' ) ? meeha_bn_digits( get_the_date( 'j M, H:i', $p ) ) : get_the_date( 'j M, H:i', $p ),
+			'thumb'    => (string) get_the_post_thumbnail_url( $p, 'thumbnail' ),
+			'category' => $cat ? html_entity_decode( $cat->name, ENT_QUOTES, 'UTF-8' ) : '',
+			'type'     => meeha_studio_type_for_post( $p ),
+		);
+	}
+	return rest_ensure_response(
+		array(
+			'items'  => $items,
+			'offset' => (int) $req['offset'],
+			'per'    => $n,
+			'more'   => count( $q->posts ) > $n,
+		)
+	);
 }
 
 /**

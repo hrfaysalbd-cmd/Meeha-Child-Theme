@@ -69,7 +69,7 @@ function meeha_studio_url( $type = '', $post_id = 0 ) {
 }
 
 /**
- * Best studio type for a post: quote CPT → quote; opinion/editorial → opinion; breaking → breaking; else feature.
+ * Best studio type for a post: quote CPT → quote; literature → literature/poem; opinion/editorial → opinion; else news.
  *
  * @param WP_Post|int $post Post.
  * @return string
@@ -84,6 +84,12 @@ function meeha_studio_type_for_post( $post ) {
 	}
 	if ( 'post' !== $post->post_type ) {
 		return 'news';
+	}
+	if ( function_exists( 'meeha_lit_genre_of' ) ) {
+		$gid = meeha_lit_genre_of( $post ); // 2.0.4: সাহিত্য / কবিতা.
+		if ( '' !== $gid ) {
+			return 'poem' === $gid ? 'poem' : 'literature';
+		}
 	}
 	if ( function_exists( 'meeha_post_type_label' ) && 'মতামত' === meeha_post_type_label( $post ) ) {
 		return 'opinion';

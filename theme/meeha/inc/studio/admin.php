@@ -188,6 +188,8 @@ function meeha_studio_js_config() {
 		'madeUrl'     => admin_url( 'admin.php?page=meeha-photocard-made' ),
 		'days'        => meeha_studio_days(),
 		'newsDefault' => (string) meeha_studio_opt( 'news_default_frame', 'classic' ),
+		'litLabel'    => (string) meeha_studio_opt( 'literature_label', 'সাহিত্য' ),
+		'storyCta'    => (string) meeha_studio_opt( 'story_cta', 'বিস্তারিত পড়ুন meeha.news-এ' ),
 	);
 }
 
@@ -214,12 +216,19 @@ function meeha_studio_page() {
 		<div class="studio">
 			<form class="controls" id="ms-form" onsubmit="return false" novalidate>
 
-				<div class="postbox" data-for="news opinion feature breaking category"><h2>লেখা খুঁজুন <span class="ms-opt">(ঐচ্ছিক)</span></h2><div class="inside">
+				<div class="postbox" data-for="news opinion feature breaking category literature poem"><h2>লেখা খুঁজুন <span class="ms-opt">(ঐচ্ছিক)</span></h2><div class="inside">
 					<div class="field"><label for="ms-post">পোস্ট আইডি বা লিংক</label>
 						<div class="inline"><input id="ms-post" type="text" inputmode="url" autocomplete="off" placeholder="যেমন ১১৮৭ বা https://meeha.news/…"><button class="button button-primary" type="button" id="ms-fetch">তথ্য আনুন</button></div>
 						<span class="desc">শিরোনাম, লেখকের নাম, উপাধি, ছবি নিজে থেকে বসবে; পরে বদলানো যাবে।</span>
 					</div>
 					<div class="fetched" id="ms-fetched" hidden></div>
+					<div class="ms-recent">
+						<div class="ms-recent__head"><span class="lbl" id="ms-rlabel">সাম্প্রতিক পোস্ট</span>
+							<span class="ms-recent__tools"><button class="button-link" type="button" id="ms-rprev" aria-label="আগের পোস্টগুলো" title="আগের পোস্টগুলো" disabled>‹</button><button class="button-link" type="button" id="ms-rnext" aria-label="আরও পুরোনো পোস্ট" title="আরও পুরোনো পোস্ট" disabled>›</button><button class="button button-small" type="button" id="ms-rrefresh"><span class="dashicons dashicons-update" aria-hidden="true"></span>রিফ্রেশ</button></span></div>
+						<input id="ms-rsearch" class="ms-recent__search" type="search" autocomplete="off" placeholder="শিরোনামে খুঁজুন…" aria-label="পোস্ট খুঁজুন">
+						<ul class="ms-recent__list" id="ms-rlist" aria-labelledby="ms-rlabel"></ul>
+						<span class="desc">একটিতে চাপলেই শিরোনাম, লেখক, ছবি নিজে থেকে বসবে; সাহিত্য বা কবিতার পোস্টে কার্ডের ধরনও বদলে যাবে।</span>
+					</div>
 				</div></div>
 
 				<div class="postbox" data-for="quote"><h2>উক্তি বাছুন</h2><div class="inside">
@@ -230,7 +239,7 @@ function meeha_studio_page() {
 					<p class="desc">উক্তি বাছলে লেখা, বক্তা, পরিচয় ও ধরন অনুযায়ী ফ্রেম বসে যাবে। নিচে নিজেও লেখা যায়।</p>
 				</div></div>
 
-				<div class="postbox" data-for="news morning feature breaking condolence category birthday day"><h2><span class="ms-n"></span>ছবি</h2><div class="inside">
+				<div class="postbox" data-for="news morning feature breaking condolence category birthday day literature poem"><h2><span class="ms-n"></span>ছবি</h2><div class="inside">
 					<div class="mediapick">
 						<span class="ms-thumb" id="ms-thumb" aria-hidden="true"></span>
 						<div class="field">
@@ -243,6 +252,7 @@ function meeha_studio_page() {
 					<p class="desc" data-for="birthday">যাঁর জন্মদিন তাঁর ছবি (গোল করে বসবে)। না দিলে নামের প্রথম অক্ষর।</p>
 					<p class="desc" data-for="day">ছবি ঐচ্ছিক — না দিলে থিমের নিজস্ব নকশা বসবে।</p>
 					<p class="desc" data-for="breaking">ছবি ঐচ্ছিক — না দিলে শিরোনাম বড় হয়ে পুরো কার্ডে বসবে।</p>
+					<p class="desc" data-for="literature poem">“জানালা ছবি”, “আধুনিক” ও “ছবির ওপর” নকশায় ছবি বসে; কাগজের নকশায় লাগে না।</p>
 				</div></div>
 
 				<div class="postbox"><h2><span class="ms-n"></span>ফ্রেম</h2><div class="inside">
@@ -287,7 +297,7 @@ function meeha_studio_page() {
 					<div class="field" data-for="morning"><label for="ms-m-caption">ক্যাপশন</label><input id="ms-m-caption" type="text" data-k="caption" maxlength="160"><span class="desc">এক লাইনে না ধরলে ২৪ পিক্সেল পর্যন্ত ছোট হবে, তারপর ‘…’।</span></div>
 					<div class="field" data-for="morning"><label for="ms-m-credit">ছবি: (আলোকচিত্রী)</label><input id="ms-m-credit" type="text" data-k="credit" maxlength="60"></div>
 					<!-- মতামত -->
-					<div class="field" data-for="opinion"><label for="ms-o-title">শিরোনাম</label><textarea id="ms-o-title" data-k="title" rows="3"></textarea><span class="desc">৮০ পিক্সেল থেকে শুরু; ৫ লাইনে না ধরলে ৫২ পর্যন্ত ছোট হবে, তারপর ‘…’।</span></div>
+					<div class="field" data-for="opinion"><label for="ms-o-title">শিরোনাম</label><textarea id="ms-o-title" data-k="title" rows="3"></textarea><span class="desc">যে কথাগুলো চোখে পড়াতে চান, দুই পাশে ** দিন — যেমন **উন্নয়নের গল্প** — রঙিন হয়ে বসবে। <button type="button" class="button-link ms-mark" data-target="ms-o-title">নির্বাচিত লেখা হাইলাইট করুন</button></span></div>
 					<div class="row2" data-for="opinion">
 						<div class="field"><label for="ms-o-name">লেখকের নাম</label><input id="ms-o-name" type="text" data-k="author_name"></div>
 						<div class="field"><label for="ms-o-role">উপাধি</label><input id="ms-o-role" type="text" data-k="author_title"></div>
@@ -304,7 +314,7 @@ function meeha_studio_page() {
 					<div class="field" data-for="breaking"><label for="ms-b-time">সময়</label><input id="ms-b-time" type="text" data-k="time" maxlength="20"></div>
 					<div class="field" data-for="breaking"><label for="ms-b-title">শিরোনাম</label><textarea id="ms-b-title" data-k="title" rows="3"></textarea><span class="desc">৬৪ থেকে ৪৪ পিক্সেল, সর্বোচ্চ ৩ লাইন।</span></div>
 					<!-- উক্তি -->
-					<div class="field" data-for="quote"><label for="ms-q-text">উক্তি</label><textarea id="ms-q-text" data-k="text" rows="3" maxlength="400"></textarea></div>
+					<div class="field" data-for="quote"><label for="ms-q-text">উক্তি</label><textarea id="ms-q-text" data-k="text" rows="3" maxlength="400"></textarea><span class="desc">মূল শব্দের দুই পাশে ** দিলে রঙিন হবে। <button type="button" class="button-link ms-mark" data-target="ms-q-text">নির্বাচিত লেখা হাইলাইট করুন</button></span></div>
 					<div class="row2" data-for="quote">
 						<div class="field"><label for="ms-q-speaker">বক্তা</label><input id="ms-q-speaker" type="text" data-k="speaker"></div>
 						<div class="field"><label for="ms-q-role">পরিচয়/উপাধি</label><input id="ms-q-role" type="text" data-k="role"></div>
@@ -314,6 +324,12 @@ function meeha_studio_page() {
 						<div class="field"><label for="ms-q-year">সাল (ইতিহাস ফ্রেমে জলছাপ)</label><input id="ms-q-year" type="text" data-k="year" maxlength="8"></div>
 					</div>
 					<div class="field" data-for="quote"><label class="check"><input type="checkbox" id="ms-q-photo" checked>বক্তার ছবি দেখান (বাঁ-ঘেঁষা ফ্রেমে)</label></div>
+					<!-- সাহিত্য -->
+					<div class="field" data-for="literature poem"><label for="ms-l-label">লেবেল (ধরন)</label><input id="ms-l-label" type="text" data-k="label" maxlength="30" placeholder="গল্প, প্রবন্ধ, কবিতা…"></div>
+					<div class="field" data-for="literature poem"><label for="ms-l-title">শিরোনাম</label><textarea id="ms-l-title" data-k="title" rows="2"></textarea></div>
+					<div class="field" data-for="literature poem"><label for="ms-l-author">লেখক / কবি</label><input id="ms-l-author" type="text" data-k="author"></div>
+					<div class="field" data-for="literature"><label for="ms-l-excerpt">উদ্ধৃতি / অংশবিশেষ</label><textarea id="ms-l-excerpt" data-k="excerpt" rows="5"></textarea><span class="desc">লেখার সবচেয়ে সুন্দর দুই-তিন লাইন। ** দিয়ে ঘেরা কথা রঙিন হবে। <button type="button" class="button-link ms-mark" data-target="ms-l-excerpt">নির্বাচিত লেখা হাইলাইট করুন</button></span></div>
+					<div class="field" data-for="poem"><label for="ms-l-poem">কবিতার পঙ্‌ক্তি</label><textarea id="ms-l-poem" data-k="poem" rows="8"></textarea><span class="desc">প্রতি লাইনে একটি পঙ্‌ক্তি; ফাঁকা লাইন = স্তবকের বিরতি। লাইন যত বেশি, লেখা তত ছোট হবে (৮–১২ লাইন সবচেয়ে ভালো)।</span></div>
 					<!-- শোক -->
 					<div class="field" data-for="condolence"><label for="ms-s-pre">প্রথম লাইন</label><select id="ms-s-pre" data-k="pre"></select></div>
 					<div class="field" data-for="condolence"><label for="ms-s-head">শিরোনাম</label><input id="ms-s-head" type="text" data-k="heading" maxlength="40"></div>
@@ -353,6 +369,7 @@ function meeha_studio_page() {
 							<label><input type="radio" name="ms-size" value="<?php echo esc_attr( $k ); ?>"<?php checked( $first ); ?>><?php echo esc_html( $l ); ?></label>
 						<?php $first = false; endforeach; ?>
 					</div></div>
+					<div class="field" id="ms-story-f" hidden><label for="ms-story-cta">স্টোরির নিচের লেখা</label><input id="ms-story-cta" type="text" maxlength="60" value="<?php echo esc_attr( (string) meeha_studio_opt( 'story_cta', 'বিস্তারিত পড়ুন meeha.news-এ' ) ); ?>"><span class="desc">স্টোরিতে কার্ড মাঝখানে বসে; ওপরে লোগো, নিচে এই লেখা। খালি রাখলে সাইটের ঠিকানা বসে।</span></div>
 					<label class="check"><input type="checkbox" id="ms-ad">নিচে বিজ্ঞাপন স্ট্রিপ যোগ করুন</label>
 					<div class="field"><label for="ms-adsel">বিজ্ঞাপন</label><select id="ms-adsel" disabled></select>
 						<span class="desc" id="ms-adhelp"></span></div>
@@ -464,7 +481,7 @@ function meeha_studio_frames_page() {
 		<?php endif; ?>
 
 		<?php foreach ( $types as $id => $t ) : ?>
-			<?php $own = array_filter( $frames, function ( $r ) use ( $id ) { return $r['type'] === $id; } ); ?>
+			<?php $own = array_filter( $frames, function ( $r ) use ( $id ) { return $r['type'] === $id && ( empty( $r['builtin'] ) || '1080x1080' === $r['size'] ); } ); ?>
 			<h2 class="ms-libh"><?php echo esc_html( $t['label'] ); ?> <a class="page-title-action" href="<?php echo esc_url( meeha_studio_url( $id ) ); ?>">স্টুডিওতে খুলুন</a></h2>
 			<ul class="frames ms-libgrid">
 				<?php foreach ( meeha_studio_presets_for( $id ) as $pid => $label ) : ?>
@@ -472,7 +489,7 @@ function meeha_studio_frames_page() {
 				<?php endforeach; ?>
 				<?php foreach ( $own as $r ) : ?>
 					<li><figure><span class="sw sw-img sw-<?php echo esc_attr( str_replace( 'x', '-', $r['size'] ) ); ?>"><img src="<?php echo esc_url( $r['url'] ); ?>" alt="" loading="lazy"></span>
-						<figcaption><?php echo esc_html( $r['label'] ); ?><br><small><?php echo esc_html( str_replace( 'x', ' × ', meeha_studio_bn( $r['size'] ) ) ); ?><?php echo empty( $r['alpha'] ) ? ' · অস্বচ্ছ' : ''; ?><?php echo in_array( $id, array( 'day', 'birthday', 'condolence', 'quote' ), true ) ? '<br>' . esc_html( 'নিজস্ব নকশা — বিল্ট-ইন নকশার সঙ্গে মেশে না' ) : ''; ?></small></figcaption><span class="tag">আপলোড</span>
+						<figcaption><?php echo esc_html( $r['label'] ); ?><br><small><?php echo esc_html( str_replace( 'x', ' × ', meeha_studio_bn( $r['size'] ) ) ); ?><?php echo empty( $r['alpha'] ) ? ' · অস্বচ্ছ' : ''; ?><?php echo ! empty( $r['builtin'] ) ? esc_html( ' · চার মাপেই আছে' ) : ''; ?><?php echo in_array( $id, array( 'day', 'birthday', 'condolence', 'quote' ), true ) ? '<br>' . esc_html( 'নিজস্ব নকশা — বিল্ট-ইন নকশার সঙ্গে মেশে না' ) : ''; ?></small></figcaption><span class="tag"><?php echo empty( $r['builtin'] ) ? 'আপলোড' : 'রেডিমেড'; ?></span>
 						<?php if ( meeha_studio_can_delete_frame( $r ) ) : ?>
 							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ms-del" onsubmit="return confirm('এই ফ্রেমটি মুছে ফেলবেন?');">
 								<input type="hidden" name="action" value="meeha_card_frame_delete"><input type="hidden" name="frame" value="<?php echo esc_attr( $r['id'] ); ?>">
