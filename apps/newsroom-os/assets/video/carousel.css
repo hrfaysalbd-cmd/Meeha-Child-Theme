@@ -1,0 +1,58 @@
+/* Meeha News — homepage video carousel ([meeha_video_carousel]) */
+.mvc {
+	--g: var(--meeha-video-accent, var(--meeha-accent, #025AB2)); --g-deep: #01468A; --mint: #e7f0fb; --ink: #121a24; --mute: #5c6878; --line: #dae3ee;
+	--fh: "Baloo Da 2", "Hind Siliguri", system-ui, sans-serif;
+	--fb: "Hind Siliguri", "Baloo Da 2", system-ui, sans-serif;
+	--cw: 41vw;
+	position: relative; margin: 28px 0; font-family: var(--fb); color: var(--ink); box-sizing: border-box;
+}
+.mvc *, .mvc *::before, .mvc *::after { box-sizing: border-box; }
+.mvc-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.mvc .mvc-title { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0; border: 0; font: 800 23px/1.2 var(--fh); color: var(--ink); }
+.mvc-dot { width: 30px; height: 30px; border-radius: 4px; background: var(--g); position: relative; flex: none; }
+.mvc-dot::after { content: ""; position: absolute; left: 11px; top: 8px; border-left: 11px solid #fff; border-top: 7px solid transparent; border-bottom: 7px solid transparent; }
+.mvc-ctrl { display: flex; align-items: center; gap: 8px; }
+.mvc .mvc-all { display: inline-flex; align-items: center; height: 38px; padding: 2px 16px 0; border-radius: 999px; border: 1.5px solid var(--g); color: var(--g); font-weight: 700; font-size: 14.5px; text-decoration: none; white-space: nowrap; transition: background-color .15s, color .15s; }
+.mvc .mvc-all:hover, .mvc .mvc-all:focus-visible { background: var(--g); color: #fff; }
+.mvc .mvc-arrow { display: none; place-items: center; width: 38px; height: 38px; padding: 0; margin: 0; border-radius: 50%; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; box-shadow: none; transition: background-color .15s, color .15s, border-color .15s; }
+.mvc .mvc-arrow:hover:not(:disabled) { background: var(--g); border-color: var(--g); color: #fff; }
+.mvc .mvc-arrow:disabled { opacity: .35; cursor: default; }
+.mvc-arrow .mvr-i { width: 20px; height: 20px; display: block; }
+.mvc.is-static .mvc-arrow { display: none; }
+.mvc-track {
+	display: grid; grid-auto-flow: column; grid-auto-columns: var(--cw); gap: 12px; list-style: none; margin: 0 -16px; padding: 2px 16px 8px;
+	overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 16px; scrollbar-width: none; overscroll-behavior-x: contain;
+}
+.mvc-track::-webkit-scrollbar { display: none; }
+.mvc-card { scroll-snap-align: start; margin: 0; padding: 0; min-width: 0; }
+.mvc-card::before { content: none; }
+.mvc .mvc-link { display: block; color: inherit; text-decoration: none; border-radius: 16px; }
+.mvc .mvc-link:focus-visible { outline: 3px solid var(--g); outline-offset: 3px; }
+.mvc-thumb { position: relative; display: block; aspect-ratio: 9 / 16; border-radius: 16px; overflow: hidden; background: linear-gradient(160deg, var(--g) 0, var(--g-deep) 100%); isolation: isolate; }
+.mvc-thumb.is-land::before { content: ""; position: absolute; inset: -30px; background: var(--g-deep) var(--bg, none) center / cover no-repeat; filter: blur(18px) brightness(.55) saturate(1.2); }
+.mvc-thumb.is-land img { object-fit: contain; }
+.mvc-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover; display: block; transition: transform .35s ease; }
+.mvc-thumb::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0, 0, 0, .62), transparent 38%); }
+.mvc-dur { position: absolute; z-index: 1; left: 8px; top: 8px; padding: 3px 7px 1px; border-radius: 4px; background: rgba(0, 0, 0, .62); color: #fff; font: 700 12.5px/1.2 var(--fh); }
+.mvc-play { position: absolute; z-index: 1; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; display: grid; place-items: center; border-radius: 50%; background: rgba(255, 255, 255, .22); color: #fff; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transition: background-color .2s, transform .2s; }
+.mvc-play .mvr-i { width: 24px; height: 24px; margin-left: 3px; }
+.mvc-views { position: absolute; z-index: 1; left: 10px; bottom: 9px; display: flex; align-items: center; gap: 5px; color: #fff; font: 700 13.5px/1 var(--fh); }
+.mvc-views .mvr-i { width: 17px; height: 17px; }
+.mvc-h { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 9px; font: 600 15.5px/1.38 var(--fh); color: var(--ink); transition: color .15s; }
+.mvc-when { display: block; margin-top: 2px; font-size: 12.5px; color: var(--mute); }
+.mvc .mvr-sr { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (hover: hover) {
+	.mvc-link:hover .mvc-thumb img { transform: scale(1.05); }
+	.mvc-link:hover .mvc-play { background: var(--g); transform: scale(1.08); }
+	.mvc-link:hover .mvc-h { color: var(--g); }
+}
+.meeha-section .mvc { margin: 0; }
+@media (min-width: 600px) { .mvc { --cw: 190px; } }
+@media (min-width: 768px) {
+	.mvc { --cw: 200px; margin: 36px 0; }
+	.mvc .mvc-title { font-size: 26px; }
+	.mvc .mvc-arrow { display: grid; }
+	.mvc-track { margin: 0; padding: 2px 0 8px; gap: 16px; scroll-padding-inline: 0; }
+}
+@media (max-width: 420px) { .mvc .mvc-all { padding: 2px 12px 0; height: 34px; font-size: 13.5px; } .mvc .mvc-title { font-size: 21px; } }
+@media (prefers-reduced-motion: reduce) { .mvc *, .mvc-track { transition: none !important; scroll-behavior: auto !important; } }

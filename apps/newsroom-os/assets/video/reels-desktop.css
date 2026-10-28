@@ -1,0 +1,122 @@
+/* Meeha News — ভিডিও রিলস, desktop/tablet layout.
+   Enqueued with media="(min-width: 768px) and (hover: hover), (min-width: 768px) and (min-height: 501px)"
+   (the complement of PHONE_MQ), so phones never wait on it. The wrapper below repeats it. */
+
+@media (min-width: 768px) and (hover: hover), (min-width: 768px) and (min-height: 501px) {
+	.mvr { position: relative; color: var(--ink); background: var(--paper); max-width: 1440px; margin: 0 auto; padding: 24px 0 44px; }
+	/* The query container is an inner box: containment on .mvr itself would
+	   trap the fixed scrim/dialog/toast inside it. */
+	.mvr-box { container-type: inline-size; }
+
+	/* --h = player height: as tall as the viewport allows, never wider than the
+	   column leaves room for (cqw = the .mvr-box width). */
+	.mvr-in {
+		--vh: clamp(440px, calc(100vh - 150px), 860px);
+		--h: min(var(--vh), calc((100cqw - 160px) * 16 / 9));
+		--sw: calc(var(--h) * 9 / 16);
+		display: grid; grid-template-columns: 1fr; justify-items: center; gap: 28px; padding: 0 24px;
+	}
+	.mvr-top, .mvr-info { display: none; }
+	.mvr-col { position: relative; height: var(--h); width: calc(var(--sw) + 88px); }
+	.mvr-feed { height: 100%; overscroll-behavior-y: auto; }
+	.mvr-slide { height: var(--h); display: grid; grid-template-columns: var(--sw) 88px; }
+	.mvr-stage { height: 100%; border-radius: 22px; box-shadow: 0 24px 60px -24px rgba(1, 70, 138, .45); }
+	.mvr-slide:not(.is-active) .mvr-stage { opacity: .55; transition: opacity .3s; }
+	.mvr-cap { right: 0; padding: 0 22px 26px; }
+	.mvr-rail { align-self: end; padding-bottom: 6px; color: var(--ink); }
+	.mvr-ic { width: 52px; height: 52px; background: var(--mint); color: var(--g); }
+	.mvr-act:hover .mvr-ic { background: #cfe0f5; }
+	.mvr-like[aria-pressed="true"] .mvr-ic { background: #fde6ea; }
+	.mvr-n { color: var(--ink); font-size: 14px; }
+	.mvr .mvr-sound { top: 14px; left: calc(var(--sw) - 56px); }
+	.mvr-nav { position: absolute; top: 0; right: 18px; display: flex; flex-direction: column; gap: 10px; z-index: 6; }
+	.mvr-nav button { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: #fff; color: var(--ink); border: 1px solid var(--line); transition: background-color .15s, color .15s, border-color .15s; }
+	.mvr-nav button:hover:not(:disabled) { background: var(--g); border-color: var(--g); color: #fff; }
+	.mvr-nav button:disabled { opacity: .35; cursor: default; }
+	.mvr :focus-visible { outline-color: var(--g); }
+	.mvr .mvr-stage :focus-visible { outline-color: var(--g-lite); }
+	.mvr-end { color: var(--mute); height: 80px; }
+	.mvr-err { width: min(80%, 320px); }
+
+	/* side panel: "আরও ভিডিও" queue + comments */
+	.mvr-side { width: min(100%, 560px); height: 540px; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; background: #fff; }
+	.mvr-tabs { display: flex; flex: none; border-bottom: 1px solid var(--line); padding: 0 8px; }
+	.mvr .mvr-tab { flex: 1; padding: 16px 8px 12px; font: 700 16px/1.2 var(--fh); color: var(--mute); border-bottom: 3px solid transparent; margin-bottom: -1px; }
+	.mvr .mvr-tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--g); }
+	.mvr-tab-n { display: inline-block; min-width: 24px; padding: 3px 7px 1px; border-radius: 999px; background: var(--mint); color: var(--g); font-size: 13px; margin-left: 4px; }
+	.mvr-queue { flex: 1; overflow-y: auto; padding: 8px; overscroll-behavior: contain; scrollbar-width: thin; }
+	.mvr-side.is-c .mvr-queue { display: none; }
+	.mvr .mvr-qi { display: grid; grid-template-columns: 68px 1fr; gap: 14px; width: 100%; padding: 8px; border-radius: 14px; transition: background-color .15s; }
+	.mvr .mvr-qi:hover { background: #f4f7fb; }
+	.mvr .mvr-qi.is-on { background: var(--mint); }
+	.mvr-qt { position: relative; width: 68px; height: 120px; border-radius: 10px; overflow: hidden; background: var(--g-deep); }
+	.mvr-qt img { width: 100%; height: 100%; object-fit: cover; display: block; }
+	.mvr-qi.is-on .mvr-qt::after { content: ""; position: absolute; inset: 0; border: 3px solid var(--g); border-radius: 10px; }
+	.mvr-qx { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; min-width: 0; }
+	.mvr-qh { font: 600 16px/1.38 var(--fh); color: var(--ink); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+	.mvr-qi.is-on .mvr-qh { color: var(--g); }
+	.mvr-qi.is-on .mvr-qx::before { content: "এখন চলছে"; align-self: flex-start; font-size: 12px; font-weight: 700; color: #fff; background: var(--g); padding: 3px 8px 1px; border-radius: 3px; }
+	.mvr-qm { font-size: 13px; color: var(--mute); }
+	.mvr-cm { flex: 1; min-height: 0; }
+	.mvr-side:not(.is-c) .mvr-cm { display: none; }
+	.mvr-cm .mvr-grab, .mvr-cm .mvr-cm-head { display: none; }
+	.mvr-cm-list { padding: 4px 20px 12px; }
+	.mvr-form { padding: 12px; }
+
+	/* share: centred dialog over everything (theme header included) */
+	.mvr-scrim { z-index: 100000; }
+	.mvr-share { position: fixed; left: 50%; top: 50%; z-index: 100001; width: min(440px, calc(100vw - 32px)); transform: translate(-50%, -50%); border-radius: 22px; box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .4); animation: mvr-dlg .22s cubic-bezier(.2, .8, .2, 1); }
+	.mvr-share:not(.is-open) { display: none; }
+	.mvr-share .mvr-grab { display: none; }
+	@keyframes mvr-dlg { from { opacity: 0; transform: translate(-50%, -46%); } }
+	.mvr-nets { padding-bottom: 28px; }
+	.mvr-nets button:hover .mvr-net { transform: translateY(-2px); }
+	.mvr-net { transition: transform .15s; }
+	.mvr-toast { bottom: 40px; z-index: 100002; }
+}
+
+/* two columns: player + panel */
+@container (min-width: 900px) {
+	.mvr-in {
+		--h: min(var(--vh), calc((100cqw - 516px) * 16 / 9));
+		grid-template-columns: auto minmax(300px, 380px); justify-content: center; justify-items: stretch; align-items: start; gap: 32px;
+	}
+	.mvr-side { width: auto; height: var(--h); }
+}
+
+/* three columns: now-playing + player + panel */
+@container (min-width: 1180px) {
+	.mvr-in {
+		--h: min(var(--vh), calc((100cqw - 840px) * 16 / 9));
+		grid-template-columns: minmax(260px, 1fr) auto minmax(300px, 370px); gap: 32px;
+	}
+	.mvr-info { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; justify-self: end; width: 100%; max-width: 400px; height: var(--h); overflow: hidden; padding-top: 4px; }
+	.mvr-info > * { flex-shrink: 0; }
+	.mvr-info .mvr-bug { font-size: 17px; }
+	.mvr-info-title { font: 800 clamp(26px, 2.3vw, 34px)/1.28 var(--fh); color: var(--ink); letter-spacing: -.005em; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+	.mvr-info-by { display: flex; align-items: center; gap: 12px; }
+	.mvr-info-by .mvr-av { width: 42px; height: 42px; }
+	.mvr-info-by > span:last-child { display: flex; flex-direction: column; line-height: 1.35; }
+	.mvr-info-name { font-weight: 700; font-size: 15.5px; color: var(--ink); }
+	.mvr-info-when { font-size: 13.5px; color: var(--mute); }
+	.mvr-info-ex { font-size: 16px; line-height: 1.75; color: #3b4757; max-width: 44ch; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+	.mvr-info-ex:empty { display: none; }
+	.mvr-info-stats { display: flex; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); width: 100%; }
+	.mvr-info-stats > div { flex: 1; display: flex; flex-direction: column-reverse; padding: 12px 0 10px; }
+	.mvr-info-stats > div + div { border-left: 1px solid var(--line); padding-left: 16px; }
+	.mvr-info-stats dd { margin: 0; font: 700 24px/1.1 var(--fh); color: var(--ink); }
+	.mvr-info-stats dt { font-size: 13px; color: var(--mute); margin-top: 2px; }
+	.mvr-info-share { display: flex; gap: 8px; flex-wrap: wrap; }
+	.mvr .mvr-info-share button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; height: 44px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); transition: background-color .15s, color .15s, border-color .15s; }
+	.mvr-info-share button .mvr-i { width: 20px; height: 20px; }
+	.mvr .mvr-info-share .mvr-copy { padding: 0 16px 0 14px; font-weight: 600; font-size: 14.5px; }
+	.mvr .mvr-info-share button:hover { background: var(--g); color: #fff; border-color: var(--g); }
+	.mvr-keys { font-size: 13px; color: var(--mute); margin-top: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+	.mvr-keys kbd { font: 600 12px/1 var(--fb); background: #f2f5f9; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 4px 7px 2px; color: var(--ink); }
+	.mvr-cap { display: none; }
+}
+
+@media (max-height: 760px) {
+	.mvr-info-ex { -webkit-line-clamp: 4; }
+	.mvr-keys { display: none; }
+}

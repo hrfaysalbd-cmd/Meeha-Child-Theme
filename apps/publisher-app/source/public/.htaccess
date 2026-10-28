@@ -1,0 +1,14 @@
+# SPA fallback for Apache (Hostinger shared hosting) — publisher.meeha.news
+# serves a React Router app; any path that isn't a real file/folder must
+# fall back to index.html so client-side routing works on a hard refresh or
+# a direct link, not just via in-app navigation.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  RewriteRule ^ index.html [L]
+</IfModule>
