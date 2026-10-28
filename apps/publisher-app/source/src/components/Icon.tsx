@@ -267,3 +267,9 @@ export const IconDeviceFloppy = (p: Props) => (
 export const IconPlayerSkipBack = (p: Props) => (
   <svg {...base} {...p}><path d="M20 5v14l-12 -7z" /><path d="M4 5l0 14" /></svg>
 )
+export const IconAdjustments = (p: Props) => (
+  <svg {...base} {...p}><path d="M14 6m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M4 6l8 0" /><path d="M16 6l4 0" /><path d="M8 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M4 12l2 0" /><path d="M10 12l10 0" /><path d="M17 18m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M4 18l11 0" /><path d="M19 18l1 0" /></svg>
+)
+export const IconRotate = (p: Props) => (
+  <svg {...base} {...p}><path d="M19.95 11a8 8 0 1 0 -.5 4m.5 5v-5h-5" /></svg>
+)

@@ -11,6 +11,7 @@ import {
   FOOTERS,
   FORMATS,
   FRAMES,
+  FRAME_SIZES,
   INTROS,
   LIMITS,
   LOGO_STYLES,
@@ -90,6 +91,9 @@ export function FramePanel({
 
       {f.id !== 'none' && (
         <>
+          <Section title="ফ্রেমের আকার" hint="স্বয়ংক্রিয়: রিল (৯:১৬) ভিডিওতে ফ্রেম ও লেখা বড় হয়, কারণ ফোনে পুরো স্ক্রিনে দেখা হয়।">
+            <Segmented value={f.size} options={FRAME_SIZES} onChange={(v) => setF({ size: v })} size="sm" />
+          </Section>
           <Section title="উপরের অংশ">
             <TextInput label="শিরোনাম / নিজের লেখা" value={f.title} onChange={(v) => setF({ title: v })} max={LIMITS.title} placeholder={postTitle || 'ভিডিওর শিরোনাম'} testId="frame-title" />
             <TextInput label="ক্যাটেগরি / লেবেল (ঐচ্ছিক)" value={f.kicker} onChange={(v) => setF({ kicker: v })} max={LIMITS.kicker} placeholder="যেমন: জাতীয়, খেলা, ক্যাম্পাস" />
@@ -232,7 +236,7 @@ export function IntroOutroPanel({
   const outro = cfg.outro
   const introOpts = [{ id: 'none' as IntroId, name: 'ইন্ট্রো নেই', hint: '' }, ...INTROS]
   const outroOpts = [{ id: 'none' as OutroId, name: 'আউট্রো নেই', hint: '' }, ...OUTROS]
-  const textIntro = intro.id === 'breaking' || intro.id === 'headline' || intro.id === 'special'
+  const textIntro = ['breaking', 'headline', 'special', 'swipe', 'live', 'countdown'].includes(intro.id)
   const preview = (kind: 'intro' | 'outro', id: string): ReactNode => {
     const p = id === 'none' ? null : thumb(kind, id)
     return p ? <Thumb paint={p} ratio={thumbRatio} deps={[thumbKey, id]} /> : <div className="bg-neutral-100" style={{ aspectRatio: String(thumbRatio) }} />
@@ -421,20 +425,29 @@ export function CaptionsPanel({
           {cfg.captions.map((c, i) => (
             <div key={i} className="rounded-xl border border-neutral-200 p-3" data-testid="caption-row">
               <div className="flex items-center justify-between gap-2 mb-2">
-                <Segmented value={c.style} options={CAPTION_STYLES} onChange={(v) => update(i, { style: v, pos: v === 'subtitle' ? 'bc' : c.pos === 'bc' ? 'bl' : c.pos })} size="sm" />
+                <Segmented value={c.style} options={CAPTION_STYLES} onChange={(v) => update(i, { style: v, pos: v === 'subtitle' || v === 'quote' ? 'bc' : c.pos === 'bc' ? 'bl' : c.pos })} size="sm" />
                 <button type="button" onClick={() => remove(i)} aria-label="সরান" className="text-red-500 hover:text-red-700 shrink-0">
                   <IconTrash className="w-4 h-4" />
                 </button>
               </div>
               <TextInput
-                label={c.style === 'nameplate' ? 'নাম' : 'লেখা'}
+                label={c.style === 'nameplate' ? 'নাম' : c.style === 'location' ? 'স্থান' : c.style === 'quote' ? 'বক্তব্য' : 'লেখা'}
                 value={c.text}
                 onChange={(v) => update(i, { text: v })}
                 max={LIMITS.capText}
-                placeholder={c.style === 'nameplate' ? 'যেমন: আসিফ মাহমুদ' : 'যেমন: ভিডিও: সংগৃহীত'}
+                multiline={c.style === 'quote'}
+                placeholder={
+                  c.style === 'nameplate' ? 'যেমন: আসিফ মাহমুদ' : c.style === 'location' ? 'যেমন: শাহবাগ, ঢাকা' : c.style === 'quote' ? 'যেমন: আমরা দ্রুত ব্যবস্থা নেব' : 'যেমন: ভিডিও: সংগৃহীত'
+                }
               />
-              {c.style === 'nameplate' && (
-                <TextInput label="পদবি / পরিচয়" value={c.sub} onChange={(v) => update(i, { sub: v })} max={LIMITS.capSub} placeholder="যেমন: ক্যাম্পাস সংবাদদাতা" />
+              {(c.style === 'nameplate' || c.style === 'quote') && (
+                <TextInput
+                  label={c.style === 'quote' ? 'বক্তার নাম ও পরিচয়' : 'পদবি / পরিচয়'}
+                  value={c.sub}
+                  onChange={(v) => update(i, { sub: v })}
+                  max={LIMITS.capSub}
+                  placeholder={c.style === 'quote' ? 'যেমন: মো. রহিম, জেলা প্রশাসক' : 'যেমন: ক্যাম্পাস সংবাদদাতা'}
+                />
               )}
               <p className="text-[11.5px] text-neutral-500 mb-1">অবস্থান</p>
               <Segmented value={c.pos} options={CAPTION_POSITIONS} onChange={(v) => update(i, { pos: v })} size="sm" />

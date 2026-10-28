@@ -83,10 +83,11 @@ export function exportCapability(): Capability {
 
 /** Target video bitrate: ~0.11 bit/pixel/frame, never so high the file busts `maxBytes`. */
 export function pickBitrate(W: number, H: number, duration: number, maxBytes: number | null) {
-  const ideal = Math.min(10_000_000, Math.max(1_500_000, W * H * FPS * 0.11))
-  if (!maxBytes || duration <= 0) return ideal
+  // Encoders take whole bits per second only ("bitrate must be a positive integer").
+  const ideal = Math.round(Math.min(10_000_000, Math.max(1_500_000, W * H * FPS * 0.11)))
+  if (!maxBytes || !(duration > 0)) return ideal
   const budget = (maxBytes * 0.88 * 8) / duration - 160_000
-  return Math.max(600_000, Math.min(ideal, budget))
+  return Math.round(Math.max(600_000, Math.min(ideal, Number.isFinite(budget) ? budget : ideal)))
 }
 
 interface ClipIO {
@@ -96,7 +97,7 @@ interface ClipIO {
   audio: AudioReader | null
 }
 
-async function openClip(blob: Blob, maxW: number, maxH: number): Promise<ClipIO> {
+async function openClip(blob: Blob, maxW: number, maxH: number, cover = false): Promise<ClipIO> {
   const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS })
   const video = await input.getPrimaryVideoTrack()
   const audioTrack = await input.getPrimaryAudioTrack()
@@ -106,7 +107,7 @@ async function openClip(blob: Blob, maxW: number, maxH: number): Promise<ClipIO>
       throw new Error(`এই ব্রাউজার ভিডিওটির কোডেক (${video.codec ?? 'অজানা'}) পড়তে পারছে না — Chrome/Edge-এর নতুন সংস্করণে চেষ্টা করুন।`)
     }
     // Decode straight to the size it will be drawn at (less memory, faster).
-    const k = Math.min(1, maxW / video.displayWidth, maxH / video.displayHeight)
+    const k = Math.min(1, cover ? Math.max(maxW / video.displayWidth, maxH / video.displayHeight) : Math.min(maxW / video.displayWidth, maxH / video.displayHeight))
     const width = Math.max(2, Math.round(video.displayWidth * Math.max(k, Math.min(1, (maxW * 0.5) / video.displayWidth))))
     sink = new CanvasSink(video, { width, poolSize: 3 })
   }
@@ -170,8 +171,15 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
     for (const key of used) {
       const blob = job.clips[key]
       if (!blob) throw new Error(`ভিডিও ফাইল পাওয়া যায়নি (${key})।`)
-      const box = key === 'main' ? env.L.video : { w: W, h: H }
-      io[key] = await openClip(blob, Math.ceil(box.w), Math.ceil(box.h))
+      if (key === 'main') {
+        // decode at the size it is shown: turned sideways and zoomed in if so
+        const v = env.L.video
+        const turned = cfg.look.rotate === 90 || cfg.look.rotate === 270
+        const z = cfg.look.zoom
+        io[key] = await openClip(blob, Math.ceil((turned ? v.h : v.w) * z), Math.ceil((turned ? v.w : v.h) * z), cfg.fit === 'cover')
+      } else {
+        io[key] = await openClip(blob, W, H, true)
+      }
       check()
     }
 

@@ -23,6 +23,11 @@ export default function StudioTimeline({ tl, cfg, time, onSeek }: { tl: Timeline
     const r = ref.current!.getBoundingClientRect()
     return Math.min(1, Math.max(0, (clientX - r.left) / r.width)) * total
   }
+  // where a cut joins two parts of the video
+  const joins = tl.segments.filter((s, i) => {
+    const prev = tl.segments[i - 1]
+    return s.kind === 'main' && prev?.kind === 'main' && Math.abs(prev.clipStart + prev.dur - s.clipStart) > 0.05
+  })
   const marks = cfg.captions
     .map((c) => sourceToOutput(tl, c.at))
     .filter((t): t is number => t !== null)
@@ -57,6 +62,9 @@ export default function StudioTimeline({ tl, cfg, time, onSeek }: { tl: Timeline
             </div>
           ))}
         </div>
+        {joins.map((s, i) => (
+          <span key={`j${i}`} className="absolute top-0 bottom-0 w-[3px] -ml-[1.5px] bg-red-500" style={{ left: `${(s.t0 / total) * 100}%` }} title="এখানে কাটা অংশ বাদ গেছে" />
+        ))}
         {marks.map((t, i) => (
           <span key={i} className="absolute bottom-0 w-1.5 h-2.5 -ml-[3px] rounded-t bg-white/90" style={{ left: `${(t / total) * 100}%` }} />
         ))}

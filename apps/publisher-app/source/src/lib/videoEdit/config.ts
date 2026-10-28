@@ -10,10 +10,12 @@
 
 export type FormatId = 'source' | '16:9' | '9:16' | '1:1' | '4:5'
 export type FitMode = 'blur' | 'cover' | 'black'
-export type FrameId = 'none' | 'breaking' | 'news' | 'live' | 'special' | 'wave' | 'minimal' | 'exclusive'
+export type FrameId = 'none' | 'breaking' | 'news' | 'live' | 'special' | 'wave' | 'minimal' | 'exclusive' | 'sports' | 'election' | 'alert' | 'glass' | 'campus'
+/** How big the frame bands, their text and the captions are (auto = bigger for reels). */
+export type FrameSize = 'auto' | 's' | 'm' | 'l' | 'xl'
 export type FooterMode = 'none' | 'ticker' | 'ad-text' | 'ad-image' | 'brand'
-export type IntroId = 'none' | 'meeha-logo' | 'breaking' | 'headline' | 'special' | 'custom'
-export type OutroId = 'none' | 'meeha-social' | 'thanks' | 'custom'
+export type IntroId = 'none' | 'meeha-logo' | 'breaking' | 'headline' | 'special' | 'swipe' | 'live' | 'countdown' | 'custom'
+export type OutroId = 'none' | 'meeha-social' | 'thanks' | 'follow' | 'custom'
 export type LogoStyle = 'reveal' | 'spin' | 'pulse' | 'static'
 export type Corner = 'tr' | 'tl' | 'br' | 'bl'
 export type Quality = '720' | '1080'
@@ -34,7 +36,7 @@ export interface AdBreak {
   bumper: boolean
 }
 
-export type CaptionStyle = 'nameplate' | 'tag' | 'subtitle'
+export type CaptionStyle = 'nameplate' | 'tag' | 'subtitle' | 'quote' | 'location'
 export type CaptionPos = 'bl' | 'br' | 'tl' | 'tr' | 'bc'
 
 /**
@@ -53,6 +55,45 @@ export interface Caption {
   dur: number | null
 }
 
+/** A part of the original video to leave out (source seconds). */
+export interface Cut {
+  from: number
+  to: number
+}
+
+export type LookFilter = 'none' | 'vivid' | 'warm' | 'cool' | 'bw' | 'cinema' | 'fade' | 'night'
+
+/** Picture adjustments for the main video (tools tab). */
+export interface Look {
+  filter: LookFilter
+  /** 1 = unchanged. */
+  brightness: number
+  contrast: number
+  saturation: number
+  /** 1 = no zoom; the picture is enlarged around (panX, panY) ∈ [-1, 1]. */
+  zoom: number
+  panX: number
+  panY: number
+  rotate: 0 | 90 | 180 | 270
+  flip: boolean
+}
+
+/**
+ * A blurred / pixelated box over the main video (faces, number plates…).
+ * x/y/w/h are fractions of the picture as shown, so the box follows the
+ * picture when it is zoomed or rotated.
+ */
+export interface BlurBox {
+  x: number
+  y: number
+  w: number
+  h: number
+  mode: 'blur' | 'pixel'
+  /** Source seconds; dur null = until the end. */
+  at: number
+  dur: number | null
+}
+
 export interface EditConfig {
   v: 1
   trim: { start: number; end: number | null }
@@ -68,6 +109,7 @@ export interface EditConfig {
     ticker: string
     adText: string
     adImage: MediaRef | null
+    size: FrameSize
   }
   logo: {
     on: boolean
@@ -85,7 +127,12 @@ export interface EditConfig {
   ads: AdBreak[]
   captions: Caption[]
   audio: { main: number; clips: number; sfx: boolean }
+  cuts: Cut[]
+  look: Look
+  blurs: BlurBox[]
 }
+
+export const DEFAULT_LOOK: Look = { filter: 'none', brightness: 1, contrast: 1, saturation: 1, zoom: 1, panX: 0, panY: 0, rotate: 0, flip: false }
 
 export const DEFAULT_CONFIG: EditConfig = {
   v: 1,
@@ -93,13 +140,16 @@ export const DEFAULT_CONFIG: EditConfig = {
   format: 'source',
   fit: 'blur',
   quality: '1080',
-  frame: { id: 'none', title: '', kicker: '', date: true, footer: 'ticker', ticker: '', adText: '', adImage: null },
+  frame: { id: 'none', title: '', kicker: '', date: true, footer: 'ticker', ticker: '', adText: '', adImage: null, size: 'auto' },
   logo: { on: false, style: 'reveal', corner: 'tr', size: 6, every: 12, plate: true, opacity: 1 },
   intro: { id: 'none', text: '', clip: null },
   outro: { id: 'none', clip: null },
   ads: [],
   captions: [],
   audio: { main: 1, clips: 1, sfx: true },
+  cuts: [],
+  look: { filter: 'none', brightness: 1, contrast: 1, saturation: 1, zoom: 1, panX: 0, panY: 0, rotate: 0, flip: false },
+  blurs: [],
 }
 
 // ---- catalogue ----
@@ -121,6 +171,19 @@ export const FRAMES: FrameInfo[] = [
   { id: 'wave', name: 'মিহা ঢেউ', hint: 'চলমান ঢেউ — থিমের ঢেউ ডিজাইন', label: 'শিরোনাম', swatch: ['#025AB2', '#CC2A1F'] },
   { id: 'exclusive', name: 'এক্সক্লুসিভ', hint: 'কালো ও হলুদ টেপ', label: 'এক্সক্লুসিভ', swatch: ['#0A0A0A', '#FACC15'] },
   { id: 'minimal', name: 'মিনিমাল সাদা', hint: 'সাদা পটভূমি, পরিষ্কার লেখা', label: 'শিরোনাম', swatch: ['#FFFFFF', '#025AB2'] },
+  { id: 'sports', name: 'খেলা', hint: 'সবুজ মাঠ, দ্রুতগতির রেখা', label: 'খেলা', swatch: ['#065F46', '#A3E635'] },
+  { id: 'election', name: 'নির্বাচন', hint: 'গাঢ় বেগুনি ও কমলা, তারার ঝিলিক', label: 'নির্বাচন', swatch: ['#1E1B4B', '#F59E0B'] },
+  { id: 'alert', name: 'জরুরি সতর্কতা', hint: 'কালো-লাল, জ্বলা-নেভা হলুদ সতর্ক রেখা', label: 'সতর্কতা', swatch: ['#111111', '#F59E0B'] },
+  { id: 'glass', name: 'আধুনিক কাচ', hint: 'ভিডিওর ঝাপসা কাচের মতো ব্যাকগ্রাউন্ড', label: 'শিরোনাম', swatch: ['#1F2937', '#38BDF8'] },
+  { id: 'campus', name: 'ক্যাম্পাস', hint: 'উজ্জ্বল সাদা-নীল, কমলা ফিতা', label: 'ক্যাম্পাস', swatch: ['#EFF6FF', '#F97316'] },
+]
+
+export const FRAME_SIZES: { id: FrameSize; name: string; k: number }[] = [
+  { id: 'auto', name: 'স্বয়ংক্রিয়', k: 0 },
+  { id: 's', name: 'ছোট', k: 1 },
+  { id: 'm', name: 'মাঝারি', k: 1.2 },
+  { id: 'l', name: 'বড়', k: 1.4 },
+  { id: 'xl', name: 'খুব বড়', k: 1.6 },
 ]
 
 export const FOOTERS: { id: FooterMode; name: string }[] = [
@@ -144,12 +207,16 @@ export const INTROS: SceneInfo<IntroId>[] = [
   { id: 'breaking', name: 'ব্রেকিং নিউজ', hint: 'লাল ফ্ল্যাশ, ঝাঁকুনি ও শিরোনাম', duration: 3 },
   { id: 'headline', name: 'শিরোনাম কার্ড', hint: 'লোগো, ক্যাটেগরি ও শিরোনাম লাইন ধরে', duration: 4 },
   { id: 'special', name: 'বিশেষ প্রতিবেদন', hint: 'সোনালি রেখা ও শিরোনাম', duration: 3.5 },
+  { id: 'swipe', name: 'রঙিন সোয়াইপ', hint: 'রঙের প্যানেল সরে লোগো ও শিরোনাম', duration: 3.2 },
+  { id: 'live', name: 'সরাসরি', hint: 'রাডারের মতো লাল ঢেউ, “সরাসরি”', duration: 3 },
+  { id: 'countdown', name: 'কাউন্টডাউন', hint: '৩ · ২ · ১ — তারপর শিরোনাম', duration: 3.6 },
   { id: 'custom', name: 'গ্যালারি থেকে', hint: 'নিজের ইন্ট্রো ভিডিও' },
 ]
 
 export const OUTROS: SceneInfo<OutroId>[] = [
   { id: 'meeha-social', name: 'মিহা সোশ্যাল আউট্রো', hint: 'আপনার দেওয়া আউট্রো — সোশ্যাল লিংকসহ (৮ সেকেন্ড)' },
   { id: 'thanks', name: 'ধন্যবাদ কার্ড', hint: 'লোগো, “দেখার জন্য ধন্যবাদ” ও ওয়েবসাইট', duration: 4 },
+  { id: 'follow', name: 'ফলো করুন', hint: 'লাইক · শেয়ার · ফলো বোতামে ট্যাপের এনিমেশন', duration: 4.5 },
   { id: 'custom', name: 'গ্যালারি থেকে', hint: 'নিজের আউট্রো ভিডিও' },
 ]
 
@@ -164,6 +231,19 @@ export const CAPTION_STYLES: { id: CaptionStyle; name: string; hint: string }[] 
   { id: 'nameplate', name: 'নাম-পদবি পট্টি', hint: 'নাম + পদবি, দুই লাইনে' },
   { id: 'tag', name: 'ক্রেডিট ট্যাগ', hint: 'ছোট লেখা — যেমন “ভিডিও: সংগৃহীত”' },
   { id: 'subtitle', name: 'সাবটাইটেল', hint: 'নিচে মাঝখানে, কালো পটভূমিতে' },
+  { id: 'quote', name: 'উক্তি', hint: 'বড় উদ্ধৃতি চিহ্নসহ বক্তব্য + বক্তার নাম' },
+  { id: 'location', name: 'স্থান', hint: 'লাল পিন আইকনসহ জায়গার নাম' },
+]
+
+export const LOOK_FILTERS: { id: LookFilter; name: string; css: string }[] = [
+  { id: 'none', name: 'আসল', css: '' },
+  { id: 'vivid', name: 'উজ্জ্বল', css: 'saturate(1.35) contrast(1.08)' },
+  { id: 'warm', name: 'উষ্ণ', css: 'sepia(0.18) saturate(1.15) brightness(1.03)' },
+  { id: 'cool', name: 'শীতল', css: 'hue-rotate(10deg) saturate(1.05) contrast(1.04)' },
+  { id: 'cinema', name: 'সিনেমাটিক', css: 'contrast(1.15) saturate(0.85) brightness(0.96)' },
+  { id: 'fade', name: 'পুরনো', css: 'sepia(0.35) contrast(0.9) brightness(1.05)' },
+  { id: 'bw', name: 'সাদা-কালো', css: 'grayscale(1) contrast(1.1)' },
+  { id: 'night', name: 'রাতের ভিডিও', css: 'brightness(1.35) contrast(1.12) saturate(1.1)' },
 ]
 
 export const CAPTION_POSITIONS: { id: CaptionPos; name: string }[] = [
@@ -180,6 +260,8 @@ export const CAPTION_PRESETS: { label: string; caption: Omit<Caption, 'at'> }[] 
   { label: 'ভিডিও পাঠিয়েছেন…', caption: { text: 'ভিডিও পাঠিয়েছেন: ', sub: '', style: 'tag', pos: 'tl', dur: 6 } },
   { label: 'নাম ও পদবি', caption: { text: '', sub: 'ক্যাম্পাস সংবাদদাতা', style: 'nameplate', pos: 'bl', dur: 5 } },
   { label: 'সাবটাইটেল লাইন', caption: { text: '', sub: '', style: 'subtitle', pos: 'bc', dur: 4 } },
+  { label: 'স্থান', caption: { text: '', sub: '', style: 'location', pos: 'tl', dur: 6 } },
+  { label: 'উক্তি / বক্তব্য', caption: { text: '', sub: '', style: 'quote', pos: 'bc', dur: 6 } },
 ]
 
 export const FORMATS: { id: FormatId; name: string; hint: string }[] = [
@@ -204,6 +286,8 @@ export const LIMITS = {
   capSub: 70,
   ads: 6,
   captions: 12,
+  cuts: 20,
+  blurs: 8,
 }
 
 // ---- normalisation ----
@@ -255,6 +339,7 @@ export function normalizeConfig(raw: unknown): EditConfig {
       ticker: str(frame.ticker, LIMITS.ticker),
       adText: str(frame.adText, LIMITS.adText),
       adImage: mediaRef(frame.adImage),
+      size: oneOf(frame.size, FRAME_SIZES.map((x) => x.id), d.frame.size),
     },
     logo: {
       on: bool(logo.on, d.logo.on),
@@ -286,7 +371,7 @@ export function normalizeConfig(raw: unknown): EditConfig {
         text: str(c?.text, LIMITS.capText),
         sub: str(c?.sub, LIMITS.capSub),
         style: oneOf(c?.style, CAPTION_STYLES.map((x) => x.id), 'nameplate'),
-        pos: oneOf(c?.pos, ['bl', 'br', 'tl', 'tr', 'bc'] as const, 'bl'),
+        pos: oneOf(c?.pos, ['bl', 'br', 'tl', 'tr', 'bc'] as const, c?.style === 'subtitle' || c?.style === 'quote' ? 'bc' : 'bl'),
         at: num(c?.at, 0, 0, 86400),
         dur: c?.dur === null ? null : num(c?.dur, 5, 1, 3600),
       }))
@@ -297,7 +382,71 @@ export function normalizeConfig(raw: unknown): EditConfig {
       clips: num(audio.clips, d.audio.clips, 0, 2),
       sfx: bool(audio.sfx, d.audio.sfx),
     },
+    cuts: (Array.isArray(o.cuts) ? o.cuts : [])
+      .map((c: any) => ({ from: num(c?.from, 0, 0, 86400), to: num(c?.to, 0, 0, 86400) }))
+      .filter((c: Cut) => c.to - c.from >= 0.1)
+      .slice(0, LIMITS.cuts),
+    look: normalizeLook(o.look),
+    blurs: (Array.isArray(o.blurs) ? o.blurs : [])
+      .map((b: any) => {
+        const w = num(b?.w, 0.3, 0.02, 1)
+        const h = num(b?.h, 0.3, 0.02, 1)
+        return {
+          x: num(b?.x, 0.35, 0, 1 - w),
+          y: num(b?.y, 0.35, 0, 1 - h),
+          w,
+          h,
+          mode: oneOf(b?.mode, ['blur', 'pixel'] as const, 'blur'),
+          at: num(b?.at, 0, 0, 86400),
+          dur: b?.dur === null || b?.dur === undefined ? null : num(b.dur, 5, 0.5, 86400),
+        }
+      })
+      .slice(0, LIMITS.blurs),
   }
+}
+
+function normalizeLook(raw: unknown): Look {
+  const l = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const d = DEFAULT_LOOK
+  const rot = num(l.rotate, 0, 0, 270)
+  return {
+    filter: oneOf(l.filter, LOOK_FILTERS.map((f) => f.id), d.filter),
+    brightness: num(l.brightness, 1, 0.5, 1.6),
+    contrast: num(l.contrast, 1, 0.5, 1.6),
+    saturation: num(l.saturation, 1, 0, 2),
+    zoom: num(l.zoom, 1, 1, 3),
+    panX: num(l.panX, 0, -1, 1),
+    panY: num(l.panY, 0, -1, 1),
+    rotate: ([0, 90, 180, 270] as const).find((r) => r === rot) ?? 0,
+    flip: bool(l.flip, false),
+  }
+}
+
+/** CSS filter string for the main video's look ('' = none). */
+export function lookFilter(l: Look): string {
+  const parts: string[] = []
+  const preset = LOOK_FILTERS.find((f) => f.id === l.filter)?.css
+  if (preset) parts.push(preset)
+  if (Math.abs(l.brightness - 1) > 0.005) parts.push(`brightness(${l.brightness.toFixed(3)})`)
+  if (Math.abs(l.contrast - 1) > 0.005) parts.push(`contrast(${l.contrast.toFixed(3)})`)
+  if (Math.abs(l.saturation - 1) > 0.005) parts.push(`saturate(${l.saturation.toFixed(3)})`)
+  return parts.join(' ')
+}
+
+/** The parts of [start, end] that stay after the cuts, in order. */
+export function keptRanges(cuts: Cut[], start: number, end: number): { from: number; to: number }[] {
+  const sorted = cuts
+    .map((c) => ({ from: Math.max(start, Math.min(c.from, c.to)), to: Math.min(end, Math.max(c.from, c.to)) }))
+    .filter((c) => c.to - c.from > 0.05)
+    .sort((a, b) => a.from - b.from)
+  const out: { from: number; to: number }[] = []
+  let cursor = start
+  for (const c of sorted) {
+    if (c.from > cursor + 0.05) out.push({ from: cursor, to: c.from })
+    cursor = Math.max(cursor, c.to)
+  }
+  if (end > cursor + 0.05) out.push({ from: cursor, to: end })
+  return out.length ? out : [{ from: start, to: Math.min(end, start + 0.5) }]
 }
 
 /** Fields that describe one particular video (not a house style). */
@@ -309,6 +458,10 @@ export function styleOnly(cfg: EditConfig): EditConfig {
     intro: { ...cfg.intro, text: '' },
     ads: [],
     captions: [],
+    cuts: [],
+    blurs: [],
+    // colour is a house style; zoom / rotation belong to one particular video
+    look: { ...cfg.look, zoom: 1, panX: 0, panY: 0, rotate: 0, flip: false },
   }
 }
 
@@ -324,6 +477,12 @@ export function hasEdits(cfg: EditConfig, srcDuration: number | null): boolean {
     cfg.format !== 'source' ||
     cfg.trim.start > 0.05 ||
     (cfg.trim.end !== null && srcDuration !== null && cfg.trim.end < srcDuration - 0.05) ||
-    cfg.audio.main !== 1
+    cfg.audio.main !== 1 ||
+    cfg.cuts.length > 0 ||
+    cfg.blurs.length > 0 ||
+    lookFilter(cfg.look) !== '' ||
+    cfg.look.zoom > 1.001 ||
+    cfg.look.rotate !== 0 ||
+    cfg.look.flip
   )
 }

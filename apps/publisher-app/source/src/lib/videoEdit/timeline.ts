@@ -7,10 +7,10 @@
  * Both the live preview and the MP4 export walk the same segments, so the
  * preview is exactly what gets rendered.
  */
-import { AD_IN_CARD, AD_OUT_CARD, INTROS, OUTROS, type EditConfig } from './config'
+import { AD_IN_CARD, AD_OUT_CARD, FRAME_SIZES, INTROS, OUTROS, keptRanges, type EditConfig } from './config'
 
 export type ClipKey = 'main' | 'intro' | 'outro' | `ad${number}`
-export type SceneId = 'breaking' | 'headline' | 'special' | 'thanks' | 'ad-in' | 'ad-out'
+export type SceneId = 'breaking' | 'headline' | 'special' | 'swipe' | 'live' | 'countdown' | 'thanks' | 'follow' | 'ad-in' | 'ad-out'
 
 export interface Segment {
   kind: 'intro' | 'outro' | 'main' | 'ad' | 'card'
@@ -43,8 +43,10 @@ export interface Rect {
 export interface Layout {
   W: number
   H: number
-  /** Scale unit: 1 at a 1080-pixel shorter side. */
+  /** Scale unit of the frame bands: 1 at a 1080-pixel shorter side, × the frame size. */
   s: number
+  /** The frame-size factor alone (captions use it too). */
+  k: number
   header: Rect | null
   footer: Rect | null
   video: Rect
@@ -66,22 +68,41 @@ export const FOOTER_UNITS = 118
  * Output size + where the header band, video and footer band go.
  * `srcW/srcH` = the main video's display size.
  */
-export function computeLayout(cfg: EditConfig, srcW: number, srcH: number): Layout {
+/**
+ * Frame-size factor. "auto" makes the bands bigger on tall videos: a reel
+ * is watched full-screen on a phone, where a band sized for a TV frame
+ * looks tiny.
+ */
+export function frameScale(cfg: EditConfig, W: number, H: number) {
+  const fixed = FRAME_SIZES.find((x) => x.id === cfg.frame.size)?.k ?? 0
+  if (fixed > 0) return fixed
+  const r = H / W
+  return r >= 1.5 ? 1.4 : r >= 1.1 ? 1.2 : 1
+}
+
+export function computeLayout(cfg: EditConfig, srcW0: number, srcH0: number): Layout {
   const short = cfg.quality === '720' ? 720 : 1080
   const hasHeader = cfg.frame.id !== 'none'
   const hasFooter = hasHeader && cfg.frame.footer !== 'none'
+  // a sideways phone video turned upright swaps its sides
+  const turned = cfg.look.rotate === 90 || cfg.look.rotate === 270
+  const srcW = Math.max(2, turned ? srcH0 : srcW0)
+  const srcH = Math.max(2, turned ? srcW0 : srcH0)
 
   if (cfg.format === 'source') {
-    const k = Math.min(1, short / Math.min(srcW, srcH), (short * 16) / 9 / Math.max(srcW, srcH))
-    const vw = even(srcW * k)
-    const vh = even(srcH * k)
-    const s = Math.min(vw, vh) / 1080
+    const kk = Math.min(1, short / Math.min(srcW, srcH), (short * 16) / 9 / Math.max(srcW, srcH))
+    const vw = even(srcW * kk)
+    const vh = even(srcH * kk)
+    // judge "tall" by the finished picture, bands included
+    const k = frameScale(cfg, vw, vh + (hasHeader ? HEADER_UNITS : 0) * (Math.min(vw, vh) / 1080))
+    const s = (Math.min(vw, vh) / 1080) * k
     const hh = hasHeader ? even(HEADER_UNITS * s) : 0
     const fh = hasFooter ? even(FOOTER_UNITS * s) : 0
     return {
       W: vw,
       H: vh + hh + fh,
       s,
+      k,
       header: hasHeader ? { x: 0, y: 0, w: vw, h: hh } : null,
       footer: hasFooter ? { x: 0, y: hh + vh, w: vw, h: fh } : null,
       video: { x: 0, y: hh, w: vw, h: vh },
@@ -89,16 +110,18 @@ export function computeLayout(cfg: EditConfig, srcW: number, srcH: number): Layo
   }
 
   const [fw, fh0] = FIXED[cfg.format]
-  const k = short / 1080
-  const W = even(fw * k)
-  const H = even(fh0 * k)
-  const s = Math.min(W, H) / 1080
+  const q = short / 1080
+  const W = even(fw * q)
+  const H = even(fh0 * q)
+  const k = frameScale(cfg, W, H)
+  const s = (Math.min(W, H) / 1080) * k
   const hh = hasHeader ? even(HEADER_UNITS * s) : 0
   const fh = hasFooter ? even(FOOTER_UNITS * s) : 0
   return {
     W,
     H,
     s,
+    k,
     header: hasHeader ? { x: 0, y: 0, w: W, h: hh } : null,
     footer: hasFooter ? { x: 0, y: H - fh, w: W, h: fh } : null,
     video: { x: 0, y: hh, w: W, h: H - hh - fh },
@@ -136,27 +159,32 @@ export function buildTimeline(cfg: EditConfig, d: ClipDurations): Timeline {
     else if (d.intro) push({ kind: 'intro', dur: d.intro, clip: 'intro', clipStart: 0 })
   }
 
-  // Main, split at the ad breaks
+  // Main: the kept ranges (trim minus cuts), split again at the ad breaks
   const { start, end } = trimRange(cfg, d.main)
   const mainStart = t
+  const kept = keptRanges(cfg.cuts, start, end)
   const breaks = cfg.ads
     .map((a, i) => ({ ...a, i, dur: d.ads?.[i] ?? a.clip.duration ?? 0 }))
-    .filter((a) => a.dur > 0 && a.at > start + 0.25 && a.at < end - 0.25)
+    .filter((a) => a.dur > 0 && a.at > start + 0.25 && a.at < end - 0.25 && kept.some((r) => a.at > r.from + 0.1 && a.at < r.to - 0.1))
     .sort((a, b) => a.at - b.at)
 
-  let cursor = start
   let shown = 0
-  for (const b of breaks) {
-    if (b.at <= cursor + 0.1) continue
-    push({ kind: 'main', dur: b.at - cursor, clip: 'main', clipStart: cursor, mainOffset: shown })
-    shown += b.at - cursor
-    cursor = b.at
-    if (b.bumper) push({ kind: 'card', dur: AD_IN_CARD, scene: 'ad-in', clipStart: 0 })
-    push({ kind: 'ad', dur: b.dur, clip: `ad${b.i}`, clipStart: 0 })
-    if (b.bumper) push({ kind: 'card', dur: AD_OUT_CARD, scene: 'ad-out', clipStart: 0 })
+  let b = 0
+  for (const r of kept) {
+    let cursor = r.from
+    while (b < breaks.length && breaks[b].at < r.to - 0.1) {
+      const br = breaks[b++]
+      if (br.at <= cursor + 0.1) continue
+      push({ kind: 'main', dur: br.at - cursor, clip: 'main', clipStart: cursor, mainOffset: shown })
+      shown += br.at - cursor
+      cursor = br.at
+      if (br.bumper) push({ kind: 'card', dur: AD_IN_CARD, scene: 'ad-in', clipStart: 0 })
+      push({ kind: 'ad', dur: br.dur, clip: `ad${br.i}`, clipStart: 0 })
+      if (br.bumper) push({ kind: 'card', dur: AD_OUT_CARD, scene: 'ad-out', clipStart: 0 })
+    }
+    push({ kind: 'main', dur: r.to - cursor, clip: 'main', clipStart: cursor, mainOffset: shown })
+    shown += r.to - cursor
   }
-  push({ kind: 'main', dur: end - cursor, clip: 'main', clipStart: cursor, mainOffset: shown })
-  shown += end - cursor
 
   // Outro
   if (cfg.outro.id !== 'none') {

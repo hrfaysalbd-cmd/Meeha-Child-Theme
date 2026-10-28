@@ -34,6 +34,7 @@ import { bnFileSize, bnDuration } from '../lib/postMeta'
 import { Banner, Button, Card, Spinner, bnNumber } from '../components/ui'
 import {
   IconAd,
+  IconAdjustments,
   IconAspectRatio,
   IconArrowLeft,
   IconBadgeLogo,
@@ -57,8 +58,10 @@ import MediaGallery from '../components/MediaGallery'
 import VideoLibraryPicker from '../components/videoStudio/VideoLibraryPicker'
 import StudioTimeline from '../components/videoStudio/StudioTimeline'
 import { AdsPanel, CaptionsPanel, FramePanel, IntroOutroPanel, LayoutPanel, LogoPanel, type ThumbPainter } from '../components/videoStudio/StudioPanels'
+import ToolsPanel from '../components/videoStudio/StudioTools'
+import BlurOverlay from '../components/videoStudio/BlurOverlay'
 
-type Tab = 'frame' | 'logo' | 'intro' | 'ads' | 'captions' | 'layout'
+type Tab = 'frame' | 'logo' | 'intro' | 'ads' | 'captions' | 'tools' | 'layout'
 
 const TABS: { id: Tab; name: string; icon: (p: { className?: string }) => ReactNode }[] = [
   { id: 'frame', name: 'ফ্রেম', icon: IconLayoutRows },
@@ -66,6 +69,7 @@ const TABS: { id: Tab; name: string; icon: (p: { className?: string }) => ReactN
   { id: 'intro', name: 'ইন্ট্রো/আউট্রো', icon: IconMovie },
   { id: 'captions', name: 'ক্যাপশন', icon: IconTextCaption },
   { id: 'ads', name: 'বিজ্ঞাপন', icon: IconAd },
+  { id: 'tools', name: 'সম্পাদনা', icon: IconAdjustments },
   { id: 'layout', name: 'আকার ও শব্দ', icon: IconAspectRatio },
 ]
 
@@ -131,6 +135,7 @@ export default function VideoStudio() {
   const [presetMenu, setPresetMenu] = useState(false)
   const [kit, setKit] = useState<VideoKit | null>(null)
   const [stillTick, setStillTick] = useState(0)
+  const [selectedBlur, setSelectedBlur] = useState<number | null>(null)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const playerRef = useRef<PreviewPlayer | null>(null)
@@ -368,7 +373,7 @@ export default function VideoStudio() {
   }, [loaded])
 
   const thumbRatio = L ? L.W / L.H : 16 / 9
-  const thumbKey = `${stillTick}|${cfg.format}|${cfg.frame.title}|${cfg.frame.kicker}|${cfg.frame.footer}|${cfg.intro.text}|${L?.W}x${L?.H}|${kit?.website}`
+  const thumbKey = `${stillTick}|${cfg.format}|${cfg.fit}|${cfg.frame.size}|${cfg.frame.title}|${cfg.frame.kicker}|${cfg.frame.footer}|${cfg.intro.text}|${L?.W}x${L?.H}|${kit?.website}|${JSON.stringify(cfg.look)}`
 
   const thumb: ThumbPainter = useCallback(
     (kind, id) => {
@@ -439,6 +444,14 @@ export default function VideoStudio() {
       } else if (e.code === 'Space' && !typing && !job) {
         e.preventDefault()
         playerRef.current?.toggle()
+      } else if (!typing && !job && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === ',' || e.key === '.')) {
+        // ← → one second (Shift: five), , . one frame
+        const p = playerRef.current
+        if (!p) return
+        e.preventDefault()
+        const step = e.key === ',' || e.key === '.' ? 1 / 30 : e.shiftKey ? 5 : 1
+        p.pause()
+        p.seek(p.time + (e.key === 'ArrowLeft' || e.key === ',' ? -step : step))
       }
     }
     window.addEventListener('keydown', onKey)
@@ -598,6 +611,9 @@ export default function VideoStudio() {
       intro: { ...p.intro, text: c.intro.text },
       ads: c.ads,
       captions: c.captions,
+      cuts: c.cuts,
+      blurs: c.blurs,
+      look: { ...p.look, zoom: c.look.zoom, panX: c.look.panX, panY: c.look.panY, rotate: c.look.rotate, flip: c.look.flip },
     }))
     setPresetMenu(false)
   }
@@ -791,7 +807,7 @@ export default function VideoStudio() {
       <div className="grid lg:grid-cols-[minmax(0,1fr)_400px] gap-5 items-start">
         {/* preview */}
         <Card className="p-4 lg:sticky lg:top-4">
-          <div className="rounded-xl bg-[#0b0d12] flex items-center justify-center overflow-hidden" style={{ height: 'min(62vh, 640px)' }}>
+          <div className="relative rounded-xl bg-[#0b0d12] flex items-center justify-center overflow-hidden" style={{ height: 'min(62vh, 640px)' }}>
             <canvas
               ref={canvasRef}
               onClick={() => playerRef.current?.toggle()}
@@ -799,6 +815,9 @@ export default function VideoStudio() {
               style={{ aspectRatio: `${L.W} / ${L.H}` }}
               data-testid="studio-canvas"
             />
+            {tab === 'tools' && selectedBlur !== null && (
+              <BlurOverlay canvas={canvasRef.current} cfg={cfg} L={L} picW={loaded.main.width} picH={loaded.main.height} index={selectedBlur} set={set} />
+            )}
           </div>
           <div className="flex items-center gap-2 mt-3">
             <button
@@ -826,7 +845,7 @@ export default function VideoStudio() {
             <StudioTimeline tl={tl} cfg={cfg} time={pstate.time} onSeek={(t) => playerRef.current?.seek(t)} />
           </div>
           <p className="mt-2 text-[11.5px] text-neutral-400">
-            স্পেসবার = চালান/থামান · টাইমলাইনে ক্লিক করে যেকোনো জায়গায় যান · প্রিভিউ যা দেখাচ্ছে, রেন্ডারে ঠিক তা-ই হবে।
+            স্পেসবার = চালান/থামান · ← → এক সেকেন্ড (Shift: পাঁচ) · , . এক ফ্রেম · প্রিভিউ যা দেখাচ্ছে, রেন্ডারে ঠিক তা-ই হবে।
           </p>
         </Card>
 
@@ -840,7 +859,7 @@ export default function VideoStudio() {
                 aria-selected={tab === t.id}
                 onClick={() => setTab(t.id)}
                 data-testid={`tab-${t.id}`}
-                className={`flex flex-col items-center gap-0.5 px-3 py-2.5 text-[11.5px] font-medium whitespace-nowrap border-b-2 -mb-px ${
+                className={`flex flex-col items-center gap-0.5 px-2.5 py-2.5 text-[11.5px] font-medium whitespace-nowrap border-b-2 -mb-px ${
                   tab === t.id ? 'border-brand-600 text-brand-700' : 'border-transparent text-neutral-500 hover:text-neutral-700'
                 }`}
               >
@@ -859,6 +878,9 @@ export default function VideoStudio() {
             )}
             {tab === 'ads' && (
               <AdsPanel cfg={cfg} set={set} range={range} playhead={playheadSrc} onAdd={() => setPicker({ kind: 'ad-add' })} onReplace={(i) => setPicker({ kind: 'ad-replace', index: i })} />
+            )}
+            {tab === 'tools' && (
+              <ToolsPanel cfg={cfg} set={set} range={range} playhead={playheadSrc} selectedBlur={selectedBlur} onSelectBlur={setSelectedBlur} />
             )}
             {tab === 'captions' && <CaptionsPanel cfg={cfg} set={set} range={range} playhead={playheadSrc} defaultName={loaded.video.author.name} />}
             {tab === 'layout' && (
