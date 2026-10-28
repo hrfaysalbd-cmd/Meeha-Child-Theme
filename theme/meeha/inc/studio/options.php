@@ -34,7 +34,7 @@ function meeha_studio_types() {
 		),
 		'feature'    => array(
 			'label'   => 'ফিচার',
-			'presets' => array( 'shade' => 'ছায়া', 'vf2' => 'দুই কোণ', 'band' => 'নীল পাটাতন', 'dheu' => 'সবুজ ঢেউ' ),
+			'presets' => array( 'shade' => 'ছায়া', 'vf2' => 'দুই কোণ', 'band' => 'নীল পাটাতন', 'dheu' => 'মিহা ঢেউ' ),
 			'photo'   => true,
 			'ad'      => true,
 		),
@@ -158,7 +158,7 @@ function meeha_studio_news_presets() {
 		'frame'        => 'সাদা ফ্রেম',
 		'split'        => 'পাশাপাশি',
 		'headline'     => 'বড় শিরোনাম',
-		'dheu'         => 'সবুজ ঢেউ',
+		'dheu'         => 'মিহা ঢেউ',
 		'dheubreaking' => 'ঢেউ ব্রেকিং',
 	);
 }
@@ -441,6 +441,8 @@ function meeha_studio_settings_fields() {
 			'desc'    => 'প্রতি লাইনে একটি: নাম | উপশিরোনাম বা তারিখ | থিম | বার্তা। থিম: generic, matribhasha, independence, victory, boishakh, eid, puja, newyear, environment। শহীদ দিবস (matribhasha) থিমে বিজ্ঞাপন বসে না।',
 		),
 		array( 'key' => 'watermark', 'type' => 'text', 'label' => 'কার্ডে সাইটের ঠিকানা', 'default' => 'meeha.news', 'desc' => 'মতামত/ফিচার/ব্রেকিং কার্ডের কোণে ছোট অক্ষরে বসে। খালি রাখলে দেখাবে না।' ),
+		array( 'key' => 'brand_primary', 'type' => 'color', 'label' => 'ব্র্যান্ডের মূল রং (লোগোর রং)', 'default' => '#025AB2', 'desc' => 'ঢেউ নকশাগুলো (মিহা ঢেউ, ঢেউ ব্রেকিং, ফিচারের মিহা ঢেউ) এই রঙের হালকা, মূল ও গাঢ় তিন স্তরে আঁকা হয়। খালি রাখলে থিমের মিহা নীল।' ),
+		array( 'key' => 'brand_accent', 'type' => 'color', 'label' => 'ব্র্যান্ডের সহায়ক রং', 'default' => '#CC2A1F', 'desc' => 'নিচের রেখা, বিভাগের পিল ও ব্রেকিং পাটাতনের রং।' ),
 		array(
 			'key'     => 'logo_source',
 			'type'    => 'radio',
@@ -576,7 +578,7 @@ function meeha_studio_presets_for( $type ) {
 	foreach ( $all as $pid => $label ) {
 		$c = isset( $conf[ $pid ] ) ? $conf[ $pid ] : null;
 		if ( $first || ! $c || ! empty( $c['enabled'] ) ) {
-			$out[ $pid ] = $c && ! empty( $c['label'] ) ? (string) $c['label'] : $label;
+			$out[ $pid ] = $c && ! empty( $c['label'] ) && 'সবুজ ঢেউ' !== $c['label'] ? (string) $c['label'] : $label; /* 2.4.1: the waves are brand blue now */
 		}
 		$first = false;
 	}
@@ -749,6 +751,21 @@ function meeha_studio_today() {
 }
 
 /**
+ * A #rrggbb colour (also accepts "rrggbb" and "#rgb"), else the fallback.
+ *
+ * @param mixed  $v        Value.
+ * @param string $fallback Fallback.
+ * @return string
+ */
+function meeha_studio_hex( $v, $fallback ) {
+	$v = ltrim( trim( (string) $v ), '#' );
+	if ( preg_match( '/^[0-9a-f]{3}$/i', $v ) ) {
+		$v = $v[0] . $v[0] . $v[1] . $v[1] . $v[2] . $v[2];
+	}
+	return preg_match( '/^[0-9a-f]{6}$/i', $v ) ? '#' . strtoupper( $v ) : $fallback;
+}
+
+/**
  * Renderer configuration (window.MeehaCardsConfig) — shared by the studio and the front end.
  *
  * @return array
@@ -786,6 +803,10 @@ function meeha_cards_config() {
 				'lit'     => $fonts . 'meeha-literary-bn-400.woff2',
 			),
 			'logo'      => $logo,
+			'brand'     => array(
+				'primary' => meeha_studio_hex( meeha_studio_opt( 'brand_primary', '#025AB2' ), '#025AB2' ),
+				'accent'  => meeha_studio_hex( meeha_studio_opt( 'brand_accent', '#CC2A1F' ), '#CC2A1F' ),
+			),
 			'newsDefault' => (string) meeha_studio_opt( 'news_default_frame', 'classic' ),
 			'watermark' => (string) meeha_studio_opt( 'watermark', 'meeha.news' ),
 			'cta'       => (string) meeha_studio_opt( 'news_cta', 'বিস্তারিত কমেন্টে' ),
