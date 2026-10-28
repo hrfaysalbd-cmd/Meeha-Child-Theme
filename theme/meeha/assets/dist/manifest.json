@@ -1,5 +1,5 @@
 {
-    "generated": "2026-10-28T10:19:10+00:00",
+    "generated": "2026-10-28T11:30:17+00:00",
     "bundles": {
         "core": {
             "css": [
@@ -210,8 +210,8 @@
             "critical": [],
             "deps": [],
             "js_file": "metrics.min.js",
-            "js_ver": "d03b18cf3f",
-            "js_bytes": 3472
+            "js_ver": "74b0fd7738",
+            "js_bytes": 4150
         },
         "single": {
             "css": [

@@ -158,3 +158,126 @@ foreach ( array( 'added_post_meta', 'updated_post_meta', 'deleted_post_meta' ) a
 	);
 }
 unset( $meeha_hook );
+
+/* --------------------------------------------------------------------------
+ * Cron rescue (2.4.2)
+ *
+ * WP-Cron only runs when WordPress manages to call its own wp-cron.php over HTTP ("loopback"). On a host whose
+ * firewall blocks that call, or with DISABLE_WP_CRON set but no server cron, nothing scheduled ever runs:
+ * the most-read lists freeze, and newsroom-os' nightly snapshot is skipped. Live symptom (2026-10-28): "তালিকা
+ * শেষ হিসাব ৩ দিন আগে". So: when the oldest due event is more than 10 minutes late, the next visitor heartbeat
+ * (or an admin page) runs the due events itself, after the response has been sent, under WordPress' own
+ * `doing_cron` lock so it never overlaps a real cron run.
+ * ------------------------------------------------------------------------ */
+
+// The cron lock as it was before WordPress' own wp_cron() (hooked on wp_loaded) ran in this request.
+$GLOBALS['meeha_cron_lock_at_start'] = get_transient( 'doing_cron' );
+
+/**
+ * Seconds the oldest due cron event is late (0 = on time).
+ *
+ * @return int
+ */
+function meeha_cron_lag() {
+	if ( ! function_exists( '_get_cron_array' ) ) {
+		return 0;
+	}
+	$crons = _get_cron_array();
+	if ( ! is_array( $crons ) || ! $crons ) {
+		return 0;
+	}
+	$first = (int) min( array_keys( $crons ) );
+	return max( 0, time() - $first );
+}
+
+/**
+ * Run every due cron event in this request (the same loop as wp-cron.php).
+ *
+ * @return int Events run.
+ */
+function meeha_cron_rescue_run() {
+	if ( wp_doing_cron() || ! function_exists( '_get_cron_array' ) ) {
+		return 0;
+	}
+	$lock = get_transient( 'doing_cron' );
+	// A lock set during THIS request is WordPress' own spawn_cron() attempt (it locks, then calls wp-cron.php
+	// over HTTP — the call that fails on this host), so it does not mean another run is in progress.
+	$own = isset( $GLOBALS['meeha_cron_lock_at_start'] ) && $lock !== $GLOBALS['meeha_cron_lock_at_start'];
+	if ( $lock && ! $own && (float) $lock + ( defined( 'WP_CRON_LOCK_TIMEOUT' ) ? WP_CRON_LOCK_TIMEOUT : 60 ) > microtime( true ) ) {
+		return 0;
+	}
+	$key = sprintf( '%.22F', microtime( true ) );
+	set_transient( 'doing_cron', $key );
+	if ( ! defined( 'DOING_CRON' ) ) {
+		define( 'DOING_CRON', true );
+	}
+	if ( function_exists( 'set_time_limit' ) ) {
+		@set_time_limit( 120 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+	}
+	ignore_user_abort( true );
+	$ran = 0;
+	$now = microtime( true );
+	foreach ( (array) _get_cron_array() as $timestamp => $hooks ) {
+		if ( $timestamp > $now ) {
+			break;
+		}
+		foreach ( (array) $hooks as $hook => $keys ) {
+			foreach ( (array) $keys as $v ) {
+				if ( ! empty( $v['schedule'] ) ) {
+					wp_reschedule_event( $timestamp, $v['schedule'], $hook, $v['args'] );
+				}
+				wp_unschedule_event( $timestamp, $hook, $v['args'] );
+				do_action_ref_array( $hook, $v['args'] );
+				++$ran;
+				if ( get_transient( 'doing_cron' ) !== $key ) {
+					return $ran; // Another runner took over.
+				}
+			}
+		}
+	}
+	if ( get_transient( 'doing_cron' ) === $key ) {
+		delete_transient( 'doing_cron' );
+	}
+	update_option( 'meeha_cron_rescued', array( 'time' => time(), 'ran' => $ran ), false );
+	return $ran;
+}
+
+/**
+ * Schedule a rescue for the end of this request when cron is more than 10 minutes behind.
+ * At most one attempt per 5 minutes site-wide (an atomic add_option acts as the gate).
+ */
+function meeha_cron_rescue_maybe() {
+	if ( ! (bool) apply_filters( 'meeha_cron_rescue', true ) || wp_doing_cron() || meeha_cron_lag() < 10 * MINUTE_IN_SECONDS ) {
+		return;
+	}
+	$gate = (int) get_option( 'meeha_cron_rescue_gate', 0 );
+	if ( $gate > time() - 5 * MINUTE_IN_SECONDS ) {
+		return;
+	}
+	global $wpdb;
+	// Compare-and-swap on the gate so two simultaneous requests cannot both run.
+	if ( $gate ) {
+		$won = $wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = 'meeha_cron_rescue_gate' AND option_value = %s", (string) time(), (string) $gate ) );
+	} else {
+		$won = add_option( 'meeha_cron_rescue_gate', (string) time(), '', false );
+	}
+	if ( ! $won ) {
+		return;
+	}
+	wp_cache_delete( 'meeha_cron_rescue_gate', 'options' );
+	add_action(
+		'shutdown',
+		function () {
+			if ( function_exists( 'fastcgi_finish_request' ) ) {
+				fastcgi_finish_request();
+			} elseif ( function_exists( 'litespeed_finish_request' ) ) {
+				litespeed_finish_request();
+			}
+			meeha_cron_rescue_run();
+		},
+		1
+	);
+}
+add_action( 'meeha_live_pinged', 'meeha_cron_rescue_maybe', 10, 0 );
+add_action( 'meeha_view_counted', 'meeha_cron_rescue_maybe', 10, 0 );
+add_action( 'admin_init', 'meeha_cron_rescue_maybe' );

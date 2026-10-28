@@ -282,6 +282,7 @@ function meeha_home_fields() {
 		),
 		array( 'key' => 'view_delay', 'type' => 'number', 'label' => 'বীকনের আগে দেখার সময়', 'default' => 5, 'min' => 2, 'max' => 30, 'unit' => 'সেকেন্ড' ),
 		array( 'key' => 'view_skip_editors', 'type' => 'checkbox', 'label' => 'সম্পাদকদের ভিউ', 'default' => 1, 'text' => 'লগ-ইন করা সম্পাদক/প্রশাসকের ভিউ গুনবেন না' ),
+		array( 'key' => 'live_on', 'type' => 'checkbox', 'label' => 'রিয়েলটাইম ভিজিটর', 'default' => 1, 'text' => 'এখন সাইটে কতজন আছেন গুনুন (পাবলিশার ড্যাশবোর্ডে দেখায়; খোলা পাতা প্রতি মিনিটে একটি ছোট সংকেত পাঠায়)' ),
 	);
 }
 
@@ -318,11 +319,35 @@ function meeha_home_settings_status( $tab, $values ) {
 	$mode = 'legacy' === $values['view_mode'] ? 'পুরোনো পদ্ধতি (সার্ভারে)' : 'বীকন (সঠিক, ক্যাশ করা পাতাও)';
 	echo '<tr><th>এখন ভিউ গণনা</th><td><strong>' . esc_html( $mode ) . '</strong></td></tr>';
 	if ( function_exists( 'meeha_metrics_ready' ) && meeha_metrics_ready() ) {
-		$h    = meeha_metrics_table( 'hourly' );
-		$rows = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$h}" ); // phpcs:ignore WordPress.DB.PreparedSQL
-		$last = get_option( 'meeha_metrics_last_run' );
-		echo '<tr><th>ঘণ্টাভিত্তিক ভিউ-সারি</th><td>' . esc_html( meeha_bn_digits( $rows ) ) . '</td></tr>';
+		// 2.4.2: real view numbers instead of the old "ঘণ্টাভিত্তিক ভিউ-সারি", which was a ROW count (one row per
+		// post per hour with any views) and was easily mistaken for a view count.
+		$h     = meeha_metrics_table( 'hourly' );
+		$rows  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$h}" ); // phpcs:ignore WordPress.DB.PreparedSQL
+		$today = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(views),0) FROM {$h} WHERE `hour` >= %s", meeha_metrics_hour( meeha_metrics_local_midnight() ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL
+		$d7    = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(views),0) FROM {$h} WHERE `hour` >= %s", meeha_metrics_hour( meeha_metrics_local_midnight() - 6 * DAY_IN_SECONDS ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL
+		$life  = (int) $wpdb->get_var( "SELECT COALESCE(SUM(CAST(meta_value AS UNSIGNED)),0) FROM {$wpdb->postmeta} WHERE meta_key = '_meeha_views'" );
+		$last  = get_option( 'meeha_metrics_last_run' );
+		$lag   = function_exists( 'meeha_cron_lag' ) ? meeha_cron_lag() : 0;
+		$resc  = get_option( 'meeha_cron_rescued' );
+		echo '<tr><th>আজকের ভিউ</th><td><strong>' . esc_html( meeha_bn_digits( $today ) ) . '</strong> (রাত ১২টা থেকে)</td></tr>';
+		echo '<tr><th>গত ৭ দিনের ভিউ</th><td>' . esc_html( meeha_bn_digits( $d7 ) ) . '</td></tr>';
+		echo '<tr><th>সব সময়ের মোট ভিউ</th><td>' . esc_html( meeha_bn_digits( $life ) ) . ' <span class="description">(সব খবর, ফটোকার্ড ও ভিডিও)</span></td></tr>';
+		echo '<tr><th>ঘণ্টার হিসাবের সারি</th><td>' . esc_html( meeha_bn_digits( $rows ) ) . ' <span class="description">— এটি ভিউ নয়: প্রতিটি খবরের প্রতি ঘণ্টার জন্য একটি সারি</span></td></tr>';
+		if ( function_exists( 'meeha_live_summary' ) && meeha_live_enabled() ) {
+			$live = meeha_live_summary( 0 );
+			echo '<tr><th>এখন সাইটে</th><td><strong>' . esc_html( meeha_bn_digits( $live['now'] ) ) . ' জন</strong> · আজ ' . esc_html( meeha_bn_digits( $live['today'] ) ) . ' জন ভিজিটর</td></tr>';
+		}
 		echo '<tr><th>তালিকা শেষ হিসাব</th><td>' . esc_html( is_array( $last ) ? meeha_bengali_time_ago( (int) $last['time'], time() ) : 'এখনো হয়নি (WP-Cron প্রতি ১০ মিনিটে চলে)' ) . '</td></tr>';
+		echo '<tr><th>WP-Cron</th><td>';
+		if ( $lag > 15 * MINUTE_IN_SECONDS ) {
+			echo '<strong style="color:#b32d2e">' . esc_html( meeha_bn_digits( (int) floor( $lag / 60 ) ) . ' মিনিট পিছিয়ে' ) . '</strong> — সার্ভার নিজের wp-cron.php ডাকতে পারছে না বা DISABLE_WP_CRON চালু। থিম এখন ভিজিটরের সংকেত থেকে নিজেই বকেয়া কাজ চালায়; তবু হোস্টিংয়ের Cron Jobs-এ প্রতি ৫ মিনিটে <code>wget -q -O - ' . esc_html( site_url( 'wp-cron.php?doing_wp_cron' ) ) . ' &gt;/dev/null</code> যোগ করা সবচেয়ে ভালো।';
+		} else {
+			echo 'ঠিক আছে';
+		}
+		if ( is_array( $resc ) ) {
+			echo '<br><span class="description">থিম শেষবার নিজে চালিয়েছে: ' . esc_html( meeha_bengali_time_ago( (int) $resc['time'], time() ) ) . '</span>';
+		}
+		echo '</td></tr>';
 	}
 	if ( function_exists( 'meeha_search_index_status' ) ) {
 		$s = meeha_search_index_status();

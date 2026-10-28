@@ -214,3 +214,19 @@ export const IconChevronRight = (p: Props) => (
 export const IconArrowLeft = (p: Props) => (
   <svg {...base} {...p}><path d="M5 12l14 0" /><path d="M5 12l6 6" /><path d="M5 12l6 -6" /></svg>
 )
+// Round 20 — analytics dashboard glyphs.
+export const IconDeviceMobile = (p: Props) => (
+  <svg {...base} {...p}><path d="M6 5a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-14z" /><path d="M11 4h2" /><path d="M12 17v.01" /></svg>
+)
+export const IconDeviceDesktop = (p: Props) => (
+  <svg {...base} {...p}><path d="M3 5a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1v-10z" /><path d="M7 20h10" /><path d="M9 16v4" /><path d="M15 16v4" /></svg>
+)
+export const IconNews = (p: Props) => (
+  <svg {...base} {...p}><path d="M16 6h3a1 1 0 0 1 1 1v11a2 2 0 0 1 -4 0v-13a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1v12a3 3 0 0 0 3 3h11" /><path d="M8 8l4 0" /><path d="M8 12l4 0" /><path d="M8 16l4 0" /></svg>
+)
+export const IconTrendingUp = (p: Props) => (
+  <svg {...base} {...p}><path d="M3 17l6 -6l4 4l8 -8" /><path d="M14 7l7 0l0 7" /></svg>
+)
+export const IconClock = (p: Props) => (
+  <svg {...base} {...p}><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 7v5l3 3" /></svg>
+)

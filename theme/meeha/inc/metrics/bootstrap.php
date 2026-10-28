@@ -20,5 +20,6 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/record.php';
 require_once __DIR__ . '/lists.php';
 require_once __DIR__ . '/cron.php';
+require_once __DIR__ . '/live.php';
 require_once __DIR__ . '/rest.php';
 require_once __DIR__ . '/assets.php';

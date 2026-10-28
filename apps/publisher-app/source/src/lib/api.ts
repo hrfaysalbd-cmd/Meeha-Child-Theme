@@ -1079,6 +1079,125 @@ export const AnalyticsApi = {
     ),
 }
 
+// ---- Round 20: smart analytics (newsroom-os 1.5.0) ----
+
+export type InsightPeriod = 'today' | 'yesterday' | '7d' | 'this_month' | 'last_month' | 'all'
+
+export interface InsightCard {
+  key: InsightPeriod
+  label: string
+  published: { news: number; video: number; total: number }
+  views: number
+  prev_published?: number
+  prev_views?: number
+}
+
+export interface InsightKpi {
+  period: InsightPeriod
+  label: string
+  views: number
+  shares: number
+  reactions: number
+  comments: number
+  published: number
+  avg_views_per_news: number
+  prev_views?: number
+  prev_shares?: number
+  prev_reactions?: number
+  prev_comments?: number
+  prev_published?: number
+}
+
+export interface InsightDay {
+  stat_date: string
+  views: number
+  reactions: number
+  shares: number
+  comments: number
+  published: number
+}
+
+export interface InsightTopPost {
+  id: number
+  title: string
+  url: string
+  type: string
+  views: number
+  lifetime: number
+  shares: number
+  author: string
+  category: string
+  date: string
+  thumb: string
+}
+
+export interface InsightHealth {
+  theme_metrics: boolean
+  live: boolean
+  cron_lag: number
+  cron_disabled: boolean
+  lists_last_run: number
+  rescued_at: number
+}
+
+export interface Insights {
+  generated_at: number
+  timezone: string
+  cards: InsightCard[]
+  kpi: InsightKpi
+  trend: InsightDay[]
+  hourly: { today: number[]; yesterday: number[]; hour: number }
+  top_posts: InsightTopPost[]
+  categories: Array<{ id: number; name: string; published: number; views: number }>
+  sources: Record<string, number>
+  health: InsightHealth
+}
+
+export interface Realtime {
+  supported: boolean
+  enabled: boolean
+  window: number
+  now: number
+  last30: number
+  today: number
+  views_this_hour: number
+  devices: Record<string, number>
+  sources: Record<string, number>
+  pages: Array<{ id: number; title: string; url: string; n: number }>
+  time: number
+}
+
+export type ReporterFilter = 'all' | 'active' | 'zero'
+
+export interface ReporterRow {
+  id: number
+  name: string
+  avatar: string
+  role: string
+  role_label: string
+  division: string
+  published: number
+  videos: number
+  pending: number
+  views: number
+  total: number
+  last_published: string | null
+}
+
+export interface ReportersReport {
+  period: { key: string; label: string; start: string; end: string }
+  filter: ReporterFilter
+  summary: { reporters: number; active: number; zero: number; published: number; videos: number; pending: number }
+  items: ReporterRow[]
+}
+
+export const InsightsApi = {
+  get: (period: InsightPeriod, range: 7 | 30 | 90) => request<Insights>(`/admin/insights?period=${period}&range=${range}`),
+  realtime: () => request<Realtime>('/admin/realtime'),
+  reporters: (period: InsightPeriod | 'date', filter: ReporterFilter, date?: string) =>
+    request<ReportersReport>(`/admin/reporters?period=${period}&filter=${filter}${date ? `&date=${date}` : ''}`),
+}
+
 export interface FinanceSummary {
   by_type: Array<{ type: string; total: string; type_label?: string }>
   // Round 12 — pending (unconfirmed) post/video payments.

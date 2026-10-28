@@ -353,7 +353,13 @@ class NROS_Admin_API {
 			'comments'  => $comments,
 		);
 
-		$trend = NROS_Analytics::cumulative_rows_to_daily_deltas( $raw_rows, $range_start, $live_totals );
+		// Round 20: the trend comes from the theme's event tables (each view in the hour it happened), not
+		// from the nightly snapshot diff that labelled every day with the previous day's numbers and lost
+		// days whenever WP-Cron did not run. The snapshot path stays only as a fallback.
+		$trend = NROS_Insights::range_trend( $range, 0, NROS_Analytics::ENGAGEMENT_POST_TYPES );
+		if ( null === $trend ) {
+			$trend = NROS_Analytics::cumulative_rows_to_daily_deltas( $raw_rows, $range_start, $live_totals );
+		}
 
 		return new WP_REST_Response(
 			array(

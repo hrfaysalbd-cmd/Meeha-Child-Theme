@@ -1288,6 +1288,10 @@ class NROS_Videos {
 			set_transient( $seen, 1, DAY_IN_SECONDS );
 			++$views;
 			update_post_meta( $post->ID, '_meeha_views', $views );
+			// Round 20: also into the theme's hourly table, so video views appear in the dashboard's per-day numbers.
+			if ( function_exists( 'meeha_metrics_bump' ) && function_exists( 'meeha_metrics_ready' ) && meeha_metrics_ready() ) {
+				meeha_metrics_bump( meeha_metrics_table( 'hourly' ), array( 'post_id' => (int) $post->ID, 'hour' => meeha_metrics_hour() ), array( 'views' => 1 ) );
+			}
 		}
 
 		return new WP_REST_Response( array( 'views' => $views ), 200 );

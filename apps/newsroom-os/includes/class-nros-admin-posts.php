@@ -564,8 +564,8 @@ class NROS_Admin_Posts {
 				'author'         => $user->ID,
 				'post_status'    => array( 'draft', 'pending', 'publish', 'future' ),
 				'posts_per_page' => 50,
-				'orderby'        => 'modified',
-				'order'          => 'DESC',
+				// Round 20: by date/time, so editing a post no longer moves it to the top.
+				'orderby'        => array( 'date' => 'DESC', 'ID' => 'DESC' ),
 			)
 		);
 
@@ -631,8 +631,9 @@ class NROS_Admin_Posts {
 			'post_type'      => 'post',
 			'posts_per_page' => 50,
 			'paged'          => $page,
-			'orderby'        => 'modified',
-			'order'          => 'DESC',
+			// Round 20 (Hafiz): the list follows each article's date/time. It used to sort by last-modified, so
+			// fixing a typo in an old article jumped it to the top of "সব নিউজ".
+			'orderby'        => array( 'date' => 'DESC', 'ID' => 'DESC' ),
 		);
 
 		if ( 'publish' === $filter ) {

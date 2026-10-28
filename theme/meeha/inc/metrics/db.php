@@ -9,6 +9,7 @@
  *   meeha_visitor_log  (vkey = hashed IP, post_id, kind, val, n, ts)               PK (vkey, post_id, kind)
  *      kind 'view' (24 h dedupe), 'share:{net}' (24 h dedupe), 'react' (val = this visitor's reaction),
  *      'rl:{bucket}' (post_id 0; fixed-window rate limit: n hits until ts).
+ *   meeha_live         (sid = hashed IP + browser id, post_id, dev, src, first, ts)  PK sid  ← realtime visitors (2.4.2)
  *
  * Every write is a single-row statement whose outcome is decided by the database (UPDATE … SET x = x + 1,
  * INSERT IGNORE, compare-and-swap UPDATE … WHERE meta_value = old), so concurrent requests never lose or
@@ -19,7 +20,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-const MEEHA_METRICS_DB_VERSION = '1.0.0';
+const MEEHA_METRICS_DB_VERSION = '1.1.0';
 
 /**
  * Table name helper.
@@ -34,6 +35,7 @@ function meeha_metrics_table( $t ) {
 		'daily'      => 'meeha_views_daily',
 		'engagement' => 'meeha_engagement',
 		'log'        => 'meeha_visitor_log',
+		'live'       => 'meeha_live',
 	);
 	return $wpdb->prefix . ( isset( $map[ $t ] ) ? $map[ $t ] : $map['hourly'] );
 }
@@ -49,6 +51,7 @@ function meeha_metrics_install() {
 	$d  = meeha_metrics_table( 'daily' );
 	$e  = meeha_metrics_table( 'engagement' );
 	$l  = meeha_metrics_table( 'log' );
+	$v  = meeha_metrics_table( 'live' );
 	dbDelta(
 		array(
 			"CREATE TABLE {$h} (
@@ -82,6 +85,16 @@ function meeha_metrics_install() {
   n int(11) NOT NULL DEFAULT 0,
   ts int(10) unsigned NOT NULL DEFAULT 0,
   PRIMARY KEY  (vkey,post_id,kind),
+  KEY ts (ts)
+) {$cs};",
+			"CREATE TABLE {$v} (
+  sid char(24) NOT NULL,
+  post_id bigint(20) unsigned NOT NULL DEFAULT 0,
+  dev char(1) NOT NULL DEFAULT 'd',
+  src varchar(12) NOT NULL DEFAULT '',
+  first int(10) unsigned NOT NULL DEFAULT 0,
+  ts int(10) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY  (sid),
   KEY ts (ts)
 ) {$cs};",
 		)

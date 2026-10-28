@@ -273,7 +273,11 @@ class NROS_Analytics {
 				ARRAY_A
 			);
 
-			$trend = self::cumulative_rows_to_daily_deltas( $raw_rows, $range_start, $totals );
+			// Round 20: event-based (see NROS_Insights); the snapshot diff is only a fallback.
+			$trend = NROS_Insights::range_trend( $range, (int) $user->ID, self::ENGAGEMENT_POST_TYPES );
+			if ( null === $trend ) {
+				$trend = self::cumulative_rows_to_daily_deltas( $raw_rows, $range_start, $totals );
+			}
 		}
 
 		return new WP_REST_Response(
