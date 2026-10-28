@@ -17,6 +17,7 @@ import {
   IconUserShield,
   IconUsers,
   IconVideo,
+  IconQuote,
   IconWalletCoins,
   IconX,
 } from '../components/Icon'
@@ -39,6 +40,7 @@ const NAV: NavItem[] = [
   { to: '/app/queue', label: 'এডিটোরিয়াল কিউ', icon: IconInbox, count: 'queue' },
   { to: '/app/posts', label: 'নিউজ লিস্ট', icon: IconListDetails },
   { to: '/app/videos', label: 'ভিডিও নিউজ', icon: IconVideo, count: 'videos' },
+  { to: '/app/quotes', label: 'উক্তি', icon: IconQuote },
   { to: '/app/correspondents', label: 'সংবাদদাতা', icon: IconUsers },
   { to: '/app/applications', label: 'আবেদন', icon: IconFileCheck, count: 'applications' },
   { to: '/app/ad-clients', label: 'বিজ্ঞাপনদাতা', icon: IconBuildingStore },

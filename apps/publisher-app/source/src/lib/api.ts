@@ -1245,6 +1245,92 @@ export const PromptsApi = {
   remove: (id: number) => request<{ ok: true }>(`/admin/prompts/${id}`, { method: 'DELETE' }),
 }
 
+// ---- Round 19: উক্তি (the theme's quotes, post type meeha_photocard) ----
+//
+// GET/POST /admin/quotes, GET/PATCH/DELETE /admin/quotes/{id} (staff; delete
+// needs the same delete_posts right as articles), GET/POST /admin/quote-types.
+export type QuoteFrame = 'politics' | 'faith' | 'literature' | 'inspire' | 'history' | 'sports' | 'opinion'
+export type QuoteStatus = 'publish' | 'draft'
+
+export interface QuotePoll {
+  enabled: boolean
+  option_a: string
+  option_b: string
+  days: number
+  total?: number | null
+}
+
+export interface Quote {
+  id: number
+  text: string
+  speaker: string
+  role: string
+  source: string
+  source_year: string
+  year: string
+  context: string
+  type_id: number
+  type_name: string
+  frame: QuoteFrame
+  photo_id: number
+  photo_url: string
+  status: string
+  date: string
+  modified: string
+  author: string
+  url: string
+  poll: QuotePoll
+}
+
+export interface QuoteInput {
+  text: string
+  speaker: string
+  role: string
+  source: string
+  source_year: string
+  year: string
+  context: string
+  type_id: number
+  photo_id: number
+  status: QuoteStatus
+  poll: QuotePoll
+}
+
+export interface QuoteType {
+  id: number
+  name: string
+  frame: QuoteFrame
+  count: number
+}
+
+export interface QuoteFrameInfo {
+  id: QuoteFrame
+  label: string
+  swatch: string
+}
+
+export const QUOTE_TEXT_MAX = 600
+
+export const QuotesApi = {
+  list: (params: { search?: string; type?: number; status?: '' | QuoteStatus; page?: number }) => {
+    const q = new URLSearchParams()
+    if (params.search) q.set('search', params.search)
+    if (params.type) q.set('type', String(params.type))
+    if (params.status) q.set('status', params.status)
+    if (params.page && params.page > 1) q.set('page', String(params.page))
+    const qs = q.toString()
+    return request<{ items: Quote[]; total: number; pages: number }>(`/admin/quotes${qs ? `?${qs}` : ''}`)
+  },
+  get: (id: number) => request<Quote>(`/admin/quotes/${id}`),
+  create: (data: QuoteInput) => request<Quote>('/admin/quotes', { method: 'POST', body: data as unknown as Record<string, unknown> }),
+  update: (id: number, data: QuoteInput) =>
+    request<Quote>(`/admin/quotes/${id}`, { method: 'PATCH', body: data as unknown as Record<string, unknown> }),
+  remove: (id: number) => request<{ ok: true }>(`/admin/quotes/${id}`, { method: 'DELETE' }),
+  types: () => request<{ types: QuoteType[]; frames: QuoteFrameInfo[] }>('/admin/quote-types'),
+  createType: (name: string, frame: QuoteFrame) =>
+    request<QuoteType>('/admin/quote-types', { method: 'POST', body: { name, frame } }),
+}
+
 // ---- Media (image upload + alt/caption) ----
 
 export const MediaApi = {

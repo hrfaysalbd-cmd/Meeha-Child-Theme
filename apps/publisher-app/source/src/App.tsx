@@ -20,6 +20,7 @@ import Prompts from './pages/Prompts'
 import PromptLibrary from './pages/PromptLibrary'
 import Videos from './pages/Videos'
 import VideoEditor from './pages/VideoEditor'
+import Quotes from './pages/Quotes'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
@@ -91,6 +92,7 @@ export default function App() {
         <Route path="videos" element={<Videos />} />
         <Route path="videos/new" element={<VideoEditor />} />
         <Route path="videos/:id" element={<VideoEditor />} />
+        <Route path="quotes" element={<Quotes />} />
         <Route path="correspondents" element={<Correspondents />} />
         <Route path="applications" element={<Applications />} />
         <Route path="ad-clients" element={<AdClients />} />
