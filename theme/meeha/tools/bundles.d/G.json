@@ -1,0 +1,7 @@
+{
+	"_comment": "নিউজ এলার্ট (2.4.1): the 'পেতে চান?' card + Push API subscription. Loaded on every front-end page while alerts are on.",
+	"push": {
+		"css": [ "assets/css/push.css" ],
+		"js": [ "assets/js/push.js" ]
+	}
+}
