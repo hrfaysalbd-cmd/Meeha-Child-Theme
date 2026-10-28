@@ -1,5 +1,5 @@
 {
-    "generated": "2026-10-19T10:26:35+00:00",
+    "generated": "2026-10-28T06:15:12+00:00",
     "bundles": {
         "core": {
             "css": [
@@ -12,8 +12,8 @@
             "critical": [],
             "deps": [],
             "css_file": "core.min.css",
-            "css_ver": "d5eea81537",
-            "css_bytes": 40889
+            "css_ver": "facdd9d95e",
+            "css_bytes": 41111
         },
         "base": {
             "css": [
@@ -160,8 +160,8 @@
             ],
             "deps": [],
             "css_file": "home.min.css",
-            "css_ver": "ef790bc07b",
-            "css_bytes": 5929,
+            "css_ver": "b31bb15fdb",
+            "css_bytes": 8174,
             "js_file": "home.min.js",
             "js_ver": "fdea147781",
             "js_bytes": 2821
@@ -312,6 +312,19 @@
             "js_file": "cards.min.js",
             "js_ver": "40df06e01b",
             "js_bytes": 148187
+        },
+        "campus": {
+            "css": [
+                "assets/css/campus.css"
+            ],
+            "js": [],
+            "critical": [
+                "assets/css/campus.css"
+            ],
+            "deps": [],
+            "css_file": "campus.min.css",
+            "css_ver": "16565c1358",
+            "css_bytes": 44876
         }
     },
     "critical": {
@@ -323,8 +336,8 @@
                 "assets/css/header.css",
                 "assets/css/components.css"
             ],
-            "bytes": 40889,
-            "gzip": 8689
+            "bytes": 41111,
+            "gzip": 8725
         },
         "page": {
             "file": "critical-page.min.css",
@@ -335,8 +348,8 @@
                 "assets/css/components.css",
                 "assets/css/page.css"
             ],
-            "bytes": 44820,
-            "gzip": 9447
+            "bytes": 45042,
+            "gzip": 9492
         },
         "404": {
             "file": "critical-404.min.css",
@@ -347,8 +360,8 @@
                 "assets/css/components.css",
                 "assets/css/page.css"
             ],
-            "bytes": 44820,
-            "gzip": 9447
+            "bytes": 45042,
+            "gzip": 9492
         },
         "account": {
             "file": "critical-account.min.css",
@@ -359,8 +372,8 @@
                 "assets/css/components.css",
                 "assets/css/page.css"
             ],
-            "bytes": 44820,
-            "gzip": 9447
+            "bytes": 45042,
+            "gzip": 9492
         },
         "home": {
             "file": "critical-home.min.css",
@@ -371,8 +384,8 @@
                 "assets/css/components.css",
                 "assets/css/home.css"
             ],
-            "bytes": 46818,
-            "gzip": 9556
+            "bytes": 49285,
+            "gzip": 9949
         },
         "archive": {
             "file": "critical-archive.min.css",
@@ -383,8 +396,8 @@
                 "assets/css/components.css",
                 "assets/css/archive.css"
             ],
-            "bytes": 50441,
-            "gzip": 10156
+            "bytes": 50663,
+            "gzip": 10198
         },
         "search": {
             "file": "critical-search.min.css",
@@ -395,8 +408,8 @@
                 "assets/css/components.css",
                 "assets/css/archive.css"
             ],
-            "bytes": 50441,
-            "gzip": 10156
+            "bytes": 50663,
+            "gzip": 10198
         },
         "single": {
             "file": "critical-single.min.css",
@@ -407,8 +420,8 @@
                 "assets/css/components.css",
                 "assets/css/single.css"
             ],
-            "bytes": 58321,
-            "gzip": 11828
+            "bytes": 58543,
+            "gzip": 11867
         },
         "literature": {
             "file": "critical-literature.min.css",
@@ -420,8 +433,8 @@
                 "assets/css/literary-font.css",
                 "assets/css/literature.css"
             ],
-            "bytes": 55057,
-            "gzip": 11128
+            "bytes": 55279,
+            "gzip": 11168
         },
         "quotes": {
             "file": "critical-quotes.min.css",
@@ -432,8 +445,20 @@
                 "assets/css/components.css",
                 "assets/css/quotes.css"
             ],
-            "bytes": 55146,
-            "gzip": 12380
+            "bytes": 55368,
+            "gzip": 12419
+        },
+        "campus": {
+            "file": "critical-campus.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/campus.css"
+            ],
+            "bytes": 85987,
+            "gzip": 16921
         }
     }
 }

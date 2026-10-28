@@ -130,6 +130,7 @@ function meeha_home_default_sections() {
 		array( 'id' => 's3', 'label' => 'একনজরে', 'enabled' => 1 ),
 		array( 'id' => 's4', 'label' => 'অনুসন্ধান', 'enabled' => 1 ),
 		array( 'id' => 's5', 'label' => 'মাতৃভূমি', 'enabled' => 1 ),
+		array( 'id' => 's13', 'label' => 'শিক্ষা ও ক্যাম্পাস', 'enabled' => 1 ),
 		array( 'id' => 's6', 'label' => 'ভিডিও', 'enabled' => 1 ),
 		array( 'id' => 's7', 'label' => 'বিশ্ব', 'enabled' => 1 ),
 		array( 'id' => 's8', 'label' => 'মতামত', 'enabled' => 1 ),

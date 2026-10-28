@@ -987,6 +987,122 @@ function meeha_home_render_s12( $plan, $title ) {
 }
 
 /* ======================================================================
+ * S13 · শিক্ষা ও ক্যাম্পাস (teaser of the campus hub, inc/campus)
+ * ==================================================================== */
+
+/**
+ * S13: section news + today's quiz, jobs closing soon and the prep tracks (when the Meeha Prep plugin runs).
+ * Hidden until the hub page is set, and — in beta mode — for everyone but staff, like the hub itself.
+ * Nothing personal is printed, so the cached homepage is the same for every reader.
+ *
+ * @param array  $plan  Plan.
+ * @param string $title Title.
+ */
+function meeha_home_render_s13( $plan, $title ) {
+	if ( ! function_exists( 'meeha_campus_hub_id' ) || ! meeha_campus_hub_id() || meeha_campus_beta_blocked() ) {
+		return;
+	}
+	$cat = meeha_campus_cat( 'main' );
+	$ids = array();
+	if ( $cat ) {
+		$ids = meeha_home_newest( array( $cat ), 4, meeha_opt( 'home', 'dedupe', 1 ) ? meeha_home_plan_ids( $plan ) : array() );
+		if ( count( $ids ) < 2 ) {
+			$ids = meeha_home_newest( array( $cat ), 4 );
+		}
+	}
+	$engine = meeha_campus_has_engine();
+	$quiz   = $engine && class_exists( 'MHP_Quiz' ) ? MHP_Quiz::set_for( mhp_today() ) : array();
+	$jobs   = $engine && class_exists( 'MHP_Jobs' ) ? MHP_Jobs::query( array( 'per_page' => 3 ) ) : array();
+	$jobs   = ! empty( $jobs['items'] ) ? $jobs['items'] : array();
+	$tracks = $engine && function_exists( 'mhp_tracks' ) ? array_slice( mhp_tracks(), 0, 6 ) : array();
+	$side   = $quiz || $jobs || $tracks;
+	if ( ! $ids && ! $side ) {
+		return;
+	}
+	$hub = meeha_campus_url();
+	?>
+<section class="m-section m-cmp" aria-labelledby="cmp-h">
+	<div class="m-container">
+		<?php
+		meeha_sechead(
+			$title,
+			array(
+				'url'        => $hub,
+				'more_label' => 'ক্যাম্পাসে যান',
+				'sub'        => (string) meeha_opt( 'campus', 'lede', '' ),
+				'id'         => 'cmp-h',
+			)
+		);
+		?>
+		<div class="m-cmp__grid<?php echo $ids && $side ? '' : ' m-cmp__grid--solo'; ?>">
+			<?php if ( $ids ) : ?>
+				<div class="m-cmp__news">
+					<?php
+					meeha_card(
+						$ids[0],
+						array(
+							'variant'  => 'big',
+							'show_dek' => true,
+						)
+					);
+					$rest = array_slice( $ids, 1 );
+					if ( $rest ) {
+						echo '<ul class="m-list" role="list">';
+						foreach ( $rest as $id ) {
+							printf( '<li><h3 class="m-list__title"><a href="%s">%s</a></h3></li>', esc_url( get_permalink( $id ) ), esc_html( get_the_title( $id ) ) );
+						}
+						echo '</ul>';
+					}
+					?>
+				</div>
+			<?php endif; ?>
+			<?php if ( $side ) : ?>
+				<div class="m-cmp__side">
+					<?php if ( $quiz ) : ?>
+						<a class="m-cmp__quiz" href="<?php echo esc_url( meeha_campus_url( 'quiz' ) ); ?>">
+							<span class="m-cmp__quiz-k">আজকের কুইজ</span>
+							<span class="m-cmp__quiz-t"><?php echo esc_html( meeha_bn_digits( count( $quiz ) ) . 'টি প্রশ্ন, প্রতিটির ব্যাখ্যাসহ' ); ?></span>
+							<span class="m-cmp__quiz-b">খেলুন →</span>
+						</a>
+					<?php endif; ?>
+					<?php if ( $jobs ) : ?>
+						<div class="m-cmp__box">
+							<h3 class="m-cmp__h"><a href="<?php echo esc_url( meeha_campus_url( 'jobs' ) ); ?>">আবেদন শেষ হচ্ছে</a></h3>
+							<ul class="m-cmp__jobs" role="list">
+								<?php foreach ( $jobs as $j ) : ?>
+									<?php $days = mhp_is_date( $j['deadline'] ) ? mhp_days_left( $j['deadline'] ) : null; ?>
+									<li>
+										<a href="<?php echo esc_url( mhp_url( 'job', $j['id'] ) ); ?>"><?php echo esc_html( $j['title'] ); ?></a>
+										<span class="m-cmp__meta">
+											<?php echo esc_html( $j['org'] ); ?>
+											<?php if ( null !== $days && $days >= 0 ) : ?>
+												<b class="<?php echo $days <= 3 ? 'is-urgent' : ''; ?>"><?php echo esc_html( 0 === $days ? 'আজ শেষ' : meeha_bn_digits( $days ) . ' দিন বাকি' ); ?></b>
+											<?php endif; ?>
+										</span>
+									</li>
+								<?php endforeach; ?>
+							</ul>
+						</div>
+					<?php endif; ?>
+					<?php if ( $tracks ) : ?>
+						<div class="m-cmp__box">
+							<h3 class="m-cmp__h"><a href="<?php echo esc_url( meeha_campus_url( 'prep' ) ); ?>">পরীক্ষার প্রস্তুতি</a></h3>
+							<div class="m-cmp__tracks">
+								<?php foreach ( $tracks as $t ) : ?>
+									<a class="m-chip" href="<?php echo esc_url( mhp_url( 'track', $t['slug'] ) ); ?>" style="--tc:<?php echo esc_attr( $t['color'] ); ?>"><?php echo esc_html( $t['name'] ); ?></a>
+								<?php endforeach; ?>
+							</div>
+						</div>
+					<?php endif; ?>
+				</div>
+			<?php endif; ?>
+		</div>
+	</div>
+</section>
+	<?php
+}
+
+/* ======================================================================
  * Assets on the home page
  * ==================================================================== */
 
