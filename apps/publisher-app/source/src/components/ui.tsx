@@ -96,8 +96,10 @@ export function Button({
   disabled,
   className = '',
   size = 'md',
+  'data-testid': testId,
 }: {
   children: ReactNode
+  'data-testid'?: string
   onClick?: () => void
   type?: 'button' | 'submit'
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'success' | 'destructive'
@@ -121,6 +123,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
+      data-testid={testId}
       className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}
     >
       {children}

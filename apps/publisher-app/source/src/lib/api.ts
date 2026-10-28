@@ -1611,6 +1611,14 @@ export interface Video {
   // semantics as an article's: 'pending' = auto-applied default rate.
   payment?: number | null
   payment_status?: 'pending' | 'approved' | null
+  // Round 21 — set when the current file was made in the video editor.
+  edit?: VideoEditInfo | null
+}
+
+export interface VideoEditInfo {
+  original_attachment_id: number
+  original_url: string
+  config: Record<string, unknown> | null
 }
 
 export interface VideoInput {
@@ -1628,6 +1636,8 @@ export interface VideoInput {
   status?: 'draft' | 'pending' | 'publish'
   date?: string // staff only, 'YYYY-MM-DD HH:MM:SS'
   author_id?: number // staff only
+  // Round 21 — staff only: record (or with null, forget) a video-editor edit.
+  edit?: { original_attachment_id: number; config: Record<string, unknown> } | null
 }
 
 export const AdminVideosApi = {
@@ -1658,4 +1668,122 @@ export const PostsApi = {
     request<{ items: AdminPostListRow[]; total: number; pages: number }>(
       `/admin/posts/all?filter=${filter}&page=${page}`
     ),
+}
+
+// ---- Round 21: video editor (ভিডিও এডিট) ----
+
+export interface LibraryVideo {
+  id: number
+  url: string
+  title: string
+  mime: string
+  size: number
+  duration: number | null
+  width: number | null
+  height: number | null
+  thumb: string | null
+  date: string
+  is_ad: boolean
+  edited_from: number | null
+}
+
+export interface VideoKitRef {
+  id: number
+  url: string
+  title: string
+  duration?: number | null
+}
+
+export interface VideoKitPreset {
+  id: string
+  name: string
+  config: Record<string, unknown>
+}
+
+export interface VideoKit {
+  logo: VideoKitRef | null
+  intro: VideoKitRef | null
+  outro: VideoKitRef | null
+  website: string
+  ticker: string
+  ad_text: string
+  presets: VideoKitPreset[]
+}
+
+export interface VideoKitInput {
+  logo_id?: number
+  intro_id?: number
+  outro_id?: number
+  website?: string
+  ticker?: string
+  ad_text?: string
+}
+
+export const VideoKitApi = {
+  get: () => request<VideoKit>('/admin/video-kit'),
+  save: (data: VideoKitInput) => request<VideoKit>('/admin/video-kit', { method: 'POST', body: data as Record<string, unknown> }),
+  savePresets: (presets: VideoKitPreset[]) =>
+    request<VideoKit>('/admin/video-kit/presets', { method: 'POST', body: { presets } as unknown as Record<string, unknown> }),
+  library: (offset = 0, search = '', adsOnly = false) =>
+    request<{ items: LibraryVideo[]; has_more: boolean; total: number }>(
+      `/admin/media/videos?offset=${offset}${search ? `&search=${encodeURIComponent(search)}` : ''}${adsOnly ? '&ads=1' : ''}`,
+    ),
+  updateVideo: (id: number, data: { is_ad?: boolean; title?: string }) =>
+    request<LibraryVideo>(`/admin/media/videos/${id}`, { method: 'PATCH', body: data as Record<string, unknown> }),
+}
+
+/**
+ * Downloads a library file (video or image) through the API, with progress
+ * — the editor needs the bytes from the same origin rules as the API (the
+ * uploads folder itself sends no CORS headers). No overall timeout: only a
+ * stall (no bytes for 60 s) fails it.
+ */
+export async function downloadMediaFile(id: number, onProgress?: (loaded: number, total: number) => void, signal?: AbortSignal): Promise<Blob> {
+  const path = `/admin/media/${id}/file`
+  const attempt = async (): Promise<Response> => {
+    try {
+      return await fetch(`${API_BASE}${path}`, {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+        credentials: 'include',
+        signal,
+      })
+    } catch (err) {
+      if (signal?.aborted) throw new ApiError('বাতিল করা হয়েছে।', 0, UPLOAD_ABORTED_CODE, 'client', path)
+      throw connectionError(err, path)
+    }
+  }
+  let res = await attempt()
+  if (res.status === 401 && (await refreshOnce()) === 'ok') res = await attempt()
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    return parseReply<never>(res.status, text, path)
+  }
+  const total = Number(res.headers.get('Content-Length')) || 0
+  if (!res.body) return res.blob()
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
+  let loaded = 0
+  let stall: ReturnType<typeof setTimeout> | null = null
+  const arm = () => {
+    if (stall) clearTimeout(stall)
+    stall = setTimeout(() => reader.cancel('stall').catch(() => undefined), 60_000)
+  }
+  try {
+    arm()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+      loaded += value.byteLength
+      onProgress?.(loaded, total)
+      arm()
+    }
+  } catch (err) {
+    if (signal?.aborted) throw new ApiError('বাতিল করা হয়েছে।', 0, UPLOAD_ABORTED_CODE, 'client', path)
+    throw connectionError(err, path)
+  } finally {
+    if (stall) clearTimeout(stall)
+  }
+  if (total && loaded < total) throw new ApiError('ফাইল পুরোটা নামানো যায়নি — সংযোগ দেখে আবার চেষ্টা করুন।', 0, 'nros_network', 'network', path)
+  return new Blob(chunks as BlobPart[], { type: res.headers.get('Content-Type') || 'application/octet-stream' })
 }

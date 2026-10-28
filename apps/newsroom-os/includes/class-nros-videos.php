@@ -498,6 +498,28 @@ class NROS_Videos {
 			'payment_status'      => $payment['status'],
 			'rejected'            => $rejected,
 			'reject_reason'       => $rejected ? (string) get_post_meta( $post->ID, '_nros_reject_reason', true ) : null,
+			// Round 21 — video editor: the unedited original + the settings used.
+			'edit'                => self::edit_info( $post->ID ),
+		);
+	}
+
+	/**
+	 * Round 21 — { original_attachment_id, original_url, config } when the
+	 * current file was made in the video editor, else null.
+	 *
+	 * @param int $post_id Video id.
+	 * @return array|null
+	 */
+	protected static function edit_info( $post_id ) {
+		$original = (int) get_post_meta( $post_id, '_meeha_video_original_id', true );
+		if ( ! self::is_video_attachment( $original ) ) {
+			return null;
+		}
+		$config = json_decode( (string) get_post_meta( $post_id, '_meeha_video_edit', true ), true );
+		return array(
+			'original_attachment_id' => $original,
+			'original_url'           => (string) wp_get_attachment_url( $original ),
+			'config'                 => is_array( $config ) ? $config : null,
 		);
 	}
 
@@ -789,6 +811,30 @@ class NROS_Videos {
 			);
 		}
 
+		// Round 21 — the video editor's record (staff only): which original
+		// file the current one was rendered from, and the settings used, so
+		// the edit can be reopened or reverted. `edit: null` forgets it.
+		$edit_op = null; // null = untouched, false = clear, array = set.
+		if ( $is_staff && $request->has_param( 'edit' ) ) {
+			$edit = $request->get_param( 'edit' );
+			if ( null === $edit ) {
+				$edit_op = false;
+			} else {
+				$original = is_array( $edit ) && isset( $edit['original_attachment_id'] ) ? (int) $edit['original_attachment_id'] : 0;
+				if ( ! self::is_video_attachment( $original ) ) {
+					return new WP_Error( 'nros_bad_request', 'মূল ভিডিও ফাইল পাওয়া যায়নি।', array( 'status' => 400 ) );
+				}
+				$config = NROS_Video_Kit::clean_config( isset( $edit['config'] ) ? $edit['config'] : null );
+				if ( is_wp_error( $config ) ) {
+					return $config;
+				}
+				$edit_op = array(
+					'original' => $original,
+					'config'   => $config,
+				);
+			}
+		}
+
 		$was_rejected = $post && (bool) get_post_meta( $post->ID, '_nros_rejected', true );
 
 		if ( ! $is_staff ) {
@@ -838,6 +884,18 @@ class NROS_Videos {
 		foreach ( array_unique( $meta_delete ) as $key ) {
 			if ( ! array_key_exists( $key, $meta_set ) ) {
 				delete_post_meta( $post_id, $key );
+			}
+		}
+
+		if ( false === $edit_op ) {
+			delete_post_meta( $post_id, '_meeha_video_original_id' );
+			delete_post_meta( $post_id, '_meeha_video_edit' );
+		} elseif ( is_array( $edit_op ) ) {
+			update_post_meta( $post_id, '_meeha_video_original_id', $edit_op['original'] );
+			update_post_meta( $post_id, '_meeha_video_edit', wp_slash( wp_json_encode( $edit_op['config'] ) ) );
+			$current_att = (int) get_post_meta( $post_id, '_meeha_video_attachment_id', true );
+			if ( $current_att > 0 && $current_att !== $edit_op['original'] ) {
+				update_post_meta( $current_att, '_nros_edited_from', $edit_op['original'] );
 			}
 		}
 

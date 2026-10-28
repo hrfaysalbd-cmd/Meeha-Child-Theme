@@ -8,7 +8,7 @@
  * articles.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   AdminVideosApi,
   CategoriesApi,
@@ -44,6 +44,7 @@ import {
   IconRectangleHorizontal,
   IconRectangleVertical,
   IconUpload,
+  IconWand,
   IconX,
 } from '../components/Icon'
 import MediaGallery from '../components/MediaGallery'
@@ -82,6 +83,7 @@ function FieldError({ children }: { children?: string }) {
 export default function VideoEditor() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { profile, isPublisher } = useAuth()
   const perms = usePostPermissions()
 
@@ -141,6 +143,9 @@ export default function VideoEditor() {
   const [saving, setSaving] = useState<null | 'draft' | 'pending' | 'publish' | 'meta'>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  // Round 21 — video editor: opening it (may save first) / a new file replaces an edit.
+  const [studioBusy, setStudioBusy] = useState(false)
+  const [clearEdit, setClearEdit] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [rejectOpen, setRejectOpen] = useState(false)
@@ -197,6 +202,7 @@ export default function VideoEditor() {
     setSeoTitle(v?.seo.title ?? '')
     setSeoDescription(v?.seo.description ?? '')
     setFocusKeyword(v?.seo.focus_keyword ?? '')
+    setClearEdit(false)
     syncPublishInfo(v)
     setFieldErrors({})
   }
@@ -235,7 +241,15 @@ export default function VideoEditor() {
     setLoading(true)
     setLoadError('')
     AdminVideosApi.get(Number(id))
-      .then((v) => populate(v))
+      .then((v) => {
+        populate(v)
+        // A message handed over by the video editor ("এডিট করা ভিডিও বসানো হয়েছে").
+        const handed = (location.state as { notice?: string } | null)?.notice
+        if (handed) {
+          setNotice(handed)
+          navigate(location.pathname, { replace: true, state: null })
+        }
+      })
       .catch((err) => setLoadError(describeError(err).message))
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -291,6 +305,7 @@ export default function VideoEditor() {
       if (ctrl.signal.aborted) return
       setAttachmentId(res.id)
       setVideoUrl(res.url)
+      setClearEdit(true)
       setUpload({ status: 'idle' })
       pendingFile.current = null
     } catch (err) {
@@ -388,6 +403,69 @@ export default function VideoEditor() {
       seo: { title: seoTitle.trim(), description: seoDescription.trim(), focus_keyword: focusKeyword.trim() },
       status,
       ...publishInfoPatch(),
+      // A different file (or YouTube) replaces the edited one: forget the edit record.
+      ...(video?.edit && (clearEdit || source !== 'upload') ? { edit: null } : {}),
+    }
+  }
+
+  // ---- Round 21: video editor (ফ্রেম, লোগো, ইন্ট্রো, বিজ্ঞাপন…) ----
+
+  const fileIsSaved = !!video && video.source === 'upload' && video.video_attachment_id === attachmentId
+
+  async function openStudio() {
+    if (source !== 'upload' || !attachmentId || uploading) return
+    setError('')
+    setNotice('')
+    if (fileIsSaved && video) {
+      navigate(`/app/videos/${video.id}/edit-video`)
+      return
+    }
+    // The editor works on the saved post, so a new file is saved first (as a draft for a new video).
+    if (!validate()) {
+      setError('এডিটরে যাওয়ার আগে শিরোনাম দিন — ভিডিওটি ড্রাফট হিসেবে সংরক্ষণ হবে।')
+      return
+    }
+    setStudioBusy(true)
+    try {
+      const saved = video
+        ? await AdminVideosApi.update(video.id, {
+            source: 'upload',
+            video_attachment_id: attachmentId,
+            duration,
+            orientation,
+            ...(video.edit ? { edit: null } : {}),
+          })
+        : await AdminVideosApi.create(body('draft'))
+      navigate(`/app/videos/${saved.id}/edit-video`)
+    } catch (err) {
+      setError(describeError(err).message)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } finally {
+      setStudioBusy(false)
+    }
+  }
+
+  async function revertEdit() {
+    const edit = video?.edit
+    if (!video || !edit) return
+    if (!window.confirm('এডিট করা ভিডিও সরিয়ে মূল ভিডিওটি আবার পোস্টে বসাবেন? এডিট করা ফাইলটি মিডিয়া লাইব্রেরিতে থেকে যাবে।')) return
+    setError('')
+    setNotice('')
+    setSaving('meta')
+    try {
+      const meta = edit.original_url ? await readVideoMetadata(edit.original_url) : null
+      const saved = await AdminVideosApi.update(video.id, {
+        source: 'upload',
+        video_attachment_id: edit.original_attachment_id,
+        ...(meta ? { duration: meta.duration, orientation: meta.orientation } : {}),
+        edit: null,
+      })
+      populate(saved)
+      setNotice('মূল ভিডিওটি আবার পোস্টে বসানো হয়েছে।')
+    } catch (err) {
+      setError(describeError(err).message)
+    } finally {
+      setSaving(null)
     }
   }
 
@@ -643,6 +721,32 @@ export default function VideoEditor() {
                         <IconUpload className="w-3.5 h-3.5" />
                         অন্য ভিডিও দিন
                       </Button>
+                    </div>
+                  )}
+
+                  {attachmentId && upload.status !== 'uploading' && (
+                    <div className="mt-3 rounded-xl border border-brand-100 bg-gradient-to-r from-brand-50 to-white p-3 flex items-center justify-between gap-3 flex-wrap" data-testid="studio-entry">
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-semibold text-neutral-900">
+                          {video?.edit && fileIsSaved && !clearEdit ? 'এই ভিডিওটি এডিটরে তৈরি' : 'ভিডিও এডিট করুন'}
+                        </p>
+                        <p className="text-[11.5px] text-neutral-500 leading-snug">
+                          {video?.edit && fileIsSaved && !clearEdit
+                            ? 'আবার এডিট করলে মূল ভিডিও থেকেই নতুন করে তৈরি হবে — আগের সেটিংস রাখা আছে।'
+                            : 'ব্রেকিং/সংবাদ ফ্রেম, অ্যানিমেটেড লোগো, ইন্ট্রো-আউট্রো, বিজ্ঞাপন বিরতি ও ক্যাপশন — এক ক্লিকে।'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {video?.edit && fileIsSaved && !clearEdit && (
+                          <Button size="sm" variant="secondary" onClick={revertEdit} disabled={!!saving} data-testid="studio-revert">
+                            মূল ভিডিওতে ফিরুন
+                          </Button>
+                        )}
+                        <Button size="sm" onClick={openStudio} disabled={studioBusy || !!saving} data-testid="studio-open">
+                          <IconWand className="w-3.5 h-3.5" />
+                          {studioBusy ? 'সংরক্ষণ হচ্ছে…' : video?.edit && fileIsSaved && !clearEdit ? 'আবার এডিট করুন' : 'এডিট ভিডিও'}
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </>

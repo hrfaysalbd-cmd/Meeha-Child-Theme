@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../lib/AuthContext'
 import { Banner, Button, Card, Field, PageHeader, Spinner, inputClass } from '../components/ui'
 import { IconCamera, IconLock, IconPlus, IconSparkles, IconX } from '../components/Icon'
+import VideoKitCard from '../components/videoStudio/VideoKitCard'
 
 const EDITOR_PERMISSION_ROWS: { key: keyof EditorPermissions; label: string; help: string }[] = [
   { key: 'delete_posts', label: 'পোস্ট ডিলিট', help: 'নিউজ ও ভিডিও ট্র্যাশে সরাতে পারবেন (wp-admin থেকে ফিরিয়ে আনা যায়)।' },
@@ -289,6 +290,8 @@ export default function Settings() {
           </button>
         )}
       </Card>
+
+      <VideoKitCard canEdit={isPublisher} />
 
       <Card className="p-5 mb-5 max-w-xl">
         <p className="text-[14px] font-semibold text-neutral-800 mb-1 flex items-center gap-1.5">

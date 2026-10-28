@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './lib/AuthContext'
 import { Spinner } from './components/ui'
@@ -21,6 +22,9 @@ import PromptLibrary from './pages/PromptLibrary'
 import Videos from './pages/Videos'
 import VideoEditor from './pages/VideoEditor'
 import Quotes from './pages/Quotes'
+
+// Round 21 — the video editor pulls in the encoder (mediabunny): its own chunk.
+const VideoStudio = lazy(() => import('./pages/VideoStudio'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
@@ -92,6 +96,14 @@ export default function App() {
         <Route path="videos" element={<Videos />} />
         <Route path="videos/new" element={<VideoEditor />} />
         <Route path="videos/:id" element={<VideoEditor />} />
+        <Route
+          path="videos/:id/edit-video"
+          element={
+            <Suspense fallback={<Spinner className="mt-10" />}>
+              <VideoStudio />
+            </Suspense>
+          }
+        />
         <Route path="quotes" element={<Quotes />} />
         <Route path="correspondents" element={<Correspondents />} />
         <Route path="applications" element={<Applications />} />

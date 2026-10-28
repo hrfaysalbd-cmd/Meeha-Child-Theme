@@ -10,7 +10,7 @@ import { useAuth } from '../lib/AuthContext'
 import { PaymentStatusBadge } from '../components/PaymentPanel'
 import { NEED_PUBLISHER_PERMISSION, bnDateTime, usePostPermissions } from '../lib/postMeta'
 import { Banner, Button, Card, EmptyState, ErrorRetry, PageHeader, Spinner, bnNumber, inputClass } from '../components/ui'
-import { IconCheck, IconCoin, IconExternalLink, IconPencil, IconPlus, IconTrash, IconX } from '../components/Icon'
+import { IconCheck, IconCoin, IconExternalLink, IconPencil, IconPlus, IconTrash, IconWand, IconX } from '../components/Icon'
 import { DeleteConfirmModal, RowMenu } from '../components/PostManagement'
 import { RejectVideoModal, VideoStats, VideoThumb } from '../components/VideoBits'
 
@@ -273,6 +273,16 @@ export default function Videos() {
                   </Button>
                   <RowMenu
                     items={[
+                      ...(v.source === 'upload' && v.video_attachment_id
+                        ? [
+                            {
+                              label: v.edit ? 'ভিডিও আবার এডিট করুন' : 'এডিট ভিডিও',
+                              icon: <IconWand className="w-4 h-4" />,
+                              hint: 'ফ্রেম, লোগো, ইন্ট্রো, বিজ্ঞাপন, ক্যাপশন',
+                              onClick: () => navigate(`/app/videos/${v.id}/edit-video`),
+                            },
+                          ]
+                        : []),
                       ...(v.status === 'publish' && v.link
                         ? [{ label: 'সাইটে দেখুন', icon: <IconExternalLink className="w-4 h-4" />, href: v.link }]
                         : []),
