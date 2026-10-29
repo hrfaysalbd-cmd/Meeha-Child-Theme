@@ -7,10 +7,11 @@
  * shared presets. normalizeConfig() accepts anything and returns a valid
  * config, so an old or hand-edited value can never break the editor.
  */
+import type { DenoiseLevel } from './denoise'
 
 export type FormatId = 'source' | '16:9' | '9:16' | '1:1' | '4:5'
 export type FitMode = 'blur' | 'cover' | 'black'
-export type FrameId = 'none' | 'breaking' | 'news' | 'live' | 'special' | 'wave' | 'minimal' | 'exclusive' | 'sports' | 'election' | 'alert' | 'glass' | 'campus'
+export type FrameId = 'none' | 'breaking' | 'news' | 'live' | 'special' | 'wave' | 'minimal' | 'exclusive' | 'sports' | 'election' | 'alert' | 'glass' | 'campus' | 'showbiz' | 'cinema' | 'music'
 /** How big the frame bands, their text and the captions are (auto = bigger for reels). */
 export type FrameSize = 'auto' | 's' | 'm' | 'l' | 'xl'
 export type FooterMode = 'none' | 'ticker' | 'ad-text' | 'ad-image' | 'brand'
@@ -19,6 +20,38 @@ export type OutroId = 'none' | 'meeha-social' | 'thanks' | 'follow' | 'custom'
 export type LogoStyle = 'reveal' | 'spin' | 'pulse' | 'static'
 export type Corner = 'tr' | 'tl' | 'br' | 'bl'
 export type Quality = '720' | '1080'
+/* brand music catalogue (the pieces themselves are in music.ts) */
+export type MusicId = 'signature' | 'pulse' | 'calm' | 'showbiz' | 'desi'
+
+export const MUSIC: { id: MusicId; name: string; hint: string }[] = [
+  { id: 'signature', name: 'মীহা সিগনেচার', hint: 'সব খবরে মানানসই · উজ্জ্বল, স্থির ছন্দ' },
+  { id: 'pulse', name: 'ব্রেকিং পালস', hint: 'জরুরি ও ব্রেকিং খবর · ঘড়ির টিকটিক' },
+  { id: 'calm', name: 'শান্ত পটভূমি', hint: 'সাক্ষাৎকার, মানবিক ও ফিচার · নরম পিয়ানো' },
+  { id: 'showbiz', name: 'বিনোদন পপ', hint: 'বিনোদন, শোবিজ ও লাইফস্টাইল · হালকা পপ' },
+  { id: 'desi', name: 'দেশি সুর', hint: 'দেশ, সংস্কৃতি ও উৎসব · বাঁশি, দোতারা ও তবলা' },
+]
+
+export const DEFAULT_MUSIC: MusicId = 'signature'
+
+export type MusicChoice = 'none' | MusicId
+/** Voice clean-up for the main video: EQ + compression ("clear"), stronger for noisy field reports. */
+export type VoiceMode = 'off' | 'clear' | 'strong'
+
+export interface AudioSettings {
+  main: number
+  clips: number
+  sfx: boolean
+  /** Brand music bed, looped under the whole video. */
+  music: MusicChoice
+  /** Music level, 0..1 (before ducking). */
+  musicVol: number
+  /** Dip the music while someone is speaking. */
+  duck: boolean
+  /** Under everything, or only under the news itself (not intro / outro / ads). */
+  musicOver: 'all' | 'main'
+  voice: VoiceMode
+  denoise: DenoiseLevel
+}
 
 /** A file from the media library (video clip or image). */
 export interface MediaRef {
@@ -126,7 +159,7 @@ export interface EditConfig {
   outro: { id: OutroId; clip: MediaRef | null }
   ads: AdBreak[]
   captions: Caption[]
-  audio: { main: number; clips: number; sfx: boolean }
+  audio: AudioSettings
   cuts: Cut[]
   look: Look
   blurs: BlurBox[]
@@ -146,7 +179,7 @@ export const DEFAULT_CONFIG: EditConfig = {
   outro: { id: 'none', clip: null },
   ads: [],
   captions: [],
-  audio: { main: 1, clips: 1, sfx: true },
+  audio: { main: 1, clips: 1, sfx: true, music: DEFAULT_MUSIC, musicVol: 0.25, duck: true, musicOver: 'all', voice: 'off', denoise: 'off' },
   cuts: [],
   look: { filter: 'none', brightness: 1, contrast: 1, saturation: 1, zoom: 1, panX: 0, panY: 0, rotate: 0, flip: false },
   blurs: [],
@@ -176,6 +209,9 @@ export const FRAMES: FrameInfo[] = [
   { id: 'alert', name: 'জরুরি সতর্কতা', hint: 'কালো-লাল, জ্বলা-নেভা হলুদ সতর্ক রেখা', label: 'সতর্কতা', swatch: ['#111111', '#F59E0B'] },
   { id: 'glass', name: 'আধুনিক কাচ', hint: 'ভিডিওর ঝাপসা কাচের মতো ব্যাকগ্রাউন্ড', label: 'শিরোনাম', swatch: ['#1F2937', '#38BDF8'] },
   { id: 'campus', name: 'ক্যাম্পাস', hint: 'উজ্জ্বল সাদা-নীল, কমলা ফিতা', label: 'ক্যাম্পাস', swatch: ['#EFF6FF', '#F97316'] },
+  { id: 'showbiz', name: 'বিনোদন', hint: 'গোলাপি-বেগুনি, ঝিকমিক তারা ও আলো', label: 'বিনোদন', swatch: ['#BE185D', '#FDE047'] },
+  { id: 'cinema', name: 'সিনেমা', hint: 'কালো পর্দা, সোনালি স্পটলাইট ও চলমান ফিল্ম রিল', label: 'সিনেমা', swatch: ['#0A0A0A', '#FACC15'] },
+  { id: 'music', name: 'গান-বাজনা', hint: 'নীল-বেগুনি, তালে তালে ইকুয়ালাইজার', label: 'মিউজিক', swatch: ['#312E81', '#22D3EE'] },
 ]
 
 export const FRAME_SIZES: { id: FrameSize; name: string; k: number }[] = [
@@ -381,6 +417,12 @@ export function normalizeConfig(raw: unknown): EditConfig {
       main: num(audio.main, d.audio.main, 0, 2),
       clips: num(audio.clips, d.audio.clips, 0, 2),
       sfx: bool(audio.sfx, d.audio.sfx),
+      music: oneOf(audio.music, ['none', ...MUSIC.map((m) => m.id)] as const, d.audio.music),
+      musicVol: num(audio.musicVol, d.audio.musicVol, 0, 1),
+      duck: bool(audio.duck, d.audio.duck),
+      musicOver: oneOf(audio.musicOver, ['all', 'main'] as const, d.audio.musicOver),
+      voice: oneOf(audio.voice, ['off', 'clear', 'strong'] as const, d.audio.voice),
+      denoise: oneOf(audio.denoise, ['off', 'low', 'medium', 'high'] as const, d.audio.denoise),
     },
     cuts: (Array.isArray(o.cuts) ? o.cuts : [])
       .map((c: any) => ({ from: num(c?.from, 0, 0, 86400), to: num(c?.to, 0, 0, 86400) }))
@@ -478,6 +520,9 @@ export function hasEdits(cfg: EditConfig, srcDuration: number | null): boolean {
     cfg.trim.start > 0.05 ||
     (cfg.trim.end !== null && srcDuration !== null && cfg.trim.end < srcDuration - 0.05) ||
     cfg.audio.main !== 1 ||
+    cfg.audio.music !== 'none' ||
+    cfg.audio.voice !== 'off' ||
+    cfg.audio.denoise !== 'off' ||
     cfg.cuts.length > 0 ||
     cfg.blurs.length > 0 ||
     lookFilter(cfg.look) !== '' ||

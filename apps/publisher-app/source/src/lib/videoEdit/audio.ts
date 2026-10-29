@@ -9,10 +9,13 @@
  *   clicks, plus the effects) with an OfflineAudioContext. The exporter
  *   calls it window by window, so even a long video never needs its whole
  *   soundtrack in memory at once.
+ * - Round 22: voice clean-up, noise reduction (denoise.ts) and the brand
+ *   music bed (music.ts), which loops under the video and dips under speech.
  */
 import type { EditConfig } from './config'
 import type { SfxKind } from './draw'
 import type { ClipKey, Segment, Timeline } from './timeline'
+import { Denoiser, type DenoiseLevel } from './denoise'
 
 export const SAMPLE_RATE = 48000
 
@@ -124,10 +127,59 @@ export function segmentVolume(seg: Segment, cfg: EditConfig) {
 }
 
 const FADE = 0.012
+/** Extra audio rendered before each window so filters and the compressor are settled. */
+const PAD = 0.3
+
+/** Carries the music ducking and the limiter from one window to the next. */
+export interface MixState {
+  music: AudioBuffer | null
+  env: number
+  duck: number
+  cover: number
+  limit: number
+}
+
+export function newMixState(music: AudioBuffer | null): MixState {
+  return { music, env: 0, duck: 1, cover: 1, limit: 1 }
+}
+
+/** Voice clean-up: low cut, less boom, more presence, gentle compression. */
+function voiceChain(ctx: BaseAudioContext, mode: 'clear' | 'strong', out: AudioNode): AudioNode {
+  const strong = mode === 'strong'
+  const hp = ctx.createBiquadFilter()
+  hp.type = 'highpass'
+  hp.frequency.value = strong ? 110 : 80
+  hp.Q.value = 0.7
+  const mud = ctx.createBiquadFilter()
+  mud.type = 'peaking'
+  mud.frequency.value = 260
+  mud.Q.value = 1
+  mud.gain.value = strong ? -3.5 : -2
+  const presence = ctx.createBiquadFilter()
+  presence.type = 'peaking'
+  presence.frequency.value = 3200
+  presence.Q.value = 0.9
+  presence.gain.value = strong ? 5 : 3
+  const air = ctx.createBiquadFilter()
+  air.type = 'highshelf'
+  air.frequency.value = 9000
+  air.gain.value = strong ? 2.5 : 1.5
+  const comp = ctx.createDynamicsCompressor()
+  comp.threshold.value = strong ? -30 : -26
+  comp.knee.value = 10
+  comp.ratio.value = strong ? 4.5 : 3
+  comp.attack.value = 0.004
+  comp.release.value = 0.2
+  hp.connect(mud).connect(presence).connect(air).connect(comp).connect(out)
+  return hp
+}
 
 /**
  * Renders output seconds [t0, t1) of the soundtrack. Each audible segment
- * plays its clip audio from `clipStart`; edges get 12 ms fades.
+ * plays its clip audio from `clipStart`; edges get 12 ms fades. The main
+ * video's sound can go through the voice clean-up; then the brand music is
+ * laid under everything (dipping while someone speaks) and a limiter keeps
+ * the sum from clipping.
  */
 export async function mixWindow(
   tl: Timeline,
@@ -136,27 +188,31 @@ export async function mixWindow(
   cues: { t: number; kind: SfxKind; gain: number }[],
   t0: number,
   t1: number,
+  state: MixState,
 ): Promise<AudioBuffer> {
+  const r0 = Math.max(0, t0 - PAD)
+  const lead = Math.round((t0 - r0) * SAMPLE_RATE)
   const frames = Math.max(1, Math.round((t1 - t0) * SAMPLE_RATE))
-  const ctx = new OfflineAudioContext(2, frames, SAMPLE_RATE)
-  const span = frames / SAMPLE_RATE
+  const ctx = new OfflineAudioContext(2, frames + lead, SAMPLE_RATE)
+  const span = (frames + lead) / SAMPLE_RATE
+  const voiceIn = cfg.audio.voice !== 'off' ? voiceChain(ctx, cfg.audio.voice, ctx.destination) : null
 
   for (const seg of tl.segments) {
     if (!seg.clip) continue
     const reader = readers[seg.clip]
     if (!reader) continue
     const segEnd = seg.t0 + seg.dur
-    const a = Math.max(t0, seg.t0)
+    const a = Math.max(r0, seg.t0)
     const b = Math.min(t1, segEnd)
     if (b <= a) continue
     const vol = segmentVolume(seg, cfg)
     if (vol <= 0) continue
 
     const g = ctx.createGain()
-    g.connect(ctx.destination)
+    g.connect(seg.kind === 'main' && voiceIn ? voiceIn : ctx.destination)
     // fades at the segment's own edges (relative to this window)
-    const sIn = seg.t0 - t0
-    const sOut = segEnd - t0
+    const sIn = seg.t0 - r0
+    const sOut = segEnd - r0
     g.gain.setValueAtTime(sIn > -FADE ? 0 : vol, 0)
     if (sIn > -FADE) {
       g.gain.setValueAtTime(0, Math.max(0, sIn))
@@ -171,8 +227,8 @@ export async function mixWindow(
     const to = seg.clipStart + (b - seg.t0)
     for await (const chunk of reader.buffers(from, to)) {
       // where this chunk's first sample lands in the window
-      const when = seg.t0 + (chunk.timestamp - seg.clipStart) - t0
-      const offset = Math.max(0, -when, seg.t0 - t0 - when)
+      const when = seg.t0 + (chunk.timestamp - seg.clipStart) - r0
+      const offset = Math.max(0, -when, seg.t0 - r0 - when)
       const start = when + offset
       const stop = Math.min(span, sOut)
       const len = Math.min(chunk.buffer.duration - offset, stop - start)
@@ -185,16 +241,124 @@ export async function mixWindow(
   }
 
   for (const c of cues) {
-    if (c.t >= t1 || c.t + 1.7 <= t0) continue
+    if (c.t >= t1 || c.t + 1.7 <= r0) continue
     const buf = await sfxBuffer(c.kind)
     const src = ctx.createBufferSource()
     src.buffer = buf
     const g = ctx.createGain()
     g.gain.value = c.gain
     src.connect(g).connect(ctx.destination)
-    const when = c.t - t0
+    const when = c.t - r0
     src.start(Math.max(0, when), Math.max(0, -when))
   }
 
-  return ctx.startRendering()
+  const mixed = await ctx.startRendering()
+  return finishWindow(mixed, lead, frames, tl, cfg, t0, state)
+}
+
+const coef = (seconds: number) => 1 - Math.exp(-1 / (seconds * SAMPLE_RATE))
+const ENV_ATTACK = coef(0.01)
+const ENV_RELEASE = coef(0.3)
+const DUCK_DOWN = coef(0.08)
+const DUCK_UP = coef(0.7)
+const COVER = coef(0.15)
+const LIMIT_UP = coef(0.08)
+/** How far the music dips under speech (about -6 dB). */
+const DUCK_FLOOR = 0.5
+const CEILING = 0.95
+
+/** Adds the music bed (with ducking and fades) and limits the result. */
+function finishWindow(mixed: AudioBuffer, lead: number, frames: number, tl: Timeline, cfg: EditConfig, t0: number, st: MixState): AudioBuffer {
+  const L = mixed.getChannelData(0).subarray(lead, lead + frames)
+  const R = mixed.getChannelData(1).subarray(lead, lead + frames)
+  const outL = new Float32Array(frames)
+  const outR = new Float32Array(frames)
+  const music = cfg.audio.music !== 'none' && cfg.audio.musicVol > 0 ? st.music : null
+  const mL = music?.getChannelData(0)
+  const mR = music?.getChannelData(1)
+  const loop = music?.length ?? 1
+  const total = tl.duration
+  const vol = cfg.audio.musicVol
+  const startFrame = Math.round(t0 * SAMPLE_RATE)
+
+  let segIdx = 0
+  let segEnd = -1
+  let coverTarget = 1
+  let duckTarget = 1
+  for (let i = 0; i < frames; i++) {
+    let l = L[i]
+    let r = R[i]
+    if (music) {
+      const t = t0 + i / SAMPLE_RATE
+      if (t >= segEnd) {
+        while (segIdx < tl.segments.length - 1 && t >= tl.segments[segIdx].t0 + tl.segments[segIdx].dur) segIdx++
+        const seg = tl.segments[segIdx]
+        segEnd = seg.t0 + seg.dur
+        coverTarget = cfg.audio.musicOver === 'main' && seg.kind !== 'main' ? 0 : 1
+      }
+      st.cover += (coverTarget - st.cover) * COVER
+      // follow the level of everything else, every sample; re-aim the dip every 64
+      const x = (Math.abs(l) + Math.abs(r)) * 0.5
+      st.env += (x - st.env) * (x > st.env ? ENV_ATTACK : ENV_RELEASE)
+      if ((i & 63) === 0) {
+        if (cfg.audio.duck) {
+          const db = 20 * Math.log10(st.env * 1.6 + 1e-9)
+          const d = Math.min(1, Math.max(0, (db + 50) / 20))
+          duckTarget = 1 - d * (1 - DUCK_FLOOR)
+        } else duckTarget = 1
+      }
+      st.duck += (duckTarget - st.duck) * (duckTarget < st.duck ? DUCK_DOWN : DUCK_UP)
+      const fade = Math.min(1, t / 1.2, Math.max(0, (total - t) / 2.5))
+      const g = vol * st.duck * st.cover * fade
+      const p = (startFrame + i) % loop
+      l += mL![p] * g
+      r += mR![p] * g
+    }
+    const peak = Math.max(Math.abs(l), Math.abs(r))
+    const want = peak > CEILING ? CEILING / peak : 1
+    st.limit = want < st.limit ? want : st.limit + (want - st.limit) * LIMIT_UP
+    outL[i] = l * st.limit
+    outR[i] = r * st.limit
+  }
+  const out = new AudioBuffer({ numberOfChannels: 2, length: frames, sampleRate: SAMPLE_RATE })
+  out.copyToChannel(outL, 0)
+  out.copyToChannel(outR, 1)
+  return out
+}
+
+/**
+ * Wraps a clip's audio so it comes out with the background noise reduced.
+ * Each request is decoded with a little extra on both sides (the FFT
+ * needs it); the Denoiser keeps its noise estimate between requests.
+ */
+export function denoisedReader(base: AudioReader, level: Exclude<DenoiseLevel, 'off'>): AudioReader {
+  let dn: Denoiser | null = null
+  const EDGE = 0.1
+  return {
+    async *buffers(from: number, to: number) {
+      const a = Math.max(0, from - EDGE)
+      const parts: { buffer: AudioBuffer; timestamp: number }[] = []
+      for await (const c of base.buffers(a, to + EDGE)) parts.push({ buffer: c.buffer, timestamp: c.timestamp })
+      if (!parts.length) return
+      const sr = parts[0].buffer.sampleRate
+      const chans = Math.min(2, parts[0].buffer.numberOfChannels)
+      const start = parts[0].timestamp
+      const last = parts[parts.length - 1]
+      const len = Math.max(1, Math.round((last.timestamp - start) * sr) + last.buffer.length)
+      const data = Array.from({ length: chans }, () => new Float32Array(len))
+      for (const p of parts) {
+        const at = Math.round((p.timestamp - start) * sr)
+        for (let c = 0; c < chans; c++) {
+          const src = p.buffer.getChannelData(Math.min(c, p.buffer.numberOfChannels - 1))
+          const n = Math.min(src.length, len - at)
+          if (n > 0 && at >= 0) data[c].set(src.subarray(0, n), at)
+        }
+      }
+      dn ??= new Denoiser(level, sr)
+      const clean = dn.process(data)
+      const buffer = new AudioBuffer({ numberOfChannels: chans, length: len, sampleRate: sr })
+      clean.forEach((d, c) => buffer.copyToChannel(d, c))
+      yield { buffer, timestamp: start }
+    },
+  }
 }

@@ -28,7 +28,8 @@ import { BUILTIN_CLIPS, fetchBlob, loadFonts, loadLogo, type LogoAsset } from '.
 import { drawOutputFrame, drawScene, makeScratch, type DrawEnv, type Picture } from '../lib/videoEdit/draw'
 import { bnClock, bnDate } from '../lib/videoEdit/motion'
 import { PreviewPlayer, probeUrl, type PreviewState } from '../lib/videoEdit/preview'
-import { RenderCancelled, exportCapability, renderEdit, type RenderProgress } from '../lib/videoEdit/render'
+import { RenderCancelled, exportCapability, renderAudioPreview, renderEdit, type RenderProgress } from '../lib/videoEdit/render'
+import { musicBuffer } from '../lib/videoEdit/music'
 import { buildTimeline, computeLayout, outputToSource, trimRange, type ClipKey, type SceneId } from '../lib/videoEdit/timeline'
 import { bnFileSize, bnDuration } from '../lib/postMeta'
 import { Banner, Button, Card, Spinner, bnNumber } from '../components/ui'
@@ -43,6 +44,7 @@ import {
   IconDownload,
   IconLayoutRows,
   IconMovie,
+  IconMusic,
   IconPlayerPause,
   IconPlayerPlay,
   IconPlayerSkipBack,
@@ -60,8 +62,9 @@ import StudioTimeline from '../components/videoStudio/StudioTimeline'
 import { AdsPanel, CaptionsPanel, FramePanel, IntroOutroPanel, LayoutPanel, LogoPanel, type ThumbPainter } from '../components/videoStudio/StudioPanels'
 import ToolsPanel from '../components/videoStudio/StudioTools'
 import BlurOverlay from '../components/videoStudio/BlurOverlay'
+import SoundPanel, { type AuditionState } from '../components/videoStudio/StudioSound'
 
-type Tab = 'frame' | 'logo' | 'intro' | 'ads' | 'captions' | 'tools' | 'layout'
+type Tab = 'frame' | 'logo' | 'intro' | 'ads' | 'captions' | 'tools' | 'sound' | 'layout'
 
 const TABS: { id: Tab; name: string; icon: (p: { className?: string }) => ReactNode }[] = [
   { id: 'frame', name: 'ফ্রেম', icon: IconLayoutRows },
@@ -70,7 +73,8 @@ const TABS: { id: Tab; name: string; icon: (p: { className?: string }) => ReactN
   { id: 'captions', name: 'ক্যাপশন', icon: IconTextCaption },
   { id: 'ads', name: 'বিজ্ঞাপন', icon: IconAd },
   { id: 'tools', name: 'সম্পাদনা', icon: IconAdjustments },
-  { id: 'layout', name: 'আকার ও শব্দ', icon: IconAspectRatio },
+  { id: 'sound', name: 'শব্দ ও মিউজিক', icon: IconMusic },
+  { id: 'layout', name: 'আকার', icon: IconAspectRatio },
 ]
 
 const draftKey = (videoId: number, originalId: number) => `meeha-studio:v1:${videoId}:${originalId}`
@@ -136,6 +140,8 @@ export default function VideoStudio() {
   const [kit, setKit] = useState<VideoKit | null>(null)
   const [stillTick, setStillTick] = useState(0)
   const [selectedBlur, setSelectedBlur] = useState<number | null>(null)
+  const [audition, setAudition] = useState<AuditionState>(null)
+  const auditionRef = useRef<{ ctrl: AbortController; src: AudioBufferSourceNode | null } | null>(null)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const playerRef = useRef<PreviewPlayer | null>(null)
@@ -348,6 +354,10 @@ export default function VideoStudio() {
   useEffect(() => {
     if (env) playerRef.current?.setEnv(env)
   }, [env])
+  // the brand music is synthesised on first use; get the chosen piece ready early
+  useEffect(() => {
+    if (cfg.audio.music !== 'none') musicBuffer(cfg.audio.music).catch(() => undefined)
+  }, [cfg.audio.music])
   useEffect(() => {
     playerRef.current?.setSources(urls)
   }, [urls])
@@ -497,34 +507,106 @@ export default function VideoStudio() {
     setTab('ads')
   }
 
-  async function getBlob(key: string, load: (onProgress: (l: number, t: number) => void) => Promise<Blob>, label: string, signal: AbortSignal) {
+  async function getBlob(
+    key: string,
+    load: (onProgress: (l: number, t: number) => void) => Promise<Blob>,
+    label: string,
+    signal: AbortSignal,
+    report: (label: string, ratio: number) => void,
+  ) {
     const hit = blobCache.current.get(key)
     if (hit) return hit
-    setJob({ stage: 'download', ratio: 0, label })
+    report(label, 0)
     const b = await load((l, t) => {
-      if (!signal.aborted) setJob({ stage: 'download', ratio: t ? l / t : 0, label })
+      if (!signal.aborted) report(label, t ? l / t : 0)
     })
     blobCache.current.set(key, b)
     return b
   }
 
+  /** Downloads (once) every file the timeline plays. */
+  async function collectClips(signal: AbortSignal, report: (label: string, ratio: number) => void, only?: Set<ClipKey>) {
+    const clips: Partial<Record<ClipKey, Blob>> = {}
+    if (!loaded) return clips
+    const want = (k: ClipKey) => !only || only.has(k)
+    if (want('main')) clips.main = await getBlob(`m${loaded.originalId}`, (p) => downloadMediaFile(loaded.originalId, p, signal), 'মূল ভিডিও নামানো হচ্ছে…', signal, report)
+    const clipFor = async (key: ClipKey, url: string | undefined, ref: MediaRef | null, builtin: boolean, label: string) => {
+      if (!url || !want(key)) return
+      if (builtin) clips[key] = await getBlob(url, () => fetchBlob(url, signal), label, signal, report)
+      else if (ref) clips[key] = await getBlob(`m${ref.id}`, (p) => downloadMediaFile(ref.id, p, signal), label, signal, report)
+    }
+    await clipFor('intro', urls.intro, cfg.intro.clip, cfg.intro.id === 'meeha-logo', 'ইন্ট্রো ভিডিও লোড হচ্ছে…')
+    await clipFor('outro', urls.outro, cfg.outro.clip, cfg.outro.id === 'meeha-social', 'আউট্রো ভিডিও লোড হচ্ছে…')
+    for (let i = 0; i < cfg.ads.length; i++) await clipFor(`ad${i}`, urls[`ad${i}`], cfg.ads[i].clip, false, `বিজ্ঞাপন ${bnNumber(i + 1)} লোড হচ্ছে…`)
+    return clips
+  }
+
+  // ---- "শুনে দেখুন": the exact export soundtrack for 15 s from the playhead ----
+  function stopAudition() {
+    const a = auditionRef.current
+    auditionRef.current = null
+    if (a) {
+      a.ctrl.abort()
+      try {
+        a.src?.stop()
+      } catch {
+        // already stopped
+      }
+    }
+    playerRef.current?.setMuted(false)
+    if (a?.src) playerRef.current?.pause()
+    setAudition(null)
+  }
+
+  async function startAudition() {
+    const player = playerRef.current
+    if (!loaded || !tl || !player) return
+    stopAudition()
+    const ctrl = new AbortController()
+    const mine = { ctrl, src: null as AudioBufferSourceNode | null }
+    auditionRef.current = mine
+    const from = Math.min(player.time, Math.max(0, tl.duration - 1))
+    const seconds = Math.min(15, tl.duration - from)
+    player.pause()
+    try {
+      const only = new Set(tl.segments.filter((s) => s.clip && s.t0 < from + seconds && s.t0 + s.dur > from).map((s) => s.clip as ClipKey))
+      const clips = await collectClips(ctrl.signal, (label, ratio) => setAudition({ stage: 'loading', label: ratio > 0 ? `${label} ${bnNumber(Math.round(ratio * 100))}%` : label }), only)
+      if (auditionRef.current !== mine) return
+      setAudition({ stage: 'loading', label: 'সাউন্ড তৈরি হচ্ছে…' })
+      const buf = await renderAudioPreview(cfg, tl, clips, from, seconds, ctrl.signal)
+      const ctx = player.audioContext()
+      if (auditionRef.current !== mine || !ctx) return
+      await ctx.resume().catch(() => undefined)
+      player.seek(from)
+      player.setMuted(true)
+      player.play()
+      const src = ctx.createBufferSource()
+      src.buffer = buf
+      src.connect(ctx.destination)
+      src.onended = () => {
+        if (auditionRef.current === mine) stopAudition()
+      }
+      src.start()
+      mine.src = src
+      setAudition({ stage: 'playing', from, seconds })
+    } catch (err) {
+      if (auditionRef.current !== mine) return
+      auditionRef.current = null
+      player.setMuted(false)
+      setAudition(null)
+      if (!(err instanceof RenderCancelled) && !ctrl.signal.aborted) setNotice(`সাউন্ড তৈরি করা যায়নি: ${err instanceof Error && !('status' in err) ? err.message : describeError(err).message}`)
+    }
+  }
+
   async function startRender() {
     if (!loaded || !env || !tl || !L) return
+    stopAudition()
     const ctrl = new AbortController()
     abortRef.current = ctrl
     const signal = ctrl.signal
     try {
       // 1 — files
-      const clips: Partial<Record<ClipKey, Blob>> = {}
-      clips.main = await getBlob(`m${loaded.originalId}`, (p) => downloadMediaFile(loaded.originalId, p, signal), 'মূল ভিডিও নামানো হচ্ছে…', signal)
-      const clipFor = async (key: ClipKey, url: string | undefined, ref: MediaRef | null, builtin: boolean, label: string) => {
-        if (!url) return
-        if (builtin) clips[key] = await getBlob(url, () => fetchBlob(url, signal), label, signal)
-        else if (ref) clips[key] = await getBlob(`m${ref.id}`, (p) => downloadMediaFile(ref.id, p, signal), label, signal)
-      }
-      await clipFor('intro', urls.intro, cfg.intro.clip, cfg.intro.id === 'meeha-logo', 'ইন্ট্রো ভিডিও লোড হচ্ছে…')
-      await clipFor('outro', urls.outro, cfg.outro.clip, cfg.outro.id === 'meeha-social', 'আউট্রো ভিডিও লোড হচ্ছে…')
-      for (let i = 0; i < cfg.ads.length; i++) await clipFor(`ad${i}`, urls[`ad${i}`], cfg.ads[i].clip, false, `বিজ্ঞাপন ${bnNumber(i + 1)} লোড হচ্ছে…`)
+      const clips = await collectClips(signal, (label, ratio) => setJob({ stage: 'download', ratio, label }))
 
       // 2 — render
       playerRef.current?.pause()
@@ -697,6 +779,7 @@ export default function VideoStudio() {
       },
     },
     { label: 'ক্যাপশন', on: cfg.captions.length > 0, testId: 'chip-captions', onClick: () => setTab('captions') },
+    { label: 'মিউজিক', on: cfg.audio.music !== 'none', testId: 'chip-music', onClick: () => setTab('sound') },
     { label: 'বিজ্ঞাপন', on: cfg.ads.length > 0, testId: 'chip-ads', onClick: () => setPicker({ kind: 'ad-add' }) },
   ]
   const frameName = FRAMES.find((f) => f.id === cfg.frame.id)?.name
@@ -890,7 +973,20 @@ export default function VideoStudio() {
                 srcDuration={loaded.main.duration}
                 playhead={playheadSrc}
                 outputSize={`${bnNumber(L.W)}×${bnNumber(L.H)} · ${bnDuration(tl.duration) || bnClock(tl.duration)}`}
-                canSfx
+              />
+            )}
+            {tab === 'sound' && (
+              <SoundPanel
+                cfg={cfg}
+                set={set}
+                audioContext={() => playerRef.current?.audioContext() ?? null}
+                onSample={() => {
+                  stopAudition()
+                  playerRef.current?.pause()
+                }}
+                audition={audition}
+                onAudition={startAudition}
+                onStopAudition={stopAudition}
               />
             )}
             {tab === 'captions' && cfg.captions.length > 0 && (

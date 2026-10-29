@@ -3,7 +3,10 @@
  * <video> elements (one per clip) and paints every animation frame with
  * the same drawOutputFrame() the exporter uses, so what plays here is what
  * gets rendered. Sound comes from the elements themselves (at the edit's
- * volumes) plus the synthesised effects.
+ * volumes) plus the synthesised effects and the brand music bed. The bed
+ * dips by a fixed amount under the main video here; the exact mix (real
+ * ducking, voice clean-up, noise reduction) is heard with "শুনে দেখুন",
+ * which renders it the way the export does.
  *
  * The preview never needs the file bytes, so cross-origin files play
  * straight from the site; only the export downloads them.
@@ -11,6 +14,8 @@
 import type { DrawEnv, Picture } from './draw'
 import { drawOutputFrame, sfxCues } from './draw'
 import { playSfx } from './audio'
+import { musicBuffer } from './music'
+import type { MusicChoice } from './config'
 import { segmentAt, type ClipKey, type Segment } from './timeline'
 
 export interface PreviewState {
@@ -37,6 +42,11 @@ export class PreviewPlayer {
   private onState: (s: PreviewState) => void
   private lastReport = 0
   private waiting = false
+  private musicBuf: AudioBuffer | null = null
+  private musicId = ''
+  private musicSrc: AudioBufferSourceNode | null = null
+  private musicGain: GainNode | null = null
+  private muted = false
 
   constructor(canvas: HTMLCanvasElement, onState: (s: PreviewState) => void) {
     this.canvas = canvas
@@ -55,6 +65,7 @@ export class PreviewPlayer {
       this.canvas.height = Math.round(env.L.H * k)
     }
     if (this.T > env.tl.duration) this.T = Math.max(0, env.tl.duration - 0.05)
+    this.loadMusic(env.cfg.audio.music)
     // the segment layout may have changed under the playhead
     if (this.playing) this.enter(this.T)
     this.dirty = true
@@ -114,7 +125,7 @@ export class PreviewPlayer {
         const want = seg.clipStart + (T - seg.t0)
         if (Math.abs(el.currentTime - want) > 0.08) el.currentTime = want
         el.volume = this.volumeFor(seg)
-        el.muted = false
+        el.muted = this.muted
         el.play().catch(() => {
           // autoplay refused (no gesture yet): play muted instead
           el.muted = true
@@ -132,11 +143,90 @@ export class PreviewPlayer {
     this.playing = true
     this.lastCueT = this.T - 0.001
     this.enter(this.T)
+    this.startMusic()
     this.report(true)
+  }
+
+  /** Silences the clips, effects and music (while a rendered soundtrack plays instead). */
+  setMuted(m: boolean) {
+    this.muted = m
+    for (const el of this.els.values()) el.muted = m
+    if (m) this.stopMusic()
+    else if (this.playing) this.startMusic()
+  }
+
+  /** The shared AudioContext (created on first play). */
+  audioContext() {
+    if (!this.audio && typeof AudioContext !== 'undefined') this.audio = new AudioContext()
+    return this.audio
+  }
+
+  private loadMusic(id: MusicChoice) {
+    if (id === this.musicId) {
+      this.updateMusicGain()
+      return
+    }
+    this.musicId = id
+    this.musicBuf = null
+    this.stopMusic()
+    if (id === 'none') return
+    musicBuffer(id)
+      .then((b) => {
+        if (this.musicId !== id) return
+        this.musicBuf = b
+        if (this.playing) this.startMusic()
+      })
+      .catch(() => undefined)
+  }
+
+  private musicLevel() {
+    const env = this.env
+    if (!env || !this.seg) return 0
+    const a = env.cfg.audio
+    if (a.music === 'none') return 0
+    if (a.musicOver === 'main' && this.seg.kind !== 'main') return 0
+    const speech = this.seg.kind === 'main' ? a.main > 0 : a.clips > 0
+    const fade = Math.min(1, Math.max(0, (env.tl.duration - this.T) / 2.5))
+    return a.musicVol * (a.duck && speech ? 0.5 : 1) * fade
+  }
+
+  private startMusic() {
+    this.stopMusic()
+    const ctx = this.audio
+    if (!ctx || !this.musicBuf || this.muted || !this.playing) return
+    const src = ctx.createBufferSource()
+    src.buffer = this.musicBuf
+    src.loop = true
+    const g = ctx.createGain()
+    g.gain.value = 0
+    g.gain.setTargetAtTime(this.musicLevel(), ctx.currentTime, 0.08)
+    src.connect(g).connect(ctx.destination)
+    src.start(0, this.T % this.musicBuf.duration)
+    this.musicSrc = src
+    this.musicGain = g
+  }
+
+  private stopMusic() {
+    if (this.musicSrc) {
+      try {
+        this.musicSrc.stop()
+      } catch {
+        // already stopped
+      }
+      this.musicSrc.disconnect()
+    }
+    this.musicGain?.disconnect()
+    this.musicSrc = null
+    this.musicGain = null
+  }
+
+  private updateMusicGain() {
+    if (this.musicGain && this.audio) this.musicGain.gain.setTargetAtTime(this.musicLevel(), this.audio.currentTime, 0.12)
   }
 
   pause() {
     this.playing = false
+    this.stopMusic()
     for (const el of this.els.values()) el.pause()
     this.dirty = true
     this.report(true)
@@ -154,6 +244,7 @@ export class PreviewPlayer {
     if (this.playing) {
       this.lastCueT = this.T
       this.enter(this.T)
+      this.startMusic()
     } else if (seg.clip) {
       const el = this.els.get(seg.clip)
       if (el) el.currentTime = seg.clipStart + (this.T - seg.t0)
@@ -195,6 +286,7 @@ export class PreviewPlayer {
         this.T = Math.max(this.T, T)
       }
       this.playCues(env)
+      this.updateMusicGain()
       this.draw()
       this.report()
     } else if (this.dirty) {
@@ -204,7 +296,7 @@ export class PreviewPlayer {
   }
 
   private playCues(env: DrawEnv) {
-    if (!this.audio) return
+    if (!this.audio || this.muted) return
     for (const c of sfxCues(env.tl, env.cfg)) {
       if (c.t > this.lastCueT && c.t <= this.T + 0.02) playSfx(this.audio, c.kind, c.gain)
     }
@@ -235,6 +327,7 @@ export class PreviewPlayer {
       el.load()
     }
     this.els.clear()
+    this.stopMusic()
     this.audio?.close().catch(() => undefined)
   }
 }

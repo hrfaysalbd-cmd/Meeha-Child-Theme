@@ -295,6 +295,25 @@ function wave(ctx: Ctx, r: Rect, baseY: number, amp: number, len: number, phase:
   ctx.fill()
 }
 
+/** A strip of 35 mm film with sprocket holes, rolling sideways. */
+function filmStrip(ctx: Ctx, r: Rect, t: number, s: number, reverse = false) {
+  ctx.save()
+  ctx.fillStyle = '#171717'
+  ctx.fillRect(r.x, r.y, r.w, r.h)
+  ctx.beginPath()
+  ctx.rect(r.x, r.y, r.w, r.h)
+  ctx.clip()
+  const step = 26 * s
+  const off = ((t * 40 * s * (reverse ? -1 : 1)) % step + step) % step
+  ctx.fillStyle = 'rgba(250,250,249,0.85)'
+  for (let x = r.x - step + off; x < r.x + r.w + step; x += step) {
+    ctx.beginPath()
+    ctx.roundRect(x, r.y + r.h * 0.28, step * 0.5, r.h * 0.44, 2 * s)
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
 const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
   breaking: {
     headerBg: (ctx, r, t, s) => {
@@ -676,6 +695,185 @@ const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
     tickerFg: '#FFFFFF',
     accent: '#F97316',
     edge: '#F97316',
+  },
+  showbiz: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(
+        ctx,
+        r,
+        [
+          [0, '#701A75'],
+          [0.55, '#BE185D'],
+          [1, '#F472B6'],
+        ],
+        -0.2,
+      )
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(r.x, r.y, r.w, r.h)
+      ctx.clip()
+      // soft bokeh drifting up
+      for (let i = 0; i < 8; i++) {
+        const rad = (18 + rnd(i + 5) * 40) * s
+        const x = r.x + rnd(i + 31) * r.w + Math.sin(t * 0.5 + i) * 14 * s
+        const y = r.y + r.h + rad - ((t * (10 + rnd(i) * 16) * s + rnd(i + 9) * (r.h + 2 * rad)) % (r.h + 2 * rad))
+        const g = ctx.createRadialGradient(x, y, 0, x, y, rad)
+        g.addColorStop(0, 'rgba(255,255,255,0.22)')
+        g.addColorStop(1, 'rgba(255,255,255,0)')
+        ctx.fillStyle = g
+        ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2)
+      }
+      // four-point sparkles that pop in and out
+      for (let i = 0; i < 10; i++) {
+        const x = r.x + rnd(i + 71) * r.w
+        const y = r.y + (0.12 + rnd(i + 91) * 0.76) * r.h
+        const a = Math.pow(Math.max(0, Math.sin(t * (1.8 + rnd(i) * 1.4) + i * 2.3)), 3)
+        const k = (5 + rnd(i + 13) * 7) * s * (0.6 + 0.4 * a)
+        ctx.fillStyle = `rgba(255,255,255,${0.85 * a})`
+        ctx.beginPath()
+        ctx.moveTo(x, y - k)
+        ctx.quadraticCurveTo(x, y, x + k, y)
+        ctx.quadraticCurveTo(x, y, x, y + k)
+        ctx.quadraticCurveTo(x, y, x - k, y)
+        ctx.quadraticCurveTo(x, y, x, y - k)
+        ctx.fill()
+      }
+      ctx.restore()
+      sweep(ctx, r, t, 5, 0.14)
+    },
+    footerBg: (ctx, r) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#4A044E'],
+        [1, '#831843'],
+      ])
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+    },
+    title: '#FFFFFF',
+    date: '#FBCFE8',
+    kickerBg: 'rgba(255,255,255,0.18)',
+    kickerFg: '#FFFFFF',
+    badge: { text: 'বিনোদন', bg: '#FDE047', fg: '#701A75', kind: 'tape' },
+    labelBg: '#FDE047',
+    labelFg: '#701A75',
+    tickerFg: '#FFFFFF',
+    accent: '#F472B6',
+    edge: '#FDE047',
+  },
+  cinema: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(
+        ctx,
+        r,
+        [
+          [0, '#0A0A0A'],
+          [1, '#1C1917'],
+        ],
+        Math.PI / 2,
+      )
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(r.x, r.y, r.w, r.h)
+      ctx.clip()
+      // two spotlight beams swinging from the top
+      for (const [i, base] of [
+        [0, 0.22],
+        [1, 0.78],
+      ] as const) {
+        const ang = Math.sin(t * 0.7 + i * 2.1) * 0.35
+        const ox = r.x + r.w * base
+        const len = r.h * 1.6
+        const spread = r.h * 0.55
+        const tipX = ox + Math.sin(ang) * len
+        const tipY = r.y + Math.cos(ang) * len
+        const g = ctx.createLinearGradient(ox, r.y, tipX, tipY)
+        g.addColorStop(0, 'rgba(253,224,71,0.38)')
+        g.addColorStop(1, 'rgba(253,224,71,0)')
+        ctx.fillStyle = g
+        ctx.beginPath()
+        ctx.moveTo(ox - 6 * s, r.y)
+        ctx.lineTo(tipX - spread * Math.cos(ang), tipY + spread * Math.sin(ang))
+        ctx.lineTo(tipX + spread * Math.cos(ang), tipY - spread * Math.sin(ang))
+        ctx.lineTo(ox + 6 * s, r.y)
+        ctx.closePath()
+        ctx.fill()
+      }
+      ctx.restore()
+      // film strip along the bottom edge, rolling
+      filmStrip(ctx, { x: r.x, y: r.y + r.h - 18 * s, w: r.w, h: 18 * s }, t, s)
+    },
+    footerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = '#0A0A0A'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      filmStrip(ctx, { x: r.x, y: r.y, w: r.w, h: 14 * s }, t, s, true)
+    },
+    title: '#FFFFFF',
+    date: '#FDE68A',
+    kickerBg: 'rgba(253,224,71,0.16)',
+    kickerFg: '#FDE047',
+    badge: { text: 'সিনেমা', bg: 'transparent', fg: '#FACC15', kind: 'gold' },
+    labelBg: '#FACC15',
+    labelFg: '#0A0A0A',
+    tickerFg: '#FFFFFF',
+    accent: '#FACC15',
+  },
+  music: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#0F172A'],
+        [0.5, '#312E81'],
+        [1, '#0E7490'],
+      ])
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(r.x, r.y, r.w, r.h)
+      ctx.clip()
+      // pulsing rings on the beat (120 BPM)
+      const beat = (t * 2) % 1
+      const cx = r.x + r.w * 0.9
+      const cy = r.y + r.h * 0.5
+      for (let i = 0; i < 3; i++) {
+        const p = (beat + i / 3) % 1
+        ctx.strokeStyle = `rgba(34,211,238,${0.22 * (1 - p)})`
+        ctx.lineWidth = 3 * s
+        ctx.beginPath()
+        ctx.arc(cx, cy, (20 + p * 120) * s, 0, Math.PI * 2)
+        ctx.stroke()
+      }
+      // equaliser bars rising from the bottom edge
+      const n = 28
+      const bw = r.w / n
+      for (let i = 0; i < n; i++) {
+        const v = 0.5 + 0.5 * Math.sin(t * (3 + rnd(i) * 5) + i * 0.9)
+        const v2 = 0.5 + 0.5 * Math.sin(t * (1.3 + rnd(i + 40) * 2) + i * 0.4)
+        const h = r.h * (0.05 + 0.2 * v * v2)
+        const g = ctx.createLinearGradient(0, r.y + r.h - h, 0, r.y + r.h)
+        g.addColorStop(0, 'rgba(232,121,249,0.4)')
+        g.addColorStop(1, 'rgba(34,211,238,0.15)')
+        ctx.fillStyle = g
+        ctx.fillRect(r.x + i * bw + bw * 0.18, r.y + r.h - h, bw * 0.64, h)
+      }
+      ctx.restore()
+    },
+    footerBg: (ctx, r) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#1E1B4B'],
+        [1, '#164E63'],
+      ])
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+    },
+    title: '#FFFFFF',
+    date: '#A5F3FC',
+    kickerBg: 'rgba(232,121,249,0.2)',
+    kickerFg: '#F5D0FE',
+    badge: { text: 'গান-বাজনা', bg: '#22D3EE', fg: '#0F172A', kind: 'tape' },
+    labelBg: '#E879F9',
+    labelFg: '#1E1B4B',
+    tickerFg: '#FFFFFF',
+    accent: '#22D3EE',
+    edge: '#E879F9',
   },
 }
 

@@ -31,7 +31,8 @@ import {
 } from 'mediabunny'
 import type { EditConfig } from './config'
 import { drawOutputFrame, sfxCues, type DrawEnv, type Picture } from './draw'
-import { mixWindow, type AudioReader } from './audio'
+import { denoisedReader, mixWindow, newMixState, SAMPLE_RATE, type AudioReader } from './audio'
+import { musicBuffer } from './music'
 import type { ClipKey, Timeline } from './timeline'
 
 export const FPS = 30
@@ -119,6 +120,15 @@ async function openClip(blob: Blob, maxW: number, maxH: number, cover = false): 
   return { input, video, sink, audio }
 }
 
+function audioReaders(io: Partial<Record<ClipKey, { audio: AudioReader | null }>>, used: Iterable<ClipKey>, cfg: EditConfig) {
+  const readers: Partial<Record<ClipKey, AudioReader | null>> = {}
+  for (const k of used) {
+    const r = io[k]?.audio ?? null
+    readers[k] = r && k === 'main' && cfg.audio.denoise !== 'off' ? denoisedReader(r, cfg.audio.denoise) : r
+  }
+  return readers
+}
+
 export interface RenderJob {
   cfg: EditConfig
   tl: Timeline
@@ -200,9 +210,9 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
     await output.start()
     outputRef = output
 
-    const readers: Partial<Record<ClipKey, AudioReader | null>> = {}
-    for (const k of used) readers[k] = io[k]?.audio ?? null
+    const readers = audioReaders(io, used, cfg)
     const cues = sfxCues(tl, cfg)
+    const mix = newMixState(cfg.audio.music !== 'none' ? await musicBuffer(cfg.audio.music) : null)
 
     const frameCount = Math.max(1, Math.round(total * FPS))
     const AUDIO_WIN = 2
@@ -214,7 +224,7 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
     const pumpAudio = async (until: number) => {
       while (audioDone < Math.min(until, total) - 1e-6) {
         const t1 = Math.min(total, audioDone + AUDIO_WIN)
-        const buf = await mixWindow(tl, cfg, readers, cues, audioDone, t1)
+        const buf = await mixWindow(tl, cfg, readers, cues, audioDone, t1, mix)
         await asrc.add(buf)
         audioDone = t1
       }
@@ -309,5 +319,50 @@ export async function probeClip(blob: Blob): Promise<{ duration: number; width: 
     return { duration, width: v?.displayWidth ?? 0, height: v?.displayHeight ?? 0, hasAudio: !!a }
   } finally {
     input.dispose()
+  }
+}
+
+/**
+ * The finished soundtrack for output seconds [from, from + seconds), made
+ * exactly as the export makes it (voice clean-up, noise reduction, music,
+ * ducking), so the editor can play it before rendering the whole video.
+ */
+export async function renderAudioPreview(cfg: EditConfig, tl: Timeline, clips: Partial<Record<ClipKey, Blob>>, from: number, seconds: number, signal?: AbortSignal): Promise<AudioBuffer> {
+  const t0 = Math.max(0, Math.min(from, tl.duration - 0.5))
+  const t1 = Math.min(tl.duration, t0 + seconds)
+  const used = new Set(tl.segments.filter((s) => s.clip && s.t0 < t1 && s.t0 + s.dur > t0).map((s) => s.clip as ClipKey))
+  const io: Partial<Record<ClipKey, { input: Input; audio: AudioReader | null }>> = {}
+  try {
+    for (const k of used) {
+      const blob = clips[k]
+      if (!blob) continue
+      const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS })
+      const track = await input.getPrimaryAudioTrack()
+      let audio: AudioReader | null = null
+      if (track && (await track.canDecode())) {
+        const sink = new AudioBufferSink(track)
+        audio = { buffers: (a, b) => sink.buffers(a, b) }
+      }
+      io[k] = { input, audio }
+    }
+    const readers = audioReaders(io, used, cfg)
+    const cues = sfxCues(tl, cfg)
+    const mix = newMixState(cfg.audio.music !== 'none' ? await musicBuffer(cfg.audio.music) : null)
+    const frames = Math.max(1, Math.round((t1 - t0) * SAMPLE_RATE))
+    const out = new AudioBuffer({ numberOfChannels: 2, length: frames, sampleRate: SAMPLE_RATE })
+    let at = t0
+    let pos = 0
+    while (at < t1 - 1e-6) {
+      if (signal?.aborted) throw new RenderCancelled()
+      const b = Math.min(t1, at + 2)
+      const buf = await mixWindow(tl, cfg, readers, cues, at, b, mix)
+      const n = Math.min(buf.length, frames - pos)
+      for (let c = 0; c < 2; c++) out.copyToChannel(buf.getChannelData(c).subarray(0, n), c, pos)
+      pos += n
+      at = b
+    }
+    return out
+  } finally {
+    for (const k of Object.keys(io) as ClipKey[]) io[k]?.input.dispose()
   }
 }

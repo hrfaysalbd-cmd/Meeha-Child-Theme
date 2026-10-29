@@ -497,14 +497,12 @@ export function LayoutPanel({
   srcDuration,
   playhead,
   outputSize,
-  canSfx,
 }: {
   cfg: EditConfig
   set: Setter
   srcDuration: number
   playhead: () => number | null
   outputSize: string
-  canSfx: boolean
 }) {
   const trimEnd = cfg.trim.end ?? srcDuration
   return (
@@ -576,11 +574,6 @@ export function LayoutPanel({
         <p className="text-[11.5px] text-neutral-400 mt-2">
           মূল ভিডিও {bnClock(srcDuration)} · কাটার পর {bnClock(Math.max(0, trimEnd - cfg.trim.start))}
         </p>
-      </Section>
-      <Section title="শব্দ">
-        <Slider label="মূল ভিডিওর শব্দ" value={Math.round(cfg.audio.main * 100)} min={0} max={100} step={5} onChange={(v) => set((c) => ({ ...c, audio: { ...c.audio, main: v / 100 } }))} format={(v) => `${bnNumber(v)}%`} />
-        <Slider label="ইন্ট্রো/আউট্রো/বিজ্ঞাপনের শব্দ" value={Math.round(cfg.audio.clips * 100)} min={0} max={100} step={5} onChange={(v) => set((c) => ({ ...c, audio: { ...c.audio, clips: v / 100 } }))} format={(v) => `${bnNumber(v)}%`} />
-        {canSfx && <SwitchRow label="সাউন্ড ইফেক্ট" hint="ইন্ট্রো, ফ্রেম ও বিজ্ঞাপন কার্ডে হালকা হুশ/চাইম শব্দ" checked={cfg.audio.sfx} onChange={(v) => set((c) => ({ ...c, audio: { ...c.audio, sfx: v } }))} />}
       </Section>
     </div>
   )
