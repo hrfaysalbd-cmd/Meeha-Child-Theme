@@ -731,7 +731,28 @@
 	}
 
 	/* 8 · নিউজ কার্ড — featured image + title + category + date + logo (+ CTA pill) */
-	var NEWS_PRESETS = { classic: 'ক্লাসিক', overlay: 'ছায়া', band: 'নীল পাটাতন', frame: 'সাদা ফ্রেম', split: 'পাশাপাশি', headline: 'বড় শিরোনাম', dheu: 'মিহা ঢেউ', dheubreaking: 'ঢেউ ব্রেকিং' };
+	var NEWS_PRESETS = { classic: 'ক্লাসিক', overlay: 'ছায়া', band: 'নীল পাটাতন', frame: 'সাদা ফ্রেম', split: 'পাশাপাশি', headline: 'বড় শিরোনাম', dheu: 'মিহা ঢেউ', dheubreaking: 'ঢেউ ব্রেকিং', collage: 'ছবির কোলাজ', chobi: 'বড় ছবি' };
+	/* 2.4.3: কোলাজ — the main photo plus up to three more (data.gallery = [{image, focus, zoom}], loaded into A.gallery) */
+	function collageTiles( d, A ) {
+		var out = [ { img: A.image, focus: d.focus, zoom: d.zoom } ];
+		( A.gallery || [] ).forEach( function ( im, i ) { var g = ( d.gallery || [] )[ i ] || {}; if ( im && out.length < 4 ) { out.push( { img: im, focus: g.focus, zoom: g.zoom } ); } } );
+		return out;
+	}
+	function collage( ctx, tiles, x, y, w, h, gap, more ) {
+		var n = tiles.length, boxes, hw = Math.round( ( w - gap ) / 2 ), hh = Math.round( ( h - gap ) / 2 ), bw = Math.round( ( w - gap ) * 0.6 );
+		if ( 1 === n ) { boxes = [ [ x, y, w, h ] ]; } else if ( 2 === n ) { boxes = [ [ x, y, hw, h ], [ x + hw + gap, y, w - hw - gap, h ] ]; } else if ( 3 === n ) {
+			boxes = [ [ x, y, bw, h ], [ x + bw + gap, y, w - bw - gap, hh ], [ x + bw + gap, y + hh + gap, w - bw - gap, h - hh - gap ] ];
+		} else { boxes = [ [ x, y, hw, hh ], [ x + hw + gap, y, w - hw - gap, hh ], [ x, y + hh + gap, hw, h - hh - gap ], [ x + hw + gap, y + hh + gap, w - hw - gap, h - hh - gap ] ]; }
+		rect( ctx, x, y, w, h, C.white );
+		boxes.forEach( function ( b, i ) { if ( ! cover( ctx, tiles[ i ].img, b[ 0 ], b[ 1 ], b[ 2 ], b[ 3 ], tiles[ i ].focus, tiles[ i ].zoom ) ) { placeholder( ctx, b[ 0 ], b[ 1 ], b[ 2 ], b[ 3 ] ); } } );
+		if ( more > 0 && n > 1 ) {
+			var lb = boxes[ n - 1 ], t = '+' + bnDigits( more ) + ' ছবি';
+			ctx.font = fontStr( 600, 28, 'sans' );
+			var tw = Math.round( width( ctx, t ) ) + 40;
+			ctx.fillStyle = 'rgba(8,20,36,.72)'; rrect( ctx, lb[ 0 ] + lb[ 2 ] - tw - 20, lb[ 1 ] + lb[ 3 ] - 72, tw, 52, 26 ); ctx.fill();
+			line( ctx, t, { x: lb[ 0 ] + lb[ 2 ] - tw / 2 - 20, top: lb[ 1 ] + lb[ 3 ] - 70, lh: 48, size: 28, weight: 600, color: C.white, align: 'center' } );
+		}
+	}
 	function newsPreset( o ) { var p = o.preset || cfg().newsDefault; return NEWS_PRESETS[ p ] ? p : 'classic'; }
 	function news( ctx, W, H, d, o, A ) {
 		var CH = H - ( o.ad ? STRIP_H : 0 ), p = newsPreset( o ), cat = str( d.category || d.kicker ), date = str( d.date ), ct = ctaText( d, o ), r, b, cw = 0;
@@ -810,6 +831,38 @@
 			line( ctx, date, { x: 526, top: CH - 116, lh: 40, size: 26, color: 'rgba(255,255,255,.85)', maxW: 490 } );
 			cw = cta( ctx, ct, 526, CH - 80, { h: 48, size: 23, fill: C.white, color: C.blue900, maxW: 340 } );
 			line( ctx, watermark(), cw ? { x: 1016, top: CH - 71, lh: 30, size: 22, color: 'rgba(255,255,255,.6)', align: 'right', maxW: 490 - cw - 24 } : { x: 526, top: CH - 70, lh: 30, size: 22, color: 'rgba(255,255,255,.6)' } );
+		} else if ( 'collage' === p ) {
+			var kh = CH - 400, kw = 0;
+			rect( ctx, 0, 0, W, H, C.white );
+			collage( ctx, collageTiles( d, A ), 0, 0, W, kh, 8, +d.gallery_more || 0 );
+			customFrame( ctx, A, W, H );
+			rect( ctx, 0, kh, W, 8, C.blue );
+			if ( cat ) { kw = pill( ctx, cat, 64, kh - 24, { fill: C.blue, color: C.white, size: 28, h: 56 } ); }
+			cta( ctx, ct, 1016, kh - 24, { h: 56, size: 26, align: 'right', fill: C.white, color: C.blue, shadow: true, maxW: 952 - ( kw ? kw + 24 : 0 ) } );
+			r = fit( ctx, d.title, { w: 952, h: 216, maxLines: 3, max: 60, min: 40, lh: 1.36 } );
+			drawFit( ctx, r, { x: 64, y: kh + 50, w: 952, h: 216, valign: 'middle', color: C.ink } );
+			rect( ctx, 64, CH - 100, 952, 1, C.line );
+			line( ctx, date, { x: 64, top: CH - 78, lh: 40, size: 26, color: C.muted, maxW: 600 } );
+			logo( ctx, 1016, CH - 72, 200, C.blue, 'right', A );
+		} else if ( 'chobi' === p ) {
+			/* the photo fills the card; a white card holds the headline at the bottom */
+			rect( ctx, 0, 0, W, H, C.blue900 );
+			photoOr( ctx, A.image, 0, 0, W, CH, d );
+			shade( ctx, 0, 0, W, 240, [ [ 0, 'rgba(8,20,36,.55)' ], [ 1, 'rgba(8,20,36,0)' ] ] );
+			shade( ctx, 0, CH - 360, W, 360, [ [ 0, 'rgba(8,20,36,0)' ], [ 1, 'rgba(8,20,36,.45)' ] ] );
+			customFrame( ctx, A, W, H );
+			viewfinder( ctx, 40, 40, 'tl', C.white );
+			logo( ctx, 1016, 52, 200, C.white, 'right', A );
+			r = fit( ctx, d.title, { w: 904, maxLines: 3, max: 54, min: 38, lh: 1.34 } );
+			var ch2 = r.lines.length * r.lineH, boxH = ch2 + 168, bt = CH - 44 - boxH;
+			ctx.save(); ctx.shadowColor = 'rgba(8,20,36,.35)'; ctx.shadowBlur = 36; ctx.shadowOffsetY = 10; ctx.fillStyle = C.white;
+			rrect( ctx, 40, bt, 1000, boxH, 26 ); ctx.fill(); ctx.restore();
+			rect( ctx, 40, bt + 30, 8, ch2 + 36, C.blue );
+			if ( cat ) { pill( ctx, cat, 88, bt - 28, { fill: C.blue, color: C.white, size: 26, h: 54 } ); }
+			drawFit( ctx, r, { x: 88, y: bt + 46, w: 904, h: ch2, color: C.ink } );
+			cw = cta( ctx, ct, 992, bt + boxH - 76, { h: 48, size: 23, align: 'right', fill: C.blue, color: C.white, maxW: 480 } );
+			line( ctx, date, { x: 88, top: bt + boxH - 72, lh: 40, size: 26, color: C.muted, maxW: cw ? 904 - cw - 24 : 600 } );
+			if ( ! cw ) { line( ctx, watermark(), { x: 992, top: bt + boxH - 70, lh: 36, size: 24, color: C.muted, align: 'right' } ); }
 		} else { /* headline */
 			rect( ctx, 0, 0, W, H, C.white );
 			var py = 470, pb = CH - 110;
@@ -1954,7 +2007,7 @@
 	templates.poem = { label: 'কবিতা', ad: true, photo: true, presets: { paper: 'কাগজ ও লতা', night: 'রাতের আকাশ', photo: 'ছবির ওপর', nodi: 'নদী ও নৌকা', shada: 'সাদা মিনিমাল' },
 		fields: [ 'label', 'title', 'author', 'poem', 'image', 'focus', 'zoom' ], draw: poem };
 	templates.news = { label: 'নিউজ কার্ড', ad: true, photo: true, presets: NEWS_PRESETS,
-		fields: [ 'title', 'category', 'date', 'image', 'focus', 'zoom' ], draw: news };
+		fields: [ 'title', 'category', 'date', 'image', 'focus', 'zoom', 'gallery[{image,focus,zoom}]', 'gallery_more' ], draw: news };
 	templates.birthday = { label: 'জন্মদিন', ad: true, photo: true, presets: { confetti: 'উৎসব', night: 'তারার রাত', balloon: 'বেলুন' },
 		fields: [ 'heading', 'name', 'role', 'message', 'image' ], draw: birthday };
 	templates.day = { label: 'দিবস', ad: true, photo: true, presets: ( function () { var o = {}; Object.keys( DAY ).forEach( function ( k ) { o[ k ] = DAY[ k ].label; } ); return o; }() ),
@@ -2025,6 +2078,7 @@
 			image: loadImage( data.image_fallback ? [ data.image, data.image_fallback ] : data.image ),
 			authorPhoto: false !== data.show_photo ? loadImage( data.author_photo ) : Promise.resolve( null ),
 			speakerPhoto: loadImage( data.speaker_photo ),
+			gallery: Array.isArray( data.gallery ) && data.gallery.length ? Promise.all( data.gallery.slice( 0, 3 ).map( function ( g ) { return loadImage( g && g.image ); } ) ) : Promise.resolve( [] ),
 			frameImg: loadImage( opts.frame ),
 			adImg: loadImage( adUrl ),
 			logoImg: 'image' === lg.mode && lg.url ? loadImage( [ lg.url, lg.fallback ] ) : Promise.resolve( null ),

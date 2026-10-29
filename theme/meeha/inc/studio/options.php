@@ -160,6 +160,8 @@ function meeha_studio_news_presets() {
 		'headline'     => 'বড় শিরোনাম',
 		'dheu'         => 'মিহা ঢেউ',
 		'dheubreaking' => 'ঢেউ ব্রেকিং',
+		'collage'      => 'ছবির কোলাজ', // 2.4.3: main photo + up to 3 gallery photos (publisher studio).
+		'chobi'        => 'বড় ছবি',
 	);
 }
 

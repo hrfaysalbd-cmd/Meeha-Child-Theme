@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { AdminPostsApi, PostsApi, ApiError, type AdminPostListRow, type PostListFilter } from '../lib/api'
 import { useAuth } from '../lib/AuthContext'
 import { Badge, Banner, Button, Card, EmptyState, PageHeader, Spinner, Table, Td, Th, bnNumber, inputClass } from '../components/ui'
-import { IconCoin, IconExternalLink, IconEye, IconPencil, IconTrash } from '../components/Icon'
+import { IconCoin, IconExternalLink, IconEye, IconPencil, IconPhoto, IconTrash } from '../components/Icon'
 import { DeleteConfirmModal, RowMenu } from '../components/PostManagement'
 import { NEED_PUBLISHER_PERMISSION, bnDateTime, bnTime, usePostPermissions } from '../lib/postMeta'
 
@@ -274,6 +274,8 @@ export default function Posts() {
                           ...(row.permalink
                             ? [{ label: 'সাইটে দেখুন', icon: <IconExternalLink className="w-4 h-4" />, href: row.permalink }]
                             : []),
+                          // Round 24 — straight into the studio with this post's words and photos.
+                          { label: 'ফটোকার্ড বানান', icon: <IconPhoto className="w-4 h-4" />, onClick: () => navigate(`/app/photocard?post=${row.id}`) },
                           {
                             label: 'ডিলিট করুন',
                             icon: <IconTrash className="w-4 h-4" />,

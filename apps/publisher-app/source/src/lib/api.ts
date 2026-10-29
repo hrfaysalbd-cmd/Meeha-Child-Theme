@@ -1798,3 +1798,209 @@ export async function downloadMediaFile(id: number, onProgress?: (loaded: number
   if (total && loaded < total) throw new ApiError('ফাইল পুরোটা নামানো যায়নি — সংযোগ দেখে আবার চেষ্টা করুন।', 0, 'nros_network', 'network', path)
   return new Blob(chunks as BlobPart[], { type: res.headers.get('Content-Type') || 'application/octet-stream' })
 }
+
+// ---- Round 24: ফটোকার্ড স্টুডিও (theme studio, bridged by newsroom-os 1.8.0) ----
+
+export interface CardDates {
+  weekday: string
+  gregorian: string
+  bangla: string
+  hijri: string
+}
+
+export interface CardFrame {
+  id: string
+  type: string
+  size: string
+  label: string
+  url: string
+  alpha: boolean
+  by: string
+  date: string
+  can_delete: boolean
+  readymade: boolean
+  warning?: string
+}
+
+export interface CardAd {
+  id: string
+  label: string
+  url: string
+}
+
+export interface CardTypeInfo {
+  label: string
+  presets: Record<string, string>
+  photo: boolean
+  ad: boolean
+}
+
+export interface StudioConfig {
+  types: Record<string, CardTypeInfo>
+  sizes: Record<string, string>
+  frames: CardFrame[]
+  canUpload: boolean
+  canManage: boolean
+  canSave: boolean
+  ads: CardAd[]
+  adDefault: boolean
+  today: string
+  now: string
+  dates: CardDates
+  hijriOffset: number
+  titles: string[]
+  condPre: string[]
+  defaults: Record<string, string>
+  categories: { id: number; name: string; color: string }[]
+  quoteFrames: Record<string, string>
+  maxBytes: number
+  days: { title: string; subtitle: string; theme: string; message: string }[]
+  newsDefault: string
+  litLabel: string
+  storyCta: string
+}
+
+export interface CardsLogo {
+  mode: 'vector' | 'image'
+  url?: string
+  fallback?: string
+  light?: { url: string; fallback?: string }
+}
+
+export interface PhotocardKit {
+  studio: boolean
+  theme_version: string
+  /** Theme 2.4.3+: the site's own "ফটোকার্ড ডাউনলোড" uses the saved photo position. */
+  focus_sync: boolean
+  site: string
+  cards?: {
+    logo: CardsLogo
+    brand?: { primary: string; accent: string }
+    newsDefault?: string
+    watermark?: string
+    cta?: string
+    storyCta?: string
+  }
+  studio_config?: StudioConfig
+}
+
+export interface CardFocus {
+  x: number
+  y: number
+  zoom: number
+}
+
+export interface CardImage {
+  id: number
+  url: string
+  thumb: string
+  width: number | null
+  height: number | null
+  alt: string
+  caption: string
+  featured: boolean
+  focus: CardFocus | null
+}
+
+export interface CardQuote {
+  id: number
+  text: string
+  speaker: string
+  role: string
+  type_label: string
+  frame: string
+  photo: string
+  year: string
+}
+
+export interface CardSource {
+  id: number
+  post_type: string
+  type: string
+  status: string
+  title: string
+  author_name: string
+  author_title: string
+  author_photo: string
+  category: string
+  category_id: number
+  category_color: string
+  kicker: string
+  permalink: string
+  image: string
+  image_id: number
+  excerpt: string
+  summary: string
+  date: string
+  date_short: string
+  time: string
+  is_breaking: boolean
+  quote?: CardQuote
+  lit_genre?: string
+  lit_label?: string
+  lit_writer?: string
+  poem_lines?: string[]
+  lit_excerpt?: string
+  images: CardImage[]
+}
+
+export interface CardRecent {
+  id: number
+  title: string
+  date: string
+  thumb: string
+  category: string
+  type: string
+}
+
+export interface MadeCard {
+  id: number
+  url: string
+  thumb: string
+  type: string
+  title: string
+  post_id: number | null
+  by: string
+  date: string
+}
+
+export const PhotocardApi = {
+  kit: () => request<PhotocardKit>('/admin/photocard/kit'),
+  source: (post: string | number) => request<CardSource>(`/admin/photocard/source?post=${encodeURIComponent(String(post))}`),
+  recent: (offset = 0, search = '') =>
+    request<{ items: CardRecent[]; per: number; more: boolean }>(
+      `/admin/photocard/recent?offset=${offset}${search ? `&search=${encodeURIComponent(search)}` : ''}`,
+    ),
+  quotes: (search = '', page = 1) =>
+    request<{ items: CardQuote[]; total: number; pages: number }>(
+      `/admin/photocard/quotes?page=${page}${search ? `&search=${encodeURIComponent(search)}` : ''}`,
+    ),
+  dates: (d: string, offset: number) => request<CardDates>(`/admin/photocard/dates?d=${encodeURIComponent(d)}&offset=${offset}`),
+  /** The bytes of one of the site's images (the canvas needs them same-origin). */
+  imageById: (id: number, size = 'large') => requestBlob(`/admin/photocard/file?id=${id}&size=${encodeURIComponent(size)}`),
+  imageByUrl: (url: string) => requestBlob(`/admin/photocard/file?url=${encodeURIComponent(url)}`),
+  saveFocus: (attachmentId: number, f: CardFocus) =>
+    request<{ ok: true; focus: CardFocus | null }>('/admin/photocard/focus', {
+      method: 'POST',
+      body: { attachment_id: attachmentId, x: f.x, y: f.y, zoom: f.zoom },
+    }),
+  save: (blob: Blob, filename: string, data: { type: string; title: string; alt?: string; post_id?: number }) => {
+    const form = new FormData()
+    form.append('file', blob, filename)
+    form.append('type', data.type)
+    form.append('title', data.title)
+    if (data.alt) form.append('alt', data.alt)
+    if (data.post_id) form.append('post_id', String(data.post_id))
+    return request<MadeCard>('/admin/photocard/save', { method: 'POST', body: form })
+  },
+  made: (page = 1, type = '') => request<{ items: MadeCard[]; total: number; pages: number }>(`/admin/photocard/made?page=${page}${type ? `&type=${type}` : ''}`),
+  uploadFrame: (file: File, data: { type: string; size: string; label: string }) => {
+    const form = new FormData()
+    form.append('file', file, file.name)
+    form.append('type', data.type)
+    form.append('size', data.size)
+    form.append('label', data.label)
+    return request<CardFrame>('/admin/photocard/frames', { method: 'POST', body: form })
+  },
+  deleteFrame: (id: string) => request<{ deleted: true }>(`/admin/photocard/frames/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+}

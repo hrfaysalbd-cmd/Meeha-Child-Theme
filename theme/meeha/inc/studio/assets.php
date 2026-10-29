@@ -157,6 +157,8 @@ function meeha_cards_news_payload( $post ) {
 			$opts['ad'] = $ad;
 		}
 	}
+	// 2.4.3: the photo position the publisher studio saved for this image (attachment meta `_meeha_card_focus`).
+	$focus = $img_id ? meeha_cards_image_focus( $img_id ) : null;
 	$summary = function_exists( 'meeha_get_summary' ) ? trim( wp_strip_all_tags( (string) meeha_get_summary( $post->ID ) ) ) : '';
 	return apply_filters(
 		'meeha_cards_news_payload',
@@ -168,6 +170,8 @@ function meeha_cards_news_payload( $post ) {
 				'date'     => wp_strip_all_tags( (string) $date ),
 				'image'    => $img ? esc_url_raw( $img ) : '',
 				'image_fallback' => ( $orig && $orig !== $img ) ? esc_url_raw( $orig ) : '',
+				'focus'    => $focus ? array( 'x' => $focus['x'], 'y' => $focus['y'] ) : array( 'x' => 50, 'y' => 50 ),
+				'zoom'     => $focus ? $focus['zoom'] : 1,
 			),
 			'opts'     => $opts,
 			'filename' => 'meeha-news-' . get_the_date( 'Ymd', $post ) . '-' . $post->ID . '.png',
@@ -177,6 +181,25 @@ function meeha_cards_news_payload( $post ) {
 			'title'    => $title,
 		),
 		$post
+	);
+}
+
+/**
+ * Saved card position of an image: `_meeha_card_focus` = { x: 0–100, y: 0–100, zoom: 1–3 } (written by the
+ * publisher app's ফটোকার্ড স্টুডিও through newsroom-os), or null.
+ *
+ * @param int $attachment_id Attachment.
+ * @return array|null x, y, zoom
+ */
+function meeha_cards_image_focus( $attachment_id ) {
+	$f = get_post_meta( (int) $attachment_id, '_meeha_card_focus', true );
+	if ( ! is_array( $f ) || ! isset( $f['x'], $f['y'] ) ) {
+		return null;
+	}
+	return array(
+		'x'    => max( 0, min( 100, round( (float) $f['x'], 1 ) ) ),
+		'y'    => max( 0, min( 100, round( (float) $f['y'], 1 ) ) ),
+		'zoom' => max( 1, min( 3, round( isset( $f['zoom'] ) ? (float) $f['zoom'] : 1, 2 ) ) ),
 	);
 }
 

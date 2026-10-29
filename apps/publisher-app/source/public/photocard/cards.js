@@ -1,0 +1,2353 @@
+/*!
+ * cards.js — মিহা নিউজ ফটোকার্ড রেন্ডারার (Canvas 2D, no dependencies).
+ * Geometry = DESIGN-SPEC.md §15.4 (1080 × 1080, 1080 × 1350, 1200 × 630, with/without ad strip).
+ *
+ *   MeehaCards.render( type, data, opts ) → Promise<HTMLCanvasElement>
+ *   MeehaCards.download( canvas, filename, mime ) → Promise
+ *   MeehaCards.templates  (registry: label, presets, sizes, ad, fields)
+ *
+ * Usable in wp-admin (studio) and on the front end (quote "ছবি ডাউনলোড", post "ফটোকার্ড ডাউনলোড").
+ * Config: window.MeehaCardsConfig = { base, fonts:{serif,sans,sans600}, logo:{mode,url,fallback,light:{url,fallback}},
+ *   watermark, cta, frames } — printed by PHP (studio) or passed with MeehaCards.configure( payload.config ) by the front
+ *   end; the script URL is only a last-resort guess (LiteSpeed & co. may combine/move JS).
+ *   MeehaCards.preview( payload, { opener, onDownload } ) → native <dialog> preview (ডাউনলোড / ছবি কপি / ক্যাপশন কপি).
+ */
+( function ( root ) {
+	'use strict';
+
+	var doc = root.document;
+	var SCRIPT = doc && doc.currentScript ? doc.currentScript.src : '';
+	var noop = function () {};
+
+	var LOGO_D = [
+		'M1.1 40V37.9H2.1Q2.9 37.9 3.5 37.7Q4.2 37.5 4.5 36.9Q4.8 36.4 4.8 35.5V16Q4.8 15 4.5 14.5Q4.2 14 3.6 13.8Q3.1 13.6 2.5 13.6H1.1V11.4H12.6L19.3 30.7L25.6 11.4H37V13.6H35.5Q35 13.6 34.4 13.8Q33.9 14 33.6 14.5Q33.3 15 33.3 15.9V35.6Q33.3 36.4 33.6 36.9Q33.9 37.4 34.4 37.7Q35 37.9 35.8 37.9H37V40H24.2V37.9H24.6Q25.4 37.9 26 37.7Q26.5 37.4 26.8 36.9Q27.1 36.4 27.1 35.4V15.4L19 40H16.3L7.8 15.4V35.3Q7.8 36.4 8.2 37Q8.6 37.5 9.2 37.7Q9.9 37.9 10.8 37.9H11.1V40ZM49.7 40.4Q44.6 40.4 42 37.5Q39.4 34.6 39.4 29.4Q39.4 23.8 42 20.9Q44.6 18 49.3 18Q53.6 18 56.1 20.5Q58.6 22.9 58.6 27.7V29.7H45.5Q45.6 33.7 47 35.6Q48.4 37.4 51.1 37.4Q53.2 37.4 54.5 36.4Q55.8 35.5 56.5 34.1Q57 34.2 57.4 34.7Q57.8 35.2 57.8 35.8Q57.8 36.9 57 37.9Q56.2 39 54.4 39.7Q52.6 40.4 49.7 40.4ZM52.5 27.2Q52.5 24.1 51.8 22.4Q51.1 20.6 49.4 20.6Q47.7 20.6 46.7 22.3Q45.7 24 45.6 27.2ZM72 40.4Q66.9 40.4 64.3 37.5Q61.6 34.6 61.6 29.4Q61.6 23.8 64.2 20.9Q66.8 18 71.6 18Q75.9 18 78.4 20.5Q80.9 22.9 80.9 27.7V29.7H67.8Q67.9 33.7 69.3 35.6Q70.7 37.4 73.4 37.4Q75.4 37.4 76.8 36.4Q78.1 35.5 78.8 34.1Q79.3 34.2 79.7 34.7Q80.1 35.2 80.1 35.8Q80.1 36.9 79.3 37.9Q78.4 39 76.7 39.7Q74.9 40.4 72 40.4ZM74.8 27.2Q74.8 24.1 74.1 22.4Q73.4 20.6 71.6 20.6Q70 20.6 69 22.3Q68 24 67.9 27.2ZM82.8 40V37.9H83Q83.9 37.9 84.6 37.7Q85.2 37.5 85.6 36.9Q86 36.3 86 35.1V14.2Q86 13.1 85.6 12.6Q85.1 12 84.4 11.9Q83.8 11.7 83.2 11.7H82.7V9.6H92.1V16.5Q92.1 17.4 92.1 18.4Q92.1 19.3 92 20.1Q92 20.8 92 21.3H92.2Q92.8 20.3 93.5 19.6Q94.3 18.9 95.5 18.5Q96.6 18 98.2 18Q101.5 18 103.2 19.9Q104.9 21.7 104.9 25.8V35Q104.9 36.3 105.2 36.9Q105.5 37.5 106.1 37.7Q106.7 37.9 107.6 37.9H107.7V40H98.8V26.8Q98.8 24.3 98.1 22.9Q97.4 21.4 95.6 21.4Q94.3 21.4 93.5 22.3Q92.8 23.2 92.5 24.6Q92.2 26 92.2 27.6V35.3Q92.2 36.4 92.5 36.9Q92.8 37.5 93.5 37.7Q94.1 37.9 95 37.9H95.1V40ZM116.2 40.4Q114.4 40.4 113 39.7Q111.6 39 110.8 37.5Q109.9 36.1 109.9 33.9Q109.9 30.6 112.1 29.1Q114.4 27.5 118.9 27.4L122.2 27.2V25Q122.2 23.6 121.9 22.6Q121.7 21.6 121.1 21Q120.5 20.5 119.4 20.5Q118.4 20.5 117.8 21Q117.2 21.5 116.9 22.5Q116.6 23.4 116.6 24.8Q114.1 24.8 112.9 24.2Q111.6 23.6 111.6 22.1Q111.6 20.6 112.7 19.7Q113.8 18.8 115.7 18.4Q117.6 18 119.8 18Q124 18 126.1 19.6Q128.2 21.1 128.2 24.8V35Q128.2 36.2 128.5 36.8Q128.7 37.4 129.2 37.6Q129.8 37.9 130.6 37.9H130.8V40H123.4L122.5 37.2H122.2Q121.3 38.3 120.5 39Q119.7 39.7 118.7 40.1Q117.7 40.4 116.2 40.4ZM118.4 37.5Q119.6 37.5 120.4 36.8Q121.2 36.2 121.7 35.1Q122.2 33.9 122.2 32.4V29.4L120.4 29.5Q118.8 29.6 117.8 30.1Q116.9 30.6 116.5 31.6Q116.1 32.6 116.1 34Q116.1 35.2 116.4 35.9Q116.6 36.7 117.1 37.1Q117.6 37.5 118.4 37.5Z',
+		'M168.7 40H161.9L148.7 17.8H148.6Q148.6 18.8 148.7 20Q148.8 21.3 148.8 22.7Q148.9 24.1 148.9 25.4V40H144V11.4H150.8L163.9 33.4H164.1Q164 32.7 164 31.4Q163.9 30.2 163.8 28.7Q163.8 27.3 163.8 26.2V11.4H168.7ZM184.1 17.9Q187 17.9 189.2 19Q191.3 20.2 192.5 22.4Q193.6 24.6 193.6 27.7V30.4H179.4Q179.4 33.2 181 34.8Q182.5 36.4 185.4 36.4Q187.4 36.4 189 36Q190.7 35.6 192.4 34.8V38.9Q190.8 39.7 189.1 40Q187.4 40.4 184.9 40.4Q181.7 40.4 179.2 39.2Q176.8 38 175.4 35.5Q174 33 174 29.3Q174 25.6 175.2 23Q176.5 20.5 178.8 19.2Q181.1 17.9 184.1 17.9ZM184.2 21.8Q182.2 21.8 180.9 23Q179.7 24.3 179.5 26.8H188.5Q188.5 25.3 188 24.2Q187.6 23 186.6 22.4Q185.6 21.8 184.2 21.8ZM213.4 28.9Q213.2 27.9 212.9 26.7Q212.6 25.5 212.4 24.5Q212.2 23.4 212.1 22.8H212Q211.9 23.4 211.7 24.5Q211.4 25.5 211.2 26.7Q210.9 28 210.6 29.1L207.4 40H201.7L195.7 18.2H201L203.5 28.4Q203.8 29.5 204 30.7Q204.3 31.9 204.5 33.1Q204.7 34.3 204.7 35.2H204.9Q205 34.6 205.1 33.7Q205.3 32.8 205.5 31.9Q205.6 31 205.8 30.2L206.2 29L209.2 18.2H215L217.9 29Q218.2 29.9 218.4 31Q218.7 32.1 218.9 33.2Q219.2 34.3 219.2 35.2H219.4Q219.5 34.3 219.7 33.1Q219.8 32 220.1 30.7Q220.4 29.4 220.6 28.4L223.2 18.2H228.4L222.4 40H216.5ZM246.8 33.7Q246.8 35.8 245.8 37.3Q244.8 38.8 242.8 39.6Q240.8 40.4 237.9 40.4Q235.6 40.4 233.9 40.1Q232.1 39.8 230.6 39.1V34.6Q232.2 35.4 234.2 35.9Q236.2 36.4 237.8 36.4Q239.8 36.4 240.8 35.8Q241.8 35.2 241.8 34.1Q241.8 33.4 241.3 32.9Q240.9 32.4 239.8 31.8Q238.7 31.3 236.7 30.5Q234.7 29.7 233.4 28.9Q232 28 231.3 26.9Q230.6 25.7 230.6 23.9Q230.6 21 232.9 19.4Q235.2 17.9 239.1 17.9Q241.1 17.9 242.9 18.3Q244.7 18.7 246.5 19.5L244.9 23.2Q243.4 22.6 241.8 22.1Q240.3 21.7 239 21.7Q237.4 21.7 236.5 22.2Q235.6 22.7 235.6 23.6Q235.6 24.3 236.1 24.8Q236.5 25.2 237.6 25.8Q238.7 26.3 240.7 27Q242.6 27.8 244 28.6Q245.4 29.5 246.1 30.7Q246.8 31.9 246.8 33.7Z'
+	];
+
+	var C = {
+		blue: '#025AB2', blue900: '#0B2746', red: '#CC2A1F', ink: '#142030', text: '#2A3442', muted: '#5B6676',
+		line: '#DFE4EA', white: '#FFFFFF', sun: '#F2A33A', tint: '#CFE3F8'
+	};
+	var FAM = {
+		serif: '"MeehaCard Serif", "Meeha Serif", "Noto Serif Bengali", "Kohinoor Bangla", "Nirmala UI", serif',
+		sans: '"MeehaCard Sans", "Meeha Sans", "Noto Sans Bengali", "Kohinoor Bangla", "Nirmala UI", sans-serif',
+		georgia: 'Georgia, "Times New Roman", "DejaVu Serif", serif',
+		lit: '"MeehaCard Literary", "Meeha Literary", "Tiro Bangla", "Noto Serif Bengali", "Kohinoor Bangla", serif'
+	};
+	var SIZES = {
+		'1080x1080': [ 1080, 1080 ], '1080x1350': [ 1080, 1350 ], '1200x630': [ 1200, 630 ], '1080x1920': [ 1080, 1920 ],
+		square: [ 1080, 1080 ], portrait: [ 1080, 1350 ], landscape: [ 1200, 630 ], story: [ 1080, 1920 ]
+	};
+	var STRIP_H = 120;
+
+	/* quote frames: per-type colours (DESIGN-SPEC §15.4 · 5) */
+	var QUOTE = {
+		politics:   { bg: '#0D2747', ink: '#FFFFFF', accent: '#8FC2F7', align: 'left', label: 'রাজনীতি' },
+		faith:      { bg: '#0E3A35', ink: '#F6EEDC', accent: '#D8B567', align: 'center', label: 'ধর্ম ও আধ্যাত্মিক' },
+		literature: { bg: '#F7F1E3', ink: '#2D2A25', accent: '#1D4F91', align: 'center', label: 'সাহিত্য' },
+		inspire:    { bg: '#F4A73B', ink: '#2A1606', accent: '#6B2A08', align: 'left', label: 'অনুপ্রেরণা' },
+		history:    { bg: '#E8DAB9', ink: '#3B2914', accent: '#8A4B1E', align: 'left', label: 'ইতিহাস' },
+		sports:     { bg: '#11553A', ink: '#FFFFFF', accent: '#F3D34A', align: 'left', label: 'খেলা' },
+		opinion:    { bg: '#025AB2', ink: '#FFFFFF', accent: '#CFE3F8', align: 'left', label: 'মতামত' }
+	};
+
+	function cfg() { return root.MeehaCardsConfig || {}; }
+	function base() {
+		var c = cfg();
+		if ( c.base ) { return /\/$/.test( c.base ) ? c.base : c.base + '/'; }
+		var m = SCRIPT.match( /^(.*\/)assets\/(?:js|dist)\/[^\/]*$/ );
+		return m ? m[ 1 ] : '';
+	}
+	function str( v ) { return ( null === v || undefined === v ) ? '' : String( v ).replace( /\s+/g, ' ' ).trim(); }
+	function strKeepNl( v ) {
+		return ( null === v || undefined === v ) ? '' : String( v ).replace( /\r\n?/g, '\n' ).replace( /[ \t  ]+/g, ' ' ).replace( / *\n */g, '\n' ).trim();
+	}
+
+	/* ------------------------------------------------------------------ fonts */
+	var fontsPromise = null;
+	function loadFonts() {
+		if ( fontsPromise ) { return fontsPromise; }
+		var c = cfg(), f = c.fonts || {}, b = base(), jobs = [];
+		var files = [
+			[ 'MeehaCard Serif', f.serif || b + 'assets/fonts/meeha-serif-bn-700.woff2', '700' ],
+			[ 'MeehaCard Sans', f.sans || b + 'assets/fonts/meeha-sans-bn-400.woff2', '400' ],
+			[ 'MeehaCard Sans', f.sans600 || b + 'assets/fonts/meeha-sans-bn-600.woff2', '600' ],
+			[ 'MeehaCard Literary', f.lit || b + 'assets/fonts/meeha-literary-bn-400.woff2', '400' ]
+		];
+		if ( root.FontFace && doc.fonts ) {
+			files.forEach( function ( x ) {
+				try {
+					var ff = new root.FontFace( x[ 0 ], 'url("' + x[ 1 ] + '") format("woff2")', { weight: x[ 2 ], style: 'normal' } );
+					doc.fonts.add( ff );
+					jobs.push( ff.load().catch( noop ) );
+				} catch ( e ) { /* ignore */ }
+			} );
+			/* the theme's own faces (A: tokens.css) — harmless if absent */
+			[ '700 80px "Meeha Serif"', '400 30px "Meeha Sans"', '600 30px "Meeha Sans"' ].forEach( function ( q ) {
+				try { jobs.push( doc.fonts.load( q, 'অআ' ).catch( noop ) ); } catch ( e ) { /* ignore */ }
+			} );
+		}
+		fontsPromise = Promise.all( jobs ).then( noop, noop );
+		return fontsPromise;
+	}
+
+	/* ------------------------------------------------------------------ images */
+	var imgCache = {};
+	/* Same-origin variant of a CDN / WebP-rewritten upload URL: https://cdn.x/wp-content/uploads/a.jpg(.webp) →
+	   {this site}/wp-content/uploads/a.jpg. '' when the URL is already a plain same-origin file. */
+	function sameOriginVariant( src ) {
+		if ( /^(data|blob):/i.test( src ) ) { return ''; }
+		try {
+			var u = new URL( src, root.location.href ), path = u.pathname.replace( /(\.(?:jpe?g|png|gif))\.webp$/i, '$1' );
+			if ( u.origin === root.location.origin && path === u.pathname ) { return ''; }
+			return root.location.origin + path + u.search;
+		} catch ( e ) { return ''; }
+	}
+	function loadOne( src ) {
+		if ( imgCache[ src ] ) { return imgCache[ src ]; }
+		imgCache[ src ] = new Promise( function ( resolve ) {
+			var img = new Image();
+			/* always CORS mode: a cross-origin (or redirected) image without CORS fails here instead of tainting
+			   the canvas, and the next candidate is tried */
+			if ( ! /^(data|blob):/i.test( src ) ) { img.crossOrigin = 'anonymous'; }
+			img.decoding = 'async';
+			img.onload = function () { resolve( img ); };
+			img.onerror = function () { delete imgCache[ src ]; resolve( null ); };
+			img.src = src;
+		} );
+		return imgCache[ src ];
+	}
+	/* src: URL | [URL, fallback…] | {url, fallback} | <img>/canvas. Candidates are tried in order, then their
+	   same-origin variants (CDN host / .webp suffix dropped). */
+	function loadImage( src ) {
+		if ( ! src ) { return Promise.resolve( null ); }
+		if ( typeof src === 'object' && ! Array.isArray( src ) && ( src.naturalWidth || src.width ) ) { return Promise.resolve( src ); }
+		var list = Array.isArray( src ) ? src : ( typeof src === 'object' ? [ src.url, src.fallback ] : [ src ] );
+		list = list.filter( function ( x ) { return !! x && 'string' === typeof x; } );
+		list.slice().forEach( function ( x ) { var v = sameOriginVariant( x ); if ( v ) { list.push( v ); } } );
+		list = list.filter( function ( x, i ) { return list.indexOf( x ) === i; } );
+		return list.reduce( function ( p, x ) { return p.then( function ( img ) { return img || loadOne( x ); } ); }, Promise.resolve( null ) );
+	}
+
+	/* ------------------------------------------------------------------ text */
+	function fontStr( w, size, fam ) { return w + ' ' + size + 'px ' + FAM[ fam || 'sans' ]; }
+	var vmCache = {};
+	/* CSS line box: the content area (ascent + descent) is centred in the line height. */
+	function baseline( ctx, top, lineH ) {
+		var k = ctx.font, m = vmCache[ k ];
+		if ( ! m ) {
+			var t = ctx.measureText( 'অকিগ্রMy' ), asc, desc, size = parseFloat( ( k.match( /(\d+(?:\.\d+)?)px/ ) || [ 0, 30 ] )[ 1 ] );
+			if ( t.fontBoundingBoxAscent ) { asc = t.fontBoundingBoxAscent; desc = t.fontBoundingBoxDescent; } else { asc = size * 1.07; desc = size * 0.53; }
+			m = vmCache[ k ] = { asc: asc, desc: desc };
+		}
+		return Math.round( top + ( lineH - ( m.asc + m.desc ) ) / 2 + m.asc );
+	}
+	function width( ctx, s ) { return ctx.measureText( unmark( s ) ).width; }
+	/* **শব্দ** = highlighted words (মতামত / উক্তি / সাহিত্য); the markers are never drawn */
+	function unmark( s ) { return String( s ).replace( /\*\*/g, '' ); }
+	function firstGrapheme( s ) {
+		s = str( s );
+		if ( ! s ) { return ''; }
+		if ( root.Intl && Intl.Segmenter ) {
+			try { var it = new Intl.Segmenter( 'bn', { granularity: 'grapheme' } ).segment( s )[ Symbol.iterator ]().next(); if ( it && it.value ) { return it.value.segment; } } catch ( e ) { /* ignore */ }
+		}
+		var m = s.match( /^[ঀ-৿](?:[ঁ-ঃ়া-ৌৗ]|্[ক-হ])*/ );
+		return m ? m[ 0 ] : Array.from( s )[ 0 ];
+	}
+	function graphemes( s ) {
+		if ( root.Intl && Intl.Segmenter ) {
+			try { return Array.from( new Intl.Segmenter( 'bn', { granularity: 'grapheme' } ).segment( s ), function ( x ) { return x.segment; } ); } catch ( e ) { /* ignore */ }
+		}
+		return s.match( /[\s\S](?:[ঁ-ঃ়া-্ৗ‌‍]|্[ক-হ])*/g ) || [];
+	}
+	/* Truncate with "…" so it fits maxW: drop whole words first, graphemes only for a single overlong word. */
+	function ellipsize( ctx, s, maxW ) {
+		if ( width( ctx, s ) <= maxW ) { return s; }
+		var words = s.split( ' ' );
+		while ( words.length > 1 ) {
+			words.pop();
+			var t = words.join( ' ' ).replace( /[\s,;:।\-–—]+$/, '' ) + '…';
+			if ( width( ctx, t ) <= maxW ) { return t; }
+		}
+		var g = graphemes( words[ 0 ] || '' );
+		while ( g.length > 1 ) { g.pop(); if ( width( ctx, g.join( '' ) + '…' ) <= maxW ) { return g.join( '' ) + '…'; } }
+		return '…';
+	}
+	/* tokens: words split on spaces only (ZWJ/ZWNJ/NBSP never split); '\n' = forced break */
+	function tokens( s ) {
+		var out = [];
+		strKeepNl( s ).split( '\n' ).forEach( function ( para, i ) {
+			if ( i ) { out.push( '\n' ); }
+			para.split( ' ' ).forEach( function ( w ) { if ( w ) { out.push( w ); } } );
+		} );
+		return out;
+	}
+	function wrapGreedy( wds, ws, sp, maxW ) {
+		var lines = [], cur = [], cw = 0, over = false;
+		for ( var i = 0; i < wds.length; i++ ) {
+			if ( '\n' === wds[ i ] ) { lines.push( cur ); cur = []; cw = 0; continue; }
+			var w = ws[ i ];
+			if ( w > maxW ) { over = true; }
+			if ( cur.length && cw + sp + w > maxW ) { lines.push( cur ); cur = [ i ]; cw = w; } else { cw += ( cur.length ? sp : 0 ) + w; cur.push( i ); }
+		}
+		if ( cur.length || ! lines.length ) { lines.push( cur ); }
+		return { lines: lines, over: over };
+	}
+	/* balance: exactly n lines (n = greedy count), every line ≤ maxW, minimise Σ(target − width)² so the lines are
+	   as even as possible (no single-word last line); ties prefer longer upper lines. Forced breaks → greedy at the
+	   narrowest measure that keeps n lines. */
+	function balanceLines( wds, ws, sp, maxW, n ) {
+		var i, j, k;
+		if ( wds.indexOf( '\n' ) > -1 ) {
+			var lo = maxW * 0.45, hi = maxW, best = null;
+			for ( k = 0; k < 14; k++ ) { var mid = ( lo + hi ) / 2, t = wrapGreedy( wds, ws, sp, mid ); if ( ! t.over && t.lines.length <= n ) { hi = mid; best = t.lines; } else { lo = mid; } }
+			return best;
+		}
+		var N = wds.length, total = 0;
+		for ( i = 0; i < N; i++ ) { total += ws[ i ]; }
+		total += sp * ( N - 1 );
+		var target = total / n, INF = 1e18;
+		var lw = function ( a, b ) { var w = sp * ( b - a - 1 ); for ( var q = a; q < b; q++ ) { w += ws[ q ]; } return w; };
+		/* cost[l][j] = best cost to set words [0,j) on l lines */
+		var cost = [], from = [];
+		for ( k = 0; k <= n; k++ ) { cost.push( new Array( N + 1 ).fill( INF ) ); from.push( new Array( N + 1 ).fill( -1 ) ); }
+		cost[ 0 ][ 0 ] = 0;
+		for ( k = 1; k <= n; k++ ) {
+			for ( j = k; j <= N; j++ ) {
+				for ( i = k - 1; i < j; i++ ) {
+					if ( cost[ k - 1 ][ i ] >= INF ) { continue; }
+					var w = lw( i, j );
+					if ( w > maxW ) { continue; }
+					var d = target - w, c = cost[ k - 1 ][ i ] + d * d + ( k < n && w < target ? 0.15 * d * d : 0 );
+					if ( c < cost[ k ][ j ] ) { cost[ k ][ j ] = c; from[ k ][ j ] = i; }
+				}
+			}
+		}
+		if ( cost[ n ][ N ] >= INF ) { return null; }
+		var lines = [], e = N;
+		for ( k = n; k > 0; k-- ) { var st = from[ k ][ e ], l = []; for ( i = st; i < e; i++ ) { l.push( i ); } lines.unshift( l ); e = st; }
+		return lines;
+	}
+	/* fit( text, box{x,y,w,h}, maxLines, sizeMax, sizeMin, lh ) — DESIGN-SPEC §15.3 */
+	function fit( ctx, text, s ) {
+		var wds = tokens( text ), step = s.step || 2, size, res = null;
+		var lhOf = function ( sz ) { return s.lhPx ? Math.round( s.lhPx * sz / s.max ) : Math.round( sz * ( s.lh || 1.375 ) ); };
+		if ( ! wds.length ) { return { size: s.max, lineH: lhOf( s.max ), lines: [] }; }
+		for ( size = s.max; size >= s.min; size -= step ) {
+			ctx.font = fontStr( s.weight || 700, size, s.fam || 'serif' );
+			var ws = wds.map( function ( w ) { return '\n' === w ? 0 : width( ctx, w ); } ), sp = width( ctx, ' ' );
+			var g = wrapGreedy( wds, ws, sp, s.w ), lineH = lhOf( size ), n = g.lines.length;
+			if ( ! g.over && n <= s.maxLines && ( ! s.h || n * lineH <= s.h ) ) {
+				var best = g.lines;
+				if ( n > 1 && false !== s.balance ) { best = balanceLines( wds, ws, sp, s.w, n ) || g.lines; }
+				res = { size: size, lineH: lineH, lines: best.map( function ( l ) { return l.map( function ( i ) { return wds[ i ]; } ).join( ' ' ); } ) };
+				break;
+			}
+			if ( size - step < s.min && size !== s.min ) { size = s.min + step; }
+		}
+		if ( ! res ) {
+			/* at sizeMin still too long → keep what fits, ellipsize the last line */
+			size = s.min;
+			ctx.font = fontStr( s.weight || 700, size, s.fam || 'serif' );
+			var ws2 = wds.map( function ( w ) { return '\n' === w ? 0 : width( ctx, w ); } ), sp2 = width( ctx, ' ' );
+			var lineH2 = lhOf( size ), maxN = s.maxLines;
+			if ( s.h ) { maxN = Math.max( 1, Math.min( maxN, Math.floor( s.h / lineH2 ) ) ); }
+			var g2 = wrapGreedy( wds, ws2, sp2, s.w ).lines;
+			var lines = g2.slice( 0, maxN ).map( function ( l ) { return l.map( function ( i ) { return wds[ i ]; } ).join( ' ' ); } );
+			var rest = g2.slice( maxN - 1 ).map( function ( l ) { return l.map( function ( i ) { return wds[ i ]; } ).join( ' ' ); } ).join( ' ' );
+			lines[ lines.length - 1 ] = ellipsize( ctx, g2.length > maxN ? rest + ' …' : rest, s.w );
+			lines = lines.map( function ( l ) { return width( ctx, l ) > s.w ? ellipsize( ctx, l, s.w ) : l; } );
+			res = { size: size, lineH: lineH2, lines: lines, truncated: true };
+		}
+		res.weight = s.weight || 700; res.fam = s.fam || 'serif';
+		return res;
+	}
+	/* draw a fit() result: valign top|middle|bottom inside {y,h} or from s.bottom */
+	function drawFit( ctx, r, s ) {
+		ctx.font = fontStr( r.weight, r.size, r.fam );
+		ctx.fillStyle = s.color;
+		ctx.textAlign = s.align || 'left';
+		ctx.textBaseline = 'alphabetic';
+		var total = r.lines.length * r.lineH, top;
+		if ( undefined !== s.bottom ) { top = s.bottom - total; } else if ( 'middle' === s.valign ) { top = s.y + ( s.h - total ) / 2; } else { top = s.y; }
+		top = Math.round( top );
+		var x = 'center' === s.align ? s.x + s.w / 2 : ( 'right' === s.align ? s.x + s.w : s.x );
+		var on = false;
+		r.lines.forEach( function ( l, i ) {
+			var by = baseline( ctx, top + i * r.lineH, r.lineH );
+			if ( l.indexOf( '**' ) < 0 ) {
+				ctx.fillStyle = on && s.hi ? s.hi : s.color;
+				ctx.fillText( l, Math.round( x ), by );
+				return;
+			}
+			/* segments: toggled by ** (a highlight may run across lines) */
+			var parts = l.split( '**' ), lx = x - ( 'center' === s.align ? width( ctx, l ) / 2 : ( 'right' === s.align ? width( ctx, l ) : 0 ) );
+			ctx.textAlign = 'left';
+			parts.forEach( function ( p, j ) {
+				if ( j ) { on = ! on; }
+				if ( ! p ) { return; }
+				var pw = ctx.measureText( p ).width;
+				if ( on && s.hiBg ) { ctx.fillStyle = s.hiBg; ctx.fillRect( Math.round( lx - 4 ), Math.round( by - r.size * 0.78 ), Math.round( pw + 8 ), Math.round( r.size * 1.02 ) ); }
+				ctx.fillStyle = on && s.hi ? s.hi : s.color;
+				ctx.fillText( p, Math.round( lx ), by );
+				lx += pw;
+			} );
+			ctx.textAlign = s.align || 'left';
+		} );
+		return { top: top, bottom: top + total };
+	}
+	/* one line: shrink max→min to fit maxW, then ellipsis. align: left (x) | right (x = right edge) | center (x = centre) */
+	function line( ctx, text, s ) {
+		text = unmark( str( text ) );
+		if ( ! text ) { return 0; }
+		var size = s.size, min = s.min || s.size;
+		ctx.font = fontStr( s.weight || 400, size, s.fam || 'sans' );
+		if ( s.maxW ) {
+			while ( size > min && width( ctx, text ) > s.maxW ) { size -= 2; if ( size < min ) { size = min; } ctx.font = fontStr( s.weight || 400, size, s.fam || 'sans' ); }
+			if ( width( ctx, text ) > s.maxW ) { text = ellipsize( ctx, text, s.maxW ); }
+		}
+		ctx.fillStyle = s.color;
+		ctx.textAlign = s.align || 'left';
+		ctx.textBaseline = 'alphabetic';
+		ctx.fillText( text, Math.round( s.x ), baseline( ctx, s.top, s.lh ) );
+		return width( ctx, text );
+	}
+
+	/* ------------------------------------------------------------------ shapes */
+	function rect( ctx, x, y, w, h, color ) { ctx.fillStyle = color; ctx.fillRect( x, y, w, h ); }
+	function rrect( ctx, x, y, w, h, r ) {
+		ctx.beginPath(); ctx.moveTo( x + r, y ); ctx.arcTo( x + w, y, x + w, y + h, r ); ctx.arcTo( x + w, y + h, x, y + h, r );
+		ctx.arcTo( x, y + h, x, y, r ); ctx.arcTo( x, y, x + w, y, r ); ctx.closePath();
+	}
+	/* CSS linear-gradient(angle) over a W×H box at (x,y) */
+	function cssLinear( ctx, deg, x, y, w, h, stops ) {
+		var a = deg * Math.PI / 180, dx = Math.sin( a ), dy = -Math.cos( a );
+		var len = Math.abs( w * dx ) + Math.abs( h * dy ), cx = x + w / 2, cy = y + h / 2;
+		var g = ctx.createLinearGradient( cx - dx * len / 2, cy - dy * len / 2, cx + dx * len / 2, cy + dy * len / 2 );
+		stops.forEach( function ( s ) { g.addColorStop( s[ 0 ], s[ 1 ] ); } );
+		return g;
+	}
+	var NO_VF = false; /* a রেডিমেড নকশা brings its own corners and tags: the stock camera corners stay off */
+	function viewfinder( ctx, x, y, corner, color, arm, stroke ) {
+		if ( NO_VF ) { return; }
+		arm = arm || 56; stroke = stroke || 6;
+		ctx.fillStyle = color;
+		if ( 'tl' === corner ) { ctx.fillRect( x, y, arm, stroke ); ctx.fillRect( x, y, stroke, arm ); } else { ctx.fillRect( x, y + arm - stroke, arm, stroke ); ctx.fillRect( x + arm - stroke, y, stroke, arm ); }
+	}
+	function sunMark( ctx, x, y ) {
+		if ( ! root.Path2D ) { return; }
+		ctx.save(); ctx.translate( x, y );
+		ctx.fillStyle = C.sun; ctx.fill( new Path2D( 'M8 40a28 28 0 0 1 56 0z' ) );
+		ctx.strokeStyle = C.sun; ctx.lineCap = 'round'; ctx.lineWidth = 4; ctx.stroke( new Path2D( 'M36 2v6M10 12l4 4M62 12l-4 4M0 30h4M68 30h4' ) );
+		ctx.lineCap = 'butt'; ctx.lineWidth = 3; ctx.stroke( new Path2D( 'M0 42h72' ) );
+		ctx.restore();
+	}
+	function ribbon( ctx, x, y, color, scale ) {
+		if ( ! root.Path2D ) { return; }
+		ctx.save(); ctx.translate( x, y ); if ( scale ) { ctx.scale( scale, scale ); }
+		ctx.fillStyle = color;
+		ctx.fill( new Path2D( 'M42 6C24 6 20 30 33 48L14 92l14-4 6 12 8-40 8 40 6-12 14 4-19-44C64 30 60 6 42 6zm0 11c9 0 11 13 5 23l-5 7-5-7c-6-10-4-23 5-23z' ), 'evenodd' );
+		ctx.restore();
+	}
+	/* logo: bundled vector (viewBox -2 6 252 44) in any colour, or the site's custom_logo image (contain) */
+	var logoPaths = null;
+	/* relative luminance of #rgb/#rrggbb (0 dark … 1 light); the vector logo colour tells the background:
+	   a light logo colour means the logo sits on a dark background */
+	function lum( hex ) {
+		var m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec( String( hex || '' ) );
+		if ( ! m ) { return 0; }
+		var h = 3 === m[ 1 ].length ? m[ 1 ].replace( /./g, '$&$&' ) : m[ 1 ];
+		var c = [ 0, 2, 4 ].map( function ( i ) { var v = parseInt( h.substr( i, 2 ), 16 ) / 255; return v <= 0.03928 ? v / 12.92 : Math.pow( ( v + 0.055 ) / 1.055, 2.4 ); } );
+		return 0.2126 * c[ 0 ] + 0.7152 * c[ 1 ] + 0.0722 * c[ 2 ];
+	}
+	function logo( ctx, x, top, w, color, align, A ) {
+		var s = w / 252, h = 44 * s;
+		if ( 'right' === align ) { x -= w; } else if ( 'center' === align ) { x -= w / 2; }
+		if ( A && A.logoImg ) {
+			/* site logo image: always on a white rounded plate (clear on white, blue or photo backgrounds); only a
+			   configured light logo on a dark background is drawn without the plate */
+			var dark = lum( color ) > 0.4, plate = ! ( dark && A.logoLight ), im = dark && A.logoLight ? A.logoLight : A.logoImg;
+			var iw = im.naturalWidth || im.width || 300, ih = im.naturalHeight || im.height || 80; /* SVG without intrinsic size */
+			var px = plate ? Math.round( h * 0.34 ) : 0, py = plate ? Math.round( h * 0.2 ) : 0;
+			var r = Math.min( ( w - 2 * px ) / iw, ( h * 1.15 ) / ih ), dw = iw * r, dh = ih * r;
+			var lx = 'right' === align ? x + w - dw - px : ( 'center' === align ? x + ( w - dw ) / 2 : x + px ), ly = top + ( h - dh ) / 2;
+			if ( plate ) {
+				var bx = Math.round( lx - px ), by = Math.round( ly - py ), bw = Math.round( dw + 2 * px ), bh = Math.round( dh + 2 * py ), br = Math.round( Math.min( 16, h * 0.3 ) );
+				ctx.save(); ctx.shadowColor = dark ? 'rgba(0,0,0,.26)' : 'rgba(11,39,70,.16)'; ctx.shadowBlur = dark ? 14 : 12; ctx.shadowOffsetY = 3; ctx.fillStyle = '#FFFFFF';
+				rrect( ctx, bx, by, bw, bh, br ); ctx.fill();
+				ctx.restore();
+				if ( ! dark ) { ctx.save(); ctx.strokeStyle = 'rgba(11,39,70,.12)'; ctx.lineWidth = 1.5; rrect( ctx, bx + 0.75, by + 0.75, bw - 1.5, bh - 1.5, br ); ctx.stroke(); ctx.restore(); }
+			}
+			ctx.drawImage( im, Math.round( lx ), Math.round( ly ), Math.round( dw ), Math.round( dh ) );
+			return;
+		}
+		if ( ! root.Path2D ) { line( ctx, 'Meeha News', { x: x, top: top, lh: h, size: Math.round( h * 0.8 ), weight: 700, fam: 'georgia', color: color } ); return; }
+		if ( ! logoPaths ) { logoPaths = LOGO_D.map( function ( d ) { return new Path2D( d ); } ); }
+		/* matches the prototype's <svg viewBox='-2 6 252 44'><use href='#m-logo'/> (symbol viewBox applied twice) */
+		ctx.save(); ctx.translate( x + 4 * s, top - 12 * s ); ctx.scale( s, s ); ctx.fillStyle = color;
+		logoPaths.forEach( function ( p ) { ctx.fill( p ); } );
+		ctx.restore();
+	}
+	/* photo: cover a box with focal point (0–100 %) and zoom (1–2) */
+	function cover( ctx, img, x, y, w, h, focus, zoom ) {
+		if ( ! img ) { return false; }
+		var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+		if ( ! iw || ! ih ) { return false; }
+		var z = Math.max( 1, Math.min( 3, +zoom || 1 ) ), sc = Math.max( w / iw, h / ih ) * z;
+		var sw = w / sc, sh = h / sc, fx = ( focus && isFinite( focus.x ) ? focus.x : 50 ) / 100, fy = ( focus && isFinite( focus.y ) ? focus.y : 50 ) / 100;
+		var sx = Math.max( 0, Math.min( iw - sw, fx * iw - sw / 2 ) ), sy = Math.max( 0, Math.min( ih - sh, fy * ih - sh / 2 ) );
+		ctx.drawImage( img, sx, sy, sw, sh, x, y, w, h );
+		return true;
+	}
+	function placeholder( ctx, x, y, w, h ) {
+		var g = ctx.createLinearGradient( x, y, x, y + h );
+		g.addColorStop( 0, '#C9D3DE' ); g.addColorStop( 1, '#9AA8B8' );
+		ctx.fillStyle = g; ctx.fillRect( x, y, w, h );
+	}
+	function grayscaleCopy( img, w, h, focus, zoom ) {
+		var c = doc.createElement( 'canvas' ); c.width = w; c.height = h;
+		var x = c.getContext( '2d' ); cover( x, img, 0, 0, w, h, focus, zoom );
+		try {
+			var d = x.getImageData( 0, 0, w, h ), p = d.data;
+			for ( var i = 0; i < p.length; i += 4 ) {
+				var l = 0.2126 * p[ i ] + 0.7152 * p[ i + 1 ] + 0.0722 * p[ i + 2 ];
+				l = Math.max( 0, Math.min( 255, ( l - 128 ) * 1.05 + 128 ) );
+				p[ i ] = p[ i + 1 ] = p[ i + 2 ] = l;
+			}
+			x.putImageData( d, 0, 0 );
+		} catch ( e ) {
+			/* tainted (cross-origin without CORS): fall back to ctx.filter where supported */
+			x.clearRect( 0, 0, w, h );
+			if ( 'filter' in x ) { x.filter = 'grayscale(1) contrast(1.05)'; }
+			cover( x, img, 0, 0, w, h, focus, zoom );
+		}
+		return c;
+	}
+	function circleImage( ctx, img, x, y, d, opt ) {
+		opt = opt || {};
+		var r = d / 2, cx = x + r, cy = y + r;
+		( opt.rings || [] ).slice().sort( function ( p, q ) { return q[ 0 ] - p[ 0 ]; } ).forEach( function ( ring ) {
+			ctx.beginPath(); ctx.arc( cx, cy, r + ring[ 0 ], 0, Math.PI * 2 ); ctx.fillStyle = ring[ 1 ]; ctx.fill();
+		} );
+		ctx.save(); ctx.beginPath(); ctx.arc( cx, cy, r, 0, Math.PI * 2 ); ctx.closePath(); ctx.clip();
+		if ( img ) {
+			if ( opt.gray ) { ctx.drawImage( grayscaleCopy( img, Math.round( d ), Math.round( d ), opt.focus, opt.zoom ), x, y, d, d ); } else { cover( ctx, img, x, y, d, d, opt.focus, opt.zoom ); }
+		} else {
+			ctx.fillStyle = opt.monoBg || C.tint; ctx.fillRect( x, y, d, d );
+			var ini = firstGrapheme( opt.name );
+			if ( ini ) {
+				ctx.font = fontStr( 700, opt.monoSize || Math.round( d * 0.43 ), 'serif' ); ctx.fillStyle = opt.monoInk || C.blue; ctx.textAlign = 'center';
+				ctx.fillText( ini, cx, baseline( ctx, y, d ) );
+			}
+		}
+		ctx.restore();
+	}
+	/* bottom ad strip: 0, H−120, W × 120; label "বিজ্ঞাপন" Sans 18 at (16, 8) */
+	function adStrip( ctx, W, H, img ) {
+		var y = H - STRIP_H;
+		if ( img ) {
+			rect( ctx, 0, y, W, STRIP_H, '#FFFFFF' );
+			cover( ctx, img, 0, y, W, STRIP_H, { x: 50, y: 50 }, 1 );
+		} else {
+			rect( ctx, 0, y, W, STRIP_H, '#F3F5F8' );
+			ctx.save(); ctx.beginPath(); ctx.rect( 0, y, W, STRIP_H ); ctx.clip(); ctx.strokeStyle = '#E9EDF2'; ctx.lineWidth = 1;
+			for ( var i = -STRIP_H; i < W; i += 15 ) { ctx.beginPath(); ctx.moveTo( i, y + STRIP_H ); ctx.lineTo( i + STRIP_H, y ); ctx.stroke(); }
+			ctx.restore();
+			line( ctx, 'বিজ্ঞাপন স্ট্রিপ ' + bnDigits( W ) + ' × ' + bnDigits( STRIP_H ), { x: W / 2, top: y + 42, lh: 36, size: 26, color: '#8A94A2', align: 'center' } );
+		}
+		ctx.font = fontStr( 400, 18, 'sans' );
+		var lw = width( ctx, 'বিজ্ঞাপন' );
+		ctx.fillStyle = 'rgba(255,255,255,.82)'; rrect( ctx, 10, y + 8, lw + 12, 26, 4 ); ctx.fill();
+		line( ctx, 'বিজ্ঞাপন', { x: 16, top: y + 8, lh: 26, size: 18, color: '#5B6676' } );
+	}
+	function customFrame( ctx, A, W, H ) { if ( A.frameImg ) { ctx.drawImage( A.frameImg, 0, 0, W, H ); } }
+	function bnDigits( s ) { return String( s ).replace( /\d/g, function ( d ) { return '০১২৩৪৫৬৭৮৯'.charAt( +d ); } ); }
+	function watermark() { var w = cfg().watermark; return undefined === w || null === w ? 'meeha.news' : String( w ); }
+
+	/* ================================================================== templates (1080-wide) */
+
+	/* 1 · শুভ সকাল */
+	function morning( ctx, W, H, d, o, A ) {
+		var ad = !! o.ad, dy = ( H - 1080 ) - ( ad ? 100 : 0 ), preset = o.preset || 'bhor';
+		var photoH = 660 + dy, panelBg = 'side' === preset ? '#FBF7EE' : C.white;
+		rect( ctx, 0, 0, W, H, panelBg );
+		if ( ! cover( ctx, A.image, 0, 0, W, photoH, d.focus, d.zoom ) ) { placeholder( ctx, 0, 0, W, photoH ); }
+		if ( 'nilpar' !== preset ) { rect( ctx, 0, photoH, W, 8, C.blue ); }
+		customFrame( ctx, A, W, H );
+		viewfinder( ctx, 40, 40, 'tl', C.white );
+		viewfinder( ctx, 984, photoH - 96, 'br', C.white );
+		var credit = str( d.credit ), cw = 0;
+		if ( credit ) { cw = line( ctx, 'ছবি: ' + credit, { x: 1016, top: 698 + dy, lh: 36, size: 24, color: C.muted, align: 'right', maxW: 420 } ); }
+		line( ctx, d.caption, { x: 64, top: 694 + dy, lh: 40, size: 28, min: 24, color: C.text, maxW: Math.min( 640, 952 - ( cw ? cw + 32 : 0 ) ) } );
+		rect( ctx, 64, 756 + dy, 952, 1, C.line );
+		sunMark( ctx, 64, 812 + dy );
+		line( ctx, str( d.title ) || 'শুভ সকাল', { x: 152, top: 780 + dy, lh: 124, size: 92, min: 64, weight: 700, fam: 'serif', color: C.blue, maxW: 430 } );
+		var dt = d.dates || {};
+		line( ctx, dt.weekday, { x: 64, top: 900 + dy, lh: 64, size: 44, min: 34, weight: 700, fam: 'serif', color: C.ink, maxW: 510 } );
+		logo( ctx, 64, 1000 + dy, 230, C.blue, 'left', A );
+		rect( ctx, 600, 790 + dy, 1, 236, C.line );
+		[ [ 'খ্রিষ্টাব্দ', dt.gregorian ], [ 'বঙ্গাব্দ', dt.bangla ], [ 'হিজরি', dt.hijri ] ].forEach( function ( r, i ) {
+			var t = 784 + dy + i * 88;
+			line( ctx, r[ 0 ], { x: 640, top: t, lh: 30, size: 22, color: C.muted } );
+			line( ctx, r[ 1 ], { x: 640, top: t + 30, lh: 44, size: 34, min: 26, weight: 600, color: C.ink, maxW: 376 } );
+		} );
+		if ( 'nilpar' === preset ) {
+			var bh = ad ? H - STRIP_H : H;
+			ctx.fillStyle = C.blue; ctx.fillRect( 0, 0, W, 20 ); ctx.fillRect( 0, bh - 20, W, 20 ); ctx.fillRect( 0, 0, 20, bh ); ctx.fillRect( W - 20, 0, 20, bh );
+		} else if ( 'side' === preset ) {
+			rect( ctx, 0, 0, 24, ad ? H - STRIP_H : H, C.blue );
+		}
+	}
+
+	/* 2 · মতামত */
+	var OPINION_THEMES = {
+		blue:  { hi: '#FFD27A', bg: [ [ 0, '#0A69C6' ], [ 1, '#024A93' ] ], ink: '#FFFFFF', role: C.tint, pill: 'rgba(255,255,255,.5)', mark: 'rgba(255,255,255,.2)', deco: 'rgba(255,255,255,.08)', rule: 'rgba(255,255,255,.3)', url: 'rgba(255,255,255,.72)', logo: '#FFFFFF', ring: '#FFFFFF' },
+		navy:  { hi: '#F2C14E', bg: [ [ 0, '#123462' ], [ 0.7, '#0B2140' ], [ 1, '#0B2140' ] ], ink: '#FFFFFF', role: '#8FC2F7', pill: 'rgba(143,194,247,.55)', mark: 'rgba(143,194,247,.25)', deco: 'rgba(143,194,247,.10)', rule: 'rgba(143,194,247,.3)', url: 'rgba(255,255,255,.72)', logo: '#FFFFFF', ring: '#8FC2F7' },
+		paper: { hi: C.blue, hiBg: 'rgba(242,163,58,.30)', bg: [ [ 0, '#FFFFFF' ], [ 1, '#EEF4FB' ] ], ink: C.ink, role: C.muted, pill: 'rgba(2,90,178,.5)', pillInk: C.blue, mark: 'rgba(2,90,178,.16)', deco: 'rgba(2,90,178,.07)', rule: C.line, url: C.muted, logo: C.blue, ring: C.blue }
+	};
+	function pill( ctx, text, x, top, o ) {
+		ctx.font = fontStr( o.weight || 600, o.size || 28, 'sans' );
+		var w = Math.round( width( ctx, text ) ) + 52 + 4, h = o.h || 56;
+		if ( 'center' === o.align ) { x = Math.round( x - w / 2 ); }
+		if ( o.fill ) { ctx.fillStyle = o.fill; rrect( ctx, x, top, w, h, h / 2 ); ctx.fill(); }
+		if ( o.border ) { ctx.strokeStyle = o.border; ctx.lineWidth = 2; rrect( ctx, x + 1, top + 1, w - 2, h - 2, h / 2 - 1 ); ctx.stroke(); }
+		line( ctx, text, { x: x + 28, top: top + 2, lh: h - 4, size: o.size || 28, weight: o.weight || 600, color: o.color } );
+		return w;
+	}
+	function opinion( ctx, W, H, d, o, A ) {
+		/* taller canvases (1080 × 1350): 80 % of the extra height goes to the title box, the rest to the margins */
+		var ad = !! o.ad, th = OPINION_THEMES[ o.preset ] || OPINION_THEMES.blue, ex = Math.max( 0, H - 1080 ), dy = Math.round( ex * 0.1 ), gx = Math.round( ex * 0.8 );
+		ctx.fillStyle = cssLinear( ctx, 150, 0, 0, W, H, th.bg ); ctx.fillRect( 0, 0, W, H );
+		/* bracket ornament: 340 box at (800,−60), top + right strokes 26 */
+		ctx.fillStyle = th.deco; ctx.fillRect( 800, -60, 340, 26 ); ctx.fillRect( 1114, -60, 26, 340 );
+		customFrame( ctx, A, W, H );
+		ctx.save(); ctx.translate( 0, dy );
+		pill( ctx, str( d.label ) || 'মতামত', 64, 64, { border: th.pill, color: th.pillInk || th.ink } );
+		logo( ctx, 1016, 74, 220, th.logo, 'right', A );
+		line( ctx, '“', { x: 52, top: 150, lh: 240, size: 240, weight: 700, fam: 'georgia', color: th.mark } );
+		var box = { x: 64, y: 200, w: 952, h: ( ad ? 480 : 580 ) + gx };
+		var r = bigText( ctx, d.title, box.w, box.h, { maxLines: box.h > 700 ? 8 : 6, max: 80, min: 44, lh: 1.375 }, { maxLines: 16, max: 56, min: 26, lh: 1.55, weight: 600, fam: 'sans' } );
+		drawFit( ctx, r, { x: box.x, y: box.y, w: box.w, h: box.h, valign: 'middle', color: th.ink, hi: th.hi, hiBg: th.hiBg } );
+		var ruleY = ( ad ? 700 : 800 ) + gx, photoY = ( ad ? 740 : 840 ) + gx, nameY = ( ad ? 762 : 862 ) + gx, roleY = ( ad ? 832 : 932 ) + gx;
+		rect( ctx, 64, ruleY, 952, 2, th.rule );
+		var tx = 64;
+		if ( false !== d.show_photo ) {
+			circleImage( ctx, A.authorPhoto, 64, photoY, 168, { rings: [ [ 6, th.ring ] ], name: d.author_name, monoSize: 72 } );
+			tx = 268;
+		}
+		line( ctx, d.author_name, { x: tx, top: nameY, lh: 64, size: 46, min: 36, weight: 700, fam: 'serif', color: th.ink, maxW: 1016 - tx } );
+		line( ctx, d.author_title, { x: tx, top: roleY, lh: 42, size: 30, min: 24, color: th.role, maxW: 1016 - tx } );
+		var light = 'paper' === o.preset;
+		if ( ! cta( ctx, ctaText( d, o ), 1016, ( ad ? 894 : 1008 ) + gx, { h: 46, size: 22, align: 'right', fill: light ? C.blue : C.white, color: light ? C.white : C.blue900, maxW: 600 } ) ) {
+			line( ctx, watermark(), { x: 1016, top: ( ad ? 926 : 1026 ) + gx, lh: 24, size: 24, color: th.url, align: 'right' } );
+		}
+		ctx.restore();
+	}
+
+	/* 3 · ফিচার  (+ বিভাগ ফ্রেম uses the same geometry) */
+	function feature( ctx, W, H, d, o, A, isCat ) {
+		var ad = !! o.ad, dy = ( H - 1080 ) - ( ad ? 100 : 0 ), preset = o.preset || 'shade';
+		rect( ctx, 0, 0, W, H, C.blue900 );
+		if ( ! cover( ctx, A.image, 0, 0, W, H, d.focus, d.zoom ) ) { placeholder( ctx, 0, 0, W, H ); }
+		if ( 'band' === preset ) {
+			var top = 600 + dy, g0 = ctx.createLinearGradient( 0, top - 160, 0, top );
+			g0.addColorStop( 0, 'rgba(11,39,70,0)' ); g0.addColorStop( 1, 'rgba(11,39,70,.96)' );
+			ctx.fillStyle = g0; ctx.fillRect( 0, top - 160, W, 160 ); rect( ctx, 0, top, W, H - top, 'rgba(11,39,70,.96)' );
+		} else {
+			var strong = 'vf2' === preset ? 1.12 : 1, g = ctx.createLinearGradient( 0, 0, 0, H );
+			g.addColorStop( 0.38 / strong, 'rgba(8,20,36,0)' ); g.addColorStop( 0.60 / strong, 'rgba(8,20,36,.55)' ); g.addColorStop( 1, 'rgba(8,20,36,.94)' );
+			g.addColorStop( 0, 'rgba(8,20,36,0)' );
+			ctx.fillStyle = g; ctx.fillRect( 0, 0, W, H );
+		}
+		customFrame( ctx, A, W, H );
+		var catColor = isCat ? ( /^#[0-9a-f]{3,8}$/i.test( d.color || '' ) ? d.color : C.blue ) : null;
+		if ( isCat ) { rect( ctx, 0, 0, W, 12, catColor ); }
+		viewfinder( ctx, 40, isCat ? 52 : 40, 'tl', C.white );
+		if ( 'vf2' === preset ) { viewfinder( ctx, 984, ( ad ? H - STRIP_H : H ) - 96, 'br', C.white ); }
+		var bottom = 930 + dy;
+		var r = fit( ctx, d.title, { w: 952, maxLines: 4, max: 70, min: 48, lhPx: 96 } );
+		var b = drawFit( ctx, r, { x: 64, w: 952, bottom: bottom, color: C.white } );
+		var kicker = str( isCat ? ( d.kicker || d.category ) : d.kicker );
+		if ( kicker ) {
+			var kt = Math.min( 560 + dy, b.top - 44 - 18 );
+			if ( isCat ) {
+				pill( ctx, kicker, 64, kt - 6, { fill: catColor, color: '#FFFFFF', size: 30, h: 56 } );
+			} else {
+				ctx.fillStyle = '#9CC8F5'; ctx.fillRect( 64, kt + 14, 16, 4 ); ctx.fillRect( 64, kt + 14, 4, 16 );
+				line( ctx, kicker, { x: 94, top: kt, lh: 44, size: 30, weight: 600, color: '#9CC8F5', maxW: 920 } );
+			}
+		}
+		logo( ctx, 64, 990 + dy, 210, C.white, 'left', A );
+		if ( ! cta( ctx, ctaText( d, o ), 'vf2' === preset ? 964 : 1016, 988 + dy, { h: 48, size: 23, align: 'right', fill: C.white, color: C.blue900, maxW: 560 } ) ) { /* vf2: clear of the corner mark */
+			line( ctx, watermark(), { x: 1016, top: 1002 + dy, lh: 24, size: 24, color: 'rgba(255,255,255,.72)', align: 'right' } );
+		}
+	}
+
+	/* 4 · ব্রেকিং / সর্বশেষ */
+	function breaking( ctx, W, H, d, o, A ) {
+		var ad = !! o.ad, latest = 'latest' === ( d.variant || o.preset ), band = latest ? C.blue : C.red;
+		var dy = ( H - 1080 ) - ( ad ? 100 : 0 ), hasPhoto = !! A.image, photoH = 540 + dy;
+		rect( ctx, 0, 0, W, H, C.white );
+		rect( ctx, 0, 0, W, 140, band );
+		ctx.beginPath(); ctx.arc( 78, 70, 24, 0, Math.PI * 2 ); ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.fill();
+		ctx.beginPath(); ctx.arc( 78, 70, 14, 0, Math.PI * 2 ); ctx.fillStyle = C.white; ctx.fill();
+		var tw = line( ctx, d.time, { x: 1016, top: 48, lh: 44, size: 36, weight: 600, color: C.white, align: 'right', maxW: 300 } );
+		line( ctx, str( d.label ) || ( latest ? 'সর্বশেষ' : 'ব্রেকিং নিউজ' ), { x: 120, top: 30, lh: 80, size: 58, min: 40, weight: 700, fam: 'serif', color: C.white, maxW: 1016 - 120 - ( tw ? tw + 24 : 0 ) } );
+		var tb;
+		if ( hasPhoto ) {
+			cover( ctx, A.image, 0, 140, W, photoH, d.focus, d.zoom );
+			tb = { y: 704 + dy, h: 258, max: 64, lines: 3 };
+		} else {
+			tb = { y: 180, h: ( ad ? 660 : 760 ) + ( H - 1080 ), max: 84, lines: 6 };
+		}
+		customFrame( ctx, A, W, H );
+		var r = fit( ctx, d.title, { w: 952, h: tb.h, maxLines: tb.lines, max: tb.max, min: 44, lh: 1.375 } );
+		drawFit( ctx, r, { x: 64, y: tb.y, w: 952, h: tb.h, valign: 'middle', color: C.ink } );
+		rect( ctx, 64, 978 + dy, 120, 6, band );
+		logo( ctx, 64, 1006 + dy, 220, C.blue, 'left', A );
+		if ( ! cta( ctx, ctaText( d, o ), 1016, 1002 + dy, { h: 48, size: 23, align: 'right', fill: band, color: C.white, maxW: 600 } ) ) {
+			line( ctx, str( d.more ) || 'বিস্তারিত ' + watermark() + '-এ', { x: 1016, top: 1010 + dy, lh: 36, size: 26, color: C.muted, align: 'right', maxW: 640 } );
+		}
+	}
+
+	/* 5 · উক্তি */
+	function quoteScheme( d, o ) {
+		var k = o.preset && QUOTE[ o.preset ] ? o.preset : ( QUOTE[ d.frame ] ? d.frame : 'opinion' );
+		var q = QUOTE[ k ];
+		return { key: k, bg: q.bg, ink: q.ink, accent: q.accent, align: q.align, label: q.label };
+	}
+	function quote( ctx, W, H, d, o, A ) {
+		var ad = !! o.ad, q = quoteScheme( d, o ), ex = Math.max( 0, H - 1080 ), dy = Math.round( ex * 0.1 ), gx = Math.round( ex * 0.8 ), left = 'left' === q.align;
+		rect( ctx, 0, 0, W, H, q.bg );
+		if ( A.quoteFrame ) { ctx.drawImage( A.quoteFrame, 0, 0, W, H ); }
+		customFrame( ctx, A, W, H );
+		if ( 'history' === q.key && str( d.year ) ) {
+			line( ctx, bnDigits( str( d.year ) ), { x: W - 70, top: 59, lh: 194, size: 194, weight: 700, fam: 'serif', color: 'rgba(138,75,30,.14)', align: 'right' } );
+		}
+		ctx.save(); ctx.translate( 0, dy );
+		var Y = ad ? { pill: 170, mark: 255, box: 395, boxH: 290, name: 715, role: 777, logo: 872, photo: 780, lname: 790, lrole: 852, llogo: 896 }
+			: { pill: 210, mark: 300, box: 440, boxH: 300, name: 790, role: 856, logo: 956, photo: 860, lname: 870, lrole: 932, llogo: 990 };
+		if ( gx ) { [ 'name', 'role', 'logo', 'photo', 'lname', 'lrole', 'llogo' ].forEach( function ( k ) { Y[ k ] += gx; } ); Y.boxH += gx; }
+		var label = str( d.type_label ) || q.label, ink2 = q.ink, roleInk = hexA( q.ink, 0.75 );
+		if ( left ) {
+			pill( ctx, label, 96, Y.pill, { border: hexA( q.accent, 0.6 ), color: q.accent, weight: 400 } );
+			line( ctx, '“', { x: 90, top: Y.mark, lh: 160, size: 160, weight: 700, fam: 'georgia', color: q.accent } );
+			var rl = bigText( ctx, d.text, 888, Y.boxH, { maxLines: gx ? 9 : 6, max: 76, min: 40, lh: 1.47 }, { maxLines: 16, max: 54, min: 26, lh: 1.5, weight: 600, fam: 'sans' } );
+			drawFit( ctx, rl, { x: 96, y: Y.box, w: 888, h: Y.boxH, valign: 'top', color: ink2, hi: qHi( q ) } );
+			var nx = 96, hasP = !! A.speakerPhoto;
+			if ( hasP ) { circleImage( ctx, A.speakerPhoto, 96, Y.photo, 120, { rings: [ [ 4, q.accent ] ] } ); nx = 240; }
+			var nTop = hasP ? Y.photo + 2 : Y.lname, rTop = hasP ? Y.photo + 64 : Y.lrole;
+			line( ctx, d.speaker, { x: nx, top: nTop, lh: 62, size: 44, min: 32, weight: 700, fam: 'serif', color: ink2, maxW: 984 - 200 - 24 - nx } );
+			line( ctx, d.role, { x: nx, top: rTop, lh: 42, size: 30, min: 24, color: roleInk, maxW: 984 - 200 - 24 - nx } );
+			logo( ctx, 984, Y.llogo, 180, q.accent, 'right', A );
+		} else {
+			pill( ctx, label, W / 2, Y.pill, { border: hexA( q.accent, 0.6 ), color: q.accent, weight: 400, align: 'center' } );
+			line( ctx, '“', { x: W / 2, top: Y.mark, lh: 160, size: 160, weight: 700, fam: 'georgia', color: q.accent, align: 'center' } );
+			var rc = bigText( ctx, d.text, 800, Y.boxH, { maxLines: gx ? 9 : 6, max: 76, min: 40, lh: 1.47 }, { maxLines: 16, max: 54, min: 26, lh: 1.5, weight: 600, fam: 'sans' } );
+			drawFit( ctx, rc, { x: 140, y: Y.box, w: 800, h: Y.boxH, valign: 'top', color: ink2, align: 'center', hi: qHi( q ) } );
+			line( ctx, d.speaker, { x: W / 2, top: Y.name, lh: 62, size: 44, min: 32, weight: 700, fam: 'serif', color: ink2, align: 'center', maxW: 860 } );
+			line( ctx, d.role, { x: W / 2, top: Y.role, lh: 42, size: 30, min: 24, color: roleInk, align: 'center', maxW: 860 } );
+			logo( ctx, W / 2, Y.logo, 220, q.accent, 'center', A );
+		}
+		ctx.restore();
+	}
+	function qHi( q ) { return 'opinion' === q.key || 'politics' === q.key ? '#FFD27A' : q.accent; }
+	function hexA( hex, a ) {
+		var m = /^#([0-9a-f]{6})$/i.exec( hex );
+		if ( ! m ) { return hex; }
+		var n = parseInt( m[ 1 ], 16 );
+		return 'rgba(' + ( n >> 16 ) + ',' + ( ( n >> 8 ) & 255 ) + ',' + ( n & 255 ) + ',' + a + ')';
+	}
+
+	/* 6 · শোক — no ad strip, no red/blue (dignity rule) */
+	var MOURN = {
+		dark:  { bg: '#1B1D21', outer: '#8E877B', inner: '#4A4740', ribbon: '#E8E2D6', pre: '#BDB6A8', head: '#F2EEE6', name: '#FFFFFF', sub: '#BDB6A8', msg: '#E8E2D6', logo: '#BDB6A8', mono: '#2E3036', monoInk: '#BDB6A8' },
+		light: { bg: '#F4F1EA', outer: '#8E877B', inner: '#CFC8BA', ribbon: '#2B2B2B', pre: '#6E665A', head: '#2B2B2B', name: '#1B1D21', sub: '#6E665A', msg: '#3A3833', logo: '#6E665A', mono: '#E2DDD2', monoInk: '#6E665A' }
+	};
+	function condolence( ctx, W, H, d, o, A ) {
+		var t = MOURN[ o.preset ] || MOURN.dark, dy = ( H - 1080 ) / 2;
+		rect( ctx, 0, 0, W, H, t.bg );
+		customFrame( ctx, A, W, H );
+		ctx.strokeStyle = t.outer; ctx.lineWidth = 2; ctx.strokeRect( 41, 41, W - 82, H - 82 );
+		ctx.strokeStyle = t.inner; ctx.lineWidth = 1; ctx.strokeRect( 52.5, 52.5, W - 105, H - 105 );
+		ctx.save(); ctx.translate( 0, dy );
+		ribbon( ctx, 498, 78, t.ribbon );
+		line( ctx, d.pre, { x: W / 2, top: 192, lh: 42, size: 30, min: 24, color: t.pre, align: 'center', maxW: 880 } );
+		line( ctx, str( d.heading ) || 'গভীর শোক', { x: W / 2, top: 238, lh: 90, size: 66, min: 48, weight: 700, fam: 'serif', color: t.head, align: 'center', maxW: 880 } );
+		circleImage( ctx, A.image, 390, 352, 300, { rings: [ [ 8, t.outer ], [ 4, t.bg ] ], gray: true, focus: d.focus, zoom: d.zoom, name: d.name, monoBg: t.mono, monoInk: t.monoInk, monoSize: 120 } );
+		line( ctx, d.name, { x: W / 2, top: 684, lh: 80, size: 58, min: 40, weight: 700, fam: 'serif', color: t.name, align: 'center', maxW: 880 } );
+		line( ctx, d.role, { x: W / 2, top: 766, lh: 42, size: 30, min: 24, color: t.sub, align: 'center', maxW: 880 } );
+		line( ctx, d.dates_line, { x: W / 2, top: 812, lh: 40, size: 28, min: 22, color: t.sub, align: 'center', maxW: 880 } );
+		var r = fit( ctx, d.message, { w: 800, h: 92, maxLines: 2, max: 30, min: 24, lhPx: 46, weight: 400, fam: 'sans' } );
+		drawFit( ctx, r, { x: 140, y: 862, w: 800, h: 92, color: t.msg, align: 'center' } );
+		logo( ctx, W / 2, 990, 180, t.logo, 'center', A );
+		ctx.restore();
+	}
+
+	/* ================================================================== premade families (CONTRACT §9.3) */
+
+	function rng( seed ) { var s = seed % 2147483647 || 1; return function () { s = ( s * 16807 ) % 2147483647; return ( s - 1 ) / 2147483646; }; }
+	function corner16( ctx, x, top, color ) { ctx.fillStyle = color; ctx.fillRect( x, top + 14, 16, 4 ); ctx.fillRect( x, top + 14, 4, 16 ); }
+	function shade( ctx, x, y, w, h, stops ) {
+		var g = ctx.createLinearGradient( 0, y, 0, y + h );
+		stops.forEach( function ( s ) { g.addColorStop( s[ 0 ], s[ 1 ] ); } );
+		ctx.fillStyle = g; ctx.fillRect( x, y, w, h );
+	}
+	function photoOr( ctx, img, x, y, w, h, d ) { if ( ! cover( ctx, img, x, y, w, h, d.focus, d.zoom ) ) { placeholder( ctx, x, y, w, h ); } }
+
+	/* call-to-action pill ("বিস্তারিত কমেন্টে"): data.cta (studio field) → opts.cta (payload) → config.cta; '' hides it */
+	var CTA_TYPES = { news: 1, feature: 1, category: 1, breaking: 1, opinion: 1 }; /* news-type cards only (never শোক, জন্মদিন, দিবস, শুভ সকাল, উক্তি) */
+	function ctaText( d, o ) {
+		if ( o.type && ! CTA_TYPES[ o.type ] ) { return ''; }
+		var t = undefined !== d.cta && null !== d.cta ? d.cta : ( undefined !== o.cta && null !== o.cta ? o.cta : cfg().cta );
+		return str( t );
+	}
+	function bubble( ctx, x, y, sz, color, dots ) {
+		var w = sz, h = Math.round( sz * 0.78 );
+		ctx.fillStyle = color; rrect( ctx, x, y, w, h, h * 0.32 ); ctx.fill();
+		ctx.beginPath(); ctx.moveTo( x + w * 0.22, y + h - 1 ); ctx.lineTo( x + w * 0.16, y + sz ); ctx.lineTo( x + w * 0.5, y + h - 1 ); ctx.closePath(); ctx.fill();
+		ctx.fillStyle = dots;
+		[ 0.28, 0.5, 0.72 ].forEach( function ( f ) { ctx.beginPath(); ctx.arc( x + w * f, y + h / 2, Math.max( 1.5, sz * 0.075 ), 0, Math.PI * 2 ); ctx.fill(); } );
+	}
+	/* draws the pill at (x = left, or right edge when align 'right'), returns its width (0 = nothing drawn) */
+	function cta( ctx, text, x, top, o ) {
+		text = str( text );
+		if ( ! text ) { return 0; }
+		var h = o.h || 52, size = o.size || 24, pad = Math.round( h * 0.42 ), ic = Math.round( h * 0.44 ), gap = Math.round( h * 0.2 );
+		ctx.font = fontStr( 600, size, 'sans' );
+		var tw = width( ctx, text );
+		if ( o.maxW && tw + 2 * pad + ic + gap > o.maxW ) { text = ellipsize( ctx, text, o.maxW - 2 * pad - ic - gap ); tw = width( ctx, text ); }
+		var w = Math.round( tw + 2 * pad + ic + gap );
+		if ( 'right' === o.align ) { x -= w; } else if ( o.center ) { x -= w / 2; }
+		x = Math.round( x );
+		ctx.save();
+		if ( o.shadow ) { ctx.shadowColor = 'rgba(8,20,36,.30)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 4; }
+		if ( o.fill ) { ctx.fillStyle = o.fill; rrect( ctx, x, top, w, h, h / 2 ); ctx.fill(); }
+		ctx.restore();
+		if ( o.border ) { ctx.strokeStyle = o.border; ctx.lineWidth = 2; rrect( ctx, x + 1, top + 1, w - 2, h - 2, h / 2 - 1 ); ctx.stroke(); }
+		ctx.save(); bubble( ctx, x + pad, Math.round( top + ( h - ic ) / 2 + ic * 0.06 ), ic, o.color, o.fill || '#FFFFFF' ); ctx.restore();
+		line( ctx, text, { x: x + pad + ic + gap, top: top + 1, lh: h - 2, size: size, weight: 600, color: o.color } );
+		return w;
+	}
+
+	/* 8 · নিউজ কার্ড — featured image + title + category + date + logo (+ CTA pill) */
+	var NEWS_PRESETS = { classic: 'ক্লাসিক', overlay: 'ছায়া', band: 'নীল পাটাতন', frame: 'সাদা ফ্রেম', split: 'পাশাপাশি', headline: 'বড় শিরোনাম', dheu: 'মিহা ঢেউ', dheubreaking: 'ঢেউ ব্রেকিং', collage: 'ছবির কোলাজ', chobi: 'বড় ছবি' };
+	/* 2.4.3: কোলাজ — the main photo plus up to three more (data.gallery = [{image, focus, zoom}], loaded into A.gallery) */
+	function collageTiles( d, A ) {
+		var out = [ { img: A.image, focus: d.focus, zoom: d.zoom } ];
+		( A.gallery || [] ).forEach( function ( im, i ) { var g = ( d.gallery || [] )[ i ] || {}; if ( im && out.length < 4 ) { out.push( { img: im, focus: g.focus, zoom: g.zoom } ); } } );
+		return out;
+	}
+	function collage( ctx, tiles, x, y, w, h, gap, more ) {
+		var n = tiles.length, boxes, hw = Math.round( ( w - gap ) / 2 ), hh = Math.round( ( h - gap ) / 2 ), bw = Math.round( ( w - gap ) * 0.6 );
+		if ( 1 === n ) { boxes = [ [ x, y, w, h ] ]; } else if ( 2 === n ) { boxes = [ [ x, y, hw, h ], [ x + hw + gap, y, w - hw - gap, h ] ]; } else if ( 3 === n ) {
+			boxes = [ [ x, y, bw, h ], [ x + bw + gap, y, w - bw - gap, hh ], [ x + bw + gap, y + hh + gap, w - bw - gap, h - hh - gap ] ];
+		} else { boxes = [ [ x, y, hw, hh ], [ x + hw + gap, y, w - hw - gap, hh ], [ x, y + hh + gap, hw, h - hh - gap ], [ x + hw + gap, y + hh + gap, w - hw - gap, h - hh - gap ] ]; }
+		rect( ctx, x, y, w, h, C.white );
+		boxes.forEach( function ( b, i ) { if ( ! cover( ctx, tiles[ i ].img, b[ 0 ], b[ 1 ], b[ 2 ], b[ 3 ], tiles[ i ].focus, tiles[ i ].zoom ) ) { placeholder( ctx, b[ 0 ], b[ 1 ], b[ 2 ], b[ 3 ] ); } } );
+		if ( more > 0 && n > 1 ) {
+			var lb = boxes[ n - 1 ], t = '+' + bnDigits( more ) + ' ছবি';
+			ctx.font = fontStr( 600, 28, 'sans' );
+			var tw = Math.round( width( ctx, t ) ) + 40;
+			ctx.fillStyle = 'rgba(8,20,36,.72)'; rrect( ctx, lb[ 0 ] + lb[ 2 ] - tw - 20, lb[ 1 ] + lb[ 3 ] - 72, tw, 52, 26 ); ctx.fill();
+			line( ctx, t, { x: lb[ 0 ] + lb[ 2 ] - tw / 2 - 20, top: lb[ 1 ] + lb[ 3 ] - 70, lh: 48, size: 28, weight: 600, color: C.white, align: 'center' } );
+		}
+	}
+	function newsPreset( o ) { var p = o.preset || cfg().newsDefault; return NEWS_PRESETS[ p ] ? p : 'classic'; }
+	function news( ctx, W, H, d, o, A ) {
+		var CH = H - ( o.ad ? STRIP_H : 0 ), p = newsPreset( o ), cat = str( d.category || d.kicker ), date = str( d.date ), ct = ctaText( d, o ), r, b, cw = 0;
+		if ( 'dheu' === p || 'dheubreaking' === p ) { newsWave( ctx, W, H, d, o, A, 'dheubreaking' === p ); return; }
+		if ( 'classic' === p ) {
+			var ph = CH - 420, pw = 0;
+			rect( ctx, 0, 0, W, H, C.white );
+			photoOr( ctx, A.image, 0, 0, W, ph, d );
+			customFrame( ctx, A, W, H );
+			rect( ctx, 0, ph, W, 8, C.blue );
+			viewfinder( ctx, 40, 40, 'tl', C.white );
+			if ( cat ) { pw = pill( ctx, cat, 64, ph - 24, { fill: C.blue, color: C.white, size: 28, h: 56 } ); }
+			cta( ctx, ct, 1016, ph - 24, { h: 56, size: 26, align: 'right', fill: C.white, color: C.blue, shadow: true, maxW: 952 - ( pw ? pw + 24 : 0 ) } );
+			r = fit( ctx, d.title, { w: 952, h: 236, maxLines: 3, max: 62, min: 42, lh: 1.36 } );
+			drawFit( ctx, r, { x: 64, y: ph + 52, w: 952, h: 236, valign: 'middle', color: C.ink } );
+			rect( ctx, 64, CH - 100, 952, 1, C.line );
+			line( ctx, date, { x: 64, top: CH - 78, lh: 40, size: 26, color: C.muted, maxW: 600 } );
+			logo( ctx, 1016, CH - 72, 200, C.blue, 'right', A );
+		} else if ( 'overlay' === p ) {
+			rect( ctx, 0, 0, W, H, C.blue900 );
+			photoOr( ctx, A.image, 0, 0, W, CH, d );
+			shade( ctx, 0, 0, W, CH, [ [ 0, 'rgba(8,20,36,.35)' ], [ 0.18, 'rgba(8,20,36,0)' ], [ 0.42, 'rgba(8,20,36,0)' ], [ 0.66, 'rgba(8,20,36,.66)' ], [ 1, 'rgba(8,20,36,.96)' ] ] );
+			customFrame( ctx, A, W, H );
+			viewfinder( ctx, 40, 40, 'tl', C.white );
+			logo( ctx, 1016, 56, 200, C.white, 'right', A );
+			r = fit( ctx, d.title, { w: 952, maxLines: 4, max: 72, min: 48, lhPx: 98 } );
+			b = drawFit( ctx, r, { x: 64, w: 952, bottom: CH - 128, color: C.white } );
+			if ( cat ) { corner16( ctx, 64, b.top - 62, '#9CC8F5' ); line( ctx, cat, { x: 94, top: b.top - 62, lh: 44, size: 30, weight: 600, color: '#9CC8F5', maxW: 900 } ); }
+			rect( ctx, 64, CH - 96, 120, 6, C.blue );
+			cw = cta( ctx, ct, 1016, CH - 86, { h: 50, size: 24, align: 'right', fill: C.white, color: C.blue900, shadow: true, maxW: 520 } );
+			line( ctx, date, { x: 64, top: CH - 76, lh: 40, size: 26, color: 'rgba(255,255,255,.82)', maxW: cw ? Math.min( 600, 952 - cw - 24 ) : 600 } );
+			if ( ! cw ) { line( ctx, watermark(), { x: 1016, top: CH - 70, lh: 30, size: 24, color: 'rgba(255,255,255,.72)', align: 'right' } ); }
+		} else if ( 'band' === p ) {
+			var bp = CH - 450;
+			photoOr( ctx, A.image, 0, 0, W, bp, d );
+			var g = ctx.createLinearGradient( 0, bp, 0, CH ); g.addColorStop( 0, '#0A69C6' ); g.addColorStop( 1, '#01468C' );
+			ctx.fillStyle = g; ctx.fillRect( 0, bp, W, H - bp );
+			customFrame( ctx, A, W, H );
+			viewfinder( ctx, 40, 40, 'tl', C.white );
+			viewfinder( ctx, 984, bp - 96, 'br', C.white );
+			cw = cta( ctx, ct, 1016, bp + 42, { h: 48, size: 23, align: 'right', fill: C.white, color: C.blue, maxW: 520 } );
+			if ( cat ) { corner16( ctx, 64, bp + 44, '#CFE3F8' ); line( ctx, cat, { x: 94, top: bp + 44, lh: 44, size: 30, weight: 600, color: '#CFE3F8', maxW: cw ? 922 - cw - 24 - 30 : 900 } ); }
+			r = fit( ctx, d.title, { w: 952, h: 230, maxLines: 3, max: 62, min: 42, lh: 1.36 } );
+			drawFit( ctx, r, { x: 64, y: bp + 104, w: 952, h: 230, valign: 'middle', color: C.white } );
+			rect( ctx, 64, CH - 100, 952, 1, 'rgba(255,255,255,.28)' );
+			line( ctx, date, { x: 64, top: CH - 78, lh: 40, size: 26, color: 'rgba(255,255,255,.85)', maxW: 600 } );
+			logo( ctx, 1016, CH - 72, 200, C.white, 'right', A );
+		} else if ( 'frame' === p ) {
+			rect( ctx, 0, 0, W, H, '#E9EDF2' );
+			ctx.save(); ctx.shadowColor = 'rgba(11,39,70,.20)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 8;
+			rect( ctx, 36, 36, W - 72, CH - 72, C.white ); ctx.restore();
+			var fp = CH - 496;
+			photoOr( ctx, A.image, 60, 60, 960, fp, d );
+			customFrame( ctx, A, W, H );
+			viewfinder( ctx, 84, 84, 'tl', C.white, 48, 5 ); viewfinder( ctx, 948, 60 + fp - 72, 'br', C.white, 48, 5 );
+			var mx = 60, rx = 1020;
+			cw = cta( ctx, ct, 1020, 60 + fp + 26, { h: 48, size: 23, align: 'right', fill: C.blue, color: C.white, maxW: 480 } );
+			if ( cw ) { rx = 1020 - cw - 20; }
+			if ( cat ) { mx += line( ctx, cat, { x: 60, top: 60 + fp + 30, lh: 40, size: 26, weight: 600, color: C.blue, maxW: Math.min( 560, rx - 60 ) } ) + 16; }
+			if ( date && rx - mx > 80 ) { line( ctx, ( cat ? '·  ' : '' ) + date, { x: mx, top: 60 + fp + 30, lh: 40, size: 26, color: C.muted, maxW: rx - mx } ); }
+			r = fit( ctx, d.title, { w: 960, h: 216, maxLines: 3, max: 58, min: 40, lh: 1.36 } );
+			drawFit( ctx, r, { x: 60, y: 60 + fp + 84, w: 960, h: 216, valign: 'middle', color: C.ink } );
+			logo( ctx, 60, CH - 100, 190, C.blue, 'left', A );
+			line( ctx, watermark(), { x: 1020, top: CH - 98, lh: 34, size: 22, color: C.muted, align: 'right' } );
+		} else if ( 'split' === p ) {
+			rect( ctx, 0, 0, W, H, C.blue900 );
+			photoOr( ctx, A.image, 0, 0, 470, CH, d );
+			rect( ctx, 470, 0, 8, CH, C.blue );
+			customFrame( ctx, A, W, H );
+			viewfinder( ctx, 40, 40, 'tl', C.white );
+			logo( ctx, 526, 64, 180, C.white, 'left', A );
+			if ( cat ) { corner16( ctx, 526, 170, '#9CC8F5' ); line( ctx, cat, { x: 556, top: 170, lh: 44, size: 28, weight: 600, color: '#9CC8F5', maxW: 460 } ); }
+			r = fit( ctx, d.title, { w: 490, h: CH - 240 - 170, maxLines: 7, max: 58, min: 36, lh: 1.36 } );
+			drawFit( ctx, r, { x: 526, y: 240, w: 490, h: CH - 240 - 170, valign: 'middle', color: C.white } );
+			rect( ctx, 526, CH - 140, 490, 1, 'rgba(255,255,255,.22)' );
+			line( ctx, date, { x: 526, top: CH - 116, lh: 40, size: 26, color: 'rgba(255,255,255,.85)', maxW: 490 } );
+			cw = cta( ctx, ct, 526, CH - 80, { h: 48, size: 23, fill: C.white, color: C.blue900, maxW: 340 } );
+			line( ctx, watermark(), cw ? { x: 1016, top: CH - 71, lh: 30, size: 22, color: 'rgba(255,255,255,.6)', align: 'right', maxW: 490 - cw - 24 } : { x: 526, top: CH - 70, lh: 30, size: 22, color: 'rgba(255,255,255,.6)' } );
+		} else if ( 'collage' === p ) {
+			var kh = CH - 400, kw = 0;
+			rect( ctx, 0, 0, W, H, C.white );
+			collage( ctx, collageTiles( d, A ), 0, 0, W, kh, 8, +d.gallery_more || 0 );
+			customFrame( ctx, A, W, H );
+			rect( ctx, 0, kh, W, 8, C.blue );
+			if ( cat ) { kw = pill( ctx, cat, 64, kh - 24, { fill: C.blue, color: C.white, size: 28, h: 56 } ); }
+			cta( ctx, ct, 1016, kh - 24, { h: 56, size: 26, align: 'right', fill: C.white, color: C.blue, shadow: true, maxW: 952 - ( kw ? kw + 24 : 0 ) } );
+			r = fit( ctx, d.title, { w: 952, h: 216, maxLines: 3, max: 60, min: 40, lh: 1.36 } );
+			drawFit( ctx, r, { x: 64, y: kh + 50, w: 952, h: 216, valign: 'middle', color: C.ink } );
+			rect( ctx, 64, CH - 100, 952, 1, C.line );
+			line( ctx, date, { x: 64, top: CH - 78, lh: 40, size: 26, color: C.muted, maxW: 600 } );
+			logo( ctx, 1016, CH - 72, 200, C.blue, 'right', A );
+		} else if ( 'chobi' === p ) {
+			/* the photo fills the card; a white card holds the headline at the bottom */
+			rect( ctx, 0, 0, W, H, C.blue900 );
+			photoOr( ctx, A.image, 0, 0, W, CH, d );
+			shade( ctx, 0, 0, W, 240, [ [ 0, 'rgba(8,20,36,.55)' ], [ 1, 'rgba(8,20,36,0)' ] ] );
+			shade( ctx, 0, CH - 360, W, 360, [ [ 0, 'rgba(8,20,36,0)' ], [ 1, 'rgba(8,20,36,.45)' ] ] );
+			customFrame( ctx, A, W, H );
+			viewfinder( ctx, 40, 40, 'tl', C.white );
+			logo( ctx, 1016, 52, 200, C.white, 'right', A );
+			r = fit( ctx, d.title, { w: 904, maxLines: 3, max: 54, min: 38, lh: 1.34 } );
+			var ch2 = r.lines.length * r.lineH, boxH = ch2 + 168, bt = CH - 44 - boxH;
+			ctx.save(); ctx.shadowColor = 'rgba(8,20,36,.35)'; ctx.shadowBlur = 36; ctx.shadowOffsetY = 10; ctx.fillStyle = C.white;
+			rrect( ctx, 40, bt, 1000, boxH, 26 ); ctx.fill(); ctx.restore();
+			rect( ctx, 40, bt + 30, 8, ch2 + 36, C.blue );
+			if ( cat ) { pill( ctx, cat, 88, bt - 28, { fill: C.blue, color: C.white, size: 26, h: 54 } ); }
+			drawFit( ctx, r, { x: 88, y: bt + 46, w: 904, h: ch2, color: C.ink } );
+			cw = cta( ctx, ct, 992, bt + boxH - 76, { h: 48, size: 23, align: 'right', fill: C.blue, color: C.white, maxW: 480 } );
+			line( ctx, date, { x: 88, top: bt + boxH - 72, lh: 40, size: 26, color: C.muted, maxW: cw ? 904 - cw - 24 : 600 } );
+			if ( ! cw ) { line( ctx, watermark(), { x: 992, top: bt + boxH - 70, lh: 36, size: 24, color: C.muted, align: 'right' } ); }
+		} else { /* headline */
+			rect( ctx, 0, 0, W, H, C.white );
+			var py = 470, pb = CH - 110;
+			photoOr( ctx, A.image, 0, py, W, pb - py, d );
+			customFrame( ctx, A, W, H );
+			viewfinder( ctx, 40, py + 40, 'tl', C.white ); viewfinder( ctx, 984, pb - 96, 'br', C.white );
+			rect( ctx, 0, 0, W, 10, C.blue );
+			if ( cat ) { pill( ctx, cat, 64, 56, { border: C.blue, color: C.blue, size: 26, h: 52 } ); }
+			line( ctx, date, { x: 1016, top: 62, lh: 40, size: 26, color: C.muted, align: 'right', maxW: 420 } );
+			r = fit( ctx, d.title, { w: 952, h: 320, maxLines: 4, max: 70, min: 44, lh: 1.32 } );
+			drawFit( ctx, r, { x: 64, y: 130, w: 952, h: 320, valign: 'middle', color: C.ink } );
+			rect( ctx, 0, pb, W, CH - pb, C.blue900 );
+			logo( ctx, 64, pb + 36, 200, C.white, 'left', A );
+			cw = cta( ctx, ct, 1016, pb + 29, { h: 52, size: 24, align: 'right', fill: C.white, color: C.blue900, maxW: 640 } );
+			if ( ! cw ) { line( ctx, watermark(), { x: 1016, top: pb + 38, lh: 34, size: 24, color: 'rgba(255,255,255,.72)', align: 'right' } ); }
+		}
+	}
+
+	/* 9 · জন্মদিন */
+	var BDAY = {
+		confetti: { bg: [ '#FFFDF8', '#FFF1DE' ], head: C.blue, ink: C.ink, sub: C.muted, msg: C.text, ring: '#F2A33A', logo: C.blue, mono: '#D6E6F7', monoInk: C.blue },
+		night:    { bg: [ '#123462', '#0B1E3A' ], head: '#F2C14E', ink: '#FFFFFF', sub: '#CFE3F8', msg: '#E6EEF8', ring: '#F2C14E', logo: '#F2C14E', mono: '#1E4A80', monoInk: '#F2C14E' },
+		balloon:  { bg: [ '#F2F8FF', '#D6E6F7' ], head: '#C2255C', ink: C.ink, sub: C.muted, msg: C.text, ring: '#C2255C', logo: C.blue, mono: '#FCE4EC', monoInk: '#C2255C' }
+	};
+	var PARTY = [ '#025AB2', '#F2A33A', '#E5484D', '#2BB673', '#8FC2F7', '#C2255C' ];
+	function bunting( ctx, W, y0, sag, n, colors, size ) {
+		ctx.strokeStyle = 'rgba(20,32,48,.35)'; ctx.lineWidth = 2;
+		ctx.beginPath(); ctx.moveTo( -10, y0 ); ctx.quadraticCurveTo( W / 2, y0 + sag * 2, W + 10, y0 ); ctx.stroke();
+		for ( var i = 0; i < n; i++ ) {
+			var t = ( i + 0.5 ) / n, x = t * W, y = y0 + 4 * sag * t * ( 1 - t ), s = size || 34;
+			ctx.fillStyle = colors[ i % colors.length ];
+			ctx.beginPath(); ctx.moveTo( x - s, y ); ctx.lineTo( x + s, y ); ctx.lineTo( x, y + s * 1.6 ); ctx.closePath(); ctx.fill();
+		}
+	}
+	function confetti( ctx, W, H, seed, keep, alpha ) {
+		var R = rng( seed ), i, x, y;
+		for ( i = 0; i < 140; i++ ) {
+			x = R() * W; y = R() * H;
+			if ( keep && x > keep[ 0 ] && x < keep[ 2 ] && y > keep[ 1 ] && y < keep[ 3 ] ) { continue; }
+			ctx.save(); ctx.globalAlpha = alpha || 0.9; ctx.translate( x, y ); ctx.rotate( R() * Math.PI ); ctx.fillStyle = PARTY[ Math.floor( R() * PARTY.length ) ];
+			if ( R() < 0.5 ) { ctx.fillRect( -9, -4, 18, 8 ); } else { ctx.beginPath(); ctx.arc( 0, 0, 5 + R() * 4, 0, Math.PI * 2 ); ctx.fill(); }
+			ctx.restore();
+		}
+	}
+	function sparkle( ctx, x, y, r, color ) {
+		ctx.fillStyle = color; ctx.beginPath();
+		ctx.moveTo( x, y - r ); ctx.quadraticCurveTo( x, y, x + r, y ); ctx.quadraticCurveTo( x, y, x, y + r ); ctx.quadraticCurveTo( x, y, x - r, y ); ctx.quadraticCurveTo( x, y, x, y - r ); ctx.fill();
+	}
+	function balloon( ctx, x, y, r, color, stringLen ) {
+		ctx.strokeStyle = 'rgba(20,32,48,.35)'; ctx.lineWidth = 2;
+		ctx.beginPath(); ctx.moveTo( x, y + r * 1.2 ); ctx.bezierCurveTo( x - 20, y + r * 1.2 + stringLen * 0.35, x + 20, y + r * 1.2 + stringLen * 0.65, x - 6, y + r * 1.2 + stringLen ); ctx.stroke();
+		var g = ctx.createRadialGradient( x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r * 1.25 );
+		g.addColorStop( 0, 'rgba(255,255,255,.75)' ); g.addColorStop( 0.25, color ); g.addColorStop( 1, color );
+		ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse( x, y, r, r * 1.2, 0, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo( x - 9, y + r * 1.26 ); ctx.lineTo( x + 9, y + r * 1.26 ); ctx.lineTo( x, y + r * 1.14 ); ctx.closePath(); ctx.fill();
+	}
+	function birthdayDecor( ctx, W, CH, p, land ) {
+		if ( 'confetti' === p ) {
+			confetti( ctx, W, CH, 7, land ? [ 440, 60, W - 40, CH ] : [ 120, 120, W - 120, CH ], 0.85 );
+			bunting( ctx, W, -6, 40, 13, [ '#025AB2', '#F2A33A', '#E5484D', '#2BB673' ], 30 );
+		} else if ( 'night' === p ) {
+			var R = rng( 11 ), i;
+			for ( i = 0; i < 90; i++ ) { ctx.fillStyle = 'rgba(255,255,255,' + ( 0.25 + R() * 0.6 ) + ')'; ctx.beginPath(); ctx.arc( R() * W, R() * CH, R() * 2.2 + 0.6, 0, Math.PI * 2 ); ctx.fill(); }
+			( land ? [ [ 70, 90, 24 ], [ 430, 120, 18 ], [ 60, 520, 16 ], [ 1160, 60, 20 ], [ 1150, 580, 16 ], [ 440, 520, 14 ] ] : [ [ 120, 160, 26 ], [ 950, 120, 34 ], [ 880, 300, 16 ], [ 170, 420, 14 ], [ 960, 520, 22 ], [ 90, 700, 20 ], [ 1000, 820, 14 ] ] ).forEach( function ( s ) { sparkle( ctx, s[ 0 ], land ? s[ 1 ] : s[ 1 ] * CH / 1080, s[ 2 ], '#F2C14E' ); } );
+			var gx = land ? 260 : W / 2, gy = land ? 315 : 330 * CH / 1080;
+			var gl = ctx.createRadialGradient( gx, gy, 40, gx, gy, 360 );
+			gl.addColorStop( 0, 'rgba(242,193,78,.28)' ); gl.addColorStop( 1, 'rgba(242,193,78,0)' ); ctx.fillStyle = gl; ctx.fillRect( 0, 0, W, CH );
+		} else if ( land ) {
+			balloon( ctx, 60, 140, 46, '#E5484D', 200 ); balloon( ctx, 430, 100, 40, '#F2A33A', 220 ); balloon( ctx, 1150, 120, 38, '#2BB673', 200 ); balloon( ctx, 470, 470, 30, '#025AB2', 120 );
+			confetti( ctx, W, CH, 3, [ 440, 0, W - 60, CH ], 0.5 );
+		} else {
+			balloon( ctx, 140, 230, 70, '#E5484D', 260 ); balloon( ctx, 250, 140, 56, '#F2A33A', 300 ); balloon( ctx, 90, 470, 48, '#025AB2', 220 );
+			balloon( ctx, 950, 210, 72, '#2BB673', 270 ); balloon( ctx, 830, 120, 52, '#C2255C', 310 ); balloon( ctx, 1000, 460, 46, '#8FC2F7', 220 );
+			confetti( ctx, W, CH, 3, [ 150, 0, W - 150, CH ], 0.5 );
+		}
+	}
+	function birthday( ctx, W, H, d, o, A ) {
+		var CH = H - ( o.ad ? STRIP_H : 0 ), p = BDAY[ o.preset ] ? o.preset : 'confetti', t = BDAY[ p ], dy = Math.round( ( CH - 1080 ) * 0.7 );
+		shade( ctx, 0, 0, W, H, [ [ 0, t.bg[ 0 ] ], [ 1, t.bg[ 1 ] ] ] );
+		birthdayDecor( ctx, W, CH, p );
+		customFrame( ctx, A, W, H );
+		var dph = CH < 1000 ? 280 : 320, ptop = CH < 1000 ? 96 : 150 + dy;
+		circleImage( ctx, A.image, ( W - dph ) / 2, ptop, dph, { rings: [ [ 14, t.ring ], [ 8, '#FFFFFF' ] ], focus: d.focus, zoom: d.zoom, name: d.name, monoBg: t.mono, monoInk: t.monoInk, monoSize: Math.round( dph * 0.42 ) } );
+		var y = ptop + dph + 44;
+		line( ctx, str( d.heading ) || 'শুভ জন্মদিন', { x: W / 2, top: y, lh: 124, size: 92, min: 60, weight: 700, fam: 'serif', color: t.head, align: 'center', maxW: 900 } );
+		y += 128;
+		line( ctx, d.name, { x: W / 2, top: y, lh: 72, size: 52, min: 36, weight: 700, fam: 'serif', color: t.ink, align: 'center', maxW: 880 } );
+		y += 74;
+		if ( str( d.role ) ) { line( ctx, d.role, { x: W / 2, top: y, lh: 42, size: 30, min: 24, color: t.sub, align: 'center', maxW: 880 } ); y += 52; }
+		var r = fit( ctx, d.message, { w: 820, h: 96, maxLines: 2, max: 32, min: 26, lhPx: 48, weight: 400, fam: 'sans' } );
+		drawFit( ctx, r, { x: 130, y: y, w: 820, h: 96, color: t.msg, align: 'center' } );
+		logo( ctx, W / 2, CH - 92, 190, t.logo, 'center', A );
+	}
+
+	/* 10 · দিবস — national / international days. Themes = presets. */
+	var DAY = {
+		generic:      { bg: [ '#0A69C6', '#024A93' ], ink: '#FFFFFF', sub: '#CFE3F8', pill: 'rgba(255,255,255,.16)', pillInk: '#FFFFFF', logo: '#FFFFFF', base: '#0559AA', label: 'সাধারণ (মিহা নীল)' },
+		matribhasha:  { bg: [ '#F6F2EA', '#E9E2D4' ], ink: '#1B1D21', sub: '#4A4740', pill: '#1B1D21', pillInk: '#FFFFFF', logo: '#1B1D21', base: '#EFE9DD', label: 'শহীদ দিবস ও মাতৃভাষা', noAd: true },
+		independence: { bg: [ '#007A57', '#004D38' ], ink: '#FFFFFF', sub: '#D7F0E5', pill: '#F42A41', pillInk: '#FFFFFF', logo: '#FFFFFF', base: '#005E44', label: 'স্বাধীনতা দিবস' },
+		victory:      { bg: [ '#0B6B45', '#053A25' ], ink: '#FFFFFF', sub: '#D7F0E5', pill: '#F42A41', pillInk: '#FFFFFF', logo: '#FFFFFF', base: '#07502F', label: 'বিজয় দিবস' },
+		boishakh:     { bg: [ '#FFF8EE', '#FFEBD2' ], ink: '#2A1606', sub: '#6B4A2A', pill: '#C8102E', pillInk: '#FFFFFF', logo: '#C8102E', base: '#FFF4E6', label: 'পহেলা বৈশাখ' },
+		eid:          { bg: [ '#0F4A43', '#062420' ], ink: '#FBF3E1', sub: '#E9D9B0', pill: 'rgba(233,196,106,.18)', pillInk: '#E9C46A', logo: '#E9C46A', base: '#0B3732', label: 'ঈদ' },
+		puja:         { bg: [ '#F59E2B', '#B5121B' ], ink: '#FFF8EC', sub: '#FFE7B8', pill: 'rgba(255,248,236,.18)', pillInk: '#FFF8EC', logo: '#FFF8EC', base: '#D4561F', label: 'শারদীয় দুর্গোৎসব' },
+		newyear:      { bg: [ '#14315C', '#081429' ], ink: '#FFFFFF', sub: '#CFE3F8', pill: 'rgba(242,193,78,.18)', pillInk: '#F2C14E', logo: '#F2C14E', base: '#0E2343', label: 'ইংরেজি নববর্ষ' },
+		environment:  { bg: [ '#2D6A4F', '#163A2B' ], ink: '#FFFFFF', sub: '#D8F3DC', pill: '#40916C', pillInk: '#FFFFFF', logo: '#FFFFFF', base: '#22543D', label: 'পরিবেশ দিবস' }
+	};
+	/* each motif draws inside box {x,y,w,h}; s = scale (1 at a 1080 × 520 box) */
+	var MOTIF = {
+		generic: function ( ctx, b, s ) {
+			var cx = b.x + b.w / 2, cy = b.y + b.h / 2 + 10 * s, i;
+			for ( i = 1; i <= 4; i++ ) { ctx.strokeStyle = 'rgba(255,255,255,' + ( 0.12 - i * 0.02 ) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc( cx, cy, 70 * s * i, 0, Math.PI * 2 ); ctx.stroke(); }
+			ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.beginPath();
+			for ( i = 0; i < 48; i++ ) { var a = i * Math.PI / 24, rr = ( i % 2 ? 128 : 146 ) * s; ctx.lineTo( cx + Math.cos( a ) * rr, cy + Math.sin( a ) * rr ); }
+			ctx.closePath(); ctx.fill();
+			ctx.fillStyle = C.blue; ctx.beginPath(); ctx.arc( cx, cy, 108 * s, 0, Math.PI * 2 ); ctx.fill();
+			ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 3 * s; ctx.beginPath(); ctx.arc( cx, cy, 94 * s, 0, Math.PI * 2 ); ctx.stroke();
+			viewfinder( ctx, cx - 46 * s, cy - 46 * s, 'tl', '#FFFFFF', 40 * s, 7 * s ); viewfinder( ctx, cx + 6 * s, cy + 6 * s, 'br', '#FFFFFF', 40 * s, 7 * s );
+		},
+		matribhasha: function ( ctx, b, s ) {
+			var cx = b.x + b.w / 2, g = b.y + b.h - 30 * s, ink = '#1B1D21';
+			ctx.fillStyle = '#CC2A1F'; ctx.beginPath(); ctx.arc( cx, g - 250 * s, 150 * s, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = ink;
+			var frameAt = function ( x, w, h, bar, lean ) { /* a minar column frame: 2 posts + crossbars, top tilted forward */
+				ctx.fillRect( x, g - h, bar, h ); ctx.fillRect( x + w - bar, g - h, bar, h );
+				for ( var k = 1; k <= 3; k++ ) { ctx.fillRect( x, g - h * k / 4, w, bar * 0.45 ); }
+				if ( lean ) { /* the bent top of the central minar */
+					ctx.strokeStyle = ink; ctx.lineWidth = bar; ctx.lineJoin = 'miter';
+					ctx.beginPath(); ctx.moveTo( x + bar / 2, g - h ); ctx.lineTo( x + lean * 0.35 + bar / 2, g - h - lean ); ctx.lineTo( x + w - lean * 0.35 - bar / 2, g - h - lean ); ctx.lineTo( x + w - bar / 2, g - h ); ctx.stroke();
+					ctx.lineWidth = bar * 0.5; ctx.beginPath(); ctx.moveTo( x + w / 2, g - h ); ctx.lineTo( x + w / 2, g - h - lean ); ctx.stroke();
+				}
+				ctx.fillRect( x + w / 2 - bar * 0.25, g - h, bar * 0.5, h );
+			};
+			frameAt( cx - 70 * s, 140 * s, 270 * s, 14 * s, 70 * s );
+			frameAt( cx - 170 * s, 62 * s, 210 * s, 11 * s, 0 ); frameAt( cx + 108 * s, 62 * s, 210 * s, 11 * s, 0 );
+			frameAt( cx - 255 * s, 56 * s, 160 * s, 10 * s, 0 ); frameAt( cx + 199 * s, 56 * s, 160 * s, 10 * s, 0 );
+			ctx.fillRect( cx - 300 * s, g, 600 * s, 12 * s ); ctx.fillRect( cx - 340 * s, g + 12 * s, 680 * s, 12 * s );
+		},
+		independence: function ( ctx, b, s ) {
+			var cx = b.x + b.w / 2, g = b.y + b.h - 20 * s, i;
+			ctx.fillStyle = '#F42A41'; ctx.beginPath(); ctx.arc( cx, g - 240 * s, 150 * s, 0, Math.PI * 2 ); ctx.fill();
+			for ( i = 6; i >= 0; i-- ) { /* জাতীয় স্মৃতিসৌধ: seven triangular walls — tallest (back) first, lower/wider ones in front */
+				var h = ( 96 + i * 46 ) * s, half = ( 340 - i * 40 ) * s;
+				ctx.fillStyle = i % 2 ? '#FFFFFF' : '#CFE0D7';
+				ctx.beginPath(); ctx.moveTo( cx - half, g ); ctx.lineTo( cx, g - h ); ctx.lineTo( cx + half, g ); ctx.closePath(); ctx.fill();
+				ctx.strokeStyle = 'rgba(0,77,56,.35)'; ctx.lineWidth = 1.5; ctx.stroke();
+			}
+			ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect( cx - 380 * s, g, 760 * s, 10 * s );
+		},
+		victory: function ( ctx, b, s ) {
+			var cx = b.x + b.w / 2, top = b.y + 70 * s, fw = 420 * s, fh = 252 * s, px = cx - fw / 2 - 20 * s, i;
+			var R = rng( 21 );
+			for ( i = 0; i < 26; i++ ) { var a = -Math.PI / 2 + ( i - 13 ) * 0.12; ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.lineWidth = 18 * s; ctx.beginPath(); ctx.moveTo( cx, b.y + b.h ); ctx.lineTo( cx + Math.cos( a ) * 900 * s, b.y + b.h + Math.sin( a ) * 900 * s ); ctx.stroke(); }
+			ctx.fillStyle = '#E8E2D6'; ctx.fillRect( px - 10 * s, top - 14 * s, 10 * s, b.h - 30 * s ); ctx.beginPath(); ctx.arc( px - 5 * s, top - 16 * s, 9 * s, 0, Math.PI * 2 ); ctx.fill();
+			var wave = function ( x ) { return Math.sin( ( x / fw ) * Math.PI * 2 ) * 14 * s; };
+			ctx.fillStyle = '#006A4E'; ctx.beginPath(); ctx.moveTo( px, top + wave( 0 ) );
+			for ( i = 0; i <= 40; i++ ) { ctx.lineTo( px + fw * i / 40, top + wave( fw * i / 40 ) ); }
+			for ( i = 40; i >= 0; i-- ) { ctx.lineTo( px + fw * i / 40, top + fh + wave( fw * i / 40 ) ); }
+			ctx.closePath(); ctx.fill();
+			ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 2; ctx.stroke();
+			var ccx = px + fw * 0.45; ctx.fillStyle = '#F42A41'; ctx.beginPath(); ctx.ellipse( ccx, top + fh / 2 + wave( fw * 0.45 ), fh * 0.33, fh * 0.33, 0, 0, Math.PI * 2 ); ctx.fill();
+			for ( i = 0; i < 24; i++ ) { ctx.fillStyle = [ '#F42A41', '#FFFFFF', '#F2C14E' ][ i % 3 ]; ctx.save(); ctx.translate( b.x + R() * b.w, b.y + R() * b.h * 0.9 ); ctx.rotate( R() * 3 ); ctx.globalAlpha = 0.7; ctx.fillRect( -6, -3, 12, 6 ); ctx.restore(); }
+		},
+		boishakh: function ( ctx, b, s ) {
+			var cx = b.x + b.w / 2, cy = b.y + b.h / 2, i, k;
+			ctx.fillStyle = '#C8102E'; ctx.fillRect( b.x, b.y, b.w, b.h );
+			ctx.fillStyle = '#FFF4E6'; /* scalloped bottom edge */
+			for ( i = 0; i * 40 * s < b.w + 40 * s; i++ ) { ctx.beginPath(); ctx.arc( b.x + i * 40 * s, b.y + b.h, 20 * s, Math.PI, 0 ); ctx.fill(); }
+			var alpona = function ( x, y, r, a ) { /* concentric petal rings */
+				ctx.save(); ctx.translate( x, y ); ctx.globalAlpha = a; ctx.strokeStyle = '#FFFFFF'; ctx.fillStyle = '#FFFFFF'; ctx.lineWidth = 3 * s;
+				for ( k = 0; k < 16; k++ ) { ctx.save(); ctx.rotate( k * Math.PI / 8 ); ctx.beginPath(); ctx.ellipse( 0, -r * 0.72, r * 0.11, r * 0.26, 0, 0, Math.PI * 2 ); ctx.stroke(); ctx.restore(); }
+				for ( k = 0; k < 8; k++ ) { ctx.save(); ctx.rotate( k * Math.PI / 4 + Math.PI / 8 ); ctx.beginPath(); ctx.ellipse( 0, -r * 0.38, r * 0.1, r * 0.2, 0, 0, Math.PI * 2 ); ctx.fill(); ctx.restore(); }
+				ctx.beginPath(); ctx.arc( 0, 0, r * 0.98, 0, Math.PI * 2 ); ctx.stroke();
+				ctx.beginPath(); ctx.arc( 0, 0, r * 0.14, 0, Math.PI * 2 ); ctx.fill();
+				for ( k = 0; k < 32; k++ ) { ctx.beginPath(); ctx.arc( Math.cos( k * Math.PI / 16 ) * r * 1.1, Math.sin( k * Math.PI / 16 ) * r * 1.1, 4 * s, 0, Math.PI * 2 ); ctx.fill(); }
+				ctx.restore();
+			};
+			alpona( cx, cy - 6 * s, 170 * s, 1 ); alpona( b.x + 40 * s, b.y + 60 * s, 120 * s, 0.35 ); alpona( b.x + b.w - 40 * s, b.y + 60 * s, 120 * s, 0.35 );
+		},
+		eid: function ( ctx, b, s ) {
+			var R = rng( 5 ), i, cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+			for ( i = 0; i < 70; i++ ) { ctx.fillStyle = 'rgba(251,243,225,' + ( 0.2 + R() * 0.5 ) + ')'; ctx.beginPath(); ctx.arc( b.x + R() * b.w, b.y + R() * b.h, R() * 2 + 0.6, 0, Math.PI * 2 ); ctx.fill(); }
+			var mx = cx + 40 * s, my = cy, mr = 150 * s;
+			var gl = ctx.createRadialGradient( mx, my, mr * 0.5, mx, my, mr * 2.2 ); gl.addColorStop( 0, 'rgba(233,196,106,.25)' ); gl.addColorStop( 1, 'rgba(233,196,106,0)' );
+			ctx.fillStyle = gl; ctx.fillRect( b.x, b.y, b.w, b.h );
+			var mc = doc.createElement( 'canvas' ), mz = Math.ceil( mr * 2 + 4 ); mc.width = mc.height = mz;
+			var mx2 = mc.getContext( '2d' ); mx2.fillStyle = '#E9C46A'; mx2.beginPath(); mx2.arc( mz / 2, mz / 2, mr, 0, Math.PI * 2 ); mx2.fill();
+			mx2.globalCompositeOperation = 'destination-out'; mx2.beginPath(); mx2.arc( mz / 2 + 62 * s, mz / 2 - 34 * s, mr * 0.86, 0, Math.PI * 2 ); mx2.fill();
+			ctx.drawImage( mc, mx - mz / 2, my - mz / 2 );
+			var star = function ( x, y, r ) { ctx.beginPath(); for ( var k = 0; k < 10; k++ ) { var a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r * 0.42 : r; ctx.lineTo( x + Math.cos( a ) * rr, y + Math.sin( a ) * rr ); } ctx.closePath(); ctx.fill(); };
+			ctx.fillStyle = '#E9C46A'; star( mx + 120 * s, my - 30 * s, 34 * s );
+			var lantern = function ( x, len, sc ) {
+				ctx.strokeStyle = 'rgba(233,196,106,.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo( x, b.y ); ctx.lineTo( x, b.y + len ); ctx.stroke();
+				var y = b.y + len, w = 46 * sc, h = 86 * sc;
+				ctx.fillStyle = '#E9C46A'; ctx.beginPath(); ctx.moveTo( x - w * 0.35, y + 12 * sc ); ctx.lineTo( x + w * 0.35, y + 12 * sc ); ctx.lineTo( x, y ); ctx.closePath(); ctx.fill();
+				var lg = ctx.createRadialGradient( x, y + 12 * sc + h / 2, 4, x, y + 12 * sc + h / 2, w ); lg.addColorStop( 0, 'rgba(255,236,170,.95)' ); lg.addColorStop( 1, 'rgba(233,196,106,.35)' );
+				ctx.fillStyle = lg; ctx.beginPath(); ctx.moveTo( x - w * 0.35, y + 12 * sc ); ctx.lineTo( x + w * 0.35, y + 12 * sc ); ctx.lineTo( x + w / 2, y + 12 * sc + h * 0.3 ); ctx.lineTo( x + w / 2, y + 12 * sc + h * 0.75 ); ctx.lineTo( x, y + 12 * sc + h ); ctx.lineTo( x - w / 2, y + 12 * sc + h * 0.75 ); ctx.lineTo( x - w / 2, y + 12 * sc + h * 0.3 ); ctx.closePath(); ctx.fill();
+				ctx.strokeStyle = '#E9C46A'; ctx.lineWidth = 3 * sc; ctx.stroke();
+			};
+			lantern( b.x + 150 * s, 120 * s, s ); lantern( b.x + 250 * s, 210 * s, s * 0.8 ); lantern( b.x + b.w - 160 * s, 90 * s, s * 0.9 );
+		},
+		puja: function ( ctx, b, s ) {
+			var cx = b.x + b.w / 2, cy = b.y + b.h / 2 + 10 * s, k, ring;
+			var rings = [ [ 210, 24, 0.3, 0.2 ], [ 160, 16, 0.55, 0.24 ], [ 112, 12, 0.85, 0.26 ], [ 68, 8, 1, 0.3 ] ];
+			for ( ring = 0; ring < rings.length; ring++ ) {
+				var rr = rings[ ring ][ 0 ] * s, n = rings[ ring ][ 1 ];
+				ctx.save(); ctx.translate( cx, cy ); ctx.globalAlpha = rings[ ring ][ 2 ]; ctx.fillStyle = '#FFF3D6'; ctx.strokeStyle = '#FFF3D6'; ctx.lineWidth = 2.5 * s;
+				for ( k = 0; k < n; k++ ) { ctx.save(); ctx.rotate( k * 2 * Math.PI / n + ring * 0.2 ); ctx.beginPath(); ctx.moveTo( 0, -rr * 0.55 ); ctx.quadraticCurveTo( rr * rings[ ring ][ 3 ], -rr * 0.82, 0, -rr ); ctx.quadraticCurveTo( -rr * rings[ ring ][ 3 ], -rr * 0.82, 0, -rr * 0.55 ); ctx.fill(); ctx.restore(); }
+				ctx.beginPath(); ctx.arc( 0, 0, rr * 0.55, 0, Math.PI * 2 ); ctx.stroke();
+				ctx.restore();
+			}
+			ctx.fillStyle = '#FFD166'; ctx.beginPath(); ctx.arc( cx, cy, 22 * s, 0, Math.PI * 2 ); ctx.fill();
+		},
+		newyear: function ( ctx, b, s ) {
+			var R = rng( 9 ), i;
+			var burst = function ( x, y, r, color, n ) {
+				ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineCap = 'round';
+				for ( var k = 0; k < n; k++ ) {
+					var a = k * 2 * Math.PI / n, r0 = r * 0.25, r1 = r * ( 0.8 + R() * 0.2 );
+					ctx.globalAlpha = 0.9; ctx.lineWidth = 3 * s; ctx.beginPath(); ctx.moveTo( x + Math.cos( a ) * r0, y + Math.sin( a ) * r0 ); ctx.lineTo( x + Math.cos( a ) * r1, y + Math.sin( a ) * r1 ); ctx.stroke();
+					ctx.beginPath(); ctx.arc( x + Math.cos( a ) * ( r1 + 10 * s ), y + Math.sin( a ) * ( r1 + 10 * s ), 4 * s, 0, Math.PI * 2 ); ctx.fill();
+				}
+				ctx.globalAlpha = 1; ctx.lineCap = 'butt';
+			};
+			for ( i = 0; i < 80; i++ ) { ctx.fillStyle = 'rgba(255,255,255,' + ( 0.2 + R() * 0.5 ) + ')'; ctx.beginPath(); ctx.arc( b.x + R() * b.w, b.y + R() * b.h, R() * 2 + 0.5, 0, Math.PI * 2 ); ctx.fill(); }
+			burst( b.x + b.w * 0.5, b.y + b.h * 0.45, 170 * s, '#F2C14E', 28 );
+			burst( b.x + b.w * 0.2, b.y + b.h * 0.3, 100 * s, '#FF7AA2', 20 );
+			burst( b.x + b.w * 0.8, b.y + b.h * 0.32, 110 * s, '#6AD3F5', 22 );
+			burst( b.x + b.w * 0.86, b.y + b.h * 0.78, 60 * s, '#FFFFFF', 14 );
+			burst( b.x + b.w * 0.13, b.y + b.h * 0.8, 56 * s, '#F2C14E', 14 );
+		},
+		environment: function ( ctx, b, s ) {
+			var cx = b.x + b.w / 2, cy = b.y + b.h / 2 + 10 * s, r = 150 * s, i;
+			var leaf = function ( x, y, len, ang, color ) {
+				ctx.save(); ctx.translate( x, y ); ctx.rotate( ang ); ctx.fillStyle = color;
+				ctx.beginPath(); ctx.moveTo( 0, 0 ); ctx.quadraticCurveTo( len * 0.5, -len * 0.38, len, 0 ); ctx.quadraticCurveTo( len * 0.5, len * 0.38, 0, 0 ); ctx.fill();
+				ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo( 0, 0 ); ctx.lineTo( len * 0.92, 0 ); ctx.stroke(); ctx.restore();
+			};
+			for ( i = 0; i < 14; i++ ) { var a = i * Math.PI * 2 / 14; leaf( cx + Math.cos( a ) * r * 1.02, cy + Math.sin( a ) * r * 1.02, ( 90 + ( i % 3 ) * 18 ) * s, a + ( i % 2 ? 0.35 : -0.35 ), i % 2 ? '#52B788' : '#95D5B2' ); }
+			ctx.save(); ctx.beginPath(); ctx.arc( cx, cy, r, 0, Math.PI * 2 ); ctx.clip();
+			ctx.fillStyle = '#2A7DB5'; ctx.fillRect( cx - r, cy - r, 2 * r, 2 * r );
+			ctx.fillStyle = '#74C69D';
+			[ [ -0.45, -0.35, 0.42, 0.3, 0.4 ], [ 0.25, -0.1, 0.35, 0.5, -0.3 ], [ -0.2, 0.45, 0.3, 0.2, 0.2 ], [ 0.6, 0.55, 0.2, 0.15, 0 ] ].forEach( function ( e ) { ctx.beginPath(); ctx.ellipse( cx + e[ 0 ] * r, cy + e[ 1 ] * r, e[ 2 ] * r, e[ 3 ] * r, e[ 4 ], 0, Math.PI * 2 ); ctx.fill(); } );
+			var hl = ctx.createRadialGradient( cx - r * 0.4, cy - r * 0.4, r * 0.1, cx, cy, r ); hl.addColorStop( 0, 'rgba(255,255,255,.35)' ); hl.addColorStop( 1, 'rgba(0,0,0,.15)' );
+			ctx.fillStyle = hl; ctx.fillRect( cx - r, cy - r, 2 * r, 2 * r ); ctx.restore();
+		}
+	};
+	function dayTheme( d, o ) { var k = o.preset && DAY[ o.preset ] ? o.preset : ( DAY[ d.theme ] ? d.theme : 'generic' ); return k; }
+	function day( ctx, W, H, d, o, A ) {
+		var k = dayTheme( d, o ), t = DAY[ k ], CH = H - ( o.ad ? STRIP_H : 0 ), MH = CH - 560;
+		shade( ctx, 0, 0, W, H, [ [ 0, t.bg[ 0 ] ], [ 1, t.bg[ 1 ] ] ] );
+		var box = { x: 0, y: 0, w: W, h: MH + 20 };
+		if ( A.image ) {
+			cover( ctx, A.image, 0, 0, W, MH + 60, d.focus, d.zoom );
+			shade( ctx, 0, MH - 140, W, 200, [ [ 0, hexA( t.base, 0 ) ], [ 1, t.base ] ] );
+			ctx.fillStyle = t.base; ctx.fillRect( 0, MH + 60, W, CH - MH - 60 );
+			shade( ctx, 0, MH + 60, W, CH - MH - 60, [ [ 0, t.base ], [ 1, t.bg[ 1 ] ] ] );
+		} else {
+			MOTIF[ k ]( ctx, box, Math.min( 1.25, Math.max( 0.62, MH / 540 ) ) );
+		}
+		customFrame( ctx, A, W, H );
+		if ( 'puja' === k || 'eid' === k ) { ctx.strokeStyle = hexA( t.pillInk.charAt( 0 ) === '#' ? t.pillInk : '#FFFFFF', 0.5 ); ctx.lineWidth = 2; ctx.strokeRect( 28, 28, W - 56, CH - 56 ); ctx.lineWidth = 1; ctx.strokeRect( 38.5, 38.5, W - 77, CH - 77 ); }
+		var y = MH + 40;
+		var sub = str( d.subtitle );
+		if ( sub ) {
+			var solid = /^#/.test( t.pill );
+			pill( ctx, sub, W / 2, y, { fill: t.pill, border: solid ? null : hexA( t.pillInk, 0.55 ), color: t.pillInk, size: 28, h: 56, align: 'center' } );
+		}
+		var r = fit( ctx, str( d.title ) || t.label, { w: 920, h: 226, maxLines: 2, max: 86, min: 52, lh: 1.3 } );
+		drawFit( ctx, r, { x: 80, y: y + 70, w: 920, h: 226, valign: 'middle', color: t.ink, align: 'center' } );
+		var rm = fit( ctx, d.message, { w: 860, h: 92, maxLines: 2, max: 32, min: 26, lhPx: 46, weight: 400, fam: 'sans' } );
+		drawFit( ctx, rm, { x: 110, y: y + 302, w: 860, h: 92, color: t.sub, align: 'center' } );
+		logo( ctx, W / 2, CH - 86, 190, t.logo, 'center', A );
+	}
+
+	/* ================================================================== নিজের ফ্রেম, একক নকশা (standalone)
+	   For the full-artwork types (দিবস, জন্মদিন, শোক, উক্তি) an uploaded frame IS the design: none of the built-in
+	   background/artwork/ornaments is drawn — [photo (cover, focal point; শোক grey)] → frame PNG (full canvas) →
+	   a neutral centred text block. Ink = light/dark from the luminance under the text block (or a manual override).
+	   Photo-centric types (news, feature, category, breaking, morning, opinion) keep the frame as an overlay. */
+	var SOLO_TYPES = { day: 1, birthday: 1, condolence: 1, quote: 1 };
+	/* per type, top → bottom: [data key, role, label]; the logo is the element 'logo' */
+	var SOLO_TEXT = {
+		day: [ [ 'subtitle', 'kicker', 'তারিখ / উপশিরোনাম' ], [ 'title', 'title', 'শিরোনাম' ], [ 'message', 'body', 'বার্তা' ] ],
+		birthday: [ [ 'heading', 'title', 'শিরোনাম' ], [ 'name', 'name', 'নাম' ], [ 'role', 'meta', 'পরিচয়' ], [ 'message', 'body', 'শুভেচ্ছা বার্তা' ] ],
+		condolence: [ [ 'pre', 'kicker', 'প্রথম লাইন' ], [ 'heading', 'title', 'শিরোনাম' ], [ 'name', 'name', 'নাম' ], [ 'role', 'meta', 'পরিচয়' ], [ 'dates_line', 'meta', 'জন্ম–মৃত্যু' ], [ 'message', 'body', 'বার্তা' ] ],
+		quote: [ [ 'type_label', 'kicker', 'ধরনের লেবেল' ], [ 'text', 'quote', 'উক্তি' ], [ 'speaker', 'name', 'বক্তা' ], [ 'role', 'meta', 'পরিচয়' ] ]
+	};
+	var SOLO_DEFAULT = { birthday: { heading: 'শুভ জন্মদিন' }, condolence: { heading: 'গভীর শোক' } };
+	/* a শহীদ দিবস / শোক দিবস title on a দিবস card with an own frame → no ad strip (dignity rule, as the matribhasha theme) */
+	var SOLEMN = /শহী?দ\s*দিবস|শহিদ\s*দিবস|একুশে|২১\s*(?:শে\s*)?ফেব্রুয়ারি|মাতৃভাষা|শোক|গণহত্যা/;
+	function soloMode( type, opts ) { return !! ( SOLO_TYPES[ type ] && opts && opts.frame && 'overlay' !== opts.frameMode ); }
+	/* may this card carry the bottom ad strip? (same rule the renderer applies; the studio greys the checkbox out) */
+	function adAllowed( type, data, opts ) {
+		type = ALIASES[ type ] || type; data = data || {}; opts = opts || {};
+		var t = templates[ type ], sz = SIZES[ opts.size ] || SIZES[ '1080x1080' ];
+		if ( ! t || ! t.ad || 1200 === sz[ 0 ] || 'condolence' === type ) { return false; }
+		if ( 'day' === type ) {
+			if ( soloMode( type, opts ) ) { return ! SOLEMN.test( str( data.title ) + ' ' + str( data.subtitle ) ); }
+			return ! DAY[ dayTheme( data, { preset: opts.preset } ) ].noAd;
+		}
+		return true;
+	}
+	function soloText( type, d ) {
+		var dd = SOLO_DEFAULT[ type ] || {};
+		return function ( k ) { var v = 'quote' === type || 'message' === k || 'text' === k ? strKeepNl( d[ k ] ) : str( d[ k ] ); return v || str( dd[ k ] ); };
+	}
+	/* mean relative luminance (0–1) of a canvas region; null when unreadable */
+	function regionLum( ctx, x, y, w, h ) {
+		x = Math.max( 0, Math.round( x ) ); y = Math.max( 0, Math.round( y ) );
+		w = Math.min( ctx.canvas.width - x, Math.round( w ) ); h = Math.min( ctx.canvas.height - y, Math.round( h ) );
+		if ( w < 4 || h < 4 ) { return null; }
+		try {
+			var p = ctx.getImageData( x, y, w, h ).data, s = 0, n = 0, step = 4 * Math.max( 1, Math.floor( p.length / 4 / 6000 ) );
+			for ( var i = 0; i < p.length; i += step ) { s += ( 0.2126 * p[ i ] + 0.7152 * p[ i + 1 ] + 0.0722 * p[ i + 2 ] ) / 255; n++; }
+			return n ? s / n : null;
+		} catch ( e ) { return null; }
+	}
+	function standalone( type, ctx, W, H, d, o, A, ft ) {
+		ft = ft || {};
+		var CH = H - ( o.ad ? STRIP_H : 0 ), land = 1200 === W, hide = ft.hide || {}, get = soloText( type, d );
+		/* base: white (a frame with transparent parts and no photo must not give a transparent PNG) → photo → frame */
+		rect( ctx, 0, 0, W, H, C.white );
+		if ( A.image ) {
+			if ( 'condolence' === type ) { ctx.drawImage( grayscaleCopy( A.image, W, CH, d.focus, d.zoom ), 0, 0, W, CH ); } else { cover( ctx, A.image, 0, 0, W, CH, d.focus, d.zoom ); }
+		}
+		ctx.drawImage( A.frameImg, 0, 0, W, H );
+		/* text block: centred, inside a 90 px side margin; k scales everything for short canvases */
+		var mx = land ? 110 : 90, bw = W - 2 * mx, k = land ? 0.7 : Math.max( 0.82, Math.min( 1, CH / 1080 ) ), pos = ft.pos || 'bottom';
+		var padT = land ? 70 : 110, padB = land ? 46 : 70, avail = CH - padT - padB;
+		/* typical frames keep their text panel in the lower ~40 %: a bottom block stays within that budget */
+		var budget = 'bottom' === pos ? Math.min( avail, Math.round( CH * ( land ? 0.46 : 0.42 ) ) ) : avail, kMin = land ? 0.42 : 0.6;
+		var items, total, tries = 0;
+		var build = function () {
+			var out = [];
+			( SOLO_TEXT[ type ] || [] ).forEach( function ( e ) {
+				var key = e[ 0 ], role = e[ 1 ], v = get( key );
+				if ( hide[ key ] || ! v ) { return; }
+				if ( 'quote' === role ) { v = '“' + v.replace( /^[“"']+|[”"']+$/g, '' ) + '”'; }
+				var it = { key: key, role: role, text: v, bw: 'body' === role ? Math.min( bw, 860 ) : bw }, sz;
+				if ( 'title' === role ) { it.fit = fit( ctx, v, { w: bw, maxLines: 2, max: Math.round( 84 * k ), min: Math.round( 50 * k ), lh: 1.3 } ); }
+				else if ( 'quote' === role ) { it.fit = fit( ctx, v, { w: bw, maxLines: land ? 3 : 5, max: Math.round( 60 * k ), min: Math.round( 36 * k ), lh: 1.45 } ); }
+				else if ( 'body' === role ) { it.fit = fit( ctx, v, { w: it.bw, maxLines: 2, max: Math.round( 32 * k ), min: Math.round( 24 * k ), lhPx: Math.round( 46 * k ), weight: 400, fam: 'sans' } ); }
+				else {
+					sz = { kicker: [ 32, 24, 46, 600, 'sans' ], name: [ 52, 36, 72, 700, 'serif' ], meta: [ 30, 22, 42, 400, 'sans' ] }[ role ];
+					it.line = { size: Math.round( sz[ 0 ] * k ), min: Math.round( sz[ 1 ] * k ), lh: Math.round( sz[ 2 ] * k ), weight: sz[ 3 ], fam: sz[ 4 ] };
+				}
+				if ( it.fit ) {
+					it.h = it.fit.lines.length * it.fit.lineH;
+					ctx.font = fontStr( it.fit.weight, it.fit.size, it.fit.fam );
+					it.tw = Math.min( it.bw, it.fit.lines.reduce( function ( m, l ) { return Math.max( m, width( ctx, l ) ); }, 0 ) );
+				} else {
+					it.h = it.line.lh;
+					ctx.font = fontStr( it.line.weight, it.line.size, it.line.fam );
+					it.tw = Math.min( bw, width( ctx, v ) );
+				}
+				it.gap = out.length ? Math.round( ( 'body' === role || 'title' === role || 'quote' === role ? 22 : 10 ) * k ) : 0;
+				out.push( it );
+			} );
+			if ( ! hide.logo ) { var lw = Math.round( 190 * k ); out.push( { key: 'logo', role: 'logo', w: lw, tw: lw, h: Math.round( lw * 44 / 252 ), gap: out.length ? Math.round( 34 * k ) : 0 } ); }
+			return out;
+		};
+		do {
+			items = build(); total = items.reduce( function ( s, it ) { return s + it.gap + it.h; }, 0 );
+			if ( total <= budget || k <= kMin ) { break; }
+			k = Math.max( kMin, k * Math.max( 0.8, budget / total ) );
+		} while ( ++tries < 6 );
+		var top = 'top' === pos ? padT : ( 'middle' === pos ? Math.round( ( CH - total ) / 2 ) : CH - padB - total );
+		top = Math.max( Math.min( top, CH - padB - total ), Math.min( padT, CH - total ) );
+		/* ink per element: light (white) or dark — measured under each element (photo + frame as drawn, before any
+		   text) unless overridden; a block that straddles a panel edge stays readable */
+		var force = 'light' === ft.ink || 'dark' === ft.ink ? ft.ink : '', y = top, cx = W / 2, inks = {};
+		items.forEach( function ( it ) {
+			y += it.gap; it.y = y; y += it.h;
+			if ( force ) { it.ink = force; } else {
+				var L = regionLum( ctx, cx - it.tw / 2 - 10, it.y - 4, it.tw + 20, it.h + 8 );
+				it.ink = null !== L && L > 0.56 ? 'dark' : 'light';
+			}
+			inks[ it.ink ] = 1;
+		} );
+		items.forEach( function ( it ) {
+			var light = 'light' === it.ink, col = light ? C.white : C.ink, soft = light ? 'rgba(255,255,255,.88)' : 'rgba(20,32,48,.82)';
+			ctx.save();
+			if ( 'logo' === it.role ) {
+				logo( ctx, cx, it.y, it.w, light ? C.white : C.blue, 'center', A );
+			} else {
+				ctx.shadowColor = light ? 'rgba(0,0,0,.55)' : 'rgba(255,255,255,.5)'; ctx.shadowBlur = Math.round( ( light ? 12 : 8 ) * k ); ctx.shadowOffsetY = light ? Math.max( 1, Math.round( 2 * k ) ) : 0;
+				if ( it.fit ) {
+					drawFit( ctx, it.fit, { x: cx - it.bw / 2, y: it.y, w: it.bw, h: it.h, color: 'body' === it.role ? soft : col, align: 'center' } );
+				} else {
+					line( ctx, it.text, { x: cx, top: it.y, lh: it.line.lh, size: it.line.size, min: it.line.min, weight: it.line.weight, fam: it.line.fam, color: 'name' === it.role ? col : soft, align: 'center', maxW: bw } );
+				}
+			}
+			ctx.restore();
+		} );
+		var ink = Object.keys( inks ).sort().join( '+' ) || ( force || 'none' );
+		return ink;
+	}
+
+	/* ================================================================== 1200 × 630 (link preview) */
+	function landscape( type, ctx, W, H, d, o, A ) {
+		var X = 680, CW = 456; /* content panel x680–1136 */
+		if ( 'literature' === type || 'poem' === type ) { landLiterary( type, ctx, W, H, d, o, A ); return; }
+		if ( 'birthday' === type ) {
+			var bp = BDAY[ o.preset ] ? o.preset : 'confetti', bt = BDAY[ bp ];
+			shade( ctx, 0, 0, W, H, [ [ 0, bt.bg[ 0 ] ], [ 1, bt.bg[ 1 ] ] ] );
+			birthdayDecor( ctx, W, H, bp, true );
+			customFrame( ctx, A, W, H );
+			circleImage( ctx, A.image, 110, 165, 300, { rings: [ [ 12, bt.ring ], [ 6, '#FFFFFF' ] ], focus: d.focus, zoom: d.zoom, name: d.name, monoBg: bt.mono, monoInk: bt.monoInk, monoSize: 126 } );
+			var bx = 805;
+			line( ctx, str( d.heading ) || 'শুভ জন্মদিন', { x: bx, top: 96, lh: 108, size: 80, min: 54, weight: 700, fam: 'serif', color: bt.head, align: 'center', maxW: 640 } );
+			line( ctx, d.name, { x: bx, top: 214, lh: 64, size: 48, min: 34, weight: 700, fam: 'serif', color: bt.ink, align: 'center', maxW: 640 } );
+			line( ctx, d.role, { x: bx, top: 282, lh: 40, size: 28, min: 22, color: bt.sub, align: 'center', maxW: 640 } );
+			var bm = fit( ctx, d.message, { w: 620, h: 88, maxLines: 2, max: 28, min: 24, lhPx: 44, weight: 400, fam: 'sans' } );
+			drawFit( ctx, bm, { x: bx - 310, y: 340, w: 620, h: 88, color: bt.msg, align: 'center' } );
+			logo( ctx, bx, 530, 180, bt.logo, 'center', A );
+			return;
+		}
+		if ( 'day' === type ) {
+			var dk = dayTheme( d, o ), dt = DAY[ dk ];
+			shade( ctx, 0, 0, W, H, [ [ 0, dt.bg[ 0 ] ], [ 1, dt.bg[ 1 ] ] ] );
+			if ( A.image ) {
+				cover( ctx, A.image, 0, 0, 600, H, d.focus, d.zoom );
+				var fg = ctx.createLinearGradient( 420, 0, 600, 0 ); fg.addColorStop( 0, hexA( dt.base, 0 ) ); fg.addColorStop( 1, dt.base );
+				ctx.fillStyle = fg; ctx.fillRect( 420, 0, 180, H );
+			} else {
+				MOTIF[ dk ]( ctx, { x: 20, y: 30, w: 560, h: 540 }, 0.7 );
+			}
+			customFrame( ctx, A, W, H );
+			var dx = 870;
+			if ( str( d.subtitle ) ) { pill( ctx, str( d.subtitle ), dx, 110, { fill: dt.pill, border: /^#/.test( dt.pill ) ? null : hexA( dt.pillInk, 0.55 ), color: dt.pillInk, size: 24, h: 50, align: 'center' } ); }
+			var dr = fit( ctx, str( d.title ) || dt.label, { w: 540, h: 200, maxLines: 2, max: 64, min: 40, lh: 1.3 } );
+			drawFit( ctx, dr, { x: dx - 270, y: 180, w: 540, h: 200, valign: 'middle', color: dt.ink, align: 'center' } );
+			var dm = fit( ctx, d.message, { w: 540, h: 84, maxLines: 2, max: 26, min: 22, lhPx: 40, weight: 400, fam: 'sans' } );
+			drawFit( ctx, dm, { x: dx - 270, y: 398, w: 540, h: 84, color: dt.sub, align: 'center' } );
+			logo( ctx, dx, 536, 170, dt.logo, 'center', A );
+			return;
+		}
+		if ( 'opinion' === type ) {
+			var th = OPINION_THEMES[ o.preset ] || OPINION_THEMES.blue;
+			ctx.fillStyle = cssLinear( ctx, 150, 0, 0, W, H, th.bg ); ctx.fillRect( 0, 0, W, H );
+			customFrame( ctx, A, W, H );
+			pill( ctx, str( d.label ) || 'মতামত', 80, 48, { border: th.pill, color: th.pillInk || th.ink, size: 24, h: 48 } );
+			logo( ctx, 1120, 56, 180, th.logo, 'right', A );
+			var r = fit( ctx, d.title, { w: 1040, h: 300, maxLines: 4, max: 56, min: 36, lh: 1.375 } );
+			drawFit( ctx, r, { x: 80, y: 120, w: 1040, h: 300, valign: 'middle', color: th.ink, hi: th.hi, hiBg: th.hiBg } );
+			rect( ctx, 80, 446, 1040, 2, th.rule );
+			var tx = 80;
+			if ( false !== d.show_photo ) { circleImage( ctx, A.authorPhoto, 80, 476, 112, { rings: [ [ 4, th.ring ] ], name: d.author_name, monoSize: 48 } ); tx = 216; }
+			var lct = ctaText( d, o ), lrm = lct ? 260 : 200, lpaper = 'paper' === o.preset;
+			line( ctx, d.author_name, { x: tx, top: 484, lh: 52, size: 38, min: 30, weight: 700, fam: 'serif', color: th.ink, maxW: 1120 - tx - lrm } );
+			line( ctx, d.author_title, { x: tx, top: 538, lh: 36, size: 26, min: 22, color: th.role, maxW: 1120 - tx - lrm } );
+			if ( ! cta( ctx, lct, 1120, 548, { h: 42, size: 19, align: 'right', fill: lpaper ? C.blue : C.white, color: lpaper ? C.white : C.blue900, maxW: 240 } ) ) {
+				line( ctx, watermark(), { x: 1120, top: 566, lh: 24, size: 22, color: th.url, align: 'right' } );
+			}
+			return;
+		}
+		if ( 'quote' === type ) {
+			var q = quoteScheme( d, o );
+			rect( ctx, 0, 0, W, H, q.bg );
+			if ( A.quoteFrame ) { ctx.drawImage( A.quoteFrame, 0, 0, W, H ); }
+			customFrame( ctx, A, W, H );
+			pill( ctx, str( d.type_label ) || q.label, W / 2, 56, { border: hexA( q.accent, 0.6 ), color: q.accent, weight: 400, align: 'center', size: 24, h: 46 } );
+			var rq = fit( ctx, '“' + str( d.text ) + '”', { w: 960, h: 270, maxLines: 4, max: 56, min: 34, lh: 1.45 } );
+			drawFit( ctx, rq, { x: 120, y: 122, w: 960, h: 270, valign: 'middle', color: q.ink, align: 'center', hi: qHi( q ) } );
+			line( ctx, d.speaker, { x: W / 2, top: 412, lh: 52, size: 38, min: 30, weight: 700, fam: 'serif', color: q.ink, align: 'center', maxW: 900 } );
+			line( ctx, d.role, { x: W / 2, top: 466, lh: 38, size: 26, min: 22, color: hexA( q.ink, 0.75 ), align: 'center', maxW: 900 } );
+			logo( ctx, W / 2, 530, 180, q.accent, 'center', A );
+			return;
+		}
+		if ( 'condolence' === type ) {
+			var t = MOURN[ o.preset ] || MOURN.dark;
+			rect( ctx, 0, 0, W, H, t.bg );
+			customFrame( ctx, A, W, H );
+			ctx.strokeStyle = t.outer; ctx.lineWidth = 2; ctx.strokeRect( 25, 25, W - 50, H - 50 );
+			ctx.strokeStyle = t.inner; ctx.lineWidth = 1; ctx.strokeRect( 36.5, 36.5, W - 73, H - 73 );
+			circleImage( ctx, A.image, 110, 175, 260, { rings: [ [ 8, t.outer ], [ 4, t.bg ] ], gray: true, focus: d.focus, zoom: d.zoom, name: d.name, monoBg: t.mono, monoInk: t.monoInk, monoSize: 100 } );
+			var cx = 760;
+			ribbon( ctx, cx - 25, 60, t.ribbon, 0.6 );
+			line( ctx, d.pre, { x: cx, top: 128, lh: 36, size: 24, min: 20, color: t.pre, align: 'center', maxW: 680 } );
+			line( ctx, str( d.heading ) || 'গভীর শোক', { x: cx, top: 164, lh: 70, size: 52, min: 40, weight: 700, fam: 'serif', color: t.head, align: 'center', maxW: 680 } );
+			line( ctx, d.name, { x: cx, top: 250, lh: 64, size: 46, min: 34, weight: 700, fam: 'serif', color: t.name, align: 'center', maxW: 680 } );
+			line( ctx, d.role, { x: cx, top: 318, lh: 36, size: 26, min: 22, color: t.sub, align: 'center', maxW: 680 } );
+			line( ctx, d.dates_line, { x: cx, top: 356, lh: 34, size: 24, min: 20, color: t.sub, align: 'center', maxW: 680 } );
+			var rm = fit( ctx, d.message, { w: 680, h: 80, maxLines: 2, max: 26, min: 22, lhPx: 40, weight: 400, fam: 'sans' } );
+			drawFit( ctx, rm, { x: cx - 340, y: 408, w: 680, h: 80, color: t.msg, align: 'center' } );
+			logo( ctx, cx, 530, 160, t.logo, 'center', A );
+			return;
+		}
+		/* photo-left family: morning, feature, category, breaking */
+		var dark = 'feature' === type || 'category' === type || ( 'news' === type && /^(overlay|band|split)$/.test( newsPreset( o ) ) );
+		rect( ctx, 0, 0, W, H, dark ? C.blue900 : C.white );
+		if ( ! cover( ctx, A.image, 0, 0, 640, H, d.focus, d.zoom ) ) {
+			if ( 'breaking' === type ) { rect( ctx, 0, 0, 640, H, '#E9EDF2' ); } else { placeholder( ctx, 0, 0, 640, H ); }
+		}
+		var accent = 'news' === type ? C.blue : 'breaking' === type ? ( 'latest' === ( d.variant || o.preset ) ? C.blue : C.red ) : ( 'category' === type && /^#[0-9a-f]{3,8}$/i.test( d.color || '' ) ? d.color : C.blue );
+		rect( ctx, 640, 0, 8, H, accent );
+		customFrame( ctx, A, W, H );
+		viewfinder( ctx, 32, 32, 'tl', C.white, 44, 5 );
+		if ( 'morning' === type ) {
+			var dt = d.dates || {};
+			sunMark( ctx, X, 76 );
+			line( ctx, str( d.title ) || 'শুভ সকাল', { x: X + 88, top: 44, lh: 96, size: 72, min: 48, weight: 700, fam: 'serif', color: C.blue, maxW: CW - 88 } );
+			line( ctx, dt.weekday, { x: X, top: 150, lh: 56, size: 40, min: 30, weight: 700, fam: 'serif', color: C.ink, maxW: CW } );
+			rect( ctx, X, 222, CW, 1, C.line );
+			[ [ 'খ্রিষ্টাব্দ', dt.gregorian ], [ 'বঙ্গাব্দ', dt.bangla ], [ 'হিজরি', dt.hijri ] ].forEach( function ( rr, i ) {
+				var tt = 240 + i * 72;
+				line( ctx, rr[ 0 ], { x: X, top: tt, lh: 28, size: 20, color: C.muted } );
+				line( ctx, rr[ 1 ], { x: X, top: tt + 28, lh: 38, size: 30, min: 24, weight: 600, color: C.ink, maxW: CW } );
+			} );
+			line( ctx, d.caption, { x: X, top: 466, lh: 36, size: 24, min: 20, color: C.text, maxW: CW } );
+			if ( str( d.credit ) ) { line( ctx, 'ছবি: ' + str( d.credit ), { x: X, top: 504, lh: 32, size: 20, color: C.muted, maxW: CW } ); }
+			logo( ctx, 1136, 574, 180, C.blue, 'right', A );
+			return;
+		}
+		var label = 'news' === type ? str( d.category || d.kicker ) : 'breaking' === type ? ( str( d.label ) || ( 'latest' === ( d.variant || o.preset ) ? 'সর্বশেষ' : 'ব্রেকিং নিউজ' ) ) : str( 'category' === type ? ( d.kicker || d.category ) : d.kicker );
+		if ( label ) {
+			if ( 'breaking' === type || 'category' === type || 'news' === type ) { pill( ctx, label, X, 48, { fill: accent, color: '#FFFFFF', size: 24, h: 48 } ); } else {
+				ctx.fillStyle = '#9CC8F5'; ctx.fillRect( X, 70, 14, 4 ); ctx.fillRect( X, 70, 4, 14 );
+				line( ctx, label, { x: X + 26, top: 56, lh: 40, size: 26, weight: 600, color: '#9CC8F5', maxW: CW - 26 } );
+			}
+		}
+		var rt = fit( ctx, d.title, { w: CW, h: 360, maxLines: 4, max: 56, min: 36, lh: 1.375 } );
+		drawFit( ctx, rt, { x: X, y: 120, w: CW, h: 360, valign: 'middle', color: dark ? C.white : C.ink } );
+		var meta = 'breaking' === type ? str( d.time ) : str( d.byline || d.date );
+		line( ctx, meta, { x: X, top: 510, lh: 36, size: 24, weight: 'breaking' === type ? 600 : 400, color: dark ? '#9CC8F5' : C.muted, maxW: CW } );
+		logo( ctx, 1136, 574, 180, dark ? C.white : C.blue, 'right', A );
+		var lcw = /^(news|feature|category|breaking)$/.test( type ) ? cta( ctx, ctaText( d, o ), X, 566, { h: 42, size: 19, fill: dark ? C.white : C.blue, color: dark ? C.blue900 : C.white, maxW: 250 } ) : 0;
+		if ( ! lcw ) { line( ctx, watermark(), { x: X, top: 580, lh: 24, size: 20, color: dark ? 'rgba(255,255,255,.72)' : C.muted } ); }
+	}
+
+	/* ================================================================== সাহিত্য · কবিতা (2.0.4) */
+
+	function paperBg( ctx, W, H, base ) {
+		rect( ctx, 0, 0, W, H, base );
+		var r = rng( 7 );
+		for ( var i = 0; i < W * H / 900; i++ ) { ctx.fillStyle = 'rgba(120,90,40,' + ( r() * 0.05 ).toFixed( 3 ) + ')'; ctx.fillRect( r() * W, r() * H, 1.5, 1.5 ); }
+		var g = ctx.createRadialGradient( W / 2, H / 2, Math.min( W, H ) * 0.3, W / 2, H / 2, Math.max( W, H ) * 0.75 );
+		g.addColorStop( 0, 'rgba(0,0,0,0)' ); g.addColorStop( 1, 'rgba(110,80,30,.12)' );
+		ctx.fillStyle = g; ctx.fillRect( 0, 0, W, H );
+	}
+	/* leafy vine from a corner; rot 0..3 = tl, tr, br, bl */
+	function vine( ctx, x, y, s, color, rot ) {
+		ctx.save(); ctx.translate( x, y ); ctx.rotate( rot * Math.PI / 2 );
+		ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 3 * s;
+		ctx.beginPath(); ctx.moveTo( 0, 220 * s ); ctx.bezierCurveTo( 0, 90 * s, 90 * s, 0, 220 * s, 0 ); ctx.stroke();
+		[ [ 6, 170, -2.4 ], [ 22, 110, -2.1 ], [ 55, 60, -1.7 ], [ 105, 24, -1.2 ], [ 160, 6, -0.9 ], [ 20, 150, 0.6 ], [ 45, 82, 0.4 ], [ 92, 36, 0.1 ], [ 140, 14, -0.1 ] ].forEach( function ( l, i ) {
+			var sz = ( i % 2 ? 34 : 42 ) * s;
+			ctx.save(); ctx.translate( l[ 0 ] * s, l[ 1 ] * s ); ctx.rotate( l[ 2 ] );
+			ctx.beginPath(); ctx.moveTo( 0, 0 ); ctx.quadraticCurveTo( sz * 0.5, -sz * 0.45, sz, 0 ); ctx.quadraticCurveTo( sz * 0.5, sz * 0.45, 0, 0 ); ctx.fill();
+			ctx.restore();
+		} );
+		ctx.beginPath(); ctx.arc( 12 * s, 12 * s, 9 * s, 0, Math.PI * 2 ); ctx.fill();
+		ctx.restore();
+	}
+	function flourish( ctx, cx, y, w, color ) {
+		ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2.5;
+		ctx.beginPath();
+		ctx.moveTo( cx - w / 2, y ); ctx.bezierCurveTo( cx - w / 4, y - 14, cx - w / 8, y + 14, cx - 16, y );
+		ctx.moveTo( cx + w / 2, y ); ctx.bezierCurveTo( cx + w / 4, y - 14, cx + w / 8, y + 14, cx + 16, y );
+		ctx.stroke();
+		ctx.save(); ctx.translate( cx, y ); ctx.rotate( Math.PI / 4 ); ctx.fillRect( -8, -8, 16, 16 ); ctx.restore();
+	}
+	function starField( ctx, W, H, n, seed ) {
+		var r = rng( seed || 11 );
+		for ( var i = 0; i < n; i++ ) { ctx.fillStyle = 'rgba(255,255,255,' + ( 0.25 + r() * 0.6 ).toFixed( 2 ) + ')'; ctx.beginPath(); ctx.arc( r() * W, r() * H * 0.9, 0.8 + r() * 2.2, 0, Math.PI * 2 ); ctx.fill(); }
+	}
+	/* arch ("window") photo: x, y, w, h */
+	function archPath( ctx, x, y, w, h ) {
+		ctx.beginPath(); ctx.moveTo( x, y + h ); ctx.lineTo( x, y + w / 2 ); ctx.arc( x + w / 2, y + w / 2, w / 2, Math.PI, 0 ); ctx.lineTo( x + w, y + h ); ctx.closePath();
+	}
+	var LIT_INK = { orn: '#8C6A2E', ink: '#2E2618', body: '#3B3224', base: '#FBF6EC' };
+
+	/* 10 · সাহিত্য (গল্প, প্রবন্ধ, স্মৃতিকথা …): title + author + excerpt, **শব্দ** highlights */
+	function literature( ctx, W, H, d, o, A ) {
+		var CH = H - ( o.ad ? STRIP_H : 0 ), p = o.preset || 'paper', label = str( d.label ) || 'সাহিত্য', y, r, b;
+		if ( 'modern' === p ) {
+			rect( ctx, 0, 0, W, H, '#F4F7FB' );
+			var ph = Math.round( CH * 0.46 );
+			photoOr( ctx, A.image, 0, 0, W, ph, d );
+			customFrame( ctx, A, W, H );
+			rect( ctx, 0, ph, W, 8, C.blue );
+			y = ph + 44;
+			line( ctx, label, { x: 64, top: y, lh: 40, size: 28, weight: 600, color: C.blue, maxW: 952 } );
+			y += 52;
+			r = fit( ctx, d.title, { w: 952, maxLines: 2, max: 66, min: 44, lh: 1.3 } );
+			b = drawFit( ctx, r, { x: 64, y: y, w: 952, h: r.lines.length * r.lineH, color: C.ink, hi: C.blue } );
+			y = b.bottom + 6;
+			if ( str( d.author ) ) { line( ctx, 'লিখেছেন ' + str( d.author ), { x: 64, top: y, lh: 46, size: 30, min: 24, fam: 'lit', color: C.blue, maxW: 952 } ); y += 62; }
+			var bottom = CH - 112;
+			if ( str( d.excerpt ) && bottom - y > 80 ) {
+				var e = fit( ctx, d.excerpt, { w: 910, h: bottom - y - 16, maxLines: 9, max: 34, min: 24, lh: 1.6, weight: 400, fam: 'lit' } );
+				var eb = drawFit( ctx, e, { x: 98, y: y, w: 910, h: bottom - y - 16, valign: 'top', color: '#3D4350', hi: C.blue } );
+				rect( ctx, 64, y + 6, 6, Math.max( 20, eb.bottom - y - 12 ), C.blue );
+			}
+			rect( ctx, 64, CH - 96, 952, 1, C.line );
+			logo( ctx, 64, CH - 70, 190, C.blue, 'left', A );
+			line( ctx, watermark(), { x: 1016, top: CH - 70, lh: 34, size: 24, color: C.muted, align: 'right' } );
+			return;
+		}
+		var orn = LIT_INK.orn;
+		paperBg( ctx, W, CH, LIT_INK.base );
+		ctx.strokeStyle = hexA( orn, 0.7 ); ctx.lineWidth = 3; ctx.strokeRect( 40, 40, W - 80, CH - 80 );
+		ctx.lineWidth = 1.2; ctx.strokeRect( 52, 52, W - 104, CH - 104 );
+		y = 110;
+		if ( 'window' === p ) {
+			var ww = 560, wh = Math.round( CH * 0.32 ), wx = ( W - ww ) / 2;
+			ctx.save(); archPath( ctx, wx, y, ww, wh ); ctx.clip();
+			if ( ! cover( ctx, A.image, wx, y, ww, wh, d.focus, d.zoom ) ) { rect( ctx, wx, y, ww, wh, '#E9DCC0' ); }
+			ctx.restore();
+			ctx.strokeStyle = orn; ctx.lineWidth = 3; archPath( ctx, wx, y, ww, wh ); ctx.stroke();
+			customFrame( ctx, A, W, H );
+			y += wh + 34;
+		} else {
+			customFrame( ctx, A, W, H );
+			vine( ctx, 66, 66, 0.9, hexA( orn, 0.55 ), 0 );
+			vine( ctx, W - 66, CH - 66, 0.9, hexA( orn, 0.55 ), 2 );
+			y = Math.round( CH * 0.16 );
+		}
+		line( ctx, '— ' + label + ' —', { x: W / 2, top: y, lh: 40, size: 28, weight: 600, color: orn, align: 'center', maxW: 800 } );
+		y += 52;
+		r = fit( ctx, d.title, { w: 800, maxLines: 2, max: 72, min: 44, lh: 1.3 } );
+		b = drawFit( ctx, r, { x: 140, y: y, w: 800, h: r.lines.length * r.lineH, color: LIT_INK.ink, align: 'center', hi: orn } );
+		y = b.bottom + 4;
+		if ( str( d.author ) ) { line( ctx, d.author, { x: W / 2, top: y, lh: 48, size: 32, min: 24, fam: 'lit', color: orn, align: 'center', maxW: 800 } ); y += 52; }
+		flourish( ctx, W / 2, y + 26, 280, orn );
+		y += 62;
+		var bot = CH - 156;
+		if ( str( d.excerpt ) && bot - y > 60 ) {
+			var ex = fit( ctx, d.excerpt, { w: 780, h: bot - y, maxLines: 10, max: 36, min: 24, lh: 1.6, weight: 400, fam: 'lit' } );
+			drawFit( ctx, ex, { x: 150, y: y, w: 780, h: bot - y, valign: 'middle', color: LIT_INK.body, align: 'center', hi: orn } );
+		}
+		logo( ctx, W / 2, CH - 122, 190, orn, 'center', A );
+	}
+
+	/* 11 · কবিতা: the poem keeps its own line breaks; size shrinks to fit */
+	var POEM = {
+		paper: { ink: '#2B2418', sub: '#3E7A5A', accent: '#3E7A5A', logo: '#3E7A5A' },
+		night: { ink: '#F4F1E8', sub: '#F6D88A', accent: '#F6D88A', logo: '#F6D88A' },
+		photo: { ink: '#FFFFFF', sub: 'rgba(255,255,255,.86)', accent: '#FFD27A', logo: '#FFFFFF' },
+		nodi: { ink: '#2A2238', sub: '#A24A22', accent: '#C2562A', logo: '#FFFFFF' },
+		shada: { ink: C.ink, sub: C.blue, accent: C.blue, logo: C.blue }
+	};
+	function poemBg( ctx, W, H, CH, p, d, A ) {
+		if ( 'night' === p ) {
+			shade( ctx, 0, 0, W, CH, [ [ 0, '#0B1A3A' ], [ 1, '#22164A' ] ] );
+			starField( ctx, W, CH, Math.round( W * CH / 7000 ), 11 );
+		} else if ( 'photo' === p ) {
+			rect( ctx, 0, 0, W, CH, '#1A2433' );
+			if ( A.image ) {
+				ctx.save(); if ( 'filter' in ctx ) { ctx.filter = 'blur(6px)'; } cover( ctx, A.image, -20, -20, W + 40, CH + 40, d.focus, d.zoom ); ctx.restore();
+			}
+			rect( ctx, 0, 0, W, CH, 'rgba(8,14,24,.55)' );
+		} else if ( 'nodi' === p ) {
+			/* dawn over a river: sky, sun, two wave bands and a boat */
+			shade( ctx, 0, 0, W, CH, [ [ 0, '#FFF3E0' ], [ 0.55, '#FBD9B5' ], [ 1, '#F4B98E' ] ] );
+			var rv = CH - ( 1200 === W ? 92 : 190 ), sx = 1200 === W ? W - 150 : W - 190;
+			ctx.fillStyle = 'rgba(255,190,110,.55)'; ctx.beginPath(); ctx.arc( sx, rv - 10, 1200 === W ? 70 : 110, Math.PI, 0 ); ctx.fill();
+			waveFill( ctx, 0, W, rv, 10, 0.4, '#6E9FB8', CH );
+			waveFill( ctx, 0, W, rv + ( 1200 === W ? 30 : 56 ), 9, 2.2, '#3F7192', CH );
+			var bx = 1200 === W ? 470 : 210, bs = 1200 === W ? 0.7 : 1;
+			ctx.save(); ctx.translate( bx, rv + 4 ); ctx.scale( bs, bs ); ctx.fillStyle = '#2A2238';
+			ctx.beginPath(); ctx.moveTo( -70, -8 ); ctx.quadraticCurveTo( 0, 22, 70, -8 ); ctx.lineTo( 52, -8 ); ctx.quadraticCurveTo( 0, 6, -52, -8 ); ctx.closePath(); ctx.fill();
+			ctx.fillRect( -2, -88, 4, 80 );
+			ctx.beginPath(); ctx.moveTo( 2, -86 ); ctx.lineTo( 46, -20 ); ctx.lineTo( 2, -14 ); ctx.closePath(); ctx.fillStyle = 'rgba(42,34,56,.85)'; ctx.fill();
+			ctx.restore();
+		} else if ( 'shada' === p ) {
+			rect( ctx, 0, 0, W, CH, '#FFFFFF' );
+			rect( ctx, 1200 === W ? 40 : 72, 1200 === W ? 50 : 90, 6, CH - ( 1200 === W ? 100 : 180 ), C.blue );
+		} else {
+			paperBg( ctx, W, CH, '#FCF8EF' );
+		}
+		customFrame( ctx, A, W, H );
+	}
+	function poem( ctx, W, H, d, o, A ) {
+		var CH = H - ( o.ad ? STRIP_H : 0 ), p = POEM[ o.preset ] ? o.preset : 'paper', t = POEM[ p ], y;
+		poemBg( ctx, W, H, CH, p, d, A );
+		if ( 'paper' === p ) {
+			[ [ 34, 34, 0 ], [ W - 34, 34, 1 ], [ W - 34, CH - 34, 2 ], [ 34, CH - 34, 3 ] ].forEach( function ( v ) { vine( ctx, v[ 0 ], v[ 1 ], 1.05, hexA( t.accent, 0.6 ), v[ 2 ] ); } );
+		} else if ( 'night' === p ) {
+			ctx.save(); ctx.fillStyle = '#F6D88A'; ctx.beginPath(); ctx.arc( W - 170, 150, 58, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = '#132050'; ctx.beginPath(); ctx.arc( W - 146, 136, 50, 0, Math.PI * 2 ); ctx.fill(); ctx.restore();
+		}
+		if ( 'shada' === p ) { poemLeft( ctx, W, CH, d, t, A ); return; }
+		y = 120;
+		line( ctx, str( d.label ) || 'কবিতা', { x: W / 2, top: y, lh: 40, size: 28, weight: 600, color: t.sub, align: 'center', maxW: 760 } );
+		y += 48;
+		var r = fit( ctx, d.title, { w: 760, maxLines: 2, max: 68, min: 42, lh: 1.3 } );
+		var b = drawFit( ctx, r, { x: 160, y: y, w: 760, h: r.lines.length * r.lineH, color: t.ink, align: 'center', hi: t.accent } );
+		y = b.bottom + 2;
+		if ( str( d.author ) ) { line( ctx, d.author, { x: W / 2, top: y, lh: 46, size: 30, min: 24, fam: 'lit', color: t.sub, align: 'center', maxW: 760 } ); y += 50; }
+		flourish( ctx, W / 2, y + 24, 220, t.accent );
+		y += 58;
+		var bot = CH - ( 'nodi' === p ? 230 : 140 ), verse = strKeepNl( d.poem );
+		if ( verse && bot - y > 60 ) {
+			var n = verse.split( '\n' ).length, v = fit( ctx, verse, { w: 860, h: bot - y, maxLines: Math.max( 4, n + 4 ), max: 46, min: 22, lh: 1.6, weight: 400, fam: 'lit', balance: false } );
+			drawFit( ctx, v, { x: 110, y: y, w: 860, h: bot - y, valign: 'middle', color: t.ink, align: 'center', hi: t.accent } );
+		}
+		logo( ctx, W / 2, CH - ( 'nodi' === p ? 84 : 104 ), 180, t.logo, 'center', A );
+	}
+	/* সাদা মিনিমাল: everything left-aligned against the blue rule */
+	function poemLeft( ctx, W, CH, d, t, A ) {
+		var x = 120, w = 860, y = 110;
+		line( ctx, str( d.label ) || 'কবিতা', { x: x, top: y, lh: 40, size: 28, weight: 600, color: t.sub, maxW: w } );
+		var r = fit( ctx, d.title, { w: w, maxLines: 2, max: 72, min: 42, lh: 1.3 } );
+		var b = drawFit( ctx, r, { x: x, y: y + 52, w: w, h: r.lines.length * r.lineH, color: t.ink, hi: t.accent } );
+		y = b.bottom + 4;
+		if ( str( d.author ) ) { line( ctx, d.author, { x: x, top: y, lh: 46, size: 30, min: 24, fam: 'lit', color: C.muted, maxW: w } ); y += 52; }
+		rect( ctx, x, y + 18, 90, 4, t.accent );
+		y += 62;
+		var bot = CH - 150, verse = strKeepNl( d.poem );
+		if ( verse && bot - y > 60 ) {
+			var n = verse.split( '\n' ).length, v = fit( ctx, verse, { w: w, h: bot - y, maxLines: Math.max( 4, n + 4 ), max: 46, min: 22, lh: 1.6, weight: 400, fam: 'lit', balance: false } );
+			drawFit( ctx, v, { x: x, y: y, w: w, h: bot - y, valign: 'top', color: t.ink, hi: t.accent } );
+		}
+		logo( ctx, x, CH - 104, 180, t.logo, 'left', A );
+		line( ctx, watermark(), { x: 1016, top: CH - 96, lh: 30, size: 22, color: C.muted, align: 'right' } );
+	}
+	/* 1200 × 630: title block left, text right */
+	function landLiterary( type, ctx, W, H, d, o, A ) {
+		var isPoem = 'poem' === type, p = o.preset || 'paper', dark = isPoem && 'paper' !== p, t = isPoem ? POEM[ POEM[ p ] ? p : 'paper' ] : null;
+		var ink = isPoem ? t.ink : ( 'paper' !== p ? C.ink : LIT_INK.ink ), acc = isPoem ? t.accent : ( 'paper' !== p ? C.blue : LIT_INK.orn ), body = isPoem ? t.ink : ( 'paper' !== p ? '#3D4350' : LIT_INK.body );
+		var lx = 60, lw = 480;
+		var photoLeft = ! isPoem && 'paper' !== p;
+		if ( isPoem ) { poemBg( ctx, W, H, H, POEM[ p ] ? p : 'paper', d, A ); } else if ( ! photoLeft ) { paperBg( ctx, W, H, LIT_INK.base ); customFrame( ctx, A, W, H ); } else {
+			rect( ctx, 0, 0, W, H, '#F4F7FB' );
+			photoOr( ctx, A.image, 0, 0, 440, H, d ); rect( ctx, 440, 0, 6, H, acc );
+			customFrame( ctx, A, W, H );
+			lx = 490; lw = 650;
+		}
+		if ( photoLeft ) {
+			line( ctx, str( d.label ) || 'সাহিত্য', { x: lx, top: 40, lh: 36, size: 24, weight: 600, color: acc } );
+			var rt = fit( ctx, d.title, { w: lw, maxLines: 2, max: 46, min: 32, lh: 1.3 } );
+			var bt = drawFit( ctx, rt, { x: lx, y: 82, w: lw, h: rt.lines.length * rt.lineH, color: ink, hi: acc } );
+			var ay = bt.bottom;
+			if ( str( d.author ) ) { line( ctx, 'লিখেছেন ' + str( d.author ), { x: lx, top: ay, lh: 40, size: 24, fam: 'lit', color: acc, maxW: lw } ); ay += 48; }
+			var me = fit( ctx, d.excerpt, { w: lw - 24, h: 520 - ay, maxLines: 6, max: 26, min: 20, lh: 1.55, weight: 400, fam: 'lit' } );
+			drawFit( ctx, me, { x: lx + 24, y: ay + 4, w: lw - 24, h: 520 - ay, valign: 'top', color: body, hi: acc } );
+			logo( ctx, lx, 556, 170, C.blue, 'left', A );
+			return;
+		}
+		var cx = 300;
+		line( ctx, isPoem ? ( str( d.label ) || 'কবিতা' ) : '— ' + ( str( d.label ) || 'সাহিত্য' ) + ' —', { x: cx, top: 120, lh: 36, size: 24, weight: 600, color: acc, align: 'center', maxW: 480 } );
+		var r = fit( ctx, d.title, { w: 480, maxLines: 3, max: 50, min: 34, lh: 1.3 } );
+		var b = drawFit( ctx, r, { x: 60, y: 164, w: 480, h: r.lines.length * r.lineH, color: ink, align: 'center', hi: acc } );
+		var y = b.bottom;
+		if ( str( d.author ) ) { line( ctx, d.author, { x: cx, top: y + 2, lh: 40, size: 26, fam: 'lit', color: acc, align: 'center', maxW: 480 } ); y += 44; }
+		flourish( ctx, cx, y + 26, 200, acc );
+		logo( ctx, cx, 540, 170, dark ? t.logo : acc, 'center', A );
+		rect( ctx, 600, 70, 1.5, H - 140, hexA( /^#/.test( acc ) ? acc : '#FFFFFF', 0.4 ) );
+		var txt = isPoem ? strKeepNl( d.poem ) : d.excerpt;
+		var vf = fit( ctx, txt, { w: 520, h: 490, maxLines: isPoem ? 16 : 9, max: isPoem ? 32 : 28, min: 18, lh: 1.6, weight: 400, fam: 'lit', balance: ! isPoem } );
+		drawFit( ctx, vf, { x: 640, y: 70, w: 520, h: 490, valign: 'middle', color: body, align: 'center', hi: acc } );
+	}
+
+	/* ================================================================== 2.0.7 নকশা
+	   মতামত: লম্বা লেখাও ধরে · সাহিত্য, কবিতা, বিভাগ: আরও নকশা · নিউজ: ঢেউ।
+	   Every layout measures its text into the space it has, so 1080 × 1080, 1080 × 1350 and the ad strip all fit. */
+	function rfill( ctx, x, y, w, h, r, color ) { ctx.fillStyle = color; rrect( ctx, x, y, w, h, r ); ctx.fill(); }
+	function catColor( d ) { return /^#[0-9a-f]{6}$/i.test( d.color || '' ) ? d.color : C.blue; }
+	function deepen( hex, k ) { /* darker shade of a #rrggbb for white text */
+		var n = parseInt( hex.slice( 1 ), 16 ), f = function ( v ) { return Math.max( 0, Math.round( v * ( 1 - k ) ) ); };
+		return 'rgb(' + f( n >> 16 ) + ',' + f( ( n >> 8 ) & 255 ) + ',' + f( n & 255 ) + ')';
+	}
+	function waveFill( ctx, x0, x1, y, amp, phase, color, bottom ) {
+		var k = ( x1 - x0 ) / 4, yy = function ( i ) { return y + amp * Math.sin( phase + i * Math.PI / 2 ); };
+		ctx.beginPath(); ctx.moveTo( x0, yy( 0 ) );
+		for ( var i = 0; i < 4; i++ ) { var xa = x0 + k * i; ctx.bezierCurveTo( xa + k / 2, yy( i ), xa + k / 2, yy( i + 1 ), xa + k, yy( i + 1 ) ); }
+		ctx.lineTo( x1, bottom ); ctx.lineTo( x0, bottom ); ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+	}
+	/* author: photo (or initial) + name + role; returns the right edge used */
+	function authorRow( ctx, d, A, x, y, size, ink, sub, ring, maxW ) {
+		var tx = x;
+		if ( false !== d.show_photo ) { circleImage( ctx, A.authorPhoto, x, y, size, { rings: [ [ Math.max( 3, Math.round( size / 28 ) ), ring ] ], name: d.author_name, monoSize: Math.round( size * 0.42 ) } ); tx = x + size + Math.round( size * 0.2 ); }
+		var big = size >= 120, nh = big ? 56 : 44, rh = big ? 40 : 32;
+		var top = y + ( size - nh - ( str( d.author_title ) ? rh : 0 ) ) / 2;
+		line( ctx, d.author_name, { x: tx, top: top, lh: nh, size: big ? 42 : 32, min: 26, weight: 700, fam: 'serif', color: ink, maxW: maxW - ( tx - x ) } );
+		line( ctx, d.author_title, { x: tx, top: top + nh, lh: rh, size: big ? 28 : 22, min: 20, color: sub, maxW: maxW - ( tx - x ) } );
+	}
+	/* two text blocks (title, quote) measured into [top, bottom]; the first gets at most `share` of the height when both
+	   exist, the second takes what is left; the pair is centred vertically. pad = box padding around the second block. */
+	function twoBlocks( ctx, a, b, top, bottom, o ) {
+		var avail = bottom - top, gap = o.gap || 36, hasB = !! str( b ), pad = o.pad || 0, mid = o.mid || 0;
+		var ra = fit( ctx, a, Object.assign( { h: hasB ? Math.round( avail * ( o.share || 0.45 ) ) : avail - mid }, o.a ) );
+		var ah = ra.lines.length * ra.lineH, rb = null, bh = 0;
+		if ( hasB ) {
+			rb = fit( ctx, b, Object.assign( { h: Math.max( 60, avail - ah - mid - gap - 2 * pad ) }, o.b ) );
+			bh = rb.lines.length * rb.lineH + 2 * pad;
+		}
+		var total = ah + mid + ( hasB ? gap + bh : 0 ), y0 = top + Math.max( 0, Math.round( ( avail - total ) / 2 ) );
+		return { ra: ra, rb: rb, ay: y0, ah: ah, my: y0 + ah, by: y0 + ah + mid + gap, bh: bh };
+	}
+
+	/* ---------------------------------------------------------------- মতামত
+	   One text (the title), which may be a whole paragraph: a headline style is tried first; when that would cut the
+	   text, a smaller reading style with more lines takes over, so long opinion text is covered without an ellipsis. */
+	function bigText( ctx, text, w, h, head, long ) {
+		var r = fit( ctx, text, Object.assign( { w: w, h: h }, head ) );
+		if ( r.truncated && long ) { r = fit( ctx, text, Object.assign( { w: w, h: h }, long ) ); }
+		return r;
+	}
+	var OPX = {
+		kagoj: { ink: LIT_INK.ink, sub: LIT_INK.orn, acc: LIT_INK.orn, hi: '#9A5B12', hiBg: 'rgba(201,162,39,.24)', logo: LIT_INK.orn, ring: LIT_INK.orn },
+		potrika: { ink: C.ink, sub: C.muted, acc: '#C8102E', hi: C.blue, hiBg: 'rgba(242,193,78,.5)', logo: C.blue, ring: C.blue, box: '#EEF4FB' },
+		moncho: { ink: C.ink, sub: '#BFE0FF', acc: '#FFD27A', hi: C.blue, hiBg: 'rgba(242,193,78,.55)', logo: '#FFFFFF', ring: '#FFFFFF', box: '#FFFFFF' },
+		uddhriti: { ink: '#FFFFFF', sub: '#9CC8F5', acc: '#F2C14E', hi: '#F2C14E', logo: '#FFFFFF', ring: '#F2C14E' }
+	};
+	function opxBg( ctx, p, W, CH ) {
+		if ( 'kagoj' === p ) {
+			paperBg( ctx, W, CH, LIT_INK.base );
+			ctx.strokeStyle = hexA( LIT_INK.orn, 0.7 ); ctx.lineWidth = 3; ctx.strokeRect( 36, 36, W - 72, CH - 72 );
+			ctx.lineWidth = 1.2; ctx.strokeRect( 48, 48, W - 96, CH - 96 );
+			var vs = 1200 === W ? 0.62 : 0.85;
+			if ( 1200 !== W ) { vine( ctx, 60, 60, vs, hexA( LIT_INK.orn, 0.55 ), 0 ); }
+			vine( ctx, W - 60, CH - 60, vs, hexA( LIT_INK.orn, 0.55 ), 2 );
+		} else if ( 'potrika' === p ) {
+			rect( ctx, 0, 0, W, CH, '#FFFFFF' ); rect( ctx, 0, 0, W, 14, C.blue );
+		} else if ( 'moncho' === p ) {
+			shade( ctx, 0, 0, W, CH, [ [ 0, '#0A69C6' ], [ 1, '#012E5C' ] ] );
+			ctx.fillStyle = 'rgba(255,255,255,.06)';
+			ctx.beginPath(); ctx.arc( W - 120, 160, 300, 0, Math.PI * 2 ); ctx.fill();
+			ctx.beginPath(); ctx.arc( 80, CH - 40, 240, 0, Math.PI * 2 ); ctx.fill();
+		} else {
+			shade( ctx, 0, 0, W, CH, [ [ 0, '#0B1F3A' ], [ 1, '#12305A' ] ] );
+			rect( ctx, 0, 0, W, 10, '#E5252A' );
+		}
+	}
+	function opinionX( ctx, W, H, d, o, A ) {
+		var p = o.preset, t = OPX[ p ], CH = H - ( o.ad ? STRIP_H : 0 ), label = str( d.label ) || 'মতামত', ct = ctaText( d, o ), r, top, bot, cw;
+		opxBg( ctx, p, W, CH );
+		customFrame( ctx, A, W, H );
+		if ( 1200 === W ) { opinionXLand( ctx, W, H, d, o, A, t, label ); return; }
+		if ( 'kagoj' === p ) {
+			/* paper page: label, the text, a flourish, the byline, the logo */
+			line( ctx, '— ' + label + ' —', { x: W / 2, top: 100, lh: 40, size: 28, weight: 600, color: t.acc, align: 'center', maxW: 800 } );
+			var by = [ str( d.author_name ), str( d.author_title ) ].filter( Boolean ).join( ', ' );
+			top = 168; bot = CH - ( by ? 262 : 210 );
+			r = bigText( ctx, d.title, 820, bot - top, { maxLines: 5, max: 70, min: 46, lh: 1.32 }, { maxLines: 16, max: 56, min: 26, lh: 1.6, weight: 600, fam: 'lit' } );
+			var b = drawFit( ctx, r, { x: 130, y: top, w: 820, h: bot - top, valign: 'middle', color: t.ink, align: 'center', hi: t.hi, hiBg: t.hiBg } );
+			flourish( ctx, W / 2, b.bottom + 34, 260, t.acc );
+			if ( by ) { line( ctx, by, { x: W / 2, top: b.bottom + 64, lh: 48, size: 32, min: 22, fam: 'lit', color: t.sub, align: 'center', maxW: 820 } ); }
+			logo( ctx, W / 2, CH - 124, 190, t.logo, 'center', A );
+			if ( ct ) { line( ctx, ct, { x: W / 2, top: CH - 76, lh: 32, size: 22, color: hexA( LIT_INK.orn, 0.85 ), align: 'center', maxW: 800 } ); }
+			return;
+		}
+		if ( 'potrika' === p ) {
+			/* newspaper: masthead rule, the text in a tinted column with a blue bar, author underneath */
+			line( ctx, label, { x: 64, top: 46, lh: 60, size: 46, min: 32, weight: 700, fam: 'serif', color: t.acc, maxW: 600 } );
+			logo( ctx, 1016, 58, 200, t.logo, 'right', A );
+			rect( ctx, 64, 122, 952, 3, C.ink ); rect( ctx, 64, 130, 952, 1, C.ink );
+			/* the tinted column hugs the text and sits in the middle of the space */
+			var bx = 64, at = 170, ab = CH - 244;
+			r = bigText( ctx, d.title, 852, ab - at - 96, { maxLines: 6, max: 76, min: 44, lh: 1.32 }, { maxLines: 16, max: 56, min: 26, lh: 1.55, weight: 600, fam: 'sans' } );
+			var ph = Math.max( 300, r.lines.length * r.lineH + 96 ), bt = at + Math.round( ( ab - at - ph ) / 2 );
+			rect( ctx, bx, bt, 952, ph, t.box ); rect( ctx, bx, bt, 12, ph, C.blue );
+			line( ctx, '“', { x: 996, top: bt - 4, lh: 150, size: 150, weight: 700, fam: 'georgia', color: hexA( C.blue, 0.18 ), align: 'right' } );
+			drawFit( ctx, r, { x: bx + 56, y: bt + 48, w: 852, h: ph - 96, valign: 'middle', color: t.ink, hi: t.hi, hiBg: t.hiBg } );
+			cw = ct ? 280 : 0;
+			authorRow( ctx, d, A, 64, CH - 196, 120, t.ink, t.sub, t.ring, 952 - cw );
+			if ( ! cta( ctx, ct, 1016, CH - 162, { h: 50, size: 23, align: 'right', fill: C.blue, color: C.white, maxW: 300 } ) ) {
+				line( ctx, watermark(), { x: 1016, top: CH - 152, lh: 30, size: 24, color: C.muted, align: 'right' } );
+			}
+			rect( ctx, 0, CH - 14, W, 14, C.blue );
+			return;
+		}
+		if ( 'moncho' === p ) {
+			/* blue stage: author on top, the text on a white card with a red quote badge */
+			authorRow( ctx, d, A, 64, 64, 150, '#FFFFFF', t.sub, t.ring, 680 );
+			line( ctx, label, { x: 1016, top: 70, lh: 40, size: 30, weight: 700, color: t.acc, align: 'right', maxW: 260 } );
+			rect( ctx, 1016 - 60, 116, 60, 5, t.acc );
+			/* the white card hugs the text and sits in the middle of the stage */
+			var at2 = 280, ab2 = CH - 150;
+			r = bigText( ctx, d.title, 864, ab2 - at2 - 110, { maxLines: 6, max: 76, min: 44, lh: 1.32 }, { maxLines: 16, max: 56, min: 26, lh: 1.55, weight: 600, fam: 'sans' } );
+			var kh = Math.max( 320, r.lines.length * r.lineH + 110 ), ky = at2 + Math.round( ( ab2 - at2 - kh ) / 2 );
+			ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.28)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 10; rfill( ctx, 64, ky, 952, kh, 28, t.box ); ctx.restore();
+			ctx.fillStyle = '#E5252A'; ctx.beginPath(); ctx.arc( 128, ky, 38, 0, Math.PI * 2 ); ctx.fill();
+			line( ctx, '“', { x: 128, top: ky - 28, lh: 96, size: 96, weight: 700, fam: 'georgia', color: '#FFFFFF', align: 'center' } );
+			drawFit( ctx, r, { x: 108, y: ky + 60, w: 864, h: kh - 110, valign: 'middle', color: t.ink, hi: t.hi, hiBg: t.hiBg } );
+			logo( ctx, 64, CH - 96, 200, t.logo, 'left', A );
+			if ( ! cta( ctx, ct, 1016, CH - 104, { h: 52, size: 24, align: 'right', fill: C.white, color: C.blue900, shadow: true, maxW: 520 } ) ) {
+				line( ctx, watermark(), { x: 1016, top: CH - 92, lh: 30, size: 24, color: 'rgba(255,255,255,.75)', align: 'right' } );
+			}
+			return;
+		}
+		/* uddhriti: dark page, a big quote mark, the text as the hero, author at the foot */
+		line( ctx, label, { x: 64, top: 70, lh: 40, size: 30, weight: 600, color: t.sub, maxW: 600 } );
+		logo( ctx, 1016, 72, 200, t.logo, 'right', A );
+		line( ctx, '“', { x: 46, top: 112, lh: 230, size: 260, weight: 700, fam: 'georgia', color: hexA( t.acc, 0.9 ) } );
+		top = 330; bot = CH - 250;
+		r = bigText( ctx, d.title, 952, bot - top, { maxLines: 6, max: 80, min: 46, lh: 1.34 }, { maxLines: 16, max: 56, min: 26, lh: 1.55, weight: 600, fam: 'sans' } );
+		var ub = drawFit( ctx, r, { x: 64, y: top, w: 952, h: bot - top, valign: 'middle', color: t.ink, hi: t.hi } );
+		rect( ctx, 64, ub.bottom + 24, 120, 6, t.acc );
+		rect( ctx, 64, CH - 220, 952, 1, 'rgba(255,255,255,.2)' );
+		cw = ct ? 300 : 0;
+		authorRow( ctx, d, A, 64, CH - 190, 120, t.ink, t.sub, t.ring, 952 - cw );
+		if ( ! cta( ctx, ct, 1016, CH - 156, { h: 50, size: 23, align: 'right', fill: C.white, color: C.blue900, maxW: 300 } ) ) {
+			line( ctx, watermark(), { x: 1016, top: CH - 146, lh: 30, size: 24, color: 'rgba(255,255,255,.72)', align: 'right' } );
+		}
+	}
+	/* 1200 × 630: the text on the right, label + author + logo on the left */
+	function opinionXLand( ctx, W, H, d, o, A, t, label ) {
+		var p = o.preset, light = 'kagoj' === p || 'potrika' === p, ink = 'moncho' === p ? C.ink : t.ink;
+		var lx = 64, lw = 380, bx = 480, by = 70, bw = 656, bh = H - 140;
+		line( ctx, label, { x: lx, top: 64, lh: 40, size: 30, weight: 700, color: t.acc, maxW: lw } );
+		rect( ctx, lx, 112, 60, 5, t.acc );
+		authorRow( ctx, d, A, lx, 250, 110, light ? t.ink : '#FFFFFF', t.sub, t.ring, lw );
+		logo( ctx, lx, H - 100, 170, t.logo, 'left', A );
+		if ( t.box ) {
+			if ( 'moncho' === p ) { rfill( ctx, bx, by, bw, bh, 24, t.box ); } else { rect( ctx, bx, by, bw, bh, t.box ); rect( ctx, bx, by, 8, bh, C.blue ); }
+		} else { rect( ctx, bx - 30, by, 2, bh, hexA( light ? t.acc : '#FFFFFF', 0.35 ) ); }
+		line( ctx, '“', { x: bx + 24, top: by - 10, lh: 110, size: 110, weight: 700, fam: 'georgia', color: hexA( 'uddhriti' === p ? t.acc : C.blue, 'uddhriti' === p ? 0.9 : 0.22 ) } );
+		var r = bigText( ctx, d.title, bw - 90, bh - 100, { maxLines: 5, max: 50, min: 34, lh: 1.32 },
+			{ maxLines: 11, max: 32, min: 20, lh: 1.55, weight: 600, fam: 'kagoj' === p ? 'lit' : 'sans' } );
+		drawFit( ctx, r, { x: bx + 46, y: by + 64, w: bw - 90, h: bh - 100, valign: 'middle', color: ink, hi: t.hi, hiBg: t.hiBg } );
+	}
+
+	/* ---------------------------------------------------------------- সাহিত্য */
+	var LITX = {
+		diary: { ink: '#1F2A3A', acc: '#C0392B', sub: '#2C5A8C', body: '#2B2B2B', logo: C.blue },
+		split: { ink: LIT_INK.ink, acc: LIT_INK.orn, sub: LIT_INK.orn, body: LIT_INK.body, logo: LIT_INK.orn },
+		kalo: { ink: '#F3E9D2', acc: '#C9A24A', sub: '#C9A24A', body: '#E6DCC4', logo: '#C9A24A' }
+	};
+	function litXBg( ctx, p, W, CH ) {
+		if ( 'diary' === p ) {
+			rect( ctx, 0, 0, W, CH, '#FFFDF6' );
+			for ( var y = 150; y < CH - 30; y += 54 ) { rect( ctx, 0, y, W, 2, 'rgba(70,130,200,.20)' ); }
+			rect( ctx, 1200 === W ? 92 : 112, 0, 3, CH, 'rgba(220,60,60,.45)' );
+			for ( var hy = 120; hy < CH; hy += 170 ) { ctx.fillStyle = 'rgba(0,0,0,.07)'; ctx.beginPath(); ctx.arc( 44, hy, 14, 0, Math.PI * 2 ); ctx.fill(); }
+		} else if ( 'kalo' === p ) {
+			shade( ctx, 0, 0, W, CH, [ [ 0, '#183326' ], [ 1, '#0D1C15' ] ] );
+			var g = '#C9A24A';
+			ctx.strokeStyle = g; ctx.lineWidth = 4; ctx.strokeRect( 36, 36, W - 72, CH - 72 );
+			ctx.lineWidth = 1.5; ctx.strokeRect( 50, 50, W - 100, CH - 100 );
+			[ [ 36, 36 ], [ W - 36, 36 ], [ 36, CH - 36 ], [ W - 36, CH - 36 ] ].forEach( function ( c ) { ctx.save(); ctx.translate( c[ 0 ], c[ 1 ] ); ctx.rotate( Math.PI / 4 ); ctx.fillStyle = g; ctx.fillRect( -12, -12, 24, 24 ); ctx.restore(); } );
+		} else {
+			paperBg( ctx, W, CH, LIT_INK.base );
+		}
+	}
+	function literatureX( ctx, W, H, d, o, A ) {
+		var p = o.preset, t = LITX[ p ], CH = H - ( o.ad ? STRIP_H : 0 ), label = str( d.label ) || 'সাহিত্য', au = str( d.author ), L, x, w, top;
+		litXBg( ctx, p, W, CH );
+		if ( 'split' === p ) {
+			var pw = 1200 === W ? 470 : 430;
+			photoOr( ctx, A.image, 0, 0, pw, CH, d ); rect( ctx, pw, 0, 6, CH, t.acc );
+		}
+		customFrame( ctx, A, W, H );
+		var land = 1200 === W;
+		if ( 'diary' === p ) {
+			x = land ? 130 : 150; w = ( land ? 1136 : 1016 ) - x;
+			if ( A.image ) {
+				var pw2 = land ? 300 : 330, px = ( land ? 1136 : 1016 ) - pw2, py = land ? 60 : 70;
+				ctx.save(); ctx.translate( px + pw2 / 2, py + pw2 / 2 ); ctx.rotate( -0.05 ); ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6;
+				rect( ctx, -pw2 / 2, -pw2 / 2, pw2, pw2 + 46, '#FFFFFF' ); ctx.shadowColor = 'transparent';
+				cover( ctx, A.image, -pw2 / 2 + 16, -pw2 / 2 + 16, pw2 - 32, pw2 - 32, d.focus, d.zoom ); ctx.restore();
+				w = px - 40 - x;
+			}
+			line( ctx, label, { x: x, top: land ? 40 : 76, lh: 40, size: 28, weight: 600, color: t.acc, maxW: w } );
+			var rt = fit( ctx, d.title, { w: w, maxLines: 3, max: land ? 52 : 72, min: 36, lh: 1.3 } );
+			var bt = drawFit( ctx, rt, { x: x, y: land ? 86 : 124, w: w, h: rt.lines.length * rt.lineH, color: t.ink, hi: t.acc } );
+			top = bt.bottom + 6;
+			if ( au ) { line( ctx, 'লিখেছেন ' + au, { x: x, top: top, lh: 44, size: 28, min: 22, fam: 'lit', color: t.sub, maxW: w } ); top += 54; }
+			top = Math.max( top + 10, A.image ? ( land ? 440 : 470 ) : 0 );
+			var ew = ( land ? 1136 : 1016 ) - x, eb = CH - ( land ? 70 : 120 );
+			if ( str( d.excerpt ) && eb - top > 50 ) {
+				var re = fit( ctx, d.excerpt, { w: ew, h: eb - top, maxLines: 16, max: land ? 30 : 46, min: 20, lh: 1.6, weight: 400, fam: 'lit' } );
+				drawFit( ctx, re, { x: x, y: top, w: ew, h: eb - top, valign: 'top', color: t.body, hi: t.acc } );
+			}
+			logo( ctx, land ? 1136 : 1016, CH - ( land ? 56 : 88 ), land ? 160 : 180, t.logo, 'right', A );
+			return;
+		}
+		if ( 'split' === p ) {
+			x = ( land ? 470 : 430 ) + 50; w = ( land ? 1136 : 1016 ) - x;
+			line( ctx, label, { x: x, top: land ? 44 : 90, lh: 40, size: 26, weight: 600, color: t.acc, maxW: w } );
+			L = twoBlocks( ctx, d.title, d.excerpt, land ? 90 : 140, CH - ( land ? 90 : 140 ), { share: 0.4, gap: 24, mid: au ? 56 + 24 : 24,
+				a: { w: w, maxLines: 4, max: land ? 46 : 64, min: 32, lh: 1.3 }, b: { w: w, maxLines: 16, max: land ? 28 : 40, min: 20, lh: 1.6, weight: 400, fam: 'lit' } } );
+			drawFit( ctx, L.ra, { x: x, y: L.ay, w: w, h: L.ah, color: t.ink, hi: t.acc } );
+			var my = L.my + 4;
+			if ( au ) { line( ctx, au, { x: x, top: my, lh: 44, size: 28, min: 22, fam: 'lit', color: t.sub, maxW: w } ); my += 52; }
+			rect( ctx, x, my + 8, 80, 3, t.acc );
+			if ( L.rb ) { drawFit( ctx, L.rb, { x: x, y: L.by, w: w, h: L.bh, color: t.body, hi: t.acc } ); }
+			logo( ctx, x, CH - ( land ? 60 : 96 ), land ? 160 : 180, t.logo, 'left', A );
+			return;
+		}
+		/* kalo: book cover */
+		var cx = land ? 330 : W / 2, cwid = land ? 500 : 820;
+		top = land ? 70 : 110;
+		if ( A.image ) {
+			var md = land ? 170 : 260;
+			circleImage( ctx, A.image, cx - md / 2, top, md, { rings: [ [ 6, t.acc ], [ 12, '#0D1C15' ], [ 15, hexA( t.acc, 0.6 ) ] ], focus: d.focus, zoom: d.zoom } );
+			top += md + ( land ? 30 : 46 );
+		} else if ( ! land ) { top = Math.round( CH * 0.15 ); }
+		line( ctx, '— ' + label + ' —', { x: cx, top: top, lh: 40, size: land ? 24 : 28, weight: 600, color: t.acc, align: 'center', maxW: cwid } );
+		top += land ? 42 : 52;
+		if ( land ) {
+			var r1 = fit( ctx, d.title, { w: cwid, maxLines: 3, max: 46, min: 30, lh: 1.3 } );
+			var b1 = drawFit( ctx, r1, { x: cx - cwid / 2, y: top, w: cwid, h: r1.lines.length * r1.lineH, color: t.ink, align: 'center', hi: t.acc } );
+			if ( au ) { line( ctx, au, { x: cx, top: b1.bottom + 2, lh: 40, size: 26, fam: 'lit', color: t.sub, align: 'center', maxW: cwid } ); }
+			logo( ctx, cx, H - 92, 160, t.logo, 'center', A );
+			rect( ctx, 640, 80, 1.5, H - 160, hexA( t.acc, 0.5 ) );
+			var r2 = fit( ctx, d.excerpt, { w: 470, h: 470, maxLines: 10, max: 28, min: 18, lh: 1.6, weight: 400, fam: 'lit' } );
+			drawFit( ctx, r2, { x: 680, y: 80, w: 470, h: 470, valign: 'middle', color: t.body, align: 'center', hi: t.acc } );
+			return;
+		}
+		L = twoBlocks( ctx, d.title, d.excerpt, top, CH - 160, { share: 0.4, gap: 10, mid: ( au ? 54 : 0 ) + 60,
+			a: { w: cwid, maxLines: 3, max: 70, min: 40, lh: 1.3 }, b: { w: 780, maxLines: 14, max: 44, min: 22, lh: 1.6, weight: 400, fam: 'lit' } } );
+		drawFit( ctx, L.ra, { x: cx - cwid / 2, y: L.ay, w: cwid, h: L.ah, color: t.ink, align: 'center', hi: t.acc } );
+		var ky = L.my;
+		if ( au ) { line( ctx, au, { x: cx, top: ky + 2, lh: 48, size: 30, min: 22, fam: 'lit', color: t.sub, align: 'center', maxW: cwid } ); ky += 54; }
+		flourish( ctx, cx, ky + 30, 260, t.acc );
+		if ( L.rb ) { drawFit( ctx, L.rb, { x: cx - 390, y: L.by, w: 780, h: L.bh, color: t.body, align: 'center', hi: t.acc } ); }
+		logo( ctx, cx, CH - 124, 190, t.logo, 'center', A );
+	}
+
+	/* ---------------------------------------------------------------- বিভাগ (category colour from the term) */
+	function categoryX( ctx, W, H, d, o, A ) {
+		var p = o.preset, CH = H - ( o.ad ? STRIP_H : 0 ), col = catColor( d ), dk = lum( col ) > 0.55 ? deepen( col, 0.45 ) : col, cat = str( d.category ) || 'বিভাগ', land = 1200 === W, r, b;
+		if ( 'rongpata' === p ) {
+			var ph = land ? H : CH - ( CH > 1100 ? 560 : 470 ), pw = land ? 560 : W;
+			rect( ctx, 0, 0, W, H, dk );
+			photoOr( ctx, A.image, 0, 0, pw, ph, d );
+			if ( ! land ) { rect( ctx, 0, ph, W, 10, deepen( col, 0.25 ) ); }
+			customFrame( ctx, A, W, H );
+			var tx = land ? 610 : 64, tw = land ? 526 : 952, ty = land ? 60 : ph + 46;
+			rect( ctx, tx, ty + 12, 18, 18, '#FFFFFF' );
+			line( ctx, cat, { x: tx + 32, top: ty, lh: 44, size: land ? 30 : 34, weight: 700, fam: 'serif', color: '#FFFFFF', maxW: tw - 32 } );
+			var tb = land ? H - 100 : CH - 104;
+			r = fit( ctx, d.title, { w: tw, h: tb - ty - 80, maxLines: land ? 6 : 4, max: land ? 46 : 62, min: 34, lh: 1.32 } );
+			drawFit( ctx, r, { x: tx, y: ty + 64, w: tw, h: tb - ty - 80, valign: 'middle', color: '#FFFFFF' } );
+			rect( ctx, tx, tb, tw, 1, 'rgba(255,255,255,.35)' );
+			logo( ctx, tx + tw, tb + 26, land ? 160 : 190, '#FFFFFF', 'right', A );
+			if ( ! cta( ctx, ctaText( d, o ), tx, tb + 18, { h: 48, size: 22, fill: '#FFFFFF', color: dk, maxW: tw - 220 } ) ) {
+				line( ctx, watermark(), { x: tx, top: tb + 28, lh: 30, size: 22, color: 'rgba(255,255,255,.8)' } );
+			}
+			return;
+		}
+		if ( 'kona' === p ) {
+			rect( ctx, 0, 0, W, H, '#0B1F3A' );
+			photoOr( ctx, A.image, 0, 0, W, CH, d );
+			shade( ctx, 0, 0, W, CH, [ [ 0, 'rgba(8,20,36,.25)' ], [ 0.35, 'rgba(8,20,36,0)' ], [ 0.55, 'rgba(8,20,36,.45)' ], [ 1, 'rgba(8,20,36,.95)' ] ] );
+			rect( ctx, 0, 0, land ? 14 : 18, CH, col );
+			customFrame( ctx, A, W, H );
+			ctx.font = fontStr( 700, land ? 30 : 38, 'serif' );
+			var cwid = Math.min( land ? 600 : 800, Math.round( width( ctx, cat ) ) + 64 );
+			rect( ctx, land ? 14 : 18, land ? 48 : 64, cwid, land ? 64 : 80, dk );
+			line( ctx, cat, { x: ( land ? 14 : 18 ) + 32, top: land ? 52 : 70, lh: land ? 56 : 68, size: land ? 30 : 38, weight: 700, fam: 'serif', color: '#FFFFFF', maxW: cwid - 64 } );
+			logo( ctx, W - 64, land ? 60 : 82, land ? 160 : 190, '#FFFFFF', 'right', A );
+			var bx = land ? 60 : 64, bw = land ? 1080 : 952;
+			r = fit( ctx, d.title, { w: bw, maxLines: land ? 3 : 4, max: land ? 50 : 66, min: 36, lh: 1.32 } );
+			b = drawFit( ctx, r, { x: bx, w: bw, bottom: CH - ( land ? 96 : 130 ), color: '#FFFFFF' } );
+			rect( ctx, bx, CH - ( land ? 70 : 96 ), 140, 8, col );
+			if ( ! cta( ctx, ctaText( d, o ), W - 64, CH - ( land ? 84 : 112 ), { h: 50, size: 22, align: 'right', fill: '#FFFFFF', color: C.blue900, maxW: 500 } ) ) {
+				line( ctx, watermark(), { x: W - 64, top: CH - ( land ? 78 : 104 ), lh: 30, size: 22, color: 'rgba(255,255,255,.75)', align: 'right' } );
+			}
+			return;
+		}
+		/* chhapa: white page, photo inset, colour accents */
+		rect( ctx, 0, 0, W, H, '#FFFFFF' );
+		var ix = land ? 40 : 40, iy = 40, iw = land ? 560 : W - 80, ih = land ? H - 80 : Math.round( CH * ( CH > 1100 ? 0.54 : 0.5 ) );
+		ctx.save(); rrect( ctx, ix, iy, iw, ih, 22 ); ctx.clip(); photoOr( ctx, A.image, ix, iy, iw, ih, d ); ctx.restore();
+		rect( ctx, 0, CH - 16, W, 16, col );
+		customFrame( ctx, A, W, H );
+		var cx0 = land ? 640 : 64, cw0 = land ? 496 : 952, cy0 = land ? 60 : iy + ih + 40;
+		var pwid = pill( ctx, cat, cx0, cy0, { fill: col, color: lum( col ) > 0.6 ? C.ink : '#FFFFFF', size: land ? 24 : 28, h: land ? 48 : 56 } );
+		var tb2 = CH - ( land ? 90 : 110 );
+		r = fit( ctx, d.title, { w: cw0, h: tb2 - cy0 - 90, maxLines: land ? 6 : 4, max: land ? 44 : 60, min: 32, lh: 1.32 } );
+		drawFit( ctx, r, { x: cx0, y: cy0 + ( land ? 70 : 84 ), w: cw0, h: tb2 - cy0 - 100, valign: 'middle', color: C.ink } );
+		logo( ctx, cx0 + cw0, tb2 + 20, land ? 160 : 180, dk, 'right', A );
+		if ( ! cta( ctx, ctaText( d, o ), cx0, tb2 + 12, { h: 48, size: 22, fill: dk, color: '#FFFFFF', maxW: cw0 - 220 } ) ) {
+			line( ctx, watermark(), { x: cx0, top: tb2 + 22, lh: 30, size: 22, color: C.muted } );
+		}
+		void pwid;
+	}
+
+	/* ---------------------------------------------------------------- নিউজ: ঢেউ (photo on top, the waves are the footer)
+	   2.4.1: the waves are the brand colours (logo blue → night blue, red rule) instead of green, so every wave card reads
+	   as Meeha at a glance. Colours come from স্টুডিও সেটিংস › ব্র্যান্ডের রং (MeehaCardsConfig.brand), else the theme tokens. */
+	function hexOk( v ) { return /^#[0-9a-f]{6}$/i.test( v || '' ); }
+	function mixHex( a, b, k ) { /* k of b mixed into a, both #rrggbb */
+		var x = parseInt( a.slice( 1 ), 16 ), y = parseInt( b.slice( 1 ), 16 ), m = function ( sh ) { var u = ( x >> sh ) & 255, v = ( y >> sh ) & 255; return Math.round( u + ( v - u ) * k ); };
+		return '#' + ( ( 1 << 24 ) + ( m( 16 ) << 16 ) + ( m( 8 ) << 8 ) + m( 0 ) ).toString( 16 ).slice( 1 );
+	}
+	function brand() {
+		var b = cfg().brand || {}, p = hexOk( b.primary ) ? b.primary : C.blue, a = hexOk( b.accent ) ? b.accent : C.red;
+		var deep = hexOk( b.deep ) ? b.deep : ( p.toUpperCase() === C.blue ? C.blue900 : mixHex( p, '#000000', 0.62 ) );
+		return { primary: p, accent: a, light: mixHex( p, '#FFFFFF', 0.32 ), deep: deep };
+	}
+	function newsWave( ctx, W, H, d, o, A, breaking ) {
+		var CH = H - ( o.ad ? STRIP_H : 0 ), foot = CH > 1100 ? 500 : 440, ph = CH - foot, cat = str( d.category || d.kicker ), ct = ctaText( d, o ), B = brand();
+		rect( ctx, 0, 0, W, H, B.deep );
+		photoOr( ctx, A.image, 0, 0, W, ph + 40, d );
+		waveFill( ctx, 0, W, ph - 18, 22, 0.6, B.light, CH );
+		waveFill( ctx, 0, W, ph + 22, 20, 2.4, B.primary, CH );
+		waveFill( ctx, 0, W, ph + 62, 18, 4.1, B.deep, CH );
+		rect( ctx, 0, CH - 12, W, 12, B.accent );
+		customFrame( ctx, A, W, H );
+		if ( breaking ) {
+			rect( ctx, 0, 0, W, 64, B.accent );
+			ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc( 46, 32, 9, 0, Math.PI * 2 ); ctx.fill();
+			ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc( 46, 32, 16, 0, Math.PI * 2 ); ctx.stroke();
+			line( ctx, 'ব্রেকিং নিউজ', { x: 76, top: 10, lh: 44, size: 30, weight: 600, color: '#FFFFFF' } );
+			logo( ctx, 1016, 14, 180, '#FFFFFF', 'right', A );
+		} else {
+			logo( ctx, 1016, 48, 200, '#FFFFFF', 'right', A );
+		}
+		var y0 = ph + 96, pw = 0;
+		if ( cat ) { pw = pill( ctx, cat, 64, y0, { fill: B.accent, color: '#FFFFFF', size: 26, h: 50 } ); }
+		cta( ctx, ct, 1016, y0, { h: 50, size: 23, align: 'right', fill: '#FFFFFF', color: B.deep, maxW: 952 - ( pw ? pw + 24 : 0 ) } );
+		var tTop = y0 + 70, tBot = CH - 96;
+		var r = fit( ctx, d.title, { w: 952, h: tBot - tTop, maxLines: 4, max: 60, min: 38, lh: 1.34 } );
+		drawFit( ctx, r, { x: 64, y: tTop, w: 952, h: tBot - tTop, valign: 'middle', color: '#FFFFFF' } );
+		line( ctx, str( d.date ), { x: 64, top: CH - 74, lh: 40, size: 26, color: 'rgba(255,255,255,.82)', maxW: 600 } );
+		line( ctx, watermark(), { x: 1016, top: CH - 72, lh: 36, size: 24, color: 'rgba(255,255,255,.72)', align: 'right' } );
+	}
+
+	var XDRAW = {
+		opinion: { kagoj: opinionX, potrika: opinionX, moncho: opinionX, uddhriti: opinionX },
+		literature: { diary: literatureX, split: literatureX, kalo: literatureX },
+		category: { rongpata: categoryX, kona: categoryX, chhapa: categoryX },
+		feature: { dheu: function ( ctx, W, H, d, o, A ) {
+			if ( 1200 === W ) { landscape( 'feature', ctx, W, H, d, Object.assign( {}, o, { preset: 'shade' } ), A ); } else { newsWave( ctx, W, H, Object.assign( {}, d, { category: d.kicker } ), o, A, false ); }
+		} }
+	};
+
+	/* ================================================================== registry */
+	var templates = {
+		morning:    { label: 'শুভ সকাল', ad: true, photo: true, presets: { bhor: 'মিহা ভোর', nilpar: 'নীল পাড়', side: 'পার্শ্ব-ফিতা' },
+			fields: [ 'title', 'caption', 'credit', 'image', 'focus', 'zoom', 'dates{weekday,gregorian,bangla,hijri}' ], draw: morning },
+		opinion:    { label: 'মতামত', ad: true, photo: false, presets: { blue: 'মিহা নীল', navy: 'রাতের নীল', paper: 'সাদা কাগজ', kagoj: 'কাগজের পাতা', potrika: 'খবরের কাগজ', moncho: 'নীল মঞ্চ', uddhriti: 'বড় উদ্ধৃতি' },
+			fields: [ 'title', 'author_name', 'author_title', 'author_photo', 'show_photo', 'label' ], draw: opinion },
+		feature:    { label: 'ফিচার', ad: true, photo: true, presets: { shade: 'ছায়া', vf2: 'দুই কোণ', band: 'নীল পাটাতন', dheu: 'মিহা ঢেউ' },
+			fields: [ 'kicker', 'title', 'image', 'focus', 'zoom', 'byline' ], draw: function ( c, W, H, d, o, A ) { feature( c, W, H, d, o, A, false ); } },
+		breaking:   { label: 'ব্রেকিং / সর্বশেষ', ad: true, photo: true, presets: { breaking: 'ব্রেকিং (লাল)', latest: 'সর্বশেষ (নীল)' },
+			fields: [ 'variant(breaking|latest)', 'label', 'time', 'title', 'image', 'more' ], draw: breaking },
+		quote:      { label: 'উক্তি', ad: true, photo: false, presets: { politics: 'রাজনীতি', faith: 'ধর্ম ও আধ্যাত্মিক', literature: 'সাহিত্য', inspire: 'অনুপ্রেরণা', history: 'ইতিহাস', sports: 'খেলা', opinion: 'মতামত' },
+			fields: [ 'text', 'speaker', 'role', 'speaker_photo', 'type_label', 'frame', 'year' ], draw: quote },
+		condolence: { label: 'শোক', ad: false, photo: true, presets: { dark: 'কালো', light: 'ধূসর-সাদা' },
+			fields: [ 'pre', 'heading', 'name', 'role', 'dates_line', 'message', 'image' ], draw: condolence },
+		category:   { label: 'বিভাগ ফ্রেম', ad: true, photo: true, presets: { shade: 'ছায়া', vf2: 'দুই কোণ', band: 'নীল পাটাতন', rongpata: 'রঙের পাটা', kona: 'রঙিন কোণ', chhapa: 'সাদা পাতা' },
+			fields: [ 'category', 'color', 'title', 'image', 'focus', 'zoom' ], draw: function ( c, W, H, d, o, A ) { feature( c, W, H, d, o, A, true ); } }
+	};
+	templates.literature = { label: 'সাহিত্য', ad: true, photo: true, presets: { paper: 'কাগজ', window: 'জানালা ছবি', modern: 'আধুনিক', diary: 'ডায়েরির পাতা', split: 'ছবি পাশে', kalo: 'কালো মলাট' },
+		fields: [ 'label', 'title', 'author', 'excerpt', 'image', 'focus', 'zoom' ], draw: literature };
+	templates.poem = { label: 'কবিতা', ad: true, photo: true, presets: { paper: 'কাগজ ও লতা', night: 'রাতের আকাশ', photo: 'ছবির ওপর', nodi: 'নদী ও নৌকা', shada: 'সাদা মিনিমাল' },
+		fields: [ 'label', 'title', 'author', 'poem', 'image', 'focus', 'zoom' ], draw: poem };
+	templates.news = { label: 'নিউজ কার্ড', ad: true, photo: true, presets: NEWS_PRESETS,
+		fields: [ 'title', 'category', 'date', 'image', 'focus', 'zoom', 'gallery[{image,focus,zoom}]', 'gallery_more' ], draw: news };
+	templates.birthday = { label: 'জন্মদিন', ad: true, photo: true, presets: { confetti: 'উৎসব', night: 'তারার রাত', balloon: 'বেলুন' },
+		fields: [ 'heading', 'name', 'role', 'message', 'image' ], draw: birthday };
+	templates.day = { label: 'দিবস', ad: true, photo: true, presets: ( function () { var o = {}; Object.keys( DAY ).forEach( function ( k ) { o[ k ] = DAY[ k ].label; } ); return o; }() ),
+		fields: [ 'title', 'subtitle', 'message', 'theme', 'image' ], draw: day };
+	var ALIASES = { birth: 'birthday', 'news-card': 'news', dibos: 'day', shubho: 'morning', 'good-morning': 'morning', mot: 'opinion', latest: 'breaking', shok: 'condolence', cat: 'category', sahitya: 'literature', kobita: 'poem' };
+
+	/* রেডিমেড নকশা: a built-in layout + a bundled transparent PNG (assets/frames/png/{file}-{W}x{H}.png) drawn where an
+	   own frame would go (over the photo, under the text). Picked like any preset; the PHP list is meeha_studio_deco_presets(). */
+	var DECO_NEWS = {
+		surjo: [ 'classic', 'news-surjo-nil', 'সূর্য নীল' ], nokshi: [ 'overlay', 'news-nokshi-lalsobuj', 'নকশি লাল-সবুজ' ],
+		sonali: [ 'band', 'news-bishesh-sonali', 'বিশেষ সোনালি' ], sorboshesh: [ 'band', 'news-sorboshesh', 'সর্বশেষ ট্যাগ' ],
+		breakingband: [ 'overlay', 'news-breaking', 'ব্রেকিং ব্যান্ড' ], exclusive: [ 'classic', 'news-exclusive', 'এক্সক্লুসিভ ট্যাগ' ],
+		special: [ 'classic', 'news-meeha-special', 'মিহা স্পেশাল' ], bracket: [ 'overlay', 'news-nil-bracket', 'নীল কর্নার ব্র্যাকেট' ]
+	};
+	var DECO = {
+		news: DECO_NEWS,
+		feature: ( function () { var o = {}; Object.keys( DECO_NEWS ).forEach( function ( k ) { o[ k ] = [ 'classic' === DECO_NEWS[ k ][ 0 ] ? 'band' : 'shade', DECO_NEWS[ k ][ 1 ], DECO_NEWS[ k ][ 2 ] ]; } ); return o; }() ),
+		opinion: { sompadokiyo: [ 'paper', 'opinion-sompadokiyo', 'সম্পাদকীয়' ], bishleshon: [ 'blue', 'opinion-bishleshon', 'বিশ্লেষণ' ], kolom: [ 'blue', 'opinion-khola-kolom', 'খোলা কলম' ] }
+	};
+	DECO.category = DECO.feature;
+	/* full-artwork types: the stock artwork stays (frameMode overlay), the PNG adds its border and ornaments */
+	DECO.day = {
+		bijoy: [ 'victory', 'bijoy-dibos', 'বিজয় দিবস (সবুজ পাড়)' ], swadhinota: [ 'independence', 'swadhinota-dibos', 'স্বাধীনতা দিবস (লাল-সবুজ পাড়)' ],
+		ekushe: [ 'matribhasha', 'ekushe-february', 'অমর একুশে (বর্ণমালা ও মিনার)' ], boishakhpar: [ 'boishakh', 'pohela-boishakh', 'শুভ নববর্ষ (লাল ফোঁটা)' ],
+		eidpar: [ 'eid', 'eid-mubarak', 'ঈদ মোবারক (সোনালি পাড়)' ], sharodiya: [ 'puja', 'sharodiya-shubhechha', 'শারদীয় শুভেচ্ছা (কাশফুল)' ]
+	};
+	DECO.birthday = { utsob: [ 'balloon', 'jonmodin-confetti', 'কনফেটি ও বেলুন' ], sonali: [ 'night', 'jonmodin-sonali', 'সোনালি পাড়' ] };
+	DECO.condolence = { kalopar: [ 'light', 'shok-kalo-border', 'কালো পাড়' ], konafita: [ 'dark', 'shok-kona-fita', 'কোণের ফিতা (শ্রদ্ধাঞ্জলি)' ] };
+	function decoOf( type, preset ) { var d = DECO[ type ]; return d && preset && Object.prototype.hasOwnProperty.call( d, preset ) ? d[ preset ] : null; }
+	Object.keys( DECO ).forEach( function ( ty ) { if ( templates[ ty ] ) { var pr = Object.assign( {}, templates[ ty ].presets ); Object.keys( DECO[ ty ] ).forEach( function ( k ) { pr[ k ] = DECO[ ty ][ k ][ 2 ]; } ); templates[ ty ].presets = pr; } } );
+
+	function frameUrl( key, W, H ) {
+		var c = cfg(), sfx = 1080 === W && 1080 === H ? '' : '-' + W + 'x' + H;
+		if ( c.frames && c.frames[ key + sfx ] ) { return c.frames[ key + sfx ]; }
+		return base() + 'assets/frames/quote-' + key + sfx + '.svg';
+	}
+
+	/**
+	 * render( type, data, opts ) → Promise<HTMLCanvasElement>
+	 * opts: size ('1080x1080'|'1080x1350'|'1200x630'), preset, ad (true | {url}), frame (custom PNG url),
+	 *       canvas (reuse), logo ({mode:'vector'|'image', url}).
+	 *       With `frame` on দিবস/জন্মদিন/শোক/উক্তি the frame is drawn standalone (no built-in artwork); then
+	 *       frameText: { ink: 'auto'|'light'|'dark', pos: 'bottom'|'middle'|'top', hide: { key: true, logo: true } }.
+	 *       frameMode: 'overlay' forces the old behaviour (frame over the built-in design).
+	 */
+	function render( type, data, opts ) {
+		type = ALIASES[ type ] || type;
+		var t = templates[ type ];
+		if ( ! t ) { return Promise.reject( new Error( 'অজানা কার্ডের ধরন: ' + type ) ); }
+		data = data || {}; opts = opts || {};
+		/* on a story the design goes on the card inside it (story() renders that card at 1080 × 1350) */
+		var dz = opts.frame || '1080x1920' === opts.size ? null : decoOf( type, opts.preset || ( 'news' === type ? cfg().newsDefault : '' ) );
+		if ( dz ) {
+			opts = Object.assign( {}, opts, { preset: dz[ 0 ], frameMode: 'overlay', frame: base() + 'assets/frames/png/' + dz[ 1 ] + '-' + ( SIZES[ opts.size ] ? opts.size : '1080x1080' ) + '.png' } );
+			if ( 'day' === type ) { data = Object.assign( {}, data, { theme: dz[ 0 ] } ); }
+		}
+		var sz = SIZES[ opts.size ] || SIZES[ '1080x1080' ], W = sz[ 0 ], H = sz[ 1 ];
+		if ( 1920 === H && ! soloMode( type, opts ) ) { return story( type, data, opts ); }
+		var land = 1200 === W;
+		var o = { preset: opts.preset, ad: !! opts.ad && t.ad && ! land, cta: opts.cta, type: type };
+		var solo = soloMode( type, opts ); /* own frame on a full-artwork type → the frame is the whole design */
+		if ( 'condolence' === type || ( 'day' === type && ! solo && DAY[ dayTheme( data, o ) ].noAd ) ) { o.ad = false; } /* dignity rule */
+		if ( solo && o.ad && ! adAllowed( type, data, opts ) ) { o.ad = false; }
+		var adUrl = o.ad && typeof opts.ad === 'object' ? [ opts.ad.url, opts.ad.fallback ] : ( o.ad && typeof opts.ad === 'string' ? opts.ad : '' );
+		var lg = opts.logo || cfg().logo || {};
+		var qKey = 'quote' === type ? quoteScheme( data, o ).key : '';
+		var jobs = {
+			image: loadImage( data.image_fallback ? [ data.image, data.image_fallback ] : data.image ),
+			authorPhoto: false !== data.show_photo ? loadImage( data.author_photo ) : Promise.resolve( null ),
+			speakerPhoto: loadImage( data.speaker_photo ),
+			gallery: Array.isArray( data.gallery ) && data.gallery.length ? Promise.all( data.gallery.slice( 0, 3 ).map( function ( g ) { return loadImage( g && g.image ); } ) ) : Promise.resolve( [] ),
+			frameImg: loadImage( opts.frame ),
+			adImg: loadImage( adUrl ),
+			logoImg: 'image' === lg.mode && lg.url ? loadImage( [ lg.url, lg.fallback ] ) : Promise.resolve( null ),
+			logoLight: 'image' === lg.mode && lg.url && lg.light && lg.light.url ? loadImage( [ lg.light.url, lg.light.fallback ] ) : Promise.resolve( null ),
+			quoteFrame: qKey && false !== opts.builtinFrame && ! solo ? loadImage( frameUrl( qKey, W, H ) ) : Promise.resolve( null )
+		};
+		var keys = Object.keys( jobs );
+		return loadFonts().then( function () {
+			return Promise.all( keys.map( function ( k ) { return jobs[ k ]; } ) );
+		} ).then( function ( vals ) {
+			var A = {};
+			keys.forEach( function ( k, i ) { A[ k ] = vals[ i ]; } );
+			var cv = opts.canvas || doc.createElement( 'canvas' );
+			cv.width = W; cv.height = H;
+			var ctx = cv.getContext( '2d' );
+			ctx.setTransform( 1, 0, 0, 1, 0, 0 ); ctx.clearRect( 0, 0, W, H );
+			ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+			if ( 'fontKerning' in ctx ) { ctx.fontKerning = 'normal'; }
+			var ink = '';
+			if ( solo && ! A.frameImg ) {
+				/* the frame did not load: fall back to the built-in design (and its dignity rule) */
+				solo = false;
+				if ( 'day' === type && DAY[ dayTheme( data, o ) ].noAd ) { o.ad = false; }
+			}
+			ctx.save();
+			NO_VF = !! dz && !! A.frameImg;
+			try {
+				var xd = ! solo && XDRAW[ type ] && Object.prototype.hasOwnProperty.call( XDRAW[ type ], o.preset ) ? XDRAW[ type ][ o.preset ] : null;
+				if ( xd ) { xd( ctx, W, H, data, o, A ); } else if ( solo ) { ink = standalone( type, ctx, W, H, data, o, A, opts.frameText ); } else if ( land ) { landscape( type, ctx, W, H, data, o, A ); } else { t.draw( ctx, W, H, data, o, A ); }
+			} finally { NO_VF = false; }
+			ctx.restore();
+			if ( o.ad ) { adStrip( ctx, W, H, A.adImg ); }
+			cv.setAttribute( 'data-card-type', type );
+			if ( solo ) { cv.setAttribute( 'data-frame-mode', 'standalone' ); cv.setAttribute( 'data-ink', ink ); } else { cv.removeAttribute( 'data-frame-mode' ); cv.removeAttribute( 'data-ink' ); }
+			return cv;
+		} );
+	}
+
+	/* স্টোরি (1080 × 1920): the 1080 × 1350 card, scaled into the middle of a blurred copy of itself; logo above and a
+	   short line below stay inside the safe zone (top ~250 px, bottom ~300 px are covered by the apps' own bars).
+	   A 1080 × 1920 custom frame is drawn over everything; on দিবস/জন্মদিন/শোক/উক্তি it is the whole design instead. */
+	function story( type, data, opts ) {
+		var lg = opts.logo || cfg().logo || {}, img = 'image' === lg.mode && lg.url;
+		return Promise.all( [
+			render( type, data, Object.assign( {}, opts, { size: '1080x1350', canvas: null, frame: null } ) ),
+			loadImage( opts.frame ),
+			img ? loadImage( [ lg.url, lg.fallback ] ) : Promise.resolve( null ),
+			img && lg.light && lg.light.url ? loadImage( [ lg.light.url, lg.light.fallback ] ) : Promise.resolve( null )
+		] ).then( function ( v ) {
+			var card = v[ 0 ], W = 1080, H = 1920, cv = opts.canvas || doc.createElement( 'canvas' ), mourn = 'condolence' === type;
+			cv.width = W; cv.height = H;
+			var ctx = cv.getContext( '2d' ), A = { logoImg: v[ 2 ], logoLight: v[ 3 ] };
+			ctx.setTransform( 1, 0, 0, 1, 0, 0 ); ctx.clearRect( 0, 0, W, H );
+			ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+			var blur = 'filter' in ctx;
+			ctx.save(); if ( blur ) { ctx.filter = 'blur(38px) saturate(1.1)'; }
+			cover( ctx, card, -60, -60, W + 120, H + 120, { x: 50, y: 50 }, 1 );
+			ctx.restore();
+			shade( ctx, 0, 0, W, H, [ [ 0, 'rgba(6,14,26,' + ( blur ? 0.55 : 0.75 ) + ')' ], [ 0.5, 'rgba(6,14,26,' + ( blur ? 0.28 : 0.6 ) + ')' ], [ 1, 'rgba(6,14,26,' + ( blur ? 0.6 : 0.78 ) + ')' ] ] );
+			var cw = 1010, ch = Math.round( cw * card.height / card.width ), cx = ( W - cw ) / 2, cy = Math.round( ( H - ch ) / 2 ) - 6;
+			ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 50; ctx.shadowOffsetY = 18; ctx.fillStyle = '#FFFFFF';
+			rrect( ctx, cx, cy, cw, ch, 28 ); ctx.fill(); ctx.restore();
+			ctx.save(); rrect( ctx, cx, cy, cw, ch, 28 ); ctx.clip(); ctx.drawImage( card, cx, cy, cw, ch ); ctx.restore();
+			logo( ctx, W / 2, cy - 104, 230, mourn ? '#E8E2D6' : C.white, 'center', A );
+			var foot = undefined !== data.story_cta && null !== data.story_cta ? str( data.story_cta ) : str( cfg().storyCta );
+			if ( mourn ) { foot = ''; }
+			if ( foot && CTA_TYPES[ type ] ) {
+				cta( ctx, foot, W / 2 - 1, cy + ch + 48, { h: 64, size: 28, fill: C.white, color: C.blue900, shadow: true, maxW: 900, center: true } );
+			} else {
+				line( ctx, foot || watermark(), { x: W / 2, top: cy + ch + 52, lh: 50, size: 30, weight: 600, color: 'rgba(255,255,255,.88)', align: 'center', maxW: 900 } );
+			}
+			if ( v[ 1 ] ) { ctx.drawImage( v[ 1 ], 0, 0, W, H ); }
+			cv.setAttribute( 'data-card-type', type ); cv.setAttribute( 'data-story', '1' );
+			cv.removeAttribute( 'data-frame-mode' ); cv.removeAttribute( 'data-ink' );
+			return cv;
+		} );
+	}
+
+	function toBlob( canvas, mime, quality ) {
+		mime = mime || 'image/png';
+		var src = canvas;
+		if ( 'image/jpeg' === mime ) {
+			/* JPG has no alpha: flatten on white */
+			src = doc.createElement( 'canvas' ); src.width = canvas.width; src.height = canvas.height;
+			var x = src.getContext( '2d' ); x.fillStyle = '#FFFFFF'; x.fillRect( 0, 0, src.width, src.height ); x.drawImage( canvas, 0, 0 );
+		}
+		return new Promise( function ( resolve, reject ) {
+			src.toBlob( function ( b ) { if ( b ) { resolve( b ); } else { reject( new Error( 'ছবি তৈরি করা যায়নি' ) ); } }, mime, 'image/jpeg' === mime ? ( quality || 0.9 ) : undefined );
+		} );
+	}
+	function download( canvas, filename, mime ) {
+		mime = mime || ( /\.jpe?g$/i.test( filename || '' ) ? 'image/jpeg' : 'image/png' );
+		filename = filename || 'meeha-card.png';
+		if ( 'image/jpeg' === mime ) { filename = filename.replace( /\.png$/i, '.jpg' ); }
+		return toBlob( canvas, mime ).then( function ( blob ) {
+			var url = URL.createObjectURL( blob ), a = doc.createElement( 'a' );
+			a.href = url; a.download = filename; a.rel = 'noopener'; a.style.display = 'none';
+			doc.body.appendChild( a ); a.click();
+			setTimeout( function () { URL.revokeObjectURL( url ); a.remove(); }, 4000 );
+			return blob;
+		} );
+	}
+	/* Bengali → Latin for ASCII-safe filenames (downloads with non-ASCII names are renamed "download" by some
+	   browsers/apps). Inherent vowels are dropped: মাদুরো থেকে ক্রিমিয়া → maduro-theke-krimiya. */
+	var TR = ( function () {
+		var m = {}, i;
+		var cons = 'ক:k খ:kh গ:g ঘ:gh ঙ:ng চ:ch ছ:chh জ:j ঝ:jh ঞ:n ট:t ঠ:th ড:d ঢ:dh ণ:n ত:t থ:th দ:d ধ:dh ন:n প:p ফ:f ব:b ভ:bh ম:m য:j র:r ল:l শ:sh ষ:sh স:s হ:h ড়:r ঢ়:rh য়:y ৎ:t';
+		var vow = 'অ:o আ:a ই:i ঈ:i উ:u ঊ:u ঋ:ri এ:e ঐ:oi ও:o ঔ:ou া:a ি:i ী:i ু:u ূ:u ৃ:ri ে:e ৈ:oi ো:o ৌ:ou ং:ng ঃ:h ঁ: ্: ়:';
+		( cons + ' ' + vow ).split( ' ' ).forEach( function ( p ) { var kv = p.split( ':' ); m[ kv[ 0 ] ] = kv[ 1 ]; } );
+		for ( i = 0; i < 10; i++ ) { m[ '০১২৩৪৫৬৭৮৯'.charAt( i ) ] = String( i ); }
+		return m;
+	}() );
+	function translit( s ) {
+		var t = String( s ).normalize( 'NFD' )
+			.replace( /\u09AF\u09BC/g, 'y' ).replace( /\u09A1\u09BC/g, 'r' ).replace( /\u09A2\u09BC/g, 'rh' ).replace( /\u09CD\u09AF/g, 'y' )
+			.replace( /\u09C7\u09BE/g, '\u09CB' ).replace( /\u09C7\u09D7/g, '\u09CC' );
+		var isCons = function ( c ) { return c >= '\u0995' && c <= '\u09B9'; };
+		var out = '', prev = ' ';
+		for ( var i = 0; i < t.length; i++ ) {
+			var c = t.charAt( i ), n = t.charAt( i + 1 );
+			out += Object.prototype.hasOwnProperty.call( TR, c ) ? TR[ c ] : c;
+			/* inherent "o" only for a word-initial consonant followed by another consonant: সকাল → sokal */
+			if ( isCons( c ) && ! /[\u0980-\u09FFa-z]/.test( prev ) && ( isCons( n ) || 'y' === n ) ) { out += 'o'; }
+			prev = c;
+		}
+		return out;
+	}
+	/* meeha-{type}-{YYYYMMDD}-{slug}.png */
+	function filename( type, title, date, ext ) {
+		var d = date ? String( date ).replace( /[^0-9০-৯]/g, '' ) : '';
+		d = translit( d ).slice( 0, 8 );
+		if ( 8 !== d.length ) {
+			try { d = new Intl.DateTimeFormat( 'en-CA', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit' } ).format( new Date() ).replace( /-/g, '' ); } catch ( e ) { d = new Date().toISOString().slice( 0, 10 ).replace( /-/g, '' ); }
+		}
+		var slug = translit( str( title ).toLowerCase() ).normalize( 'NFKD' ).replace( /[\u0300-\u036f]/g, '' ).replace( /[^a-z0-9]+/g, '-' ).replace( /^-+|-+$/g, '' );
+		slug = slug.slice( 0, 48 ).replace( /-+$/, '' ) || 'card';
+		return 'meeha-' + ( ALIASES[ type ] || type ) + '-' + d + '-' + slug + '.' + ( ext || 'png' );
+	}
+
+	/* merge PHP-provided config (payload.config); call before the first render (fonts are loaded once) */
+	function configure( c ) {
+		if ( ! c || 'object' !== typeof c ) { return cfg(); }
+		root.MeehaCardsConfig = Object.assign( {}, cfg(), c );
+		return root.MeehaCardsConfig;
+	}
+
+	/* ------------------------------------------------------------------ preview dialog (front end) */
+	function copyText( text ) {
+		var fallback = function () {
+			var t = doc.createElement( 'textarea' ), ok = false;
+			t.value = text; t.setAttribute( 'readonly', '' ); t.style.position = 'fixed'; t.style.opacity = '0';
+			doc.body.appendChild( t ); t.select();
+			try { ok = doc.execCommand( 'copy' ); } catch ( e ) { /* ignore */ }
+			t.remove(); return ok;
+		};
+		if ( root.navigator.clipboard && root.navigator.clipboard.writeText ) {
+			return root.navigator.clipboard.writeText( text ).then( function () { return true; }, fallback );
+		}
+		return Promise.resolve( fallback() );
+	}
+	var pv = null;
+	function previewDialog() {
+		if ( pv ) { return pv; }
+		var d = doc.createElement( 'dialog' );
+		d.className = 'm-cardpv'; d.id = 'm-cardpv'; d.setAttribute( 'aria-labelledby', 'm-cardpv-h' );
+		d.innerHTML = '<div class="m-cardpv__head"><h2 class="m-cardpv__title" id="m-cardpv-h" tabindex="-1">ফটোকার্ড</h2>'
+			+ '<button type="button" class="m-cardpv__x" data-pv-close aria-label="বন্ধ করুন"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>'
+			+ '<div class="m-cardpv__stage" aria-busy="true"><div class="m-cardpv__loading"><span class="m-cardpv__spin" aria-hidden="true"></span>তৈরি হচ্ছে…</div><img class="m-cardpv__img" alt="" hidden></div>'
+			+ '<p class="m-cardpv__status" role="status" aria-live="polite"></p>'
+			+ '<div class="m-cardpv__actions">'
+			+ '<button type="button" class="m-btn m-cardpv__dl" data-pv-dl disabled>ডাউনলোড</button>'
+			+ '<button type="button" class="m-btn m-btn--ghost m-cardpv__btn" data-pv-copyimg disabled hidden>ছবি কপি</button>'
+			+ '<button type="button" class="m-btn m-btn--ghost m-cardpv__btn" data-pv-caption hidden>ক্যাপশন কপি</button>'
+			+ '<button type="button" class="m-btn m-btn--ghost m-cardpv__btn" data-pv-close>বন্ধ করুন</button>'
+			+ '</div>';
+		doc.body.appendChild( d );
+		var q = function ( sel ) { return d.querySelector( sel ); };
+		pv = { el: d, img: q( '.m-cardpv__img' ), stage: q( '.m-cardpv__stage' ), loading: q( '.m-cardpv__loading' ), status: q( '.m-cardpv__status' ),
+			title: q( '.m-cardpv__title' ), dl: q( '[data-pv-dl]' ), copyImg: q( '[data-pv-copyimg]' ), caption: q( '[data-pv-caption]' ), cur: null };
+		d.addEventListener( 'click', function ( e ) {
+			if ( e.target === d || e.target.closest( '[data-pv-close]' ) ) { d.close(); }
+		} );
+		d.addEventListener( 'close', function () {
+			var c = pv.cur; pv.cur = null;
+			if ( c && c.url ) { setTimeout( function () { URL.revokeObjectURL( c.url ); }, 1000 ); }
+			pv.img.hidden = true; pv.img.removeAttribute( 'src' );
+			if ( c && c.opener && c.opener.focus ) { try { c.opener.focus( { preventScroll: true } ); } catch ( e ) { c.opener.focus(); } }
+		} );
+		var flash = function ( btn, text ) { var o = btn.getAttribute( 'data-label' ) || btn.textContent; btn.setAttribute( 'data-label', o ); btn.textContent = text; setTimeout( function () { btn.textContent = o; }, 1800 ); };
+		pv.dl.addEventListener( 'click', function () {
+			var c = pv.cur; if ( ! c || ! c.blob ) { return; }
+			var a = doc.createElement( 'a' ); a.href = c.url; a.download = c.filename; a.rel = 'noopener'; a.style.display = 'none';
+			doc.body.appendChild( a ); a.click(); setTimeout( function () { a.remove(); }, 1000 );
+			pv.status.textContent = 'ছবি ডাউনলোড হচ্ছে।'; flash( pv.dl, 'ডাউনলোড হয়েছে' );
+			if ( c.onDownload ) { try { c.onDownload(); } catch ( e ) { /* ignore */ } }
+		} );
+		pv.copyImg.addEventListener( 'click', function () {
+			var c = pv.cur; if ( ! c || ! c.blob ) { return; }
+			root.navigator.clipboard.write( [ new root.ClipboardItem( { 'image/png': c.blob } ) ] ).then( function () {
+				flash( pv.copyImg, 'কপি হয়েছে' ); pv.status.textContent = 'ছবি কপি হয়েছে — যেকোনো জায়গায় পেস্ট করুন।';
+			}, function () { pv.status.textContent = 'এই ব্রাউজারে ছবি কপি করা গেল না; “ডাউনলোড” ব্যবহার করুন।'; } );
+		} );
+		pv.caption.addEventListener( 'click', function () {
+			var c = pv.cur; if ( ! c || ! c.caption ) { return; }
+			copyText( c.caption ).then( function ( ok ) {
+				if ( ok ) { flash( pv.caption, 'কপি হয়েছে' ); pv.status.textContent = 'ক্যাপশন কপি হয়েছে।'; } else { pv.status.textContent = 'ক্যাপশন কপি করা যায়নি।'; }
+			} );
+		} );
+		return pv;
+	}
+	/**
+	 * preview( payload, { opener, onDownload } ) → Promise (resolves when the preview is ready or failed).
+	 * payload: { type, data, opts, filename, caption, title, config }.
+	 */
+	function preview( pl, po ) {
+		pl = pl || {}; po = po || {};
+		if ( pl.config ) { configure( pl.config ); }
+		var P = previewDialog(), d = P.el;
+		var cur = { opener: po.opener || doc.activeElement, onDownload: po.onDownload, filename: pl.filename || filename( pl.type || 'card', pl.title || ( pl.data && pl.data.title ) ), caption: str( pl.caption ) ? strKeepNl( pl.caption ) : '' };
+		if ( P.cur && P.cur.url ) { URL.revokeObjectURL( P.cur.url ); }
+		P.cur = cur;
+		P.title.textContent = 'quote' === pl.type ? 'উক্তির ছবি' : 'ফটোকার্ড';
+		P.img.hidden = true; P.img.removeAttribute( 'src' ); P.img.alt = '';
+		P.loading.hidden = false; P.loading.lastChild.textContent = 'তৈরি হচ্ছে…'; P.loading.classList.remove( 'is-error' );
+		P.stage.setAttribute( 'aria-busy', 'true' ); P.status.textContent = 'ছবি তৈরি হচ্ছে…';
+		P.dl.disabled = true; P.copyImg.disabled = true;
+		P.copyImg.hidden = ! ( root.ClipboardItem && root.navigator.clipboard && root.navigator.clipboard.write );
+		P.caption.hidden = ! cur.caption;
+		if ( ! d.open ) { if ( d.showModal ) { d.showModal(); } else { d.setAttribute( 'open', '' ); } }
+		P.title.focus();
+		var wh = SIZES[ ( pl.opts && pl.opts.size ) || '1080x1080' ] || SIZES[ '1080x1080' ];
+		P.stage.style.aspectRatio = wh[ 0 ] + ' / ' + wh[ 1 ];
+		return render( pl.type, pl.data || {}, pl.opts || {} ).then( function ( canvas ) {
+			return toBlob( canvas, 'image/png' );
+		} ).then( function ( blob ) {
+			if ( P.cur !== cur ) { return; }
+			cur.blob = blob; cur.url = URL.createObjectURL( blob );
+			P.img.onload = function () { P.loading.hidden = true; P.img.hidden = false; P.stage.removeAttribute( 'aria-busy' ); };
+			P.img.alt = 'প্রিভিউ: ' + str( pl.title || ( pl.data && ( pl.data.title || pl.data.text ) ) );
+			P.img.src = cur.url;
+			P.dl.disabled = false; P.copyImg.disabled = false;
+			P.status.textContent = 'প্রিভিউ তৈরি হয়েছে।';
+			P.dl.focus();
+		} ).catch( function () {
+			if ( P.cur !== cur ) { return; }
+			P.loading.classList.add( 'is-error' ); P.loading.lastChild.textContent = 'দুঃখিত, ছবি তৈরি করা যায়নি। পাতাটি আবার লোড করে চেষ্টা করুন।';
+			P.stage.removeAttribute( 'aria-busy' ); P.status.textContent = 'দুঃখিত, ছবি তৈরি করা যায়নি।';
+		} );
+	}
+
+	root.MeehaCards = {
+		version: '2.0.7',
+		configure: configure,
+		preview: preview,
+		render: render,
+		download: download,
+		toBlob: toBlob,
+		filename: filename,
+		loadFonts: loadFonts,
+		templates: templates,
+		quoteFrames: QUOTE,
+		sizes: { '1080x1080': [ 1080, 1080 ], '1080x1350': [ 1080, 1350 ], '1200x630': [ 1200, 630 ], '1080x1920': [ 1080, 1920 ] },
+		frameUrl: frameUrl,
+		isDeco: function ( type, preset ) { return !! decoOf( ALIASES[ type ] || type, preset ); },
+		bnDigits: bnDigits,
+		adAllowed: adAllowed,
+		isStandalone: function ( type ) { return !! SOLO_TYPES[ ALIASES[ type ] || type ]; },
+		standaloneText: SOLO_TEXT,
+		_fit: fit
+	};
+	if ( doc && doc.dispatchEvent && root.CustomEvent ) { try { doc.dispatchEvent( new CustomEvent( 'meeha:cards-ready' ) ); } catch ( e ) { /* ignore */ } }
+}( window ) );

@@ -9,7 +9,7 @@
  *                     and area (division/upazila) lookups. Reuses the active theme's
  *                     existing data (engagement meta, area helpers, edit-request CPT,
  *                     submission safety-net) wherever possible instead of duplicating it.
- * Version:           1.7.0
+ * Version:           1.8.0
  * Author:             Meeha News
  * Text Domain:        newsroom-os
  *
@@ -24,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Core constants
 // ---------------------------------------------------------------------------
 
-define( 'NROS_VERSION', '1.7.0' );
+define( 'NROS_VERSION', '1.8.0' );
 // Bumped whenever create_tables()/register_roles() need to re-run on an
 // already-active install (see NROS_Core::maybe_upgrade()) — bump this any
 // time a future change adds/changes a table or role.
@@ -60,6 +60,7 @@ require_once NROS_DIR . 'includes/class-nros-notifications.php';
 require_once NROS_DIR . 'includes/class-nros-quotes.php';
 require_once NROS_DIR . 'includes/class-nros-insights.php';
 require_once NROS_DIR . 'includes/class-nros-video-kit.php';
+require_once NROS_DIR . 'includes/class-nros-photocard.php';
 
 // Round 10 — public reels/carousel shortcodes and the /video/{slug}/ page
 // live in their own class, shipped separately; guarded so the plugin keeps
@@ -104,6 +105,7 @@ add_action(
 		NROS_Quotes::init();
 		NROS_Insights::init();
 		NROS_Video_Kit::init();
+		NROS_Photocard::init();
 		if ( class_exists( 'NROS_Video_Frontend' ) ) {
 			NROS_Video_Frontend::init();
 		}

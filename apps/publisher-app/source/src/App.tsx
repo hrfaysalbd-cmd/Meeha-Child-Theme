@@ -25,6 +25,8 @@ import Quotes from './pages/Quotes'
 
 // Round 21 — the video editor pulls in the encoder (mediabunny): its own chunk.
 const VideoStudio = lazy(() => import('./pages/VideoStudio'))
+// Round 24 — ফটোকার্ড স্টুডিও (its renderer loads only when it opens).
+const PhotocardStudio = lazy(() => import('./pages/PhotocardStudio'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
@@ -105,6 +107,14 @@ export default function App() {
           }
         />
         <Route path="quotes" element={<Quotes />} />
+        <Route
+          path="photocard"
+          element={
+            <Suspense fallback={<Spinner className="mt-10" />}>
+              <PhotocardStudio />
+            </Suspense>
+          }
+        />
         <Route path="correspondents" element={<Correspondents />} />
         <Route path="applications" element={<Applications />} />
         <Route path="ad-clients" element={<AdClients />} />

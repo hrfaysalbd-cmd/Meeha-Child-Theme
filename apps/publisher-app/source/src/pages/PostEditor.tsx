@@ -25,7 +25,7 @@ import GuestAuthorField, { guestKey, type GuestDraft } from '../components/Guest
 import { fillPromptTemplate, stripHtmlForPrompt } from '../lib/promptTemplate'
 import { useAuth } from '../lib/AuthContext'
 import { Banner, Button, Card, Field, inputClass, Modal, PageHeader, Spinner, bnNumber } from '../components/ui'
-import { IconHistory, IconLibraryPhoto, IconPhotoPlus } from '../components/Icon'
+import { IconHistory, IconLibraryPhoto, IconPhoto, IconPhotoPlus } from '../components/Icon'
 import MediaGallery from '../components/MediaGallery'
 import RichEditor from '../components/RichEditor'
 import CategoryPicker from '../components/CategoryPicker'
@@ -424,9 +424,17 @@ export default function PostEditor() {
             : 'এটি সরাসরি প্রকাশ হবে — যাচাইয়ের প্রয়োজন নেই।'
         }
         actions={
-          <Button variant="ghost" onClick={() => navigate(-1)}>
-            ফিরে যান
-          </Button>
+          <>
+            {post?.id && (
+              <Button variant="secondary" onClick={() => navigate(`/app/photocard?post=${post.id}`)}>
+                <IconPhoto className="w-4 h-4" />
+                ফটোকার্ড
+              </Button>
+            )}
+            <Button variant="ghost" onClick={() => navigate(-1)}>
+              ফিরে যান
+            </Button>
+          </>
         }
       />
 
