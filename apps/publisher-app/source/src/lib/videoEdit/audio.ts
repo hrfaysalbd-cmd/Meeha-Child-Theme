@@ -14,7 +14,7 @@
  */
 import type { EditConfig } from './config'
 import type { SfxKind } from './draw'
-import type { ClipKey, Segment, Timeline } from './timeline'
+import { pipClipTime, segSourceEnd, type ClipKey, type Segment, type Timeline } from './timeline'
 import { Denoiser, type DenoiseLevel } from './denoise'
 
 export const SAMPLE_RATE = 48000
@@ -137,10 +137,14 @@ export interface MixState {
   duck: number
   cover: number
   limit: number
+  /** Loudness-normalisation gain on the whole mix. */
+  gain: number
+  /** Limiter ceiling (lower when normalising, to leave true-peak room). */
+  ceiling: number
 }
 
-export function newMixState(music: AudioBuffer | null): MixState {
-  return { music, env: 0, duck: 1, cover: 1, limit: 1 }
+export function newMixState(music: AudioBuffer | null, gain = 1, normalised = false): MixState {
+  return { music, env: 0, duck: 1, cover: 1, limit: 1, gain, ceiling: normalised ? 0.83 : 0.95 }
 }
 
 /** Voice clean-up: low cut, less boom, more presence, gentle compression. */
@@ -206,7 +210,8 @@ export async function mixWindow(
     const b = Math.min(t1, segEnd)
     if (b <= a) continue
     const vol = segmentVolume(seg, cfg)
-    if (vol <= 0) continue
+    // slow / fast / held parts play without their own sound (the music carries on)
+    if (vol <= 0 || seg.rate !== 1) continue
 
     const g = ctx.createGain()
     g.connect(seg.kind === 'main' && voiceIn ? voiceIn : ctx.destination)
@@ -221,6 +226,20 @@ export async function mixWindow(
     if (sOut < span + FADE) {
       g.gain.setValueAtTime(vol, Math.max(0, sOut - FADE))
       g.gain.linearRampToValueAtTime(0, Math.max(0, sOut))
+    }
+    // the second video's sound only: the main sound steps aside while it shows
+    const pw = seg.kind === 'main' && cfg.pip?.sound === 'pip' ? pipWindow(seg, cfg) : null
+    if (pw) {
+      const a0 = pw[0] - r0
+      const b0 = pw[1] - r0
+      if (a0 > 0.06) {
+        g.gain.setValueAtTime(vol, a0 - 0.06)
+        g.gain.linearRampToValueAtTime(0, a0)
+      } else g.gain.setValueAtTime(0, Math.max(0, a0))
+      if (b0 < span) {
+        g.gain.setValueAtTime(0, Math.max(0, b0))
+        g.gain.linearRampToValueAtTime(vol, Math.max(0, b0) + 0.06)
+      }
     }
 
     const from = seg.clipStart + (a - seg.t0)
@@ -240,6 +259,38 @@ export async function mixWindow(
     }
   }
 
+  // the second video's own sound, where it shows
+  const pr = readers.pip
+  if (pr && cfg.pip && cfg.pip.sound !== 'main') {
+    for (const seg of tl.segments) {
+      const pw = seg.kind === 'main' ? pipWindow(seg, cfg) : null
+      if (!pw) continue
+      const a = Math.max(r0, pw[0])
+      const b = Math.min(t1, pw[1])
+      if (b <= a) continue
+      const ca = pipClipTime(tl, cfg, a)
+      const cb = pipClipTime(tl, cfg, b)
+      if (cb <= ca + 0.01) continue
+      const g = ctx.createGain()
+      const vol = cfg.audio.main
+      g.gain.setValueAtTime(0, Math.max(0, a - r0))
+      g.gain.linearRampToValueAtTime(vol, Math.max(0, a - r0) + FADE * 4)
+      g.gain.setValueAtTime(vol, Math.max(0, b - r0 - FADE * 4))
+      g.gain.linearRampToValueAtTime(0, Math.max(0, b - r0))
+      g.connect(ctx.destination)
+      for await (const chunk of pr.buffers(ca, cb)) {
+        const when = a - r0 + (chunk.timestamp - ca)
+        const offset = Math.max(0, a - r0 - when)
+        const len = Math.min(chunk.buffer.duration - offset, b - r0 - (when + offset))
+        if (len <= 0) continue
+        const src = ctx.createBufferSource()
+        src.buffer = chunk.buffer
+        src.connect(g)
+        src.start(Math.max(0, when + offset), offset, len)
+      }
+    }
+  }
+
   for (const c of cues) {
     if (c.t >= t1 || c.t + 1.7 <= r0) continue
     const buf = await sfxBuffer(c.kind)
@@ -256,6 +307,16 @@ export async function mixWindow(
   return finishWindow(mixed, lead, frames, tl, cfg, t0, state)
 }
 
+/** Output-time window where the second video shows inside a normal-speed main segment, or null. */
+function pipWindow(seg: Segment, cfg: EditConfig): [number, number] | null {
+  const p = cfg.pip
+  if (!p?.clip || seg.rate !== 1) return null
+  const sa = Math.max(p.at, seg.clipStart)
+  const sb = Math.min(p.dur === null ? Infinity : p.at + p.dur, segSourceEnd(seg))
+  if (sb <= sa) return null
+  return [seg.t0 + (sa - seg.clipStart), seg.t0 + (sb - seg.clipStart)]
+}
+
 const coef = (seconds: number) => 1 - Math.exp(-1 / (seconds * SAMPLE_RATE))
 const ENV_ATTACK = coef(0.01)
 const ENV_RELEASE = coef(0.3)
@@ -265,7 +326,6 @@ const COVER = coef(0.15)
 const LIMIT_UP = coef(0.08)
 /** How far the music dips under speech (about -6 dB). */
 const DUCK_FLOOR = 0.5
-const CEILING = 0.95
 
 /** Adds the music bed (with ducking and fades) and limits the result. */
 function finishWindow(mixed: AudioBuffer, lead: number, frames: number, tl: Timeline, cfg: EditConfig, t0: number, st: MixState): AudioBuffer {
@@ -314,8 +374,10 @@ function finishWindow(mixed: AudioBuffer, lead: number, frames: number, tl: Time
       l += mL![p] * g
       r += mR![p] * g
     }
+    l *= st.gain
+    r *= st.gain
     const peak = Math.max(Math.abs(l), Math.abs(r))
-    const want = peak > CEILING ? CEILING / peak : 1
+    const want = peak > st.ceiling ? st.ceiling / peak : 1
     st.limit = want < st.limit ? want : st.limit + (want - st.limit) * LIMIT_UP
     outL[i] = l * st.limit
     outR[i] = r * st.limit

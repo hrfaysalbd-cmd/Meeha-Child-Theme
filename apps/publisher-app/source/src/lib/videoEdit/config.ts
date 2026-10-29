@@ -51,6 +51,8 @@ export interface AudioSettings {
   musicOver: 'all' | 'main'
   voice: VoiceMode
   denoise: DenoiseLevel
+  /** Target loudness of the finished video (LUFS), or off. */
+  loudness: 'off' | '-14' | '-16'
 }
 
 /** A file from the media library (video clip or image). */
@@ -127,6 +129,75 @@ export interface BlurBox {
   dur: number | null
 }
 
+/** A stretch of the original video played faster or slower (source seconds). */
+export interface SpeedRange {
+  from: number
+  to: number
+  rate: number
+}
+
+/** A held frame: the picture stops at `at` (source s) for `dur` seconds, optionally with a line of text. */
+export interface Freeze {
+  at: number
+  dur: number
+  text: string
+}
+
+export type TransitionId = 'none' | 'fade' | 'slide' | 'zoom' | 'wipe'
+
+export type StickerKind = 'arrow' | 'circle' | 'box' | 'highlight' | 'cross' | 'check' | 'focus'
+
+/** A marker drawn over the main picture (fractions of the picture, like BlurBox). */
+export interface Sticker {
+  kind: StickerKind
+  x: number
+  y: number
+  w: number
+  h: number
+  /** Arrow direction in degrees (0 = pointing right, 90 = down). */
+  angle: number
+  color: string
+  label: string
+  at: number
+  dur: number | null
+}
+
+/** A second video shown with the main one: a corner window, or side by side. */
+export interface Pip {
+  clip: MediaRef | null
+  layout: 'pip' | 'split'
+  corner: Corner
+  /** Window width as a fraction of the video box (pip layout). */
+  size: number
+  /** Main-video source seconds where it appears; dur null = to the end. */
+  at: number
+  dur: number | null
+  sound: 'main' | 'pip' | 'both'
+  label: string
+  mainLabel: string
+}
+
+/** Where the picture's centre of interest is, sampled every `step` source seconds (0..1 of the picture). */
+export interface Reframe {
+  on: boolean
+  step: number
+  xs: number[]
+  ys: number[]
+}
+
+export type ThumbTemplate = 'bold' | 'breaking' | 'face' | 'minimal'
+
+export interface ThumbDesign {
+  on: boolean
+  /** Source second of the picture; null = early in the news. */
+  at: number | null
+  template: ThumbTemplate
+  title: string
+  badge: string
+  face: MediaRef | null
+  size: '16:9' | 'video'
+}
+
 export interface EditConfig {
   v: 1
   trim: { start: number; end: number | null }
@@ -163,6 +234,13 @@ export interface EditConfig {
   cuts: Cut[]
   look: Look
   blurs: BlurBox[]
+  speeds: SpeedRange[]
+  freezes: Freeze[]
+  transition: { id: TransitionId; dur: number; cuts: boolean }
+  stickers: Sticker[]
+  pip: Pip | null
+  reframe: Reframe
+  thumb: ThumbDesign
 }
 
 export const DEFAULT_LOOK: Look = { filter: 'none', brightness: 1, contrast: 1, saturation: 1, zoom: 1, panX: 0, panY: 0, rotate: 0, flip: false }
@@ -179,10 +257,17 @@ export const DEFAULT_CONFIG: EditConfig = {
   outro: { id: 'none', clip: null },
   ads: [],
   captions: [],
-  audio: { main: 1, clips: 1, sfx: true, music: DEFAULT_MUSIC, musicVol: 0.25, duck: true, musicOver: 'all', voice: 'off', denoise: 'off' },
+  audio: { main: 1, clips: 1, sfx: true, music: DEFAULT_MUSIC, musicVol: 0.25, duck: true, musicOver: 'all', voice: 'off', denoise: 'off', loudness: '-14' },
   cuts: [],
   look: { filter: 'none', brightness: 1, contrast: 1, saturation: 1, zoom: 1, panX: 0, panY: 0, rotate: 0, flip: false },
   blurs: [],
+  speeds: [],
+  freezes: [],
+  transition: { id: 'none', dur: 0.6, cuts: true },
+  stickers: [],
+  pip: null,
+  reframe: { on: false, step: 0.5, xs: [], ys: [] },
+  thumb: { on: true, at: null, template: 'bold', title: '', badge: '', face: null, size: '16:9' },
 }
 
 // ---- catalogue ----
@@ -324,7 +409,46 @@ export const LIMITS = {
   captions: 12,
   cuts: 20,
   blurs: 8,
+  speeds: 12,
+  freezes: 8,
+  stickers: 12,
+  freezeText: 80,
+  stickerLabel: 40,
+  pipLabel: 30,
+  thumbTitle: 90,
+  thumbBadge: 20,
+  /** Reframe samples (2 per second → about 40 minutes). */
+  reframe: 5000,
 }
+
+export const SPEED_RATES = [0.25, 0.5, 0.75, 1.5, 2, 3, 4]
+
+export const TRANSITIONS: { id: TransitionId; name: string; hint: string }[] = [
+  { id: 'none', name: 'সরাসরি কাট', hint: 'কোনো ট্রানজিশন নেই' },
+  { id: 'fade', name: 'ফেড', hint: 'মীহা নীলে মিলিয়ে গিয়ে আবার ফুটে ওঠে' },
+  { id: 'slide', name: 'স্লাইড', hint: 'নীল-লাল প্যানেল পর্দা ঢেকে সরে যায়' },
+  { id: 'zoom', name: 'জুম', hint: 'জুম করে ঢুকে সাদা ঝলকে বদলায়' },
+  { id: 'wipe', name: 'ওয়াইপ', hint: 'কোনাকুনি ব্র্যান্ড রেখা মুছে নিয়ে যায়' },
+]
+
+export const STICKERS: { id: StickerKind; name: string }[] = [
+  { id: 'arrow', name: 'তীর' },
+  { id: 'circle', name: 'বৃত্ত' },
+  { id: 'box', name: 'বক্স' },
+  { id: 'highlight', name: 'হাইলাইট' },
+  { id: 'focus', name: 'স্পটলাইট' },
+  { id: 'cross', name: 'ক্রস (ভুল)' },
+  { id: 'check', name: 'টিক (সঠিক)' },
+]
+
+export const STICKER_COLORS = ['#EF4444', '#FACC15', '#22C55E', '#FFFFFF', '#025AB2']
+
+export const THUMB_TEMPLATES: { id: ThumbTemplate; name: string; hint: string }[] = [
+  { id: 'bold', name: 'বড় শিরোনাম', hint: 'নিচে গাঢ় পট্টিতে বড় লেখা' },
+  { id: 'breaking', name: 'ব্রেকিং', hint: 'লাল ব্যানার, তির্যক রেখা' },
+  { id: 'face', name: 'মুখের ছবি', hint: 'গোল ফ্রেমে মুখ, পাশে শিরোনাম' },
+  { id: 'minimal', name: 'মিনিমাল', hint: 'ছবির উপর হালকা লেখা' },
+]
 
 // ---- normalisation ----
 
@@ -423,12 +547,54 @@ export function normalizeConfig(raw: unknown): EditConfig {
       musicOver: oneOf(audio.musicOver, ['all', 'main'] as const, d.audio.musicOver),
       voice: oneOf(audio.voice, ['off', 'clear', 'strong'] as const, d.audio.voice),
       denoise: oneOf(audio.denoise, ['off', 'low', 'medium', 'high'] as const, d.audio.denoise),
+      loudness: oneOf(audio.loudness, ['off', '-14', '-16'] as const, d.audio.loudness),
     },
     cuts: (Array.isArray(o.cuts) ? o.cuts : [])
       .map((c: any) => ({ from: num(c?.from, 0, 0, 86400), to: num(c?.to, 0, 0, 86400) }))
       .filter((c: Cut) => c.to - c.from >= 0.1)
       .slice(0, LIMITS.cuts),
     look: normalizeLook(o.look),
+    speeds: (Array.isArray(o.speeds) ? o.speeds : [])
+      .map((r: any) => ({ from: num(r?.from, 0, 0, 86400), to: num(r?.to, 0, 0, 86400), rate: num(r?.rate, 1, 0.25, 4) }))
+      .filter((r: SpeedRange) => r.to - r.from >= 0.2 && Math.abs(r.rate - 1) > 0.01)
+      .slice(0, LIMITS.speeds),
+    freezes: (Array.isArray(o.freezes) ? o.freezes : [])
+      .map((f: any) => ({ at: num(f?.at, 0, 0, 86400), dur: num(f?.dur, 2, 0.5, 10), text: str(f?.text, LIMITS.freezeText) }))
+      .slice(0, LIMITS.freezes),
+    transition: {
+      id: oneOf(o.transition?.id, TRANSITIONS.map((x) => x.id), d.transition.id),
+      dur: num(o.transition?.dur, d.transition.dur, 0.3, 1.5),
+      cuts: bool(o.transition?.cuts, d.transition.cuts),
+    },
+    stickers: (Array.isArray(o.stickers) ? o.stickers : [])
+      .map((b: any) => {
+        const w = num(b?.w, 0.2, 0.03, 1)
+        const h = num(b?.h, 0.2, 0.03, 1)
+        return {
+          kind: oneOf(b?.kind, STICKERS.map((x) => x.id), 'circle'),
+          x: num(b?.x, 0.4, 0, 1 - w),
+          y: num(b?.y, 0.4, 0, 1 - h),
+          w,
+          h,
+          angle: num(b?.angle, 0, -360, 360),
+          color: STICKER_COLORS.includes(b?.color) ? b.color : STICKER_COLORS[0],
+          label: str(b?.label, LIMITS.stickerLabel),
+          at: num(b?.at, 0, 0, 86400),
+          dur: b?.dur === null ? null : num(b?.dur, 4, 0.5, 86400),
+        }
+      })
+      .slice(0, LIMITS.stickers),
+    pip: normalizePip(o.pip),
+    reframe: normalizeReframe(o.reframe),
+    thumb: {
+      on: bool(o.thumb?.on, d.thumb.on),
+      at: o.thumb?.at === null || o.thumb?.at === undefined ? null : num(o.thumb.at, 0, 0, 86400),
+      template: oneOf(o.thumb?.template, THUMB_TEMPLATES.map((x) => x.id), d.thumb.template),
+      title: str(o.thumb?.title, LIMITS.thumbTitle),
+      badge: str(o.thumb?.badge, LIMITS.thumbBadge),
+      face: mediaRef(o.thumb?.face),
+      size: oneOf(o.thumb?.size, ['16:9', 'video'] as const, d.thumb.size),
+    },
     blurs: (Array.isArray(o.blurs) ? o.blurs : [])
       .map((b: any) => {
         const w = num(b?.w, 0.3, 0.02, 1)
@@ -445,6 +611,46 @@ export function normalizeConfig(raw: unknown): EditConfig {
       })
       .slice(0, LIMITS.blurs),
   }
+}
+
+function normalizePip(raw: unknown): Pip | null {
+  if (!raw || typeof raw !== 'object') return null
+  const p = raw as Record<string, any>
+  const clip = mediaRef(p.clip)
+  if (!clip) return null
+  return {
+    clip,
+    layout: oneOf(p.layout, ['pip', 'split'] as const, 'pip'),
+    corner: oneOf(p.corner, ['tr', 'tl', 'br', 'bl'] as const, 'br'),
+    size: num(p.size, 0.36, 0.2, 0.5),
+    at: num(p.at, 0, 0, 86400),
+    dur: p.dur === null || p.dur === undefined ? null : num(p.dur, 10, 1, 86400),
+    sound: oneOf(p.sound, ['main', 'pip', 'both'] as const, 'main'),
+    label: str(p.label, LIMITS.pipLabel),
+    mainLabel: str(p.mainLabel, LIMITS.pipLabel),
+  }
+}
+
+function normalizeReframe(raw: unknown): Reframe {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, any>
+  const arr = (v: unknown) =>
+    (Array.isArray(v) ? v : [])
+      .slice(0, LIMITS.reframe)
+      .map((x) => (typeof x === 'number' && Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0.5))
+  const xs = arr(r.xs)
+  const ys = arr(r.ys)
+  const n = Math.min(xs.length, ys.length)
+  return { on: bool(r.on, false) && n > 0, step: num(r.step, 0.5, 0.1, 5), xs: xs.slice(0, n), ys: ys.slice(0, n) }
+}
+
+/** The reframe focus (0..1 of the picture) at source second `src`, or null. */
+export function reframeAt(r: Reframe, src: number): { x: number; y: number } | null {
+  if (!r.on || !r.xs.length) return null
+  const f = Math.max(0, src / r.step)
+  const i = Math.min(r.xs.length - 1, Math.floor(f))
+  const j = Math.min(r.xs.length - 1, i + 1)
+  const k = Math.min(1, f - i)
+  return { x: r.xs[i] + (r.xs[j] - r.xs[i]) * k, y: r.ys[i] + (r.ys[j] - r.ys[i]) * k }
 }
 
 function normalizeLook(raw: unknown): Look {
@@ -502,6 +708,12 @@ export function styleOnly(cfg: EditConfig): EditConfig {
     captions: [],
     cuts: [],
     blurs: [],
+    speeds: [],
+    freezes: [],
+    stickers: [],
+    pip: null,
+    reframe: { on: false, step: 0.5, xs: [], ys: [] },
+    thumb: { ...cfg.thumb, at: null, title: '', face: null },
     // colour is a house style; zoom / rotation belong to one particular video
     look: { ...cfg.look, zoom: 1, panX: 0, panY: 0, rotate: 0, flip: false },
   }
@@ -525,6 +737,11 @@ export function hasEdits(cfg: EditConfig, srcDuration: number | null): boolean {
     cfg.audio.denoise !== 'off' ||
     cfg.cuts.length > 0 ||
     cfg.blurs.length > 0 ||
+    cfg.speeds.length > 0 ||
+    cfg.freezes.length > 0 ||
+    cfg.stickers.length > 0 ||
+    cfg.pip !== null ||
+    cfg.reframe.on ||
     lookFilter(cfg.look) !== '' ||
     cfg.look.zoom > 1.001 ||
     cfg.look.rotate !== 0 ||

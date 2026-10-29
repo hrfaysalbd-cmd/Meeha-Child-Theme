@@ -19,6 +19,9 @@
  *   website, default ticker) + shared presets.
  * - POST /admin/video-kit           — Publisher: brand overrides.
  * - POST /admin/video-kit/presets   — staff: the shared preset list.
+ * - POST /admin/video-kit/people    — staff (round 23): the saved name list
+ *   for one-click name plates (guests, officials). The kit also lists every
+ *   correspondent with their area, so reporters need no typing.
  *
  * The edit itself (which original file, which settings) is stored on the
  * video post by NROS_Videos::save() (`edit` field), so a video can be
@@ -36,7 +39,8 @@ class NROS_Video_Kit {
 	const OPTION        = 'nros_video_kit';
 	const LIBRARY_PAGE  = 24;
 	const PRESETS_MAX   = 20;
-	const CONFIG_MAX    = 65535; // bytes of JSON per stored edit / preset.
+	const CONFIG_MAX    = 262144; // bytes of JSON per stored edit / preset (a smart-reframe track is large).
+	const PEOPLE_MAX    = 150;
 	const TEXT_MAX      = 300;
 
 	/**
@@ -94,6 +98,16 @@ class NROS_Video_Kit {
 					'callback'            => array( __CLASS__, 'save_kit' ),
 					'permission_callback' => array( 'NROS_Core', 'require_publisher' ),
 				),
+			)
+		);
+
+		register_rest_route(
+			NROS_API_NS,
+			'/admin/video-kit/people',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'save_people' ),
+				'permission_callback' => array( 'NROS_Core', 'require_staff' ),
 			)
 		);
 
@@ -189,6 +203,7 @@ class NROS_Video_Kit {
 				'ticker'   => '',
 				'ad_text'  => '',
 				'presets'  => array(),
+				'people'   => array(),
 			),
 			$kit
 		);
@@ -239,7 +254,27 @@ class NROS_Video_Kit {
 			'ticker'  => (string) $kit['ticker'],
 			'ad_text' => (string) $kit['ad_text'],
 			'presets' => array_values( is_array( $kit['presets'] ) ? $kit['presets'] : array() ),
+			'people'  => array_values( is_array( $kit['people'] ) ? $kit['people'] : array() ),
+			'reporters' => self::reporters(),
 		);
+	}
+
+	/**
+	 * Every correspondent as a name plate: name + "<area> সংবাদদাতা".
+	 *
+	 * @return array
+	 */
+	protected static function reporters() {
+		$out = array();
+		foreach ( get_users( array( 'role' => 'correspondent', 'orderby' => 'display_name', 'number' => 500 ) ) as $u ) {
+			$area  = trim( (string) get_user_meta( $u->ID, 'meeha_division', true ) );
+			$out[] = array(
+				'id'   => (int) $u->ID,
+				'name' => (string) $u->display_name,
+				'role' => '' !== $area ? $area . ' সংবাদদাতা' : 'সংবাদদাতা',
+			);
+		}
+		return $out;
 	}
 
 	// -------------------------------------------------------------------------
@@ -409,6 +444,42 @@ class NROS_Video_Kit {
 			}
 		}
 
+		update_option( self::OPTION, $kit, false );
+		return new WP_REST_Response( self::kit_shape(), 200 );
+	}
+
+	/**
+	 * POST /admin/video-kit/people — staff: { people: [{ name, role }] }
+	 * replaces the saved name list (max PEOPLE_MAX).
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function save_people( $request ) {
+		$in = $request->get_param( 'people' );
+		if ( ! is_array( $in ) ) {
+			return new WP_Error( 'nros_bad_request', 'নামের তালিকা সঠিক নয়।', array( 'status' => 400 ) );
+		}
+		if ( count( $in ) > self::PEOPLE_MAX ) {
+			return new WP_Error( 'nros_bad_request', 'সর্বোচ্চ ' . NROS_Core::bn_digits( self::PEOPLE_MAX ) . 'টি নাম রাখা যায়।', array( 'status' => 400 ) );
+		}
+		$out = array();
+		foreach ( $in as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$name = mb_substr( sanitize_text_field( (string) ( $row['name'] ?? '' ) ), 0, 90 );
+			if ( '' === $name ) {
+				continue;
+			}
+			$out[] = array(
+				'name' => $name,
+				'role' => mb_substr( sanitize_text_field( (string) ( $row['role'] ?? '' ) ), 0, 70 ),
+			);
+		}
+
+		$kit           = self::kit_option();
+		$kit['people'] = $out;
 		update_option( self::OPTION, $kit, false );
 		return new WP_REST_Response( self::kit_shape(), 200 );
 	}

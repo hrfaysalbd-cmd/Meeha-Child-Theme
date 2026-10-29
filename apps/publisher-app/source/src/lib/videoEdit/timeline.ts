@@ -9,7 +9,7 @@
  */
 import { AD_IN_CARD, AD_OUT_CARD, FRAME_SIZES, INTROS, OUTROS, keptRanges, type EditConfig } from './config'
 
-export type ClipKey = 'main' | 'intro' | 'outro' | `ad${number}`
+export type ClipKey = 'main' | 'intro' | 'outro' | 'pip' | `ad${number}`
 export type SceneId = 'breaking' | 'headline' | 'special' | 'swipe' | 'live' | 'countdown' | 'thanks' | 'follow' | 'ad-in' | 'ad-out'
 
 export interface Segment {
@@ -23,6 +23,20 @@ export interface Segment {
   scene?: SceneId
   /** main only: seconds of main content shown before this segment. */
   mainOffset: number
+  /** Source seconds per output second: 1 normal, 0.5 slow motion, 2 fast, 0 a held (frozen) frame. */
+  rate: number
+  /** Text shown over a frozen frame. */
+  freezeText?: string
+}
+
+/** Source second shown at `local` seconds into a segment. */
+export function segSource(seg: Segment, local: number) {
+  return seg.clipStart + Math.max(0, local) * seg.rate
+}
+
+/** Last source second a segment shows. */
+export function segSourceEnd(seg: Segment) {
+  return seg.clipStart + seg.dur * seg.rate
 }
 
 export interface Timeline {
@@ -146,9 +160,9 @@ export function trimRange(cfg: EditConfig, mainDuration: number) {
 export function buildTimeline(cfg: EditConfig, d: ClipDurations): Timeline {
   const segs: Segment[] = []
   let t = 0
-  const push = (s: Omit<Segment, 't0' | 'mainOffset'> & { mainOffset?: number }) => {
+  const push = (s: Omit<Segment, 't0' | 'mainOffset' | 'rate'> & { mainOffset?: number; rate?: number }) => {
     if (s.dur <= 0.01) return
-    segs.push({ ...s, t0: t, mainOffset: s.mainOffset ?? 0 })
+    segs.push({ ...s, t0: t, mainOffset: s.mainOffset ?? 0, rate: s.rate ?? 1 })
     t += s.dur
   }
 
@@ -168,22 +182,41 @@ export function buildTimeline(cfg: EditConfig, d: ClipDurations): Timeline {
     .filter((a) => a.dur > 0 && a.at > start + 0.25 && a.at < end - 0.25 && kept.some((r) => a.at > r.from + 0.1 && a.at < r.to - 0.1))
     .sort((a, b) => a.at - b.at)
 
+  // speed changes and held frames split the kept ranges further
+  const rateAt = (src: number) => cfg.speeds.find((x) => src >= x.from && src < x.to)?.rate ?? 1
+  const freezes = [...cfg.freezes].sort((a, b) => a.at - b.at)
+
   let shown = 0
-  let b = 0
+  const used = new Set<number>()
   for (const r of kept) {
-    let cursor = r.from
-    while (b < breaks.length && breaks[b].at < r.to - 0.1) {
-      const br = breaks[b++]
-      if (br.at <= cursor + 0.1) continue
-      push({ kind: 'main', dur: br.at - cursor, clip: 'main', clipStart: cursor, mainOffset: shown })
-      shown += br.at - cursor
-      cursor = br.at
-      if (br.bumper) push({ kind: 'card', dur: AD_IN_CARD, scene: 'ad-in', clipStart: 0 })
-      push({ kind: 'ad', dur: br.dur, clip: `ad${br.i}`, clipStart: 0 })
-      if (br.bumper) push({ kind: 'card', dur: AD_OUT_CARD, scene: 'ad-out', clipStart: 0 })
+    const edges = [r.from, r.to]
+    for (const x of cfg.speeds) edges.push(x.from, x.to)
+    for (const br of breaks) if (br.at > r.from + 0.1 && br.at < r.to - 0.1) edges.push(br.at)
+    for (const f of freezes) edges.push(f.at)
+    const cuts = [...new Set(edges.filter((e) => e >= r.from && e <= r.to).map((e) => Math.round(e * 1000) / 1000))].sort((a, b) => a - b)
+    for (let k = 0; k < cuts.length; k++) {
+      const a = cuts[k]
+      // what happens at this point: a held frame, then an ad break
+      for (const f of freezes) {
+        if (Math.abs(f.at - a) < 0.0015 && a < r.to - 0.05 && !used.has(f.at)) {
+          used.add(f.at)
+          push({ kind: 'main', dur: f.dur, clip: 'main', clipStart: a, mainOffset: shown, rate: 0, freezeText: f.text })
+          shown += f.dur
+        }
+      }
+      const br = breaks.find((x) => Math.abs(x.at - a) < 0.0015 && a > r.from + 0.1 && a < r.to - 0.1)
+      if (br) {
+        if (br.bumper) push({ kind: 'card', dur: AD_IN_CARD, scene: 'ad-in', clipStart: 0 })
+        push({ kind: 'ad', dur: br.dur, clip: `ad${br.i}`, clipStart: 0 })
+        if (br.bumper) push({ kind: 'card', dur: AD_OUT_CARD, scene: 'ad-out', clipStart: 0 })
+      }
+      const b = cuts[k + 1]
+      if (b === undefined || b - a < 0.02) continue
+      const rate = rateAt((a + b) / 2)
+      const dur = (b - a) / rate
+      push({ kind: 'main', dur, clip: 'main', clipStart: a, mainOffset: shown, rate })
+      shown += dur
     }
-    push({ kind: 'main', dur: r.to - cursor, clip: 'main', clipStart: cursor, mainOffset: shown })
-    shown += r.to - cursor
   }
 
   // Outro
@@ -208,13 +241,47 @@ export function segmentAt(tl: Timeline, t: number): Segment {
 /** Source-video time → output time (first main segment that shows it), or null. */
 export function sourceToOutput(tl: Timeline, src: number): number | null {
   for (const s of tl.segments) {
-    if (s.kind === 'main' && src >= s.clipStart - 1e-3 && src <= s.clipStart + s.dur + 1e-3) return s.t0 + (src - s.clipStart)
+    if (s.kind === 'main' && s.rate > 0 && src >= s.clipStart - 1e-3 && src <= segSourceEnd(s) + 1e-3) return s.t0 + (src - s.clipStart) / s.rate
   }
   return null
+}
+
+/** First output time that shows main source second `src` or anything after it. */
+export function outputAtOrAfter(tl: Timeline, src: number): number | null {
+  const exact = sourceToOutput(tl, src)
+  if (exact !== null) return exact
+  for (const s of tl.segments) if (s.kind === 'main' && s.clipStart >= src) return s.t0
+  return null
+}
+
+/** Every file the finished video needs: the segments' clips, plus the second video if it ever shows. */
+export function clipsUsed(tl: Timeline, cfg: EditConfig): Set<ClipKey> {
+  const used = new Set(tl.segments.map((s) => s.clip).filter(Boolean) as ClipKey[])
+  const p = cfg.pip
+  if (p?.clip) {
+    const end = p.dur === null ? Infinity : p.at + p.dur
+    if (tl.segments.some((s) => s.kind === 'main' && s.clipStart < end && segSourceEnd(s) > p.at)) used.add('pip')
+  }
+  return used
+}
+
+/** Whether the second video (picture-in-picture / split) shows at main source second `src`. */
+export function pipActive(cfg: EditConfig, src: number) {
+  const p = cfg.pip
+  return !!p?.clip && src >= p.at && (p.dur === null || src < p.at + p.dur)
+}
+
+/** Seconds into the second video at output time T (it starts where it first appears). */
+export function pipClipTime(tl: Timeline, cfg: EditConfig, T: number) {
+  const p = cfg.pip
+  if (!p) return 0
+  const start = outputAtOrAfter(tl, p.at)
+  const len = p.clip?.duration ?? Infinity
+  return Math.max(0, Math.min(T - (start ?? 0), Number.isFinite(len) ? Math.max(0, len - 0.05) : Infinity))
 }
 
 /** Output time → source-video time when a main segment is playing. */
 export function outputToSource(tl: Timeline, t: number): number | null {
   const s = segmentAt(tl, t)
-  return s.kind === 'main' ? s.clipStart + Math.min(s.dur, Math.max(0, t - s.t0)) : null
+  return s.kind === 'main' ? segSource(s, Math.min(s.dur, t - s.t0)) : null
 }

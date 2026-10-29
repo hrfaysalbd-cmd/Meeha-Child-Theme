@@ -16,7 +16,7 @@ import { drawOutputFrame, sfxCues } from './draw'
 import { playSfx } from './audio'
 import { musicBuffer } from './music'
 import type { MusicChoice } from './config'
-import { segmentAt, type ClipKey, type Segment } from './timeline'
+import { pipActive, pipClipTime, segSource, segmentAt, type ClipKey, type Segment } from './timeline'
 
 export interface PreviewState {
   time: number
@@ -115,17 +115,23 @@ export class PreviewPlayer {
     const env = this.env
     if (!env) return
     const seg = segmentAt(env.tl, T)
-    for (const [k, el] of this.els) if (k !== seg.clip) el.pause()
+    for (const [k, el] of this.els) if (k !== seg.clip && k !== 'pip') el.pause()
     this.seg = seg
     this.tStart = T
     this.wallStart = performance.now()
     if (seg.clip) {
       const el = this.els.get(seg.clip)
       if (el) {
-        const want = seg.clipStart + (T - seg.t0)
+        const want = segSource(seg, T - seg.t0)
         if (Math.abs(el.currentTime - want) > 0.08) el.currentTime = want
         el.volume = this.volumeFor(seg)
-        el.muted = this.muted
+        // slow / fast / held parts are silent, as in the export
+        el.muted = this.muted || seg.rate !== 1
+        if (seg.rate === 0) {
+          el.pause()
+          return
+        }
+        el.playbackRate = seg.rate
         el.play().catch(() => {
           // autoplay refused (no gesture yet): play muted instead
           el.muted = true
@@ -227,6 +233,7 @@ export class PreviewPlayer {
   pause() {
     this.playing = false
     this.stopMusic()
+    this.els.get('pip')?.pause()
     for (const el of this.els.values()) el.pause()
     this.dirty = true
     this.report(true)
@@ -247,8 +254,9 @@ export class PreviewPlayer {
       this.startMusic()
     } else if (seg.clip) {
       const el = this.els.get(seg.clip)
-      if (el) el.currentTime = seg.clipStart + (this.T - seg.t0)
+      if (el) el.currentTime = segSource(seg, this.T - seg.t0)
     }
+    this.syncPip()
     this.dirty = true
     this.report(true)
   }
@@ -268,7 +276,7 @@ export class PreviewPlayer {
       const seg = this.seg ?? segmentAt(env.tl, this.T)
       const el = seg.clip ? this.els.get(seg.clip) : undefined
       let T: number
-      if (el && el.readyState >= 2) T = seg.t0 + (el.currentTime - seg.clipStart)
+      if (el && el.readyState >= 2 && seg.rate > 0) T = seg.t0 + (el.currentTime - seg.clipStart) / seg.rate
       else T = this.tStart + (performance.now() - this.wallStart) / 1000
       // a clip that ended early (shorter than its metadata said) moves on too
       const ended = el ? el.ended : false
@@ -286,6 +294,7 @@ export class PreviewPlayer {
         this.T = Math.max(this.T, T)
       }
       this.playCues(env)
+      this.syncPip()
       this.updateMusicGain()
       this.draw()
       this.report()
@@ -293,6 +302,25 @@ export class PreviewPlayer {
       this.draw()
       this.dirty = false
     }
+  }
+
+  /** Keeps the second video's element at the right time (playing while it shows). */
+  private syncPip() {
+    const env = this.env
+    const el = this.els.get('pip')
+    if (!env || !el || !env.cfg.pip) return
+    const seg = segmentAt(env.tl, this.T)
+    const on = seg.kind === 'main' && pipActive(env.cfg, segSource(seg, this.T - seg.t0))
+    const want = pipClipTime(env.tl, env.cfg, this.T)
+    if (!on || !this.playing || seg.rate !== 1) {
+      if (!el.paused) el.pause()
+      if (on && Math.abs(el.currentTime - want) > 0.1 && !el.seeking) el.currentTime = want
+      return
+    }
+    el.muted = this.muted || env.cfg.pip.sound === 'main'
+    el.volume = Math.min(1, env.cfg.audio.main)
+    if (Math.abs(el.currentTime - want) > 0.3 && !el.seeking) el.currentTime = want
+    if (el.paused && !el.ended) el.play().catch(() => undefined)
   }
 
   private playCues(env: DrawEnv) {
@@ -313,9 +341,11 @@ export class PreviewPlayer {
       const el = this.els.get(seg.clip)
       if (el && el.readyState >= 2 && el.videoWidth) pic = { src: el, w: el.videoWidth, h: el.videoHeight }
     }
+    const pe = this.els.get('pip')
+    const pip = pe && pe.readyState >= 2 && pe.videoWidth ? { src: pe, w: pe.videoWidth, h: pe.videoHeight } : null
     const k = this.canvas.width / env.L.W
     this.ctx.setTransform(k, 0, 0, k, 0, 0)
-    drawOutputFrame(this.ctx, env, seg, this.T, pic)
+    drawOutputFrame(this.ctx, env, seg, this.T, pic, pip)
     this.ctx.setTransform(1, 0, 0, 1, 0, 0)
   }
 

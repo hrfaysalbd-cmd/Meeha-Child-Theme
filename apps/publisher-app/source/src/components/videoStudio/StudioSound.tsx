@@ -162,6 +162,18 @@ export default function SoundPanel({
       </Section>
 
       <Section title="শব্দের মাত্রা">
+        <p className="text-[11.5px] text-neutral-500 mb-1">লাউডনেস সমান করা</p>
+        <Segmented
+          value={a.loudness}
+          options={[
+            { id: 'off', name: 'বন্ধ' },
+            { id: '-14', name: '−১৪ LUFS (সোশ্যাল)' },
+            { id: '-16', name: '−১৬ LUFS (একটু নরম)' },
+          ]}
+          onChange={(v) => setAudio({ loudness: v })}
+          size="sm"
+        />
+        <p className="text-[11px] text-neutral-400 mt-1 mb-2">রেন্ডারের আগে পুরো ভিডিওর শব্দ মেপে সব ভিডিও একই জোরে আনে, যাতে ফিডে কোনোটা খুব আস্তে বা খুব জোরে না শোনায়।</p>
         <Slider label="মূল ভিডিওর শব্দ" value={Math.round(a.main * 100)} min={0} max={100} step={5} onChange={(v) => setAudio({ main: v / 100 })} format={(v) => pct(v / 100)} />
         <Slider label="ইন্ট্রো/আউট্রো/বিজ্ঞাপনের শব্দ" value={Math.round(a.clips * 100)} min={0} max={100} step={5} onChange={(v) => setAudio({ clips: v / 100 })} format={(v) => pct(v / 100)} />
         <SwitchRow label="সাউন্ড ইফেক্ট" hint="ইন্ট্রো, ফ্রেম ও বিজ্ঞাপন কার্ডে হালকা হুশ/চাইম শব্দ" checked={a.sfx} onChange={(v) => setAudio({ sfx: v })} />

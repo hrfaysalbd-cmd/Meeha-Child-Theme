@@ -12,10 +12,11 @@
  * All sizes are in units of `s` (1 at a 1080-pixel shorter side), so every
  * design scales to 720p/1080p and to any aspect ratio.
  */
-import { FRAMES, lookFilter, type BlurBox, type Caption, type EditConfig, type FrameId } from './config'
+import { FRAMES, lookFilter, reframeAt, type BlurBox, type Caption, type EditConfig, type FrameId } from './config'
+import { drawFreezeOverlay, drawSticker, drawTransition, transitionAt, transitionTimes } from './overlays'
 import { BRAND, FONT_BODY, FONT_DISPLAY, type LogoAsset } from './assets'
 import { clamp, ease, fillRoundRect, fitText, lerp, rnd, win, type Ctx } from './motion'
-import type { Layout, Rect, SceneId, Segment, Timeline } from './timeline'
+import { pipActive, segSource, segSourceEnd, type Layout, type Rect, type SceneId, type Segment, type Timeline } from './timeline'
 
 export interface Picture {
   src: CanvasImageSource
@@ -52,7 +53,7 @@ const dispFont = (w: number, px: number) => `${w} ${px}px ${FONT_DISPLAY}`
 // Video fitting
 // ---------------------------------------------------------------------------
 
-function coverRect(pw: number, ph: number, r: Rect): Rect {
+export function coverRect(pw: number, ph: number, r: Rect): Rect {
   const k = Math.max(r.w / pw, r.h / ph)
   const w = pw * k
   const h = ph * k
@@ -130,13 +131,23 @@ export function drawPicture(ctx: Ctx, env: DrawEnv, pic: Picture | null, r: Rect
   ctx.restore()
 }
 
-/** Where the main picture lands inside `r`: turned, fitted, then zoomed / panned. */
-export function mainPictureRect(cfg: EditConfig, pw0: number, ph0: number, r: Rect): Rect {
+/**
+ * Where the main picture lands inside `r`: turned, fitted, then zoomed /
+ * panned. With smart reframe on (and the picture cropped), the crop
+ * follows the tracked centre of interest at source second `src`.
+ */
+export function mainPictureRect(cfg: EditConfig, pw0: number, ph0: number, r: Rect, src?: number): Rect {
   const turned = cfg.look.rotate === 90 || cfg.look.rotate === 270
   const pw = turned ? ph0 : pw0
   const ph = turned ? pw0 : ph0
   const same = Math.abs(pw / ph - r.w / r.h) < 0.012
   const base = same || cfg.fit === 'cover' ? coverRect(pw, ph, r) : containRect(pw, ph, r)
+  const focus = src !== undefined && cfg.fit === 'cover' && !turned ? reframeAt(cfg.reframe, src) : null
+  if (focus) {
+    const fx = cfg.look.flip ? 1 - focus.x : focus.x
+    base.x = clamp(r.x + r.w / 2 - fx * base.w, r.x + r.w - base.w, r.x)
+    base.y = clamp(r.y + r.h / 2 - focus.y * base.h, r.y + r.h - base.h, r.y)
+  }
   const z = cfg.look.zoom
   if (z <= 1.001) return base
   const ex = (base.w * (z - 1)) / 2
@@ -145,7 +156,7 @@ export function mainPictureRect(cfg: EditConfig, pw0: number, ph0: number, r: Re
 }
 
 /** The main video with its look (colour, zoom, rotation) and privacy boxes at source time `src`. */
-function drawMainPicture(ctx: Ctx, env: DrawEnv, pic: Picture | null, r: Rect, src: number) {
+export function drawMainPicture(ctx: Ctx, env: DrawEnv, pic: Picture | null, r: Rect, src: number) {
   const { cfg } = env
   const look = cfg.look
   ctx.save()
@@ -155,7 +166,7 @@ function drawMainPicture(ctx: Ctx, env: DrawEnv, pic: Picture | null, r: Rect, s
   ctx.fillStyle = '#000'
   ctx.fillRect(r.x, r.y, r.w, r.h)
   if (pic && pic.w > 0 && pic.h > 0) {
-    const d = mainPictureRect(cfg, pic.w, pic.h, r)
+    const d = mainPictureRect(cfg, pic.w, pic.h, r, src)
     const fills = d.x <= r.x + 0.5 && d.y <= r.y + 0.5 && d.x + d.w >= r.x + r.w - 0.5 && d.y + d.h >= r.y + r.h - 0.5
     if (!fills && cfg.fit === 'blur') drawBlurFill(ctx, env, pic, r, look.rotate, look.flip)
     const filter = lookFilter(look)
@@ -165,6 +176,10 @@ function drawMainPicture(ctx: Ctx, env: DrawEnv, pic: Picture | null, r: Rect, s
     for (const b of cfg.blurs) {
       const end = b.dur === null ? Infinity : b.at + b.dur
       if (src >= b.at && src < end) drawPrivacyBox(ctx, env, b, d, r)
+    }
+    for (const st of cfg.stickers) {
+      const dur = st.dur ?? Infinity
+      if (src >= st.at && src < st.at + dur) drawSticker(ctx, st, d, r, src - st.at, Number.isFinite(dur) ? dur : 1e9, env.L.s / env.L.k)
     }
   }
   ctx.restore()
@@ -2347,7 +2362,128 @@ export function drawScene(ctx: Ctx, env: DrawEnv, id: SceneId, t: number, dur: n
 // One output frame
 // ---------------------------------------------------------------------------
 
-function drawMain(ctx: Ctx, env: DrawEnv, seg: Segment, local: number, pic: Picture | null) {
+/** Side-by-side halves of the video box: left/right on a wide box, top/bottom on a tall one. */
+export function splitRects(r: Rect): [Rect, Rect] {
+  const g = Math.max(2, Math.round(Math.min(r.w, r.h) * 0.006))
+  if (r.w >= r.h) {
+    const w = (r.w - g) / 2
+    return [
+      { x: r.x, y: r.y, w, h: r.h },
+      { x: r.x + w + g, y: r.y, w, h: r.h },
+    ]
+  }
+  const h = (r.h - g) / 2
+  return [
+    { x: r.x, y: r.y, w: r.w, h },
+    { x: r.x, y: r.y + h + g, w: r.w, h },
+  ]
+}
+
+/** The picture-in-picture window inside the video box. */
+export function pipRect(cfg: EditConfig, r: Rect, pip: Picture | null, s: number): Rect {
+  const p = cfg.pip!
+  const aspect = pip && pip.w > 0 ? pip.h / pip.w : 9 / 16
+  let w = r.w * p.size
+  let h = w * aspect
+  if (h > r.h * 0.5) {
+    h = r.h * 0.5
+    w = h / aspect
+  }
+  const m = 30 * s
+  const x = p.corner === 'tl' || p.corner === 'bl' ? r.x + m : r.x + r.w - w - m
+  const y = p.corner === 'tl' || p.corner === 'tr' ? r.y + m : r.y + r.h - h - m
+  return { x, y, w, h }
+}
+
+function pipLabel(ctx: Ctx, text: string, x: number, y: number, s: number, accent: string) {
+  if (!text.trim()) return
+  ctx.save()
+  ctx.font = bodyFont(700, 40 * s)
+  const w = ctx.measureText(text).width + 44 * s
+  fillRoundRect(ctx, x, y, w, 64 * s, 10 * s, 'rgba(11,15,25,0.84)')
+  ctx.fillStyle = accent
+  ctx.fillRect(x, y, 9 * s, 64 * s)
+  ctx.fillStyle = '#FFFFFF'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, x + 25 * s, y + 34 * s)
+  ctx.restore()
+}
+
+/** The main picture, with the second video beside it or in a window when one is on. */
+function drawMainArea(ctx: Ctx, env: DrawEnv, seg: Segment, local: number, src: number, pic: Picture | null, pip: Picture | null) {
+  const { L, cfg } = env
+  const s = L.s / L.k
+  const accent = themeOf(cfg.frame.id)?.accent ?? BRAND.red
+  const on = pipActive(cfg, src)
+  const freezeZoom = seg.rate === 0 ? 1 + 0.06 * ease.outCubic(win(local, 0, Math.max(0.5, seg.dur))) : 1
+  const picture = (r: Rect, e: DrawEnv) => {
+    if (freezeZoom === 1) return drawMainPicture(ctx, e, pic, r, src)
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(r.x, r.y, r.w, r.h)
+    ctx.clip()
+    ctx.translate(r.x + r.w / 2, r.y + r.h / 2)
+    ctx.scale(freezeZoom, freezeZoom)
+    ctx.translate(-(r.x + r.w / 2), -(r.y + r.h / 2))
+    drawMainPicture(ctx, e, pic, r, src)
+    ctx.restore()
+  }
+  if (!on || !cfg.pip) {
+    picture(L.video, env)
+    return
+  }
+  const p = cfg.pip
+  const since = src - p.at
+  const left = p.dur === null ? Infinity : p.at + p.dur - src
+  if (p.layout === 'split') {
+    const [a, b] = splitRects(L.video)
+    const k = ease.outCubic(win(since, 0, 0.5)) * (Number.isFinite(left) ? 1 - ease.inCubic(win(0.5 - left, 0, 0.5)) : 1)
+    // the halves slide apart from the full picture
+    const ka: Rect = { x: lerp(L.video.x, a.x, k), y: lerp(L.video.y, a.y, k), w: lerp(L.video.w, a.w, k), h: lerp(L.video.h, a.h, k) }
+    picture(ka, { ...env, cfg: { ...cfg, fit: 'cover' } })
+    if (k > 0.02) {
+      ctx.save()
+      ctx.globalAlpha = Math.min(1, k * 1.5)
+      drawPicture(ctx, env, pip, b, 'cover')
+      ctx.restore()
+      ctx.fillStyle = accent
+      if (L.video.w >= L.video.h) ctx.fillRect(a.x + a.w, L.video.y, b.x - a.x - a.w, L.video.h)
+      else ctx.fillRect(L.video.x, a.y + a.h, L.video.w, b.y - a.y - a.h)
+      ctx.save()
+      ctx.globalAlpha = k
+      pipLabel(ctx, p.mainLabel, a.x + 20 * s, a.y + 20 * s, s, accent)
+      pipLabel(ctx, p.label, b.x + 20 * s, b.y + 20 * s, s, accent)
+      ctx.restore()
+    }
+    return
+  }
+  picture(L.video, env)
+  const r = pipRect(cfg, L.video, pip, s)
+  const k = ease.outBack(win(since, 0, 0.45)) * (Number.isFinite(left) ? 1 - ease.inCubic(win(0.4 - left, 0, 0.4)) : 1)
+  if (k <= 0.01) return
+  ctx.save()
+  ctx.translate(r.x + r.w / 2, r.y + r.h / 2)
+  ctx.scale(k, k)
+  ctx.translate(-(r.x + r.w / 2), -(r.y + r.h / 2))
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'
+  ctx.shadowBlur = 24 * s
+  const bw = 6 * s
+  fillRoundRect(ctx, r.x - bw, r.y - bw, r.w + bw * 2, r.h + bw * 2, 16 * s, '#FFFFFF')
+  ctx.shadowBlur = 0
+  ctx.beginPath()
+  ctx.roundRect(r.x, r.y, r.w, r.h, 11 * s)
+  ctx.clip()
+  drawPicture(ctx, env, pip, r, 'cover')
+  ctx.restore()
+  ctx.save()
+  ctx.globalAlpha = Math.min(1, k)
+  const ly = p.corner === 'tl' || p.corner === 'tr' ? r.y + r.h + 14 * s : r.y - 78 * s
+  pipLabel(ctx, p.label, r.x, ly, s, accent)
+  pipLabel(ctx, p.mainLabel, L.video.x + 24 * s, p.corner === 'tl' || p.corner === 'tr' ? L.video.y + L.video.h - 88 * s : L.video.y + 24 * s, s, accent)
+  ctx.restore()
+}
+
+function drawMain(ctx: Ctx, env: DrawEnv, seg: Segment, local: number, pic: Picture | null, pip: Picture | null = null) {
   const { L, cfg } = env
   const mainT = seg.mainOffset + local
   const theme = themeOf(cfg.frame.id)
@@ -2355,8 +2491,9 @@ function drawMain(ctx: Ctx, env: DrawEnv, seg: Segment, local: number, pic: Pict
     ctx.fillStyle = '#000'
     ctx.fillRect(0, 0, L.W, L.H)
   }
-  const src = seg.clipStart + local
-  drawMainPicture(ctx, env, pic, L.video, src)
+  const src = segSource(seg, local)
+  drawMainArea(ctx, env, seg, local, src, pic, pip)
+  if (seg.rate === 0) drawFreezeOverlay(ctx, L, seg.freezeText ?? '', local, seg.dur)
   // the glass frame's bands are a frosted copy of the picture
   if (cfg.frame.id === 'glass' && pic) {
     if (L.header) drawBlurFill(ctx, env, pic, L.header, cfg.look.rotate, cfg.look.flip)
@@ -2377,7 +2514,7 @@ function drawMain(ctx: Ctx, env: DrawEnv, seg: Segment, local: number, pic: Pict
   }
 
   drawLogoBug(ctx, env, mainT)
-  const srcEnd = env.tl.segments.reduce((m, x) => (x.kind === 'main' ? Math.max(m, x.clipStart + x.dur) : m), 0)
+  const srcEnd = env.tl.segments.reduce((m, x) => (x.kind === 'main' ? Math.max(m, segSourceEnd(x)) : m), 0)
   const stacks: Record<string, number> = {}
   for (const c of cfg.captions) {
     const dur = c.dur ?? Math.max(1, srcEnd - c.at)
@@ -2407,7 +2544,7 @@ function drawAdTag(ctx: Ctx, env: DrawEnv) {
 }
 
 /** Paints output time T. `pic` is the current picture of the segment's clip (if any). */
-export function drawOutputFrame(ctx: Ctx, env: DrawEnv, seg: Segment, T: number, pic: Picture | null) {
+export function drawOutputFrame(ctx: Ctx, env: DrawEnv, seg: Segment, T: number, pic: Picture | null, pip: Picture | null = null) {
   const local = clamp(T - seg.t0, 0, seg.dur)
   ctx.save()
   ctx.globalAlpha = 1
@@ -2415,7 +2552,7 @@ export function drawOutputFrame(ctx: Ctx, env: DrawEnv, seg: Segment, T: number,
   ctx.textAlign = 'left'
   switch (seg.kind) {
     case 'main':
-      drawMain(ctx, env, seg, local, pic)
+      drawMain(ctx, env, seg, local, pic, pip)
       break
     case 'intro':
     case 'outro':
@@ -2430,6 +2567,8 @@ export function drawOutputFrame(ctx: Ctx, env: DrawEnv, seg: Segment, T: number,
       if (seg.scene) drawScene(ctx, env, seg.scene, local, seg.dur)
       break
   }
+  const tr = transitionAt(env.tl, env.cfg, T)
+  if (tr) drawTransition(ctx, env.cfg.transition.id, tr.p, tr.region === 'video' ? env.L.video : { x: 0, y: 0, w: env.L.W, h: env.L.H }, env.L.s / env.L.k, env.scratch.box)
   ctx.restore()
 }
 
@@ -2450,5 +2589,7 @@ export function sfxCues(tl: Timeline, cfg: EditConfig): { t: number; kind: SfxKi
     else if (s.scene === 'ad-in' || s.scene === 'ad-out') cues.push({ t: s.t0, kind: 'soft', gain: 0.5 })
   }
   if (cfg.frame.id !== 'none') cues.push({ t: tl.mainStart, kind: 'whoosh', gain: 0.35 })
+  for (const s of tl.segments) if (s.rate === 0) cues.push({ t: s.t0, kind: 'hit', gain: 0.35 })
+  for (const t of transitionTimes(tl, cfg)) cues.push({ t: t - cfg.transition.dur * 0.4, kind: cfg.transition.id === 'fade' ? 'soft' : 'whoosh', gain: 0.45 })
   return cues
 }

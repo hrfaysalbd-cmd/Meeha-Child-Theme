@@ -2,7 +2,7 @@
  * Round 21.1 — the selected blur / mosaic box drawn over the preview canvas:
  * drag it to move, drag the corner to resize. Box coordinates are fractions
  * of the picture as shown (see mainPictureRect), so they follow zoom and
- * rotation.
+ * rotation. Round 23: the same handles move the arrow / circle stickers.
  */
 import { useEffect, useRef, useState } from 'react'
 import { mainPictureRect } from '../../lib/videoEdit/draw'
@@ -22,6 +22,8 @@ export default function BlurOverlay({
   picH,
   index,
   set,
+  target = 'blur',
+  src,
 }: {
   canvas: HTMLCanvasElement | null
   cfg: EditConfig
@@ -30,6 +32,9 @@ export default function BlurOverlay({
   picH: number
   index: number
   set: Setter
+  target?: 'blur' | 'sticker'
+  /** Source second at the playhead (for the smart-reframe position). */
+  src?: number
 }) {
   const [box, setBox] = useState<{ x: number; y: number; w: number } | null>(null)
   const drag = useRef<Drag | null>(null)
@@ -47,10 +52,11 @@ export default function BlurOverlay({
     }
   }, [canvas])
 
-  const b = cfg.blurs[index]
+  const key = target === 'sticker' ? 'stickers' : 'blurs'
+  const b = cfg[key][index]
   if (!b || !box || !box.w) return null
   const k = box.w / L.W
-  const d = mainPictureRect(cfg, picW, picH, L.video)
+  const d = mainPictureRect(cfg, picW, picH, L.video, src)
   const style = {
     left: box.x + (d.x + b.x * d.w) * k,
     top: box.y + (d.y + b.y * d.h) * k,
@@ -70,14 +76,15 @@ export default function BlurOverlay({
     e.stopPropagation()
     const dx = (e.clientX - g.px) / g.dw
     const dy = (e.clientY - g.py) / g.dh
-    set((c) => ({
-      ...c,
-      blurs: c.blurs.map((x, j) => {
-        if (j !== index) return x
-        if (g.mode === 'move') return { ...x, x: clamp(g.x + dx, 0, 1 - g.w), y: clamp(g.y + dy, 0, 1 - g.h) }
-        return { ...x, w: clamp(g.w + dx, 0.03, 1 - g.x), h: clamp(g.h + dy, 0.03, 1 - g.y) }
-      }),
-    }))
+    const edit = <T extends { x: number; y: number; w: number; h: number }>(x: T): T =>
+      g.mode === 'move'
+        ? { ...x, x: clamp(g.x + dx, 0, 1 - g.w), y: clamp(g.y + dy, 0, 1 - g.h) }
+        : { ...x, w: clamp(g.w + dx, 0.03, 1 - g.x), h: clamp(g.h + dy, 0.03, 1 - g.y) }
+    set((c) =>
+      target === 'sticker'
+        ? { ...c, stickers: c.stickers.map((x, j) => (j === index ? edit(x) : x)) }
+        : { ...c, blurs: c.blurs.map((x, j) => (j === index ? edit(x) : x)) },
+    )
   }
   const end = (e: React.PointerEvent) => {
     e.stopPropagation()
@@ -92,17 +99,17 @@ export default function BlurOverlay({
       onPointerMove={move}
       onPointerUp={end}
       onClick={(e) => e.stopPropagation()}
-      data-testid="blur-box"
+      data-testid={target === 'sticker' ? 'sticker-box' : 'blur-box'}
     >
       <span className="absolute -top-6 left-0 text-[11px] font-semibold text-white bg-black/60 rounded px-1.5 py-0.5 whitespace-nowrap pointer-events-none">
-        {b.mode === 'pixel' ? 'মোজাইক' : 'ঝাপসা'}
+        {'mode' in b ? (b.mode === 'pixel' ? 'মোজাইক' : 'ঝাপসা') : 'স্টিকার'}
       </span>
       <span
         className="absolute -right-2 -bottom-2 w-4 h-4 rounded-sm bg-white border border-neutral-500 cursor-nwse-resize"
         onPointerDown={start('size')}
         onPointerMove={move}
         onPointerUp={end}
-        data-testid="blur-resize"
+        data-testid={target === 'sticker' ? 'sticker-resize' : 'blur-resize'}
       />
     </div>
   )

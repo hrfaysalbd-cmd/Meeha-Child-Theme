@@ -1708,6 +1708,15 @@ export interface VideoKit {
   ticker: string
   ad_text: string
   presets: VideoKitPreset[]
+  /** Round 23: saved name plates (guests, officials). */
+  people: VideoKitPerson[]
+  /** Round 23: every correspondent, as a ready name plate. */
+  reporters: (VideoKitPerson & { id: number })[]
+}
+
+export interface VideoKitPerson {
+  name: string
+  role: string
 }
 
 export interface VideoKitInput {
@@ -1722,6 +1731,8 @@ export interface VideoKitInput {
 export const VideoKitApi = {
   get: () => request<VideoKit>('/admin/video-kit'),
   save: (data: VideoKitInput) => request<VideoKit>('/admin/video-kit', { method: 'POST', body: data as Record<string, unknown> }),
+  savePeople: (people: VideoKitPerson[]) =>
+    request<VideoKit>('/admin/video-kit/people', { method: 'POST', body: { people } as unknown as Record<string, unknown> }),
   savePresets: (presets: VideoKitPreset[]) =>
     request<VideoKit>('/admin/video-kit/presets', { method: 'POST', body: { presets } as unknown as Record<string, unknown> }),
   library: (offset = 0, search = '', adsOnly = false) =>

@@ -3,7 +3,7 @@
  * বিজ্ঞাপন, ক্যাপশন, আকার ও অডিও. Each panel edits one part of the
  * EditConfig through `set` (an immutable updater), nothing else.
  */
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   CAPTION_POSITIONS,
   CAPTION_PRESETS,
@@ -27,7 +27,8 @@ import {
 import { bnClock } from '../../lib/videoEdit/motion'
 import type { VideoKit } from '../../lib/api'
 import { bnNumber } from '../ui'
-import { IconPlus, IconTrash, IconX } from '../Icon'
+import { IconPlus, IconTrash, IconUsers, IconX } from '../Icon'
+import PeoplePicker from './StudioPeople'
 import { ChoiceCard, Section, Segmented, Slider, SwitchRow, TextInput, TimeField } from './StudioFields'
 
 export type Setter = (fn: (c: EditConfig) => EditConfig) => void
@@ -385,13 +386,18 @@ export function CaptionsPanel({
   range,
   playhead,
   defaultName,
+  kit,
+  onKit,
 }: {
   cfg: EditConfig
   set: Setter
   range: { start: number; end: number }
   playhead: () => number | null
   defaultName: string
+  kit: VideoKit | null
+  onKit: (k: VideoKit) => void
 }) {
+  const [people, setPeople] = useState(false)
   const update = (i: number, patch: Partial<Caption>) => set((c) => ({ ...c, captions: c.captions.map((x, j) => (j === i ? { ...x, ...patch } : x)) }))
   const remove = (i: number) => set((c) => ({ ...c, captions: c.captions.filter((_, j) => j !== i) }))
   const add = (preset: (typeof CAPTION_PRESETS)[number]) => {
@@ -403,7 +409,30 @@ export function CaptionsPanel({
   return (
     <div>
       <Section title="ক্যাপশন ও ক্রেডিট" hint="ভিডিওর উপর লেখা — কে পাঠিয়েছেন, কার বক্তব্য, সংগৃহীত কিনা। কখন থেকে কতক্ষণ দেখাবে তা নিচে ঠিক করুন।">
+        {people && (
+          <PeoplePicker
+            kit={kit}
+            onKit={onKit}
+            onClose={() => setPeople(false)}
+            onPick={(person) => {
+              if (cfg.captions.length >= LIMITS.captions) return
+              const at = playhead() ?? range.start
+              set((c) => ({ ...c, captions: [...c.captions, { text: person.name, sub: person.role, style: 'nameplate', pos: 'bl', at, dur: 5 }] }))
+              setPeople(false)
+            }}
+          />
+        )}
         <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setPeople((v) => !v)}
+            disabled={cfg.captions.length >= LIMITS.captions}
+            className="flex items-center gap-1 rounded-full bg-brand-600 text-white px-2.5 py-1.5 text-[12px] font-semibold disabled:opacity-50"
+            data-testid="open-people"
+          >
+            <IconUsers className="w-3.5 h-3.5" />
+            নামের তালিকা থেকে
+          </button>
           {CAPTION_PRESETS.map((p) => (
             <button
               key={p.label}
@@ -491,19 +520,28 @@ export function CaptionsPanel({
 // Size, trim & sound
 // ---------------------------------------------------------------------------
 
+export type ReframeJob = null | { stage: 'running'; ratio: number; label: string } | { stage: 'done'; faces: boolean } | { stage: 'error'; message: string }
+
 export function LayoutPanel({
   cfg,
   set,
   srcDuration,
   playhead,
   outputSize,
+  reframe,
+  onReframe,
+  onCancelReframe,
 }: {
   cfg: EditConfig
   set: Setter
   srcDuration: number
   playhead: () => number | null
   outputSize: string
+  reframe: ReframeJob
+  onReframe: () => void
+  onCancelReframe: () => void
 }) {
+  const hasTrack = cfg.reframe.xs.length > 0
   const trimEnd = cfg.trim.end ?? srcDuration
   return (
     <div>
@@ -526,6 +564,52 @@ export function LayoutPanel({
               onChange={(v) => set((c) => ({ ...c, fit: v }))}
               size="sm"
             />
+          </div>
+        )}
+        {cfg.format !== 'source' && (
+          <div className="mt-3 rounded-xl border border-neutral-200 p-2.5" data-testid="reframe">
+            <p className="text-[12.5px] font-semibold text-neutral-800">স্মার্ট রিফ্রেম</p>
+            <p className="text-[11.5px] text-neutral-400 leading-snug mb-2">
+              ১৬:৯ ভিডিও রিল (৯:১৬) বা বর্গ করলে কাটা ফ্রেম মানুষের মুখ ও নড়াচড়া অনুসরণ করে সরবে। চালু করলে “কেটে পুরো ভরাট” হয়।
+            </p>
+            {reframe?.stage === 'running' ? (
+              <div>
+                <p className="text-[12px] text-neutral-700 mb-1">{reframe.label}</p>
+                <div className="h-2 rounded-full bg-neutral-100 overflow-hidden">
+                  <div className="h-full bg-brand-600 transition-[width] duration-200" style={{ width: `${Math.round(reframe.ratio * 100)}%` }} />
+                </div>
+                <button type="button" onClick={onCancelReframe} className="mt-2 text-[11.5px] px-2 py-1 rounded-md bg-neutral-100">
+                  বাতিল
+                </button>
+              </div>
+            ) : hasTrack ? (
+              <>
+                <SwitchRow
+                  label="ফ্রেম অনুসরণ করবে"
+                  checked={cfg.reframe.on}
+                  onChange={(v) => set((c) => ({ ...c, reframe: { ...c.reframe, on: v }, ...(v ? { fit: 'cover' as const } : {}) }))}
+                  testId="reframe-on"
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] text-neutral-400">
+                    {reframe?.stage === 'done' ? (reframe.faces ? 'মুখ শনাক্ত করে অনুসরণ করা হচ্ছে।' : 'রং ও নড়াচড়া দেখে অনুসরণ করা হচ্ছে।') : 'বিশ্লেষণ করা আছে।'} প্রিভিউ চালিয়ে দেখে নিন।
+                  </p>
+                  <button type="button" onClick={onReframe} className="text-[11.5px] px-2 py-1 rounded-md bg-neutral-100 shrink-0">
+                    আবার বিশ্লেষণ
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={onReframe}
+                data-testid="reframe-run"
+                className="w-full rounded-lg bg-brand-600 text-white py-2 text-[13px] font-semibold"
+              >
+                ভিডিও বিশ্লেষণ করে চালু করুন
+              </button>
+            )}
+            {reframe?.stage === 'error' && <p className="text-[12px] text-red-700 mt-1.5">{reframe.message}</p>}
           </div>
         )}
         <div className="mt-3">

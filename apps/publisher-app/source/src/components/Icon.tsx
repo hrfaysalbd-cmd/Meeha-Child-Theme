@@ -276,3 +276,9 @@ export const IconRotate = (p: Props) => (
 export const IconMusic = (p: Props) => (
   <svg {...base} {...p}><path d="M3 17a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" /><path d="M13 17a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" /><path d="M9 17v-13h10v13" /><path d="M9 8h10" /></svg>
 )
+export const IconBolt = (p: Props) => (
+  <svg {...base} {...p}><path d="M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11" /></svg>
+)
+export const IconWaveSine = (p: Props) => (
+  <svg {...base} {...p}><path d="M3 12h2l2 -6l3 12l3 -9l2 6l2 -3h4" /></svg>
+)

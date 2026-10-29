@@ -23,14 +23,16 @@ import {
   type Video,
   type VideoKit,
 } from '../lib/api'
-import { DEFAULT_CONFIG, FRAMES, INTROS, OUTROS, hasEdits, normalizeConfig, styleOnly, type EditConfig, type MediaRef } from '../lib/videoEdit/config'
+import { DEFAULT_CONFIG, FRAMES, INTROS, LIMITS, OUTROS, hasEdits, normalizeConfig, styleOnly, type EditConfig, type FormatId, type MediaRef } from '../lib/videoEdit/config'
 import { BUILTIN_CLIPS, fetchBlob, loadFonts, loadLogo, type LogoAsset } from '../lib/videoEdit/assets'
 import { drawOutputFrame, drawScene, makeScratch, type DrawEnv, type Picture } from '../lib/videoEdit/draw'
 import { bnClock, bnDate } from '../lib/videoEdit/motion'
 import { PreviewPlayer, probeUrl, type PreviewState } from '../lib/videoEdit/preview'
 import { RenderCancelled, exportCapability, renderAudioPreview, renderEdit, type RenderProgress } from '../lib/videoEdit/render'
 import { musicBuffer } from '../lib/videoEdit/music'
-import { buildTimeline, computeLayout, outputToSource, trimRange, type ClipKey, type SceneId } from '../lib/videoEdit/timeline'
+import { AnalysisCancelled, reframeTrack, waveformPeaks, type Waveform } from '../lib/videoEdit/analyse'
+import { grabFrame, thumbnailJpeg, thumbSource } from '../lib/videoEdit/thumb'
+import { buildTimeline, clipsUsed, computeLayout, outputToSource, sourceToOutput, trimRange, type ClipKey, type SceneId } from '../lib/videoEdit/timeline'
 import { bnFileSize, bnDuration } from '../lib/postMeta'
 import { Banner, Button, Card, Spinner, bnNumber } from '../components/ui'
 import {
@@ -39,10 +41,12 @@ import {
   IconAspectRatio,
   IconArrowLeft,
   IconBadgeLogo,
+  IconBolt,
   IconCheck,
   IconDeviceFloppy,
   IconDownload,
   IconLayoutRows,
+  IconLibraryPhoto,
   IconMovie,
   IconMusic,
   IconPlayerPause,
@@ -54,17 +58,20 @@ import {
   IconTrash,
   IconUndo,
   IconWand,
+  IconWaveSine,
   IconX,
 } from '../components/Icon'
 import MediaGallery from '../components/MediaGallery'
 import VideoLibraryPicker from '../components/videoStudio/VideoLibraryPicker'
 import StudioTimeline from '../components/videoStudio/StudioTimeline'
-import { AdsPanel, CaptionsPanel, FramePanel, IntroOutroPanel, LayoutPanel, LogoPanel, type ThumbPainter } from '../components/videoStudio/StudioPanels'
+import { AdsPanel, CaptionsPanel, FramePanel, IntroOutroPanel, LayoutPanel, LogoPanel, type ReframeJob, type ThumbPainter } from '../components/videoStudio/StudioPanels'
 import ToolsPanel from '../components/videoStudio/StudioTools'
 import BlurOverlay from '../components/videoStudio/BlurOverlay'
 import SoundPanel, { type AuditionState } from '../components/videoStudio/StudioSound'
+import EffectsPanel from '../components/videoStudio/StudioEffects'
+import ThumbPanel from '../components/videoStudio/StudioThumb'
 
-type Tab = 'frame' | 'logo' | 'intro' | 'ads' | 'captions' | 'tools' | 'sound' | 'layout'
+type Tab = 'frame' | 'logo' | 'intro' | 'ads' | 'captions' | 'tools' | 'fx' | 'sound' | 'thumb' | 'layout'
 
 const TABS: { id: Tab; name: string; icon: (p: { className?: string }) => ReactNode }[] = [
   { id: 'frame', name: 'ফ্রেম', icon: IconLayoutRows },
@@ -73,7 +80,9 @@ const TABS: { id: Tab; name: string; icon: (p: { className?: string }) => ReactN
   { id: 'captions', name: 'ক্যাপশন', icon: IconTextCaption },
   { id: 'ads', name: 'বিজ্ঞাপন', icon: IconAd },
   { id: 'tools', name: 'সম্পাদনা', icon: IconAdjustments },
+  { id: 'fx', name: 'ইফেক্ট', icon: IconBolt },
   { id: 'sound', name: 'শব্দ ও মিউজিক', icon: IconMusic },
+  { id: 'thumb', name: 'থাম্বনেইল', icon: IconLibraryPhoto },
   { id: 'layout', name: 'আকার', icon: IconAspectRatio },
 ]
 
@@ -97,13 +106,30 @@ function writeJson(key: string, value: unknown) {
   }
 }
 
+/** Another size rendered together with the main one ("এক ক্লিকে কয়েক মাপে"). */
+interface Extra {
+  format: FormatId
+  name: string
+  url: string
+  size: number
+  filename: string
+  uploaded: boolean
+}
+
+/** The sizes offered for rendering together. */
+const MULTI_FORMATS: { id: FormatId; name: string; ratio: number }[] = [
+  { id: '9:16', name: 'রিল / শর্টস (৯:১৬)', ratio: 9 / 16 },
+  { id: '16:9', name: 'YouTube (১৬:৯)', ratio: 16 / 9 },
+  { id: '1:1', name: 'বর্গ (১:১)', ratio: 1 },
+]
+
 type Job =
   | { stage: 'options' }
   | { stage: 'download'; ratio: number; label: string }
-  | { stage: 'render'; p: RenderProgress }
-  | { stage: 'upload'; percent: number }
+  | { stage: 'render'; p: RenderProgress; part?: string }
+  | { stage: 'upload'; percent: number; part?: string }
   | { stage: 'saving' }
-  | { stage: 'done'; url: string; size: number; attached: boolean; filename: string; tooLarge: boolean }
+  | { stage: 'done'; url: string; size: number; attached: boolean; filename: string; tooLarge: boolean; extras: Extra[] }
   | { stage: 'error'; message: string }
 
 interface Loaded {
@@ -130,8 +156,15 @@ export default function VideoStudio() {
   const [pstate, setPstate] = useState<PreviewState>({ time: 0, playing: false, waiting: false })
   const [durations, setDurations] = useState<Record<string, number>>({})
   const [adPic, setAdPic] = useState<Picture | null>(null)
-  const [picker, setPicker] = useState<null | { kind: 'ad-add' } | { kind: 'ad-replace'; index: number } | { kind: 'intro' | 'outro' }>(null)
-  const [imagePicker, setImagePicker] = useState(false)
+  const [picker, setPicker] = useState<null | { kind: 'ad-add' } | { kind: 'ad-replace'; index: number } | { kind: 'intro' | 'outro' | 'pip' }>(null)
+  const [imagePicker, setImagePicker] = useState<null | 'ad' | 'face'>(null)
+  const [facePic, setFacePic] = useState<Picture | null>(null)
+  const [selectedSticker, setSelectedSticker] = useState<number | null>(null)
+  const [wave, setWave] = useState<Waveform | null>(null)
+  const [waveJob, setWaveJob] = useState<null | { ratio: number; label: string } | { error: string }>(null)
+  const [reframeJob, setReframeJob] = useState<ReframeJob>(null)
+  const [extraFormats, setExtraFormats] = useState<FormatId[]>([])
+  const analysisRef = useRef<{ wave: AbortController | null; reframe: AbortController | null }>({ wave: null, reframe: null })
   const [job, setJob] = useState<Job | null>(null)
   const [attach, setAttach] = useState(true)
   const [setThumb, setSetThumb] = useState(true)
@@ -152,6 +185,7 @@ export default function VideoStudio() {
   const abortRef = useRef<AbortController | null>(null)
   const blobCache = useRef(new Map<string, Blob>())
   const resultUrl = useRef<string | null>(null)
+  const extraUrls = useRef<string[]>([])
   const capability = useMemo(() => exportCapability(), [])
 
   // ---- load everything ----
@@ -274,8 +308,9 @@ export default function VideoStudio() {
     if (cfg.outro.id === 'meeha-social') u.outro = BUILTIN_CLIPS['meeha-social']
     else if (cfg.outro.id === 'custom' && cfg.outro.clip) u.outro = cfg.outro.clip.url
     cfg.ads.forEach((a, i) => (u[`ad${i}`] = a.clip.url))
+    if (cfg.pip?.clip) u.pip = cfg.pip.clip.url
     return u
-  }, [loaded, cfg.intro, cfg.outro, cfg.ads])
+  }, [loaded, cfg.intro, cfg.outro, cfg.ads, cfg.pip])
 
   useEffect(() => {
     for (const url of Object.values(urls)) {
@@ -308,16 +343,34 @@ export default function VideoStudio() {
     }
   }, [cfg.frame.adImage])
 
+  // ---- thumbnail face photo ----
+  useEffect(() => {
+    const ref = cfg.thumb.face
+    if (!ref) {
+      setFacePic(null)
+      return
+    }
+    let cancelled = false
+    downloadMediaFile(ref.id)
+      .then((b) => createImageBitmap(b))
+      .then((bmp) => !cancelled && setFacePic({ src: bmp, w: bmp.width, h: bmp.height }))
+      .catch(() => !cancelled && setFacePic(null))
+    return () => {
+      cancelled = true
+    }
+  }, [cfg.thumb.face])
+
   // ---- layout / timeline / draw env ----
   const L = useMemo(() => (loaded ? computeLayout(cfg, loaded.main.width, loaded.main.height) : null), [loaded, cfg])
+  const clipDurations = () => ({
+    main: loaded?.main.duration ?? 0,
+    intro: dur(urls.intro, cfg.intro.clip?.duration),
+    outro: dur(urls.outro, cfg.outro.clip?.duration),
+    ads: cfg.ads.map((a, i) => dur(urls[`ad${i}`], a.clip.duration)),
+  })
   const tl = useMemo(() => {
     if (!loaded) return null
-    return buildTimeline(cfg, {
-      main: loaded.main.duration,
-      intro: dur(urls.intro, cfg.intro.clip?.duration),
-      outro: dur(urls.outro, cfg.outro.clip?.duration),
-      ads: cfg.ads.map((a, i) => dur(urls[`ad${i}`], a.clip.duration)),
-    })
+    return buildTimeline(cfg, clipDurations())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, cfg, urls, durations])
 
@@ -340,6 +393,7 @@ export default function VideoStudio() {
       scratch,
     }
   }, [loaded, L, tl, cfg, adPic, kit, postTitle, scratch])
+  const thumbEnv = useMemo(() => (env ? { ...env, scratch: thumbScratch } : null), [env, thumbScratch])
 
   // ---- preview player ----
   useEffect(() => {
@@ -482,7 +536,10 @@ export default function VideoStudio() {
   useEffect(
     () => () => {
       abortRef.current?.abort()
+      analysisRef.current.wave?.abort()
+      analysisRef.current.reframe?.abort()
       if (resultUrl.current) URL.revokeObjectURL(resultUrl.current)
+      extraUrls.current.forEach((u) => URL.revokeObjectURL(u))
     },
     [],
   )
@@ -492,7 +549,8 @@ export default function VideoStudio() {
   const playheadSrc = useCallback(() => (tl ? outputToSource(tl, playerRef.current?.time ?? 0) : null), [tl])
   const seekToSource = (src: number) => {
     if (!tl) return
-    for (const s of tl.segments) if (s.kind === 'main' && src >= s.clipStart && src <= s.clipStart + s.dur) return playerRef.current?.seek(s.t0 + (src - s.clipStart))
+    const t = sourceToOutput(tl, src)
+    if (t !== null) playerRef.current?.seek(t)
   }
 
   function addAd(v: LibraryVideo, replaceIndex?: number) {
@@ -538,7 +596,62 @@ export default function VideoStudio() {
     await clipFor('intro', urls.intro, cfg.intro.clip, cfg.intro.id === 'meeha-logo', 'ইন্ট্রো ভিডিও লোড হচ্ছে…')
     await clipFor('outro', urls.outro, cfg.outro.clip, cfg.outro.id === 'meeha-social', 'আউট্রো ভিডিও লোড হচ্ছে…')
     for (let i = 0; i < cfg.ads.length; i++) await clipFor(`ad${i}`, urls[`ad${i}`], cfg.ads[i].clip, false, `বিজ্ঞাপন ${bnNumber(i + 1)} লোড হচ্ছে…`)
+    if (cfg.pip?.clip && tl && clipsUsed(tl, cfg).has('pip')) await clipFor('pip', urls.pip, cfg.pip.clip, false, 'দ্বিতীয় ভিডিও লোড হচ্ছে…')
     return clips
+  }
+
+  const errText = (err: unknown) => (err instanceof Error && !('status' in err) ? err.message : describeError(err).message)
+  const mainBlob = (signal: AbortSignal, report: (label: string, ratio: number) => void) =>
+    getBlob(`m${loaded!.originalId}`, (p) => downloadMediaFile(loaded!.originalId, p, signal), 'মূল ভিডিও নামানো হচ্ছে…', signal, report)
+  const withPct = (label: string, ratio: number) => (ratio > 0 ? `${label} ${bnNumber(Math.round(ratio * 100))}%` : label)
+
+  // ---- the main video's sound on the timeline ----
+  async function loadWave() {
+    if (!loaded) return
+    analysisRef.current.wave?.abort()
+    const ctrl = new AbortController()
+    analysisRef.current.wave = ctrl
+    try {
+      const blob = await mainBlob(ctrl.signal, (label, ratio) => setWaveJob({ label: withPct(label, ratio), ratio }))
+      setWaveJob({ label: 'শব্দ পড়া হচ্ছে…', ratio: 0 })
+      const w = await waveformPeaks(blob, ctrl.signal, (ratio) => setWaveJob({ label: withPct('শব্দ পড়া হচ্ছে…', ratio), ratio }))
+      if (ctrl.signal.aborted) return
+      if (!w) setWaveJob({ error: 'এই ভিডিওতে পড়ার মতো শব্দ পাওয়া যায়নি।' })
+      else {
+        setWave(w)
+        setWaveJob(null)
+      }
+    } catch (err) {
+      if (ctrl.signal.aborted || err instanceof AnalysisCancelled) setWaveJob(null)
+      else setWaveJob({ error: `শব্দের ঢেউ দেখানো যায়নি: ${errText(err)}` })
+    } finally {
+      if (analysisRef.current.wave === ctrl) analysisRef.current.wave = null
+    }
+  }
+
+  // ---- smart reframe: follow the people when the crop is narrower than the video ----
+  async function runReframe() {
+    if (!loaded) return
+    analysisRef.current.reframe?.abort()
+    const ctrl = new AbortController()
+    analysisRef.current.reframe = ctrl
+    try {
+      const blob = await mainBlob(ctrl.signal, (label, ratio) => setReframeJob({ stage: 'running', label: withPct(label, ratio), ratio }))
+      setReframeJob({ stage: 'running', label: 'ভিডিও বিশ্লেষণ হচ্ছে…', ratio: 0 })
+      const r = await reframeTrack(blob, LIMITS.reframe, ctrl.signal, (ratio) => setReframeJob({ stage: 'running', label: withPct('ভিডিও বিশ্লেষণ হচ্ছে…', ratio), ratio }))
+      if (ctrl.signal.aborted) return
+      if (!r) {
+        setReframeJob({ stage: 'error', message: 'এই ভিডিওটি বিশ্লেষণ করা যায়নি।' })
+        return
+      }
+      set((c) => ({ ...c, fit: 'cover', reframe: { on: true, step: r.step, xs: r.xs, ys: r.ys } }))
+      setReframeJob({ stage: 'done', faces: r.faces })
+    } catch (err) {
+      if (ctrl.signal.aborted || err instanceof AnalysisCancelled) setReframeJob(null)
+      else setReframeJob({ stage: 'error', message: `বিশ্লেষণ করা যায়নি: ${errText(err)}` })
+    } finally {
+      if (analysisRef.current.reframe === ctrl) analysisRef.current.reframe = null
+    }
   }
 
   // ---- "শুনে দেখুন": the exact export soundtrack for 15 s from the playhead ----
@@ -570,6 +683,7 @@ export default function VideoStudio() {
     player.pause()
     try {
       const only = new Set(tl.segments.filter((s) => s.clip && s.t0 < from + seconds && s.t0 + s.dur > from).map((s) => s.clip as ClipKey))
+      if (clipsUsed(tl, cfg).has('pip')) only.add('pip')
       const clips = await collectClips(ctrl.signal, (label, ratio) => setAudition({ stage: 'loading', label: ratio > 0 ? `${label} ${bnNumber(Math.round(ratio * 100))}%` : label }), only)
       if (auditionRef.current !== mine) return
       setAudition({ stage: 'loading', label: 'সাউন্ড তৈরি হচ্ছে…' })
@@ -608,8 +722,9 @@ export default function VideoStudio() {
       // 1 — files
       const clips = await collectClips(signal, (label, ratio) => setJob({ stage: 'download', ratio, label }))
 
-      // 2 — render
+      // 2 — render (the chosen size, then any other sizes asked for)
       playerRef.current?.pause()
+      const others = MULTI_FORMATS.filter((f) => extraFormats.includes(f.id) && Math.abs(f.ratio - L.W / L.H) > 0.02)
       const result = await renderEdit({
         cfg,
         tl,
@@ -618,7 +733,7 @@ export default function VideoStudio() {
         maxBytes: attach ? loaded.maxBytes : null,
         posterAt: tl.mainStart + Math.min(2.5, tl.mainDuration / 3),
         signal,
-        onProgress: (p) => setJob({ stage: 'render', p }),
+        onProgress: (p) => setJob({ stage: 'render', p, part: others.length ? `${bnNumber(L.W)}×${bnNumber(L.H)} (১/${bnNumber(others.length + 1)})` : undefined }),
       })
       const slug = (loaded.video.slug ? decodeURIComponent(loaded.video.slug) : 'meeha-video').slice(0, 60)
       const filename = `${slug}-edit.${result.ext}`
@@ -627,8 +742,43 @@ export default function VideoStudio() {
       const tooLarge = !!loaded.maxBytes && result.blob.size > loaded.maxBytes
       writeJson(STYLE_KEY, styleOnly(cfg))
 
+      const extraBlobs: { info: Extra; blob: Blob; mime: string }[] = []
+      extraUrls.current.forEach((u) => URL.revokeObjectURL(u))
+      extraUrls.current = []
+      for (const [n, f] of others.entries()) {
+        const c2: EditConfig = { ...cfg, format: f.id }
+        const L2 = computeLayout(c2, loaded.main.width, loaded.main.height)
+        const tl2 = buildTimeline(c2, clipDurations())
+        const r2 = await renderEdit({
+          cfg: c2,
+          tl: tl2,
+          env: { ...env, cfg: c2, L: L2, tl: tl2, scratch: makeScratch() },
+          clips,
+          maxBytes: attach ? loaded.maxBytes : null,
+          posterAt: tl2.mainStart + Math.min(2.5, tl2.mainDuration / 3),
+          signal,
+          onProgress: (p) => setJob({ stage: 'render', p, part: `${f.name} (${bnNumber(n + 2)}/${bnNumber(others.length + 1)})` }),
+        })
+        const url = URL.createObjectURL(r2.blob)
+        extraUrls.current.push(url)
+        extraBlobs.push({ info: { format: f.id, name: f.name, url, size: r2.blob.size, filename: `${slug}-${f.id.replace(':', 'x')}.${r2.ext}`, uploaded: false }, blob: r2.blob, mime: r2.mime })
+      }
+      const extras = () => extraBlobs.map((x) => x.info)
+
+      // the designed thumbnail (থাম্বনেইল tab), from the downloaded file so it can be saved
+      let poster = result.poster
+      if (setThumb && cfg.thumb.on && clips.main) {
+        try {
+          const src = thumbSource(cfg, range.start, range.end)
+          const pic = await grabFrame(clips.main, src)
+          poster = (await thumbnailJpeg({ ...env, scratch: makeScratch() }, pic, facePic, src)) ?? poster
+        } catch {
+          // fall back to the plain frame
+        }
+      }
+
       if (!attach || tooLarge) {
-        setJob({ stage: 'done', url: resultUrl.current, size: result.blob.size, attached: false, filename, tooLarge })
+        setJob({ stage: 'done', url: resultUrl.current, size: result.blob.size, attached: false, filename, tooLarge, extras: extras() })
         return
       }
 
@@ -637,9 +787,9 @@ export default function VideoStudio() {
       const up = await MediaApi.uploadVideo(new File([result.blob], filename, { type: result.mime }), (p) => setJob({ stage: 'upload', percent: p.percent }), signal)
       setJob({ stage: 'saving' })
       let thumbId: number | undefined
-      if (setThumb && result.poster) {
+      if (setThumb && poster) {
         try {
-          const t = await MediaApi.upload(new File([result.poster], `${slug}-thumbnail.jpg`, { type: 'image/jpeg' }))
+          const t = await MediaApi.upload(new File([poster], `${slug}-thumbnail.jpg`, { type: 'image/jpeg' }))
           thumbId = t.id
         } catch {
           // the video matters more than its thumbnail
@@ -655,7 +805,19 @@ export default function VideoStudio() {
       })
       writeJson(draftKey(videoId, loaded.originalId), null)
       setLoaded((l) => (l ? { ...l, video: saved, restored: null, initial: cfg } : l))
-      setJob({ stage: 'done', url: resultUrl.current, size: result.blob.size, attached: true, filename, tooLarge: false })
+      // the other sizes go to the media library, ready for YouTube / Facebook / Instagram
+      for (const x of extraBlobs) {
+        if (loaded.maxBytes && x.blob.size > loaded.maxBytes) continue
+        try {
+          setJob({ stage: 'upload', percent: 0, part: x.info.name })
+          await MediaApi.uploadVideo(new File([x.blob], x.info.filename, { type: x.mime }), (p) => setJob({ stage: 'upload', percent: p.percent, part: x.info.name }), signal)
+          x.info.uploaded = true
+        } catch (err) {
+          if (signal.aborted) throw err
+          // still downloadable below
+        }
+      }
+      setJob({ stage: 'done', url: resultUrl.current, size: result.blob.size, attached: true, filename, tooLarge: false, extras: extras() })
     } catch (err) {
       if (err instanceof RenderCancelled || signal.aborted) {
         setJob(null)
@@ -695,6 +857,12 @@ export default function VideoStudio() {
       captions: c.captions,
       cuts: c.cuts,
       blurs: c.blurs,
+      speeds: c.speeds,
+      freezes: c.freezes,
+      stickers: c.stickers,
+      pip: c.pip,
+      reframe: c.reframe,
+      thumb: { ...p.thumb, at: c.thumb.at, title: c.thumb.title, face: c.thumb.face },
       look: { ...p.look, zoom: c.look.zoom, panX: c.look.panX, panY: c.look.panY, rotate: c.look.rotate, flip: c.look.flip },
     }))
     setPresetMenu(false)
@@ -899,7 +1067,20 @@ export default function VideoStudio() {
               data-testid="studio-canvas"
             />
             {tab === 'tools' && selectedBlur !== null && (
-              <BlurOverlay canvas={canvasRef.current} cfg={cfg} L={L} picW={loaded.main.width} picH={loaded.main.height} index={selectedBlur} set={set} />
+              <BlurOverlay canvas={canvasRef.current} cfg={cfg} L={L} picW={loaded.main.width} picH={loaded.main.height} index={selectedBlur} set={set} src={playheadSrc() ?? undefined} />
+            )}
+            {tab === 'fx' && selectedSticker !== null && (
+              <BlurOverlay
+                canvas={canvasRef.current}
+                cfg={cfg}
+                L={L}
+                picW={loaded.main.width}
+                picH={loaded.main.height}
+                index={selectedSticker}
+                set={set}
+                target="sticker"
+                src={playheadSrc() ?? undefined}
+              />
             )}
           </div>
           <div className="flex items-center gap-2 mt-3">
@@ -925,8 +1106,31 @@ export default function VideoStudio() {
             </span>
           </div>
           <div className="mt-3">
-            <StudioTimeline tl={tl} cfg={cfg} time={pstate.time} onSeek={(t) => playerRef.current?.seek(t)} />
+            <StudioTimeline tl={tl} cfg={cfg} time={pstate.time} onSeek={(t) => playerRef.current?.seek(t)} wave={wave} />
           </div>
+          {!wave && (
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              {waveJob && 'ratio' in waveJob ? (
+                <>
+                  <span className="text-[11.5px] text-neutral-500">{waveJob.label}</span>
+                  <button type="button" onClick={() => analysisRef.current.wave?.abort()} className="text-[11.5px] px-2 py-1 rounded-md bg-neutral-100">
+                    বাতিল
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={loadWave}
+                  data-testid="load-wave"
+                  className="inline-flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.5 rounded-lg bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+                >
+                  <IconWaveSine className="w-4 h-4" />
+                  টাইমলাইনে শব্দের ঢেউ দেখান
+                </button>
+              )}
+              {waveJob && 'error' in waveJob && <span className="text-[11.5px] text-red-700">{waveJob.error}</span>}
+            </div>
+          )}
           <p className="mt-2 text-[11.5px] text-neutral-400">
             স্পেসবার = চালান/থামান · ← → এক সেকেন্ড (Shift: পাঁচ) · , . এক ফ্রেম · প্রিভিউ যা দেখাচ্ছে, রেন্ডারে ঠিক তা-ই হবে।
           </p>
@@ -934,7 +1138,7 @@ export default function VideoStudio() {
 
         {/* panels */}
         <Card className="overflow-hidden">
-          <div className="flex overflow-x-auto border-b border-neutral-100 px-2" role="tablist">
+          <div className="grid grid-cols-5 border-b border-neutral-100 px-1" role="tablist">
             {TABS.map((t) => (
               <button
                 key={t.id}
@@ -942,7 +1146,7 @@ export default function VideoStudio() {
                 aria-selected={tab === t.id}
                 onClick={() => setTab(t.id)}
                 data-testid={`tab-${t.id}`}
-                className={`flex flex-col items-center gap-0.5 px-2.5 py-2.5 text-[11.5px] font-medium whitespace-nowrap border-b-2 -mb-px ${
+                className={`flex flex-col items-center gap-0.5 px-1 py-2 text-[11.5px] font-medium whitespace-nowrap border-b-2 ${
                   tab === t.id ? 'border-brand-600 text-brand-700' : 'border-transparent text-neutral-500 hover:text-neutral-700'
                 }`}
               >
@@ -953,7 +1157,7 @@ export default function VideoStudio() {
           </div>
           <div className="p-4 max-h-none lg:max-h-[calc(100vh-180px)] lg:overflow-y-auto">
             {tab === 'frame' && (
-              <FramePanel cfg={cfg} set={set} postTitle={postTitle} thumb={thumb} thumbRatio={thumbRatio} thumbKey={thumbKey} onPickAdImage={() => setImagePicker(true)} />
+              <FramePanel cfg={cfg} set={set} postTitle={postTitle} thumb={thumb} thumbRatio={thumbRatio} thumbKey={thumbKey} onPickAdImage={() => setImagePicker('ad')} />
             )}
             {tab === 'logo' && <LogoPanel cfg={cfg} set={set} customLogo={!!kit?.logo} />}
             {tab === 'intro' && (
@@ -965,7 +1169,21 @@ export default function VideoStudio() {
             {tab === 'tools' && (
               <ToolsPanel cfg={cfg} set={set} range={range} playhead={playheadSrc} selectedBlur={selectedBlur} onSelectBlur={setSelectedBlur} />
             )}
-            {tab === 'captions' && <CaptionsPanel cfg={cfg} set={set} range={range} playhead={playheadSrc} defaultName={loaded.video.author.name} />}
+            {tab === 'fx' && (
+              <EffectsPanel
+                cfg={cfg}
+                set={set}
+                range={range}
+                playhead={playheadSrc}
+                selectedSticker={selectedSticker}
+                onSelectSticker={setSelectedSticker}
+                onPickPip={() => setPicker({ kind: 'pip' })}
+              />
+            )}
+            {tab === 'thumb' && (
+              <ThumbPanel cfg={cfg} set={set} env={thumbEnv ?? env} mainUrl={loaded.mainUrl} range={range} playhead={playheadSrc} face={facePic} onPickFace={() => setImagePicker('face')} />
+            )}
+            {tab === 'captions' && <CaptionsPanel cfg={cfg} set={set} range={range} playhead={playheadSrc} defaultName={loaded.video.author.name} kit={kit} onKit={setKit} />}
             {tab === 'layout' && (
               <LayoutPanel
                 cfg={cfg}
@@ -973,6 +1191,9 @@ export default function VideoStudio() {
                 srcDuration={loaded.main.duration}
                 playhead={playheadSrc}
                 outputSize={`${bnNumber(L.W)}×${bnNumber(L.H)} · ${bnDuration(tl.duration) || bnClock(tl.duration)}`}
+                reframe={reframeJob}
+                onReframe={runReframe}
+                onCancelReframe={() => analysisRef.current.reframe?.abort()}
               />
             )}
             {tab === 'sound' && (
@@ -1003,7 +1224,9 @@ export default function VideoStudio() {
 
       {picker && (
         <VideoLibraryPicker
-          title={picker.kind === 'intro' ? 'ইন্ট্রো ভিডিও বেছে নিন' : picker.kind === 'outro' ? 'আউট্রো ভিডিও বেছে নিন' : 'বিজ্ঞাপন ভিডিও বেছে নিন'}
+          title={
+            picker.kind === 'intro' ? 'ইন্ট্রো ভিডিও বেছে নিন' : picker.kind === 'outro' ? 'আউট্রো ভিডিও বেছে নিন' : picker.kind === 'pip' ? 'দ্বিতীয় ভিডিও বেছে নিন' : 'বিজ্ঞাপন ভিডিও বেছে নিন'
+          }
           adsFirst={picker.kind === 'ad-add' || picker.kind === 'ad-replace'}
           onClose={() => setPicker(null)}
           onSelect={(v) => {
@@ -1011,6 +1234,15 @@ export default function VideoStudio() {
             if (picker.kind === 'ad-add') addAd(v)
             else if (picker.kind === 'ad-replace') addAd(v, picker.index)
             else if (picker.kind === 'intro') set((c) => ({ ...c, intro: { ...c.intro, id: 'custom', clip: ref } }))
+            else if (picker.kind === 'pip') {
+              const at = Math.round((playheadSrc() ?? range.start) * 10) / 10
+              set((c) => ({
+                ...c,
+                pip: c.pip
+                  ? { ...c.pip, clip: ref }
+                  : { clip: ref, layout: 'pip', corner: 'br', size: 0.36, at, dur: null, sound: 'main', label: '', mainLabel: '' },
+              }))
+            }
             else set((c) => ({ ...c, outro: { ...c.outro, id: 'custom', clip: ref } }))
             setPicker(null)
           }}
@@ -1018,11 +1250,13 @@ export default function VideoStudio() {
       )}
       {imagePicker && (
         <MediaGallery
-          title="ফুটারের বিজ্ঞাপন ব্যানার — গ্যালারি থেকে বেছে নিন"
-          onClose={() => setImagePicker(false)}
+          title={imagePicker === 'face' ? 'থাম্বনেইলের মুখের ছবি — গ্যালারি থেকে বেছে নিন' : 'ফুটারের বিজ্ঞাপন ব্যানার — গ্যালারি থেকে বেছে নিন'}
+          onClose={() => setImagePicker(null)}
           onSelect={(img: LibraryImage) => {
-            set((c) => ({ ...c, frame: { ...c.frame, footer: 'ad-image', adImage: { id: img.id, url: img.url, title: img.title } } }))
-            setImagePicker(false)
+            const ref = { id: img.id, url: img.url, title: img.title }
+            if (imagePicker === 'face') set((c) => ({ ...c, thumb: { ...c.thumb, on: true, face: ref } }))
+            else set((c) => ({ ...c, frame: { ...c.frame, footer: 'ad-image', adImage: ref } }))
+            setImagePicker(null)
           }}
         />
       )}
@@ -1035,6 +1269,10 @@ export default function VideoStudio() {
           onSetThumb={setSetThumb}
           duration={tl.duration}
           size={`${bnNumber(L.W)}×${bnNumber(L.H)}`}
+          multi={MULTI_FORMATS.filter((f) => Math.abs(f.ratio - L.W / L.H) > 0.02)}
+          extra={extraFormats}
+          setExtra={setExtraFormats}
+          designedThumb={cfg.thumb.on}
           onStart={startRender}
           onCancel={() => abortRef.current?.abort()}
           onClose={() => setJob(null)}
@@ -1044,6 +1282,8 @@ export default function VideoStudio() {
     </div>
   )
 }
+
+const attachLabel = (attach: boolean) => (attach ? 'মূলটি পোস্টে বসবে, বাকিগুলো মিডিয়া লাইব্রেরিতে যাবে ও ডাউনলোড করা যাবে।' : 'সবগুলো ডাউনলোড করা যাবে।')
 
 function BackLink({ id }: { id: number }) {
   return (
@@ -1062,6 +1302,10 @@ function RenderDialog({
   onSetThumb,
   duration,
   size,
+  multi,
+  extra,
+  setExtra,
+  designedThumb,
   onStart,
   onCancel,
   onClose,
@@ -1074,6 +1318,10 @@ function RenderDialog({
   onSetThumb: (v: boolean) => void
   duration: number
   size: string
+  multi: { id: FormatId; name: string }[]
+  extra: FormatId[]
+  setExtra: (v: FormatId[]) => void
+  designedThumb: boolean
   onStart: () => void
   onCancel: () => void
   onClose: () => void
@@ -1114,9 +1362,31 @@ function RenderDialog({
                 <input type="checkbox" checked={setThumb} onChange={(e) => onSetThumb(e.target.checked)} className="mt-1 accent-[#b91c1c]" />
                 <span>
                   <span className="block text-[13.5px] text-neutral-800">থাম্বনেইলও নতুন করুন</span>
-                  <span className="block text-[11.5px] text-neutral-400">ফ্রেমসহ সংবাদের একটি দৃশ্য থাম্বনেইল হবে।</span>
+                  <span className="block text-[11.5px] text-neutral-400">
+                    {designedThumb ? '“থাম্বনেইল” ট্যাবের ডিজাইন করা থাম্বনেইল বসবে।' : 'ফ্রেমসহ সংবাদের একটি দৃশ্য থাম্বনেইল হবে।'}
+                  </span>
                 </span>
               </label>
+            )}
+            {multi.length > 0 && (
+              <div className="mt-2 rounded-xl border border-neutral-200 p-3" data-testid="multi-format">
+                <p className="text-[13px] font-medium text-neutral-800">একসাথে আরও মাপে তৈরি করুন</p>
+                <p className="text-[11.5px] text-neutral-400 mb-1.5">
+                  একই এডিট অন্য মাপে — {attachLabel(attach)} প্রতিটি মাপে আলাদা সময় লাগবে।
+                </p>
+                {multi.map((f) => (
+                  <label key={f.id} className="flex items-center gap-2.5 py-1">
+                    <input
+                      type="checkbox"
+                      checked={extra.includes(f.id)}
+                      onChange={(e) => setExtra(e.target.checked ? [...extra, f.id] : extra.filter((x) => x !== f.id))}
+                      className="accent-[#b91c1c]"
+                      data-testid={`multi-${f.id}`}
+                    />
+                    <span className="text-[13px] text-neutral-700">{f.name}</span>
+                  </label>
+                ))}
+              </div>
             )}
             <div className="flex gap-2 mt-4">
               <Button className="flex-1" onClick={onStart}>
@@ -1139,7 +1409,8 @@ function RenderDialog({
         {job.stage === 'render' && (
           <>
             <p className="text-[13px] text-neutral-700 mb-2">
-              {job.p.stage === 'prepare' ? 'প্রস্তুত হচ্ছে…' : job.p.stage === 'finish' ? 'ফাইল তৈরি শেষ হচ্ছে…' : `রেন্ডার হচ্ছে — ${bnClock(job.p.done)} / ${bnClock(job.p.total)}`}
+              {job.part ? `${job.part} · ` : ''}
+              {job.p.stage === 'prepare' ? 'প্রস্তুত হচ্ছে…' : job.p.stage === 'loudness' ? 'শব্দের মাত্রা মাপা হচ্ছে…' : job.p.stage === 'finish' ? 'ফাইল তৈরি শেষ হচ্ছে…' : `রেন্ডার হচ্ছে — ${bnClock(job.p.done)} / ${bnClock(job.p.total)}`}
             </p>
             {bar(job.p.ratio)}
             <p className="text-[11.5px] text-neutral-400 mt-1.5">
@@ -1150,7 +1421,10 @@ function RenderDialog({
         )}
         {job.stage === 'upload' && (
           <>
-            <p className="text-[13px] text-neutral-700 mb-2">{job.percent >= 100 ? 'সার্ভারে প্রসেস হচ্ছে…' : 'আপলোড হচ্ছে…'}</p>
+            <p className="text-[13px] text-neutral-700 mb-2">
+              {job.part ? `${job.part} · ` : ''}
+              {job.percent >= 100 ? 'সার্ভারে প্রসেস হচ্ছে…' : 'আপলোড হচ্ছে…'}
+            </p>
             {bar(job.percent / 100)}
             <p className="text-[11.5px] text-neutral-400 mt-1.5">{bnNumber(job.percent)}%</p>
           </>
@@ -1173,6 +1447,25 @@ function RenderDialog({
               <p className="text-[13px] text-amber-800 mb-3">ফাইলটি ({bnFileSize(job.size)}) সার্ভারের আপলোড সীমার চেয়ে বড় — “আকার ও শব্দ” থেকে ৭২০p বেছে আবার রেন্ডার করুন, অথবা ডাউনলোড করে নিন।</p>
             ) : (
               <p className="text-[13px] text-neutral-700 mb-3">ভিডিও তৈরি হয়েছে ({bnFileSize(job.size)})।</p>
+            )}
+            {job.extras.length > 0 && (
+              <div className="mb-3 rounded-xl border border-neutral-200 divide-y divide-neutral-100" data-testid="extra-results">
+                {job.extras.map((x) => (
+                  <div key={x.format} className="flex items-center justify-between gap-2 px-3 py-2">
+                    <span className="min-w-0">
+                      <span className="block text-[13px] text-neutral-800">{x.name}</span>
+                      <span className="block text-[11px] text-neutral-400">
+                        {bnFileSize(x.size)}
+                        {x.uploaded ? ' · মিডিয়া লাইব্রেরিতে রাখা হয়েছে' : ''}
+                      </span>
+                    </span>
+                    <a href={x.url} download={x.filename} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-brand-700 shrink-0">
+                      <IconDownload className="w-4 h-4" />
+                      ডাউনলোড
+                    </a>
+                  </div>
+                ))}
+              </div>
             )}
             <div className="flex gap-2 flex-wrap">
               <a href={job.url} download={job.filename} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-neutral-100 text-neutral-800 text-[13.5px] font-semibold hover:bg-neutral-200">

@@ -33,12 +33,13 @@ import type { EditConfig } from './config'
 import { drawOutputFrame, sfxCues, type DrawEnv, type Picture } from './draw'
 import { denoisedReader, mixWindow, newMixState, SAMPLE_RATE, type AudioReader } from './audio'
 import { musicBuffer } from './music'
-import type { ClipKey, Timeline } from './timeline'
+import { LoudnessMeter, normalizeGain } from './loudness'
+import { clipsUsed, pipActive, pipClipTime, segSource, type ClipKey, type Timeline } from './timeline'
 
 export const FPS = 30
 
 export interface RenderProgress {
-  stage: 'prepare' | 'render' | 'finish'
+  stage: 'prepare' | 'loudness' | 'render' | 'finish'
   /** 0..1 of the render stage. */
   ratio: number
   /** Output seconds done. */
@@ -176,7 +177,7 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
   // --- inputs ---
   const io: Partial<Record<ClipKey, ClipIO>> = {}
   let outputRef: Output | null = null
-  const used = new Set(tl.segments.map((s) => s.clip).filter(Boolean) as ClipKey[])
+  const used = clipsUsed(tl, cfg)
   try {
     for (const key of used) {
       const blob = job.clips[key]
@@ -210,9 +211,24 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
     await output.start()
     outputRef = output
 
-    const readers = audioReaders(io, used, cfg)
     const cues = sfxCues(tl, cfg)
-    const mix = newMixState(cfg.audio.music !== 'none' ? await musicBuffer(cfg.audio.music) : null)
+    const music = cfg.audio.music !== 'none' ? await musicBuffer(cfg.audio.music) : null
+    let gain = 1
+    if (cfg.audio.loudness !== 'off') {
+      // first pass: measure the finished mix, then play it again at the target
+      const meter = new LoudnessMeter()
+      const probe = newMixState(music)
+      const pre = audioReaders(io, used, cfg)
+      for (let a = 0; a < total - 1e-6; a += 2) {
+        check()
+        const buf = await mixWindow(tl, cfg, pre, cues, a, Math.min(total, a + 2), probe)
+        meter.feed(buf.getChannelData(0), buf.getChannelData(1))
+        job.onProgress?.({ stage: 'loudness', ratio: Math.min(1, (a + 2) / total), done: a, total, eta: null })
+      }
+      gain = normalizeGain(meter.integrated(), Number(cfg.audio.loudness))
+    }
+    const readers = audioReaders(io, used, cfg)
+    const mix = newMixState(music, gain, cfg.audio.loudness !== 'off')
 
     const frameCount = Math.max(1, Math.round(total * FPS))
     const AUDIO_WIN = 2
@@ -245,21 +261,40 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
       while (j < frameCount && frameSeg[j] === frameSeg[i]) j++
       const clip = seg.clip ? io[seg.clip] : undefined
       const times: number[] = []
-      for (let f = i; f < j; f++) times.push(Math.max(0, seg.clipStart + (f / FPS - seg.t0)))
+      // a held frame decodes its one picture once
+      if (seg.rate === 0) times.push(seg.clipStart)
+      else for (let f = i; f < j; f++) times.push(Math.max(0, segSource(seg, f / FPS - seg.t0)))
       const pics = clip?.sink ? clip.sink.canvasesAtTimestamps(times) : null
       let last: Picture | null = null
+      // the second video, for the frames where it shows
+      const pipOn: boolean[] = []
+      const pipTimes: number[] = []
+      if (seg.kind === 'main' && io.pip?.sink) {
+        for (let f = i; f < j; f++) {
+          const on = pipActive(cfg, segSource(seg, f / FPS - seg.t0))
+          pipOn.push(on)
+          if (on) pipTimes.push(pipClipTime(tl, cfg, f / FPS))
+        }
+      }
+      const pips = pipTimes.length ? io.pip!.sink!.canvasesAtTimestamps(pipTimes) : null
+      let lastPip: Picture | null = null
       try {
         for (let f = i; f < j; f++) {
           check()
           const T = f / FPS
           let pic: Picture | null = null
-          if (pics) {
+          if (pics && (seg.rate !== 0 || !last)) {
             const r = await pics.next()
             const wc: WrappedCanvas | null = r.done ? null : r.value
             pic = wc ? { src: wc.canvas as CanvasImageSource, w: wc.canvas.width, h: wc.canvas.height } : last
             last = pic
+          } else if (pics) pic = last
+          if (pips && pipOn[f - i]) {
+            const r = await pips.next()
+            const wc: WrappedCanvas | null = r.done ? null : r.value
+            if (wc) lastPip = { src: wc.canvas as CanvasImageSource, w: wc.canvas.width, h: wc.canvas.height }
           }
-          drawOutputFrame(ctx, env, seg, T, pic)
+          drawOutputFrame(ctx, env, seg, T, pic, lastPip)
           if (!poster && !posterPending && T >= job.posterAt) {
             posterPending = new Promise<void>((resolve) =>
               canvas.toBlob(
@@ -282,6 +317,7 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
         }
       } finally {
         await pics?.return(undefined)
+        await pips?.return(undefined)
       }
       i = j
     }
@@ -331,6 +367,7 @@ export async function renderAudioPreview(cfg: EditConfig, tl: Timeline, clips: P
   const t0 = Math.max(0, Math.min(from, tl.duration - 0.5))
   const t1 = Math.min(tl.duration, t0 + seconds)
   const used = new Set(tl.segments.filter((s) => s.clip && s.t0 < t1 && s.t0 + s.dur > t0).map((s) => s.clip as ClipKey))
+  if (clipsUsed(tl, cfg).has('pip')) used.add('pip')
   const io: Partial<Record<ClipKey, { input: Input; audio: AudioReader | null }>> = {}
   try {
     for (const k of used) {
@@ -345,23 +382,31 @@ export async function renderAudioPreview(cfg: EditConfig, tl: Timeline, clips: P
       }
       io[k] = { input, audio }
     }
-    const readers = audioReaders(io, used, cfg)
     const cues = sfxCues(tl, cfg)
-    const mix = newMixState(cfg.audio.music !== 'none' ? await musicBuffer(cfg.audio.music) : null)
+    const music = cfg.audio.music !== 'none' ? await musicBuffer(cfg.audio.music) : null
     const frames = Math.max(1, Math.round((t1 - t0) * SAMPLE_RATE))
-    const out = new AudioBuffer({ numberOfChannels: 2, length: frames, sampleRate: SAMPLE_RATE })
-    let at = t0
-    let pos = 0
-    while (at < t1 - 1e-6) {
-      if (signal?.aborted) throw new RenderCancelled()
-      const b = Math.min(t1, at + 2)
-      const buf = await mixWindow(tl, cfg, readers, cues, at, b, mix)
-      const n = Math.min(buf.length, frames - pos)
-      for (let c = 0; c < 2; c++) out.copyToChannel(buf.getChannelData(c).subarray(0, n), c, pos)
-      pos += n
-      at = b
+    const pass = async (mix: ReturnType<typeof newMixState>, meter: LoudnessMeter | null) => {
+      const readers = audioReaders(io, used, cfg)
+      const out = new AudioBuffer({ numberOfChannels: 2, length: frames, sampleRate: SAMPLE_RATE })
+      let at = t0
+      let pos = 0
+      while (at < t1 - 1e-6) {
+        if (signal?.aborted) throw new RenderCancelled()
+        const b = Math.min(t1, at + 2)
+        const buf = await mixWindow(tl, cfg, readers, cues, at, b, mix)
+        meter?.feed(buf.getChannelData(0), buf.getChannelData(1))
+        const n = Math.min(buf.length, frames - pos)
+        for (let c = 0; c < 2; c++) out.copyToChannel(buf.getChannelData(c).subarray(0, n), c, pos)
+        pos += n
+        at = b
+      }
+      return out
     }
-    return out
+    if (cfg.audio.loudness === 'off') return pass(newMixState(music), null)
+    // the export measures the whole video; this preview measures its own 15 s
+    const meter = new LoudnessMeter()
+    await pass(newMixState(music), meter)
+    return pass(newMixState(music, normalizeGain(meter.integrated(), Number(cfg.audio.loudness)), true), null)
   } finally {
     for (const k of Object.keys(io) as ClipKey[]) io[k]?.input.dispose()
   }
