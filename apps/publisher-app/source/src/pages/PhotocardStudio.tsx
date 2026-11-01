@@ -28,7 +28,23 @@ import {
   type PhotocardKit,
   type StudioConfig,
 } from '../lib/api'
-import { loadCards, type MeehaCardsApi } from '../lib/photocard/cards'
+import { loadCards, type CardCanvas, type MeehaCardsApi } from '../lib/photocard/cards'
+import { adDescriptor } from '../lib/photocard/adMedia'
+import {
+  BORDERS,
+  DEFAULT_STYLE,
+  loadMine,
+  makeLayer,
+  newId,
+  saveMine,
+  type AdChoice,
+  type AdPos,
+  type CardStyle,
+  type Layer,
+  type LayerKind,
+  type MyPreset,
+  type StylePreset,
+} from '../lib/photocard/style'
 import { imageById, imageByUrl, imageFromFile, loadImageElement } from '../lib/photocard/images'
 import { applyLook, NO_LOOK } from '../lib/photocard/look'
 import { smartFocus } from '../lib/photocard/smartFocus'
@@ -49,7 +65,7 @@ import {
 } from '../lib/photocard/types'
 import { makeZip, saveBlob } from '../lib/photocard/zip'
 import { Banner, Card, ErrorRetry, PageHeader, Spinner, bnNumber, inputClass } from '../components/ui'
-import { IconClipboard, IconCopy, IconDeviceFloppy, IconDownload, IconFileZip, IconShare } from '../components/Icon'
+import { IconClipboard, IconCopy, IconDeviceFloppy, IconDownload, IconFileZip, IconRedo, IconShare, IconUndo } from '../components/Icon'
 import MediaGallery from '../components/MediaGallery'
 import PostPicker from '../components/photocard/PostPicker'
 import PhotoPanel, { type PhotoItem } from '../components/photocard/PhotoPanel'
@@ -57,6 +73,10 @@ import DesignGrid, { type DesignRow } from '../components/photocard/DesignGrid'
 import CardPreview from '../components/photocard/CardPreview'
 import QuotePicker from '../components/photocard/QuotePicker'
 import MadeCards from '../components/photocard/MadeCards'
+import StylePanel from '../components/photocard/StylePanel'
+import LayerPanel from '../components/photocard/LayerPanel'
+import AdPanel, { AdGallery } from '../components/photocard/AdPanel'
+import { useHouseThumbs } from '../lib/photocard/houseAds'
 
 /** Designs added in theme 2.4.3: offered even when the site still runs 2.4.2. */
 const NEW_PRESETS: Partial<Record<CardType, string[]>> = { news: ['collage', 'chobi'] }
@@ -71,6 +91,10 @@ const PHOTO_NOTE: Partial<Record<CardType, string>> = {
 }
 
 type FrameText = { ink: string; pos: string; hide: Record<string, boolean> }
+/** Round 25: a card type's own look — style and layers (undo/redo works on these and the design). */
+type Look = { style: CardStyle; layers: Layer[] }
+type Snap = { looks: Partial<Record<CardType, Look>>; design: Partial<Record<CardType, string>> }
+const EMPTY_LOOK: Look = { style: DEFAULT_STYLE, layers: [] }
 type Status = { kind: 'ok' | 'err' | 'info'; text: string } | null
 
 /** A config built from the renderer alone (another theme, or an older plugin). */
@@ -157,7 +181,7 @@ export default function PhotocardStudio() {
   const [hijri, setHijri] = useState(0)
   const [frameText, setFrameText] = useState<Record<string, FrameText>>({})
   const [focusSync, setFocusSync] = useState(true)
-  const [card, setCard] = useState<HTMLCanvasElement | null>(null)
+  const [card, setCard] = useState<CardCanvas | null>(null)
   const [renderBusy, setRenderBusy] = useState(false)
   const [renderErr, setRenderErr] = useState('')
   const [madeRefresh, setMadeRefresh] = useState(0)
@@ -166,6 +190,18 @@ export default function PhotocardStudio() {
   const [smartNote, setSmartNote] = useState('')
   const [working, setWorking] = useState('')
   const dragging = useRef(false)
+  // round 25
+  const [looks, setLooks] = useState<Partial<Record<CardType, Look>>>({})
+  const [selLayer, setSelLayer] = useState<string | null>(null)
+  const [mine, setMine] = useState<MyPreset[]>(() => loadMine())
+  const [adPos, setAdPos] = useState<AdPos>('bottom')
+  const [adBottom, setAdBottom] = useState<AdChoice | null>(null)
+  const [adTop, setAdTop] = useState<AdChoice | null>(null)
+  const [adPick, setAdPick] = useState<null | 'bottom' | 'top'>(null)
+  const hist = useRef<{ past: Snap[]; future: Snap[]; key: string; t: number }>({ past: [], future: [], key: '', t: 0 })
+  const [, setHistTick] = useState(0)
+  const snapRef = useRef<Snap>({ looks, design })
+  snapRef.current = { looks, design }
 
   // ---------------------------------------------------------------- boot
   useEffect(() => {
@@ -188,6 +224,7 @@ export default function PhotocardStudio() {
           ...(c?.cta !== undefined ? { cta: c.cta } : {}),
           ...(c?.storyCta !== undefined ? { storyCta: c.storyCta } : {}),
           ...(c?.newsDefault ? { newsDefault: c.newsDefault } : {}),
+          ...(k.house ? { social: k.house.social, campus: k.house.campus } : {}),
         })
         const cfg = k.studio_config || fallbackConfig(mc)
         setKit(k)
@@ -195,6 +232,9 @@ export default function PhotocardStudio() {
         setFields(initialFields(cfg))
         setAdOn(!!cfg.adDefault && cfg.ads.length > 0)
         setAdId(cfg.ads[0]?.id || '')
+        const a0 = cfg.ads[0]
+        setAdBottom(a0 ? { kind: 'theme', id: a0.id, label: a0.label, url: a0.url } : mc.houseAds?.social ? { kind: 'house', key: 'social', label: mc.houseAds.social } : null)
+        setAdTop(mc.houseAds?.shikkha ? { kind: 'house', key: 'shikkha', label: mc.houseAds.shikkha } : null)
         const cta = c?.cta ?? 'বিস্তারিত কমেন্টে'
         setCtaText(cta || 'বিস্তারিত কমেন্টে')
         setCtaOn(cta.trim() !== '')
@@ -293,14 +333,20 @@ export default function PhotocardStudio() {
     if (!cfg || !MC) return []
     const presets: Record<string, string> = { ...(cfg.types[type]?.presets || {}) }
     for (const id of NEW_PRESETS[type] || []) if (!presets[id] && MC.templates[type]?.presets[id]) presets[id] = MC.templates[type].presets[id]
+    // Round 25: the blue set comes with the renderer, even when the site's theme is older.
+    for (const [id, label] of Object.entries(MC.templates[type]?.presets || {})) if (!presets[id] && MC.isNil?.(id)) presets[id] = label
     const out: DesignRow[] = Object.entries(presets).map(([p, label]) => ({
       key: `b:${p}`,
       label,
       isNew: (NEW_PRESETS[type] || []).includes(p),
       tag: MC.isDeco(type, p) ? 'রেডিমেড' : undefined,
+      group: MC.groupOf ? MC.groupOf(type, p) : undefined,
     }))
+    // the common section opens with the new blue designs first
+    const rank = (r: DesignRow) => (r.group === 'common' ? (MC.isNil?.(r.key.slice(2)) ? 0 : 1) : 2)
+    out.sort((a, b) => rank(a) - rank(b))
     for (const f of cfg.frames) {
-      if (f.type === type && f.size === size) out.push({ key: `c:${f.id}`, label: f.label, tag: f.readymade ? 'রেডিমেড' : 'নিজের', canDelete: f.can_delete })
+      if (f.type === type && f.size === size) out.push({ key: `c:${f.id}`, label: f.label, tag: f.readymade ? 'রেডিমেড' : 'নিজের', canDelete: f.can_delete, group: f.readymade ? 'readymade' : 'own' })
     }
     return out
   }, [cfg, MC, type, size])
@@ -337,7 +383,10 @@ export default function PhotocardStudio() {
   const solo = !!(MC && curFrame && MC.isStandalone(type))
   const ft: FrameText = frameText[type] || { ink: 'auto', pos: 'bottom', hide: {} }
   const preset = designKey.startsWith('b:') ? designKey.slice(2) : ''
-  const collage = type === 'news' && preset === 'collage'
+  const collageNeed = preset ? (MC?.collageNeed ? MC.collageNeed(type, preset) : type === 'news' && preset === 'collage' ? 4 : 0) : 0
+  const collage = collageNeed > 0
+  const look = looks[type] || EMPTY_LOOK
+  const isNilDesign = !!(preset && MC?.isNil?.(preset))
 
   // Why the ad strip can't go on this card (empty = it can).
   const adWhy = (() => {
@@ -345,7 +394,7 @@ export default function PhotocardStudio() {
     if (!typeInfo.ad) return 'শোক কার্ডে বিজ্ঞাপন স্ট্রিপ বসে না।'
     if (type === 'day' && !solo && dayTheme === 'matribhasha') return 'শহীদ দিবসের কার্ডে বিজ্ঞাপন স্ট্রিপ বসে না।'
     if (size === '1200x630') return 'লিংক (১২০০ × ৬৩০) মাপে বিজ্ঞাপন স্ট্রিপ নেই।'
-    if (!cfg.ads.length) return 'কোনো বিজ্ঞাপন স্ট্রিপ সেট করা নেই — মিহা থিম › বিজ্ঞাপন (card_strip) থেকে যোগ করুন।'
+    if (!cfg.ads.length && !MC?.houseAds) return 'কোনো বিজ্ঞাপন স্ট্রিপ সেট করা নেই — মিহা থিম › বিজ্ঞাপন (card_strip) থেকে যোগ করুন।'
     return ''
   })()
 
@@ -363,8 +412,10 @@ export default function PhotocardStudio() {
       if (!cfg || !MC) throw new Error('studio not ready')
       const info = cfg.types[t]
       const ph = info?.photo ? await resolvePhoto(override !== undefined ? override : photos.find((p) => p.key === (photoSel[t] ?? null)) || null) : null
+      const pKey = key.startsWith('b:') ? key.slice(2) : ''
+      const need = pKey && MC.collageNeed ? MC.collageNeed(t, pKey) : 0
       const galleryItems = t === 'news' ? galleryKeys.map((k) => photos.find((p) => p.key === k)).filter((p): p is PhotoItem => !!p && p.key !== (override?.key ?? photoSel[t])) : []
-      const gallery = (await Promise.all(galleryItems.slice(0, 3).map(resolvePhoto))).filter((g): g is PhotoInput => !!g)
+      const gallery = (await Promise.all(galleryItems.slice(0, need > 1 ? need - 1 : 3).map(resolvePhoto))).filter((g): g is PhotoInput => !!g)
       const postPhotos = photos.filter((p) => p.fromPost).length
       const o: Record<string, unknown> = { size: sz }
       let tKey = key
@@ -384,10 +435,38 @@ export default function PhotocardStudio() {
       }
       if (tKey.startsWith('b:')) o.preset = tKey.slice(2)
       const breakingVariant = t === 'breaking' ? String(o.preset || 'breaking') : 'breaking'
-      if (adOn && info?.ad && sz !== '1200x630' && cfg.ads.length) {
-        const ad = cfg.ads.find((a) => a.id === adId) || cfg.ads[0]
-        const u = ad ? await imageByUrl(ad.url) : null
-        o.ad = u ? { url: u } : true
+      if (adOn && info?.ad && sz !== '1200x630' && (cfg.ads.length || MC.houseAds)) {
+        if (MC.houseAds) {
+          const [bot, top] = await Promise.all([adPos !== 'top' ? adDescriptor(adBottom) : null, adPos !== 'bottom' ? adDescriptor(adTop) : null])
+          o.adPos = adPos
+          o.ad = adPos === 'top' ? top : bot
+          if (top) o.adTop = top
+        } else {
+          const ad = cfg.ads.find((a) => a.id === adId) || cfg.ads[0]
+          const u = ad ? await imageByUrl(ad.url) : null
+          o.ad = u ? { url: u } : true
+        }
+      }
+      // Round 25: the card's own style and layers
+      const lk = looks[t] || EMPTY_LOOK
+      const st = lk.style
+      if (st.palette !== 'auto') o.palette = st.palette
+      if (st.hiStyle !== 'text') o.hiStyle = st.hiStyle
+      if (st.titleScale !== 1) o.titleScale = st.titleScale
+      if (st.logoPos !== 'auto') o.logoPos = st.logoPos
+      if (st.logoScale !== 1) o.logoScale = st.logoScale
+      if (st.logoStyle !== 'auto') o.logoStyle = st.logoStyle
+      if (st.border !== 'none') o.border = BORDERS[st.border]
+      if (st.credit.trim() && ph) o.credit = st.credit.trim()
+      if (lk.layers.length) {
+        o.layers = await Promise.all(
+          lk.layers.map(async (l) => {
+            if (l.t !== 'inset') return l
+            const src = photos.find((p) => p.key === l.photoKey)
+            const r = src ? await resolvePhoto(src) : null
+            return { ...l, img: r?.image || '' }
+          }),
+        )
       }
       const data = buildData(t, fields[t], {
         photo: ph,
@@ -405,7 +484,7 @@ export default function PhotocardStudio() {
       })
       return { data, opts: o }
     },
-    [cfg, MC, photos, photoSel, galleryKeys, framePreset, frameText, adOn, adId, fields, dates, dayTheme, quoteFrame, authorPhoto, speakerPhoto, ctaOn, ctaText, storyCta, resolvePhoto],
+    [cfg, MC, photos, photoSel, galleryKeys, framePreset, frameText, adOn, adId, adPos, adBottom, adTop, looks, fields, dates, dayTheme, quoteFrame, authorPhoto, speakerPhoto, ctaOn, ctaText, storyCta, resolvePhoto],
   )
 
   const renderCard = useCallback(
@@ -442,8 +521,10 @@ export default function PhotocardStudio() {
   // Thumbnails redraw when the words / photo change (not while dragging).
   const thumbVersion = useMemo(() => {
     const f = fields[type]
-    return JSON.stringify([size, photo?.key, photo?.look, Math.round((photo?.focus.x || 0) / 5), Math.round((photo?.focus.y || 0) / 5), photo?.zoom, f, galleryKeys, adOn, quoteFrame, dayTheme, authorPhoto, speakerPhoto, ctaOn && ctaText])
-  }, [fields, type, size, photo, galleryKeys, adOn, quoteFrame, dayTheme, authorPhoto, speakerPhoto, ctaOn, ctaText])
+    const lk = looks[type] || EMPTY_LOOK
+    const lay = lk.layers.map((l) => [l.t, l.s, l.text, l.hidden, Math.round(l.x / 5), Math.round(l.y / 5), Math.round((l.size || 0) / 10)])
+    return JSON.stringify([size, photo?.key, photo?.look, Math.round((photo?.focus.x || 0) / 5), Math.round((photo?.focus.y || 0) / 5), photo?.zoom, f, galleryKeys, adOn, adPos, adBottom, adTop, quoteFrame, dayTheme, authorPhoto, speakerPhoto, ctaOn && ctaText, lk.style, lay])
+  }, [fields, type, size, photo, galleryKeys, adOn, adPos, adBottom, adTop, looks, quoteFrame, dayTheme, authorPhoto, speakerPhoto, ctaOn, ctaText])
   const drawThumb = useCallback((key: string) => renderCard(type, size, key), [renderCard, type, size])
 
   // ---------------------------------------------------------------- photo edits
@@ -451,25 +532,176 @@ export default function PhotocardStudio() {
     setPhotos((prev) => prev.map((p) => (p.key === key ? { ...p, ...patch } : p)))
   }, [])
 
-  const onMove = useCallback(
-    (dx: number, dy: number, done: boolean) => {
-      if (!photo) return
+  // The photos the card shows, in the renderer's order (main first, then the collage tiles).
+  const tileKeys = useMemo(() => {
+    const main = photo?.key
+    const g = type === 'news' ? galleryKeys.filter((k) => k !== main && photos.some((p) => p.key === k)).slice(0, collageNeed > 1 ? collageNeed - 1 : 3) : []
+    return [main, ...g].filter((k): k is string => !!k)
+  }, [photo, type, galleryKeys, photos, collageNeed])
+  const tileZooms = tileKeys.map((k) => photos.find((p) => p.key === k)?.zoom || 1)
+
+  const onTile = useCallback(
+    (i: number, dx: number, dy: number, done: boolean) => {
+      const p = photos.find((x) => x.key === tileKeys[i])
+      if (!p) return
       dragging.current = !done
       if (!dx && !dy) {
         if (done) setPhotos((prev) => [...prev]) // one last full-quality render
         return
       }
-      const k = 1 / photo.zoom
-      patchPhoto(photo.key, {
+      const k = 1 / Math.max(1, p.zoom)
+      patchPhoto(p.key, {
         focus: {
-          x: Math.max(0, Math.min(100, Math.round((photo.focus.x - dx * k) * 10) / 10)),
-          y: Math.max(0, Math.min(100, Math.round((photo.focus.y - dy * k) * 10) / 10)),
+          x: Math.max(0, Math.min(100, Math.round((p.focus.x - dx * k) * 10) / 10)),
+          y: Math.max(0, Math.min(100, Math.round((p.focus.y - dy * k) * 10) / 10)),
         },
       })
     },
-    [photo, patchPhoto],
+    [photos, tileKeys, patchPhoto],
   )
-  const onZoom = useCallback((z: number) => photo && patchPhoto(photo.key, { zoom: z }), [photo, patchPhoto])
+  const onTileZoom = useCallback(
+    (i: number, z: number) => {
+      const k = tileKeys[i]
+      if (k) patchPhoto(k, { zoom: z })
+    },
+    [tileKeys, patchPhoto],
+  )
+
+  // ---------------------------------------------------------------- style, layers, undo
+  const snapshot = useCallback((key = '') => {
+    const h = hist.current
+    const now = Date.now()
+    if (key && key === h.key && now - h.t < 1200) {
+      h.t = now
+      return
+    }
+    h.past.push(snapRef.current)
+    if (h.past.length > 80) h.past.shift()
+    h.future = []
+    h.key = key
+    h.t = now
+    setHistTick((n) => n + 1)
+  }, [])
+  const editLook = useCallback(
+    (fn: (l: Look) => Look, key: string | false = '') => {
+      if (key !== false) snapshot(key)
+      setLooks((prev) => ({ ...prev, [type]: fn(prev[type] || EMPTY_LOOK) }))
+    },
+    [type, snapshot],
+  )
+  const undo = useCallback(() => {
+    const h = hist.current
+    const s = h.past.pop()
+    if (!s) return
+    h.future.push(snapRef.current)
+    h.key = ''
+    setLooks(s.looks)
+    setDesign(s.design)
+    setHistTick((n) => n + 1)
+  }, [])
+  const redo = useCallback(() => {
+    const h = hist.current
+    const s = h.future.pop()
+    if (!s) return
+    h.past.push(snapRef.current)
+    h.key = ''
+    setLooks(s.looks)
+    setDesign(s.design)
+    setHistTick((n) => n + 1)
+  }, [])
+  const patchStyle = (patch: Partial<CardStyle>) => {
+    const k = Object.keys(patch).join(',')
+    editLook((l) => ({ ...l, style: { ...l.style, ...patch } }), /Scale|credit/.test(k) ? `style:${k}` : '')
+  }
+  const addLayer = (t: LayerKind, extra?: Partial<Layer>) => {
+    const l = makeLayer(t, extra, look.layers.length)
+    editLook((x) => ({ ...x, layers: [...x.layers, l] }))
+    setSelLayer(l.id)
+  }
+  const patchLayer = (id: string, patch: Partial<Layer>, merge = false) => editLook((x) => ({ ...x, layers: x.layers.map((l) => (l.id === id ? { ...l, ...patch } : l)) }), merge ? `layer:${id}:${Object.keys(patch).join(',')}` : '')
+  const removeLayer = (id: string) => {
+    editLook((x) => ({ ...x, layers: x.layers.filter((l) => l.id !== id) }))
+    setSelLayer((s) => (s === id ? null : s))
+  }
+  const orderLayer = (id: string, dir: -1 | 1) =>
+    editLook((x) => {
+      const i = x.layers.findIndex((l) => l.id === id)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= x.layers.length) return x
+      const next = [...x.layers]
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return { ...x, layers: next }
+    })
+  const duplicateLayer = (id: string) => {
+    const src = look.layers.find((l) => l.id === id)
+    if (!src) return
+    const c: Layer = { ...src, id: newId(), x: src.x + 4, y: src.y + 4, ...(src.t === 'arrow' ? { x2: (src.x2 ?? src.x + 15) + 4, y2: (src.y2 ?? src.y) + 4 } : {}) }
+    editLook((x) => ({ ...x, layers: [...x.layers, c] }))
+    setSelLayer(c.id)
+  }
+  const onLayerEdit = useCallback(
+    (id: string, patch: Partial<Layer>, phase: 'start' | 'move' | 'end') => {
+      if (phase === 'start') {
+        snapshot()
+        dragging.current = true
+      }
+      if (phase === 'end') dragging.current = false
+      setLooks((prev) => {
+        const cur = prev[type] || EMPTY_LOOK
+        return { ...prev, [type]: { ...cur, layers: cur.layers.map((l) => (l.id === id ? { ...l, ...patch } : l)) } }
+      })
+    },
+    [type, snapshot],
+  )
+  const hasDesign = (id?: string) => !!id && rows.some((r) => r.key === `b:${id}`)
+  const applyPreset = (p: StylePreset) => {
+    snapshot()
+    if (hasDesign(p.design)) setDesign((d) => ({ ...d, [type]: `b:${p.design}` }))
+    setLooks((prev) => {
+      const cur = prev[type] || EMPTY_LOOK
+      const add = (p.layers || []).filter((n) => !cur.layers.some((l) => l.t === n.t && l.s === n.s)).map((n) => ({ ...n, id: newId() }) as Layer)
+      return { ...prev, [type]: { style: { ...DEFAULT_STYLE, credit: cur.style.credit, ...p.style }, layers: [...cur.layers, ...add] } }
+    })
+    setStatus({ kind: 'ok', text: `“${p.label}” সাজ বসানো হয়েছে${p.design && !hasDesign(p.design) ? ' (এই ট্যাবে ওই নকশা নেই, তাই শুধু রং ও মাপ)' : ''} — পছন্দ না হলে আনডু চাপুন।` })
+  }
+  const saveMyPreset = (label: string) => {
+    const m: MyPreset = { id: newId(), label, design: designKey.startsWith('b:') ? designKey.slice(2) : undefined, style: look.style, layers: look.layers.filter((l) => l.t !== 'inset') }
+    const next = [...mine.filter((x) => x.label !== label), m]
+    setMine(next)
+    saveMine(next)
+    setStatus({ kind: 'ok', text: `“${label}” সাজ রাখা হয়েছে — পরে এক ক্লিকে বসানো যাবে।` })
+  }
+  const applyMine = (m: MyPreset) => {
+    snapshot()
+    if (hasDesign(m.design)) setDesign((d) => ({ ...d, [type]: `b:${m.design}` }))
+    setLooks((prev) => ({ ...prev, [type]: { style: { ...DEFAULT_STYLE, ...m.style }, layers: m.layers.map((l) => ({ ...l, id: newId() })) } }))
+  }
+  const deleteMine = (id: string) => {
+    const next = mine.filter((x) => x.id !== id)
+    setMine(next)
+    saveMine(next)
+  }
+
+  // Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y — not while typing in a box.
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
+      if (!(e.ctrlKey || e.metaKey)) return
+      const key = e.key.toLowerCase()
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+      } else if ((key === 'z' && e.shiftKey) || key === 'y') {
+        e.preventDefault()
+        redo()
+      }
+    }
+    window.addEventListener('keydown', k)
+    return () => window.removeEventListener('keydown', k)
+  }, [undo, redo])
+  useEffect(() => setSelLayer(null), [type])
+  const houseThumbs = useHouseThumbs(MC)
 
   async function runSmart() {
     if (!photo) return
@@ -806,12 +1038,26 @@ export default function PhotocardStudio() {
               busy={renderBusy}
               error={renderErr}
               interactive={!!photo}
-              zoom={photo?.zoom || 1}
-              onMove={onMove}
-              onZoom={onZoom}
+              zooms={tileZooms}
+              onTile={onTile}
+              onTileZoom={onTileZoom}
+              layers={look.layers}
+              selLayer={selLayer}
+              onLayerSelect={setSelLayer}
+              onLayerEdit={onLayerEdit}
+              onLayerRemove={removeLayer}
               story={story}
               meta={`${sizeInfo?.hint || ''}${adOn && !adWhy ? ' · বিজ্ঞাপনসহ' : ''}`}
             />
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <button type="button" onClick={undo} disabled={!hist.current.past.length} className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 px-2.5 py-1 text-[12px] text-neutral-700 disabled:opacity-40" title="আগের অবস্থায় (Ctrl+Z)">
+                <IconUndo className="w-4 h-4" /> আনডু
+              </button>
+              <button type="button" onClick={redo} disabled={!hist.current.future.length} className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 px-2.5 py-1 text-[12px] text-neutral-700 disabled:opacity-40" title="আবার (Ctrl+Shift+Z)">
+                <IconRedo className="w-4 h-4" /> রিডু
+              </button>
+              {look.layers.length > 0 && <span className="text-[11.5px] text-neutral-400">লেয়ার {bnNumber(look.layers.length)}টি — প্রিভিউতে টেনে সরান</span>}
+            </div>
             <div className="grid grid-cols-2 gap-2 mt-3">
               <button type="button" disabled={!!working} onClick={() => download('image/png')} className="col-span-2 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-[14.5px] py-2.5 disabled:opacity-60">
                 <IconDownload className="w-5 h-5" /> PNG ডাউনলোড
@@ -890,6 +1136,7 @@ export default function PhotocardStudio() {
                 smartBusy={smartBusy}
                 smartNote={smartNote}
                 collage={collage}
+                collageSlots={collageNeed || 4}
                 galleryKeys={galleryKeys}
                 onToggleGallery={toggleGallery}
                 focusSync={focusSync}
@@ -904,10 +1151,14 @@ export default function PhotocardStudio() {
               rows={rows}
               selected={designKey}
               onSelect={(k) => {
+                if (k !== designKey) snapshot()
                 setDesign((d) => ({ ...d, [type]: k }))
-                if (type === 'quote' && k.startsWith('b:')) setQuoteFrame(k.slice(2))
-                if (type === 'day' && k.startsWith('b:')) setDayTheme(k.slice(2))
+                const id = k.startsWith('b:') ? k.slice(2) : ''
+                if (type === 'quote' && id && MC.quoteFrames[id]) setQuoteFrame(id)
+                if (type === 'day' && id && !MC.isNil?.(id) && !MC.isDeco('day', id)) setDayTheme(id)
               }}
+              groupLabels={MC.groupLabels}
+              scope={type}
               draw={drawThumb}
               version={thumbVersion}
               ratio={sizeInfo?.ratio || 1}
@@ -946,6 +1197,21 @@ export default function PhotocardStudio() {
                 </div>
               </div>
             )}
+          </Section>
+
+          <Section n={sectionNo()} title="সাজ: রং, শিরোনামের মাপ, লোগো" note={isNilDesign ? undefined : 'রং ও শেড নতুন নীল নকশায় সবচেয়ে ভালো খাটে; শিরোনামের মাপ, লোগো, বর্ডার সব নকশায়।'}>
+            <StylePanel
+              style={look.style}
+              onChange={patchStyle}
+              palettes={MC.palettes || {}}
+              blueDesign={isNilDesign}
+              hasPhoto={!!photo}
+              onPreset={applyPreset}
+              mine={mine}
+              onSaveMine={saveMyPreset}
+              onApplyMine={applyMine}
+              onDeleteMine={deleteMine}
+            />
           </Section>
 
           <Section n={sectionNo()} title="লেখা">
@@ -1055,6 +1321,22 @@ export default function PhotocardStudio() {
             )}
           </Section>
 
+          <Section n={sectionNo()} title="ছবিতে লেখা, তীর ও চিহ্ন" note="ছবির কিছু দেখাতে বা চিহ্নিত করতে — যোগ করে প্রিভিউতে টেনে বসান।">
+            <LayerPanel
+              layers={look.layers}
+              sel={selLayer}
+              onSelect={setSelLayer}
+              onAdd={addLayer}
+              onPatch={patchLayer}
+              onRemove={removeLayer}
+              onOrder={orderLayer}
+              onDuplicate={duplicateLayer}
+              photos={photos.map((p) => ({ key: p.key, thumb: p.thumb, label: p.label }))}
+              stickers={MC.stickers || {}}
+              marks={MC.marks || {}}
+            />
+          </Section>
+
           {type === 'morning' && (
             <Section n={sectionNo()} title="তারিখ">
               <div className="grid grid-cols-2 gap-3">
@@ -1076,28 +1358,47 @@ export default function PhotocardStudio() {
           )}
 
           <Section n={sectionNo()} title="বিজ্ঞাপন ও স্টোরি">
-            <label className={`flex items-center gap-2 text-[13px] ${adWhy ? 'text-neutral-400' : 'text-neutral-700'}`}>
-              <input type="checkbox" disabled={!!adWhy} checked={adOn && !adWhy} onChange={(e) => setAdOn(e.target.checked)} />
-              নিচে বিজ্ঞাপন স্ট্রিপ (১০৮০ × ১২০)
-            </label>
-            {adWhy ? (
-              <p className="text-[11.5px] text-neutral-400 mt-1">{adWhy}</p>
+            {MC.houseAds ? (
+              <AdPanel
+                on={adOn}
+                onToggle={setAdOn}
+                why={adWhy}
+                pos={adPos}
+                onPos={setAdPos}
+                bottom={adBottom}
+                top={adTop}
+                onOpen={setAdPick}
+                house={houseThumbs}
+                storyCta={storyCta}
+                onStoryCta={setStoryCta}
+                story={story}
+              />
             ) : (
-              cfg.ads.length > 1 && (
-                <select className={`${inputClass} mt-2`} value={adId} disabled={!adOn} onChange={(e) => setAdId(e.target.value)} aria-label="বিজ্ঞাপন">
-                  {cfg.ads.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.label}
-                    </option>
-                  ))}
-                </select>
-              )
-            )}
-            {story && (
-              <label className="block mt-3">
-                <span className="block text-[12.5px] font-medium text-neutral-600 mb-1">স্টোরির নিচের লেখা</span>
-                <input className={inputClass} maxLength={60} value={storyCta} onChange={(e) => setStoryCta(e.target.value)} />
-              </label>
+              <>
+                <label className={`flex items-center gap-2 text-[13px] ${adWhy ? 'text-neutral-400' : 'text-neutral-700'}`}>
+                  <input type="checkbox" disabled={!!adWhy} checked={adOn && !adWhy} onChange={(e) => setAdOn(e.target.checked)} />
+                  নিচে বিজ্ঞাপন স্ট্রিপ (১০৮০ × ১২০)
+                </label>
+                {adWhy ? (
+                  <p className="text-[11.5px] text-neutral-400 mt-1">{adWhy}</p>
+                ) : (
+                  cfg.ads.length > 1 && (
+                    <select className={`${inputClass} mt-2`} value={adId} disabled={!adOn} onChange={(e) => setAdId(e.target.value)} aria-label="বিজ্ঞাপন">
+                      {cfg.ads.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.label}
+                        </option>
+                      ))}
+                    </select>
+                  )
+                )}
+                {story && (
+                  <label className="block mt-3">
+                    <span className="block text-[12.5px] font-medium text-neutral-600 mb-1">স্টোরির নিচের লেখা</span>
+                    <input className={inputClass} maxLength={60} value={storyCta} onChange={(e) => setStoryCta(e.target.value)} />
+                  </label>
+                )}
+              </>
             )}
           </Section>
 
@@ -1107,6 +1408,23 @@ export default function PhotocardStudio() {
           </Card>
         </div>
       </div>
+
+      {adPick && (
+        <AdGallery
+          slot={adPick}
+          MC={MC}
+          house={houseThumbs}
+          themeAds={cfg.ads}
+          current={adPick === 'bottom' ? adBottom : adTop}
+          onPick={(c) => {
+            if (adPick === 'bottom') setAdBottom(c)
+            else setAdTop(c)
+            setAdOn(true)
+            setAdPick(null)
+          }}
+          onClose={() => setAdPick(null)}
+        />
+      )}
 
       {library && (
         <MediaGallery

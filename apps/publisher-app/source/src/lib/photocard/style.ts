@@ -77,6 +77,9 @@ export interface Layer {
   label?: string
   mode?: 'blur' | 'pixel'
   amount?: number
+  hidden?: boolean
+  /** inset: the photo's blob URL, filled in just before rendering */
+  img?: string
 }
 
 export const SWATCHES = ['#FFC20E', '#FFFFFF', '#D7261E', '#0B2A6B', '#1546B8', '#0E9F6E', '#111111', '#7C3AED']
@@ -102,7 +105,7 @@ export function makeLayer(t: LayerKind, extra: Partial<Layer> = {}, nth = 0): La
     case 'inset':
       return { ...base, x: 78, y: 26, size: 28, s: 'circle', ring: '#FFC20E', label: '', focus: { x: 50, y: 50 }, zoom: 1, ...extra }
     case 'blur':
-      return { ...base, w: 18, h: 16, s: 'ellipse', mode: 'blur', amount: 18, ...extra }
+      return { ...base, x: 30 + d, y: 62 + d, w: 18, h: 16, s: 'ellipse', mode: 'blur', amount: 18, ...extra }
   }
 }
 

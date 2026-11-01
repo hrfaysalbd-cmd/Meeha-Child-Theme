@@ -2975,7 +2975,7 @@
 	/* logo moved by the studio: drawn once in a corner, white on dark backgrounds, blue on light ones */
 	function logoCorner( ctx, W, CH, L, A ) {
 		var pos = L.pos, w = Math.round( ( L.seen ? L.seen.w : 190 ) * ( L.scale || 1 ) ), h = Math.round( w * 44 / 252 ), m = 48;
-		var x = /l$/.test( pos ) ? m : ( /r$/.test( pos ) ? W - m - w : ( W - w ) / 2 ), y = /^t/.test( pos ) ? m : CH - m - h;
+		var x = /l$/.test( pos ) ? m : ( /r$/.test( pos ) ? W - m - w : ( W - w ) / 2 ), y = /^t/.test( pos ) ? m : CH - 78 - h; /* bottom: above the designs' date / button row */
 		var t = ctx.getTransform ? ctx.getTransform() : { e: 0, f: 0 };
 		var lumv = regionLum( ctx, x + t.e, y + t.f, w, h ), plate = 'plate' === L.style;
 		if ( plate ) {
@@ -3424,6 +3424,7 @@
 		isStandalone: function ( type ) { return !! SOLO_TYPES[ ALIASES[ type ] || type ]; },
 		/* 2.4.4 */
 		groupOf: groupOf,
+		isNil: function ( preset ) { return !! NIL[ preset ]; },
 		groupLabels: GROUP_LABELS,
 		palettes: ( function () { var o = {}; Object.keys( NP ).forEach( function ( k ) { if ( 'shok' !== k ) { o[ k ] = NP[ k ].label; } } ); return o; }() ),
 		houseAds: HOUSE,

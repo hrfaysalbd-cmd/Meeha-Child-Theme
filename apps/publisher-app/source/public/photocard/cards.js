@@ -39,6 +39,13 @@
 		square: [ 1080, 1080 ], portrait: [ 1080, 1350 ], landscape: [ 1200, 630 ], story: [ 1080, 1920 ]
 	};
 	var STRIP_H = 120;
+	/* 2.4.4 render-time state (set and cleared inside one synchronous draw) */
+	var REG = null, MAINS = null, CUR = null, TSC = 1, LOGO = null;
+	function reg( ctx, k, i, x, y, w, h ) {
+		if ( ! REG || ( CUR && ctx.canvas !== CUR ) ) { return; }
+		var m = ctx.getTransform ? ctx.getTransform() : { a: 1, d: 1, e: 0, f: 0 };
+		REG.push( { k: k, i: i, x: x * m.a + m.e, y: y * m.d + m.f, w: w * m.a, h: h * m.d } );
+	}
 
 	/* quote frames: per-type colours (DESIGN-SPEC §15.4 · 5) */
 	var QUOTE = {
@@ -230,6 +237,7 @@
 	}
 	/* fit( text, box{x,y,w,h}, maxLines, sizeMax, sizeMin, lh ) — DESIGN-SPEC §15.3 */
 	function fit( ctx, text, s ) {
+		if ( 1 !== TSC && ! s.fixed ) { s = Object.assign( {}, s, { max: Math.round( s.max * TSC ), min: Math.round( s.min * Math.min( 1, TSC ) ), lhPx: s.lhPx ? s.lhPx * TSC : s.lhPx } ); }
 		var wds = tokens( text ), step = s.step || 2, size, res = null;
 		var lhOf = function ( sz ) { return s.lhPx ? Math.round( s.lhPx * sz / s.max ) : Math.round( sz * ( s.lh || 1.375 ) ); };
 		if ( ! wds.length ) { return { size: s.max, lineH: lhOf( s.max ), lines: [] }; }
@@ -361,6 +369,10 @@
 		return 0.2126 * c[ 0 ] + 0.7152 * c[ 1 ] + 0.0722 * c[ 2 ];
 	}
 	function logo( ctx, x, top, w, color, align, A ) {
+		if ( LOGO ) {
+			if ( 'auto' !== LOGO.pos ) { if ( ! LOGO.seen ) { LOGO.seen = { w: w, color: color }; } return; }
+			if ( 1 !== LOGO.scale ) { var nw = w * LOGO.scale; top -= ( nw - w ) * 44 / 252 / 2; w = nw; }
+		}
 		var s = w / 252, h = 44 * s;
 		if ( 'right' === align ) { x -= w; } else if ( 'center' === align ) { x -= w / 2; }
 		if ( A && A.logoImg ) {
@@ -393,8 +405,21 @@
 		if ( ! img ) { return false; }
 		var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
 		if ( ! iw || ! ih ) { return false; }
-		var z = Math.max( 1, Math.min( 3, +zoom || 1 ) ), sc = Math.max( w / iw, h / ih ) * z;
-		var sw = w / sc, sh = h / sc, fx = ( focus && isFinite( focus.x ) ? focus.x : 50 ) / 100, fy = ( focus && isFinite( focus.y ) ? focus.y : 50 ) / 100;
+		if ( MAINS ) { var ix = MAINS.indexOf( img ); if ( ix > -1 ) { reg( ctx, 'photo', ix, x, y, w, h ); } }
+		var z = Math.max( 0.4, Math.min( 3, +zoom || 1 ) ), fx = ( focus && isFinite( focus.x ) ? focus.x : 50 ) / 100, fy = ( focus && isFinite( focus.y ) ? focus.y : 50 ) / 100;
+		if ( z < 1 ) {
+			/* 2.4.4 zoom out: the whole photo smaller, on a blurred copy of itself */
+			ctx.save(); ctx.beginPath(); ctx.rect( x, y, w, h ); ctx.clip();
+			if ( 'filter' in ctx ) { ctx.filter = 'blur(26px) brightness(.7) saturate(1.15)'; cover( ctx, img, x - 40, y - 40, w + 80, h + 80, focus, 1 ); ctx.filter = 'none'; } else { ctx.fillStyle = '#0B1E3F'; ctx.fillRect( x, y, w, h ); }
+			var k = Math.max( w / iw, h / ih ) * z, dw = iw * k, dh = ih * k;
+			var dx = dw <= w ? x + ( w - dw ) / 2 : Math.max( x + w - dw, Math.min( x, x + w / 2 - fx * dw ) );
+			var dy = dh <= h ? y + ( h - dh ) / 2 : Math.max( y + h - dh, Math.min( y, y + h / 2 - fy * dh ) );
+			ctx.drawImage( img, dx, dy, dw, dh );
+			ctx.restore();
+			return true;
+		}
+		var sc = Math.max( w / iw, h / ih ) * z;
+		var sw = w / sc, sh = h / sc;
 		var sx = Math.max( 0, Math.min( iw - sw, fx * iw - sw / 2 ) ), sy = Math.max( 0, Math.min( ih - sh, fy * ih - sh / 2 ) );
 		ctx.drawImage( img, sx, sy, sw, sh, x, y, w, h );
 		return true;
@@ -442,9 +467,9 @@
 		}
 		ctx.restore();
 	}
-	/* bottom ad strip: 0, H−120, W × 120; label "বিজ্ঞাপন" Sans 18 at (16, 8) */
-	function adStrip( ctx, W, H, img ) {
-		var y = H - STRIP_H;
+	/* ad strip W × 120 at y (bottom: H − 120; 2.4.4 also top: 0); desc { house } = মিহা নিউজের নিজস্ব বিজ্ঞাপন */
+	function adStrip( ctx, W, y, img, desc ) {
+		if ( desc && 'object' === typeof desc && desc.house && HOUSE[ desc.house ] ) { houseAd( ctx, desc.house, 0, y, W, STRIP_H ); return; }
 		if ( img ) {
 			rect( ctx, 0, y, W, STRIP_H, '#FFFFFF' );
 			cover( ctx, img, 0, y, W, STRIP_H, { x: 50, y: 50 }, 1 );
@@ -1976,6 +2001,999 @@
 		line( ctx, watermark(), { x: 1016, top: CH - 72, lh: 36, size: 24, color: 'rgba(255,255,255,.72)', align: 'right' } );
 	}
 
+	/* ================================================================== 2.4.4 · নীল সংকলন (round 25)
+	   Deep navy / royal-blue blocks, white headlines and ONE warm accent (amber) for the **marked** words, tags and
+	   quote marks; red only on the small breaking badge. Shades follow the category when opts.palette is 'auto'
+	   (রাজনীতি → navy, বিনোদন → indigo, অর্থনীতি → teal). The same layouts serve every card type through nRoles():
+	   tag, head, title (may be a whole paragraph), byline, person photo, meta. */
+	var NP = {
+		royal:  { label: 'রয়্যাল নীল', a: '#0B2A6B', b: '#1546B8', deep: '#071C4D', mid: '#2457CF', soft: '#5B86EA', acc: '#FFC20E', accInk: '#1B1400', tint: '#D6E2FF' },
+		navy:   { label: 'গভীর নেভি', a: '#06122F', b: '#0D2C6E', deep: '#030A1E', mid: '#16408F', soft: '#3A64B8', acc: '#FFC20E', accInk: '#1B1400', tint: '#C9D6F2' },
+		teal:   { label: 'টিল-নীল', a: '#042F44', b: '#0A6C8C', deep: '#03222F', mid: '#0F86AA', soft: '#4FB3D1', acc: '#FFD166', accInk: '#2A1C00', tint: '#CDEFF8' },
+		indigo: { label: 'নীল-বেগুনি', a: '#1F1266', b: '#5230CF', deep: '#140A45', mid: '#6646E0', soft: '#9B83F2', acc: '#FFC20E', accInk: '#1B1400', tint: '#E1D9FF' },
+		sky:    { label: 'উজ্জ্বল আকাশি', a: '#0039C6', b: '#0098F5', deep: '#002A8F', mid: '#1F72FF', soft: '#7CC8FF', acc: '#FFE14D', accInk: '#1B1400', tint: '#DDF1FF' },
+		shok:   { label: 'শোক', a: '#0B0F18', b: '#1C2536', deep: '#06080D', mid: '#2A3448', soft: '#56617A', acc: '#E8E2D6', accInk: '#111111', tint: '#C9CED8' }
+	};
+	var NP_AUTO = [
+		[ /বিনোদন|শোবিজ|সিনেমা|চলচ্চিত্র|নাটক|সংগীত|গান|সংস্কৃতি|লাইফস্টাইল|ফ্যাশন|তারকা|বলিউড|ঢালিউড|হলিউড|ওটিটি/, 'indigo' ],
+		[ /অর্থনীতি|অর্থ|বাণিজ্য|ব্যবসা|শেয়ার|পুঁজিবাজার|ব্যাংক|বাজেট|কর্পোরেট|রপ্তানি|আমদানি|মূল্যস্ফীতি|বাজার/, 'teal' ],
+		[ /রাজনীতি|অপরাধ|আইন|আদালত|জাতীয়|নির্বাচন|সংসদ|দুর্নীতি|নিরাপত্তা|সরকার/, 'navy' ]
+	];
+	function npal( d, o, def ) {
+		if ( o.palette && NP[ o.palette ] && 'shok' !== o.palette ) { return NP[ o.palette ]; }
+		if ( def && NP[ def ] ) { return NP[ def ]; }
+		var s = str( d.category ) + ' ' + str( d.kicker ) + ' ' + str( d.label ) + ' ' + str( d.type_label );
+		for ( var i = 0; i < NP_AUTO.length; i++ ) { if ( NP_AUTO[ i ][ 0 ].test( s ) ) { return NP[ NP_AUTO[ i ][ 1 ] ]; } }
+		return NP.royal;
+	}
+	/* highlight colours of **marked** words: amber text on dark, an amber marker on white (opts.hiStyle 'marker' = marker on dark too) */
+	function nHi( P, light, o ) {
+		if ( light ) { return { hi: P.deep === NP.shok.deep ? '#111111' : '#0B1E3F', hiBg: hexA( '#FFC20E', 0.55 ) }; }
+		return 'marker' === o.hiStyle ? { hi: P.accInk, hiBg: P.acc } : { hi: P.acc };
+	}
+
+	/* who says what on this card type */
+	function nRoles( type, d, A, o ) {
+		var R = { tag: '', head: '', title: str( d.title ), by: '', by2: '', meta: '', sub: '', msg: '', photo: A.image, focus: d.focus, zoom: d.zoom, person: null, personName: '', showPerson: false, long: false, quote: false, lit: false, center: false, poem: false, gray: false, breaking: false, pre: '' };
+		var dt = d.dates || {};
+		switch ( type ) {
+			case 'news': R.tag = str( d.category || d.kicker ); R.meta = str( d.date ); break;
+			case 'feature': R.tag = str( d.kicker ); R.meta = str( d.byline ); break;
+			case 'category': R.tag = str( d.category ); break;
+			case 'breaking': R.breaking = 'latest' !== d.variant; R.tag = str( d.label ) || ( R.breaking ? 'ব্রেকিং নিউজ' : 'সর্বশেষ' ); R.meta = str( d.time ); break;
+			case 'opinion':
+				R.tag = str( d.label ) || 'মতামত'; R.by = str( d.author_name ); R.by2 = str( d.author_title ); R.photo = null;
+				R.showPerson = false !== d.show_photo; R.person = R.showPerson ? A.authorPhoto : null; R.personName = R.by; R.long = R.quote = true; break;
+			case 'quote':
+				R.tag = str( d.type_label ); R.title = strKeepNl( d.text ); R.by = str( d.speaker ); R.by2 = str( d.role ); R.photo = null;
+				R.showPerson = !! d.speaker_photo; R.person = A.speakerPhoto; R.personName = R.by; R.long = R.quote = true; break;
+			case 'literature':
+				R.tag = str( d.label ); R.by = str( d.author ); R.long = R.lit = true;
+				if ( str( d.excerpt ) ) { R.head = str( d.title ); R.title = strKeepNl( d.excerpt ); }
+				break;
+			case 'poem':
+				R.tag = str( d.label ); R.head = str( d.title ); R.title = strKeepNl( d.poem ) || str( d.title ); R.by = str( d.author );
+				if ( ! strKeepNl( d.poem ) ) { R.head = ''; }
+				R.long = R.lit = R.center = R.poem = true; break;
+			case 'morning':
+				R.tag = str( dt.weekday ); R.title = str( d.title ) || 'শুভ সকাল'; R.sub = str( d.caption );
+				R.meta = [ dt.gregorian, dt.bangla, dt.hijri ].map( str ).filter( Boolean ).join( '  •  ' ); R.credit = str( d.credit ); break;
+			case 'day': R.tag = str( d.subtitle ); R.msg = strKeepNl( d.message ); break;
+			case 'birthday':
+				R.tag = str( d.heading ) || 'শুভ জন্মদিন'; R.title = str( d.name ); R.sub = str( d.role ); R.msg = strKeepNl( d.message );
+				R.person = A.image; R.showPerson = true; R.personName = R.title; R.photo = null; R.center = true; break;
+			case 'condolence':
+				R.pre = str( d.pre ); R.tag = str( d.heading ) || 'গভীর শোক'; R.title = str( d.name ); R.sub = str( d.role ); R.meta = str( d.dates_line );
+				R.msg = strKeepNl( d.message ); R.person = A.image; R.showPerson = true; R.personName = R.title; R.photo = null; R.gray = true; R.center = true; break;
+		}
+		R.cta = ctaText( d, o );
+		R.personFocus = 'birthday' === type || 'condolence' === type ? d.focus : null;
+		R.personZoom = 'birthday' === type || 'condolence' === type ? d.zoom : 1;
+		return R;
+	}
+
+	/* ---- pieces */
+	function nBadge( ctx, text, x, top, h ) {
+		h = h || 54;
+		var size = Math.round( h * 0.5 );
+		ctx.font = fontStr( 700, size, 'sans' );
+		var w = Math.round( width( ctx, text ) + h * 1.25 + 24 );
+		rfill( ctx, x, top, w, h, 8, '#D7261E' );
+		ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc( x + h * 0.48, top + h / 2, h * 0.14, 0, Math.PI * 2 ); ctx.fill();
+		ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc( x + h * 0.48, top + h / 2, h * 0.26, 0, Math.PI * 2 ); ctx.stroke();
+		line( ctx, text, { x: x + h * 0.9, top: top, lh: h, size: size, weight: 700, color: '#FFFFFF' } );
+		return w;
+	}
+	function nTag( ctx, text, x, top, P, style, align ) {
+		if ( ! str( text ) ) { return 0; }
+		if ( 'red' === style ) { return nBadge( ctx, text, x, top, 54 ); }
+		if ( 'line' === style ) {
+			rect( ctx, x, top + 14, 14, 14, P.b );
+			return line( ctx, text, { x: x + 26, top: top, lh: 42, size: 27, weight: 600, color: P.b, maxW: 760 } ) + 26;
+		}
+		var o = 'amber' === style ? { fill: P.acc, color: P.accInk } : ( 'ghost' === style ? { border: hexA( '#FFFFFF', 0.55 ), color: '#FFFFFF' } : { fill: '#FFFFFF', color: P.a } );
+		return pill( ctx, text, x, top, Object.assign( o, { size: 26, h: 54, align: align } ) );
+	}
+	function nQuote( ctx, x, top, size, color, align ) {
+		line( ctx, '“', { x: x, top: top, lh: size * 0.86, size: size, weight: 700, fam: 'georgia', color: color, align: align || 'left' } );
+	}
+	function nGrad( ctx, P, x, y, w, h, deg ) { ctx.fillStyle = cssLinear( ctx, deg || 160, x, y, w, h, [ [ 0, P.b ], [ 1, P.a ] ] ); ctx.fillRect( x, y, w, h ); }
+	function nGlow( ctx, P, x, y, r, a ) {
+		var g = ctx.createRadialGradient( x, y, 0, x, y, r );
+		g.addColorStop( 0, hexA( P.soft, a || 0.45 ) ); g.addColorStop( 1, hexA( P.soft, 0 ) );
+		ctx.fillStyle = g; ctx.fillRect( x - r, y - r, 2 * r, 2 * r );
+	}
+	function nPoly( ctx, pts, fill ) {
+		ctx.beginPath(); pts.forEach( function ( p, i ) { if ( i ) { ctx.lineTo( p[ 0 ], p[ 1 ] ); } else { ctx.moveTo( p[ 0 ], p[ 1 ] ); } } ); ctx.closePath();
+		ctx.fillStyle = fill; ctx.fill();
+	}
+	/* person: circle photo with an amber and a white ring (or initials) */
+	function nPerson( ctx, R, P, x, y, D, light ) {
+		circleImage( ctx, R.person, x, y, D, { rings: [ [ Math.max( 6, Math.round( D / 22 ) ), R.gray ? '#8E877B' : P.acc ], [ Math.max( 3, Math.round( D / 48 ) ), light ? '#FFFFFF' : '#FFFFFF' ] ], name: R.personName, monoBg: light ? NP.royal.tint : P.mid, monoInk: light ? P.b : '#FFFFFF', gray: R.gray, focus: R.personFocus, zoom: R.personZoom } );
+	}
+	/* byline row: [circle] name / title; returns the width used */
+	function nByline( ctx, R, P, x, y, maxW, light, size ) {
+		size = size || 104;
+		var tx = x;
+		if ( R.showPerson ) { nPerson( ctx, R, P, x, y, size, light ); tx = x + size + 26; }
+		if ( ! R.by && ! R.by2 ) { return tx - x; }
+		var nh = 48, rh = 36, top = y + ( size - nh - ( R.by2 ? rh : 0 ) ) / 2;
+		var pre = R.showPerson ? '' : '— ';
+		var a = line( ctx, pre + R.by, { x: tx, top: top, lh: nh, size: 34, min: 24, weight: 700, fam: 'serif', color: light ? '#0B1E3F' : '#FFFFFF', maxW: maxW - ( tx - x ) } );
+		var b = line( ctx, R.by2, { x: tx, top: top + nh, lh: rh, size: 25, min: 20, color: light ? '#5B6676' : P.tint, maxW: maxW - ( tx - x ) } );
+		return tx - x + Math.max( a, b );
+	}
+	/* the text stack: [head] title [sub] [msg] [byline]; valign inside [top, bot]. Returns { top, bottom }. */
+	function nText( ctx, R, P, x, top, w, bot, o, opt ) {
+		opt = opt || {};
+		var light = !! opt.light, ink = light ? '#0B1E3F' : '#FFFFFF', subInk = light ? '#4A5568' : P.tint, al = opt.align || ( R.center ? 'center' : 'left' );
+		var H = Math.max( 80, bot - top ), gap = 22, hi = nHi( P, light, o );
+		var headH = R.head ? 58 : 0, subH = R.sub ? 46 : 0, byH = opt.by && ( R.by || R.showPerson ) ? 120 : 0, byLine = false;
+		if ( byH && H < 520 ) { byH = R.by ? 46 : 0; byLine = true; }
+		var rm = null, msgH = 0;
+		if ( R.msg ) { rm = fit( ctx, R.msg, { w: w, h: Math.min( 170, H * 0.3 ), maxLines: 4, max: 30, min: 22, lh: 1.45, weight: 400, fam: 'sans' } ); msgH = rm.lines.length * rm.lineH; }
+		var avail = H - headH - subH - byH - msgH - ( headH ? gap : 0 ) - ( subH ? gap / 2 : 0 ) - ( msgH ? gap : 0 ) - ( byH ? gap + 6 : 0 );
+		avail = Math.max( 70, avail );
+		var r;
+		if ( R.poem ) {
+			r = fit( ctx, R.title, { w: w, h: avail, maxLines: 16, max: opt.pmax || 46, min: 24, lh: 1.62, weight: 400, fam: 'lit', balance: false } );
+		} else if ( R.long ) {
+			r = bigText( ctx, R.title, w, avail, { maxLines: opt.maxLines || 5, max: opt.max || 66, min: 42, lh: 1.32 }, { maxLines: 16, max: 50, min: 26, lh: 1.55, weight: R.lit ? 400 : 600, fam: R.lit ? 'lit' : 'sans' } );
+		} else {
+			r = fit( ctx, R.title, { w: w, h: avail, maxLines: opt.maxLines || 4, max: opt.max || 66, min: opt.min || 40, lh: opt.lh || 1.3 } );
+		}
+		var th = r.lines.length * r.lineH;
+		var total = headH + ( headH ? gap : 0 ) + th + ( subH ? gap / 2 + subH : 0 ) + ( msgH ? gap + msgH : 0 ) + ( byH ? gap + 6 + byH : 0 );
+		var y = 'top' === opt.valign ? top : ( 'bottom' === opt.valign ? bot - total : top + Math.max( 0, ( H - total ) / 2 ) );
+		y = Math.round( y );
+		var y0 = y, cx = 'center' === al ? x + w / 2 : x;
+		if ( R.head ) { line( ctx, R.head, { x: cx, top: y, lh: headH, size: 38, min: 26, weight: 700, fam: R.lit ? 'lit' : 'serif', color: light ? P.b : P.acc, align: al, maxW: w } ); y += headH + gap; }
+		drawFit( ctx, r, { x: x, y: y, w: w, h: th, color: ink, align: al, hi: hi.hi, hiBg: hi.hiBg } );
+		y += th;
+		if ( R.sub ) { y += gap / 2; line( ctx, R.sub, { x: cx, top: y, lh: subH, size: 30, min: 22, weight: 600, color: subInk, align: al, maxW: w } ); y += subH; }
+		if ( rm ) { y += gap; drawFit( ctx, rm, { x: x, y: y, w: w, h: msgH, color: light ? '#2A3442' : hexA( '#FFFFFF', 0.88 ), align: al } ); y += msgH; }
+		if ( byH && byLine ) {
+			y += gap + 6;
+			line( ctx, '— ' + R.by + ( R.by2 ? ', ' + R.by2 : '' ), { x: cx, top: y, lh: byH, size: 27, min: 20, weight: 600, color: light ? P.b : P.acc, align: al, maxW: w } );
+			y += byH;
+		} else if ( byH ) {
+			y += gap + 6;
+			if ( 'center' === al ) {
+				var bw = Math.min( w, ( R.showPerson ? 130 : 0 ) + 360 );
+				nByline( ctx, R, P, Math.round( x + ( w - bw ) / 2 ), y + 8, bw, light );
+			} else { nByline( ctx, R, P, x, y + 8, w, light ); }
+			y += byH;
+		}
+		return { top: y0, bottom: y, r: r };
+	}
+	/* footer row: meta (date / time) on the left, the CTA pill (or the web address) on the right */
+	function nFoot( ctx, R, P, W, CH, A, opt ) {
+		opt = opt || {};
+		var light = !! opt.light, y = CH - ( opt.h || 96 ), left = opt.left || 64, right = W - 64, cw = 0;
+		if ( false !== opt.rule ) { rect( ctx, left, y, right - left, 1, light ? '#E2E8F0' : 'rgba(255,255,255,.2)' ); }
+		if ( opt.logo ) {
+			logo( ctx, 'right' === opt.logo ? right : left, y + 26, opt.logoW || 180, light ? P.b : '#FFFFFF', 'right' === opt.logo ? 'right' : 'left', A );
+			if ( 'right' === opt.logo ) { right -= ( opt.logoW || 180 ) + 28; } else { left += ( opt.logoW || 180 ) + 28; }
+		}
+		if ( R.cta && false !== opt.cta ) {
+			cw = cta( ctx, R.cta, right, y + 22, { h: 50, size: 23, align: 'right', fill: light ? P.b : '#FFFFFF', color: light ? '#FFFFFF' : P.a, maxW: Math.max( 200, ( right - left ) * 0.55 ) } );
+		} else if ( ! opt.logo || 'left' === opt.logo ) {
+			cw = line( ctx, watermark(), { x: right, top: y + 30, lh: 36, size: 24, weight: 600, color: light ? P.b : hexA( P.acc, 0.92 ), align: 'right', maxW: 360 } );
+		}
+		var meta = R.meta;
+		if ( meta && right - left - cw > 120 ) { line( ctx, meta, { x: left, top: y + 30, lh: 40, size: 25, color: light ? '#5B6676' : P.tint, maxW: right - left - cw - 30 } ); }
+	}
+	function nTopShade( ctx, W, h, a ) { shade( ctx, 0, 0, W, h, [ [ 0, 'rgba(4,10,28,' + ( a || 0.5 ) + ')' ], [ 1, 'rgba(4,10,28,0)' ] ] ); }
+
+	/* ---- collage tiles: kinds 2h 2v 3 3c 4 4b vs gol (main photo + up to three more) */
+	var NK_NEED = { '2h': 2, '2v': 2, vs: 2, gol: 2, 3: 3, '3c': 3, 4: 4, '4b': 4 };
+	function nTileBoxes( kind, x, y, w, h, g ) {
+		var hw = Math.round( ( w - g ) / 2 ), hh = Math.round( ( h - g ) / 2 ), tw = Math.round( ( w - 2 * g ) / 3 ), bw = Math.round( ( w - g ) * 0.6 ), bh = Math.round( ( h - g ) * 0.64 );
+		switch ( kind ) {
+			case '2h': return [ [ x, y, hw, h ], [ x + hw + g, y, w - hw - g, h ] ];
+			case '2v': return [ [ x, y, w, hh ], [ x, y + hh + g, w, h - hh - g ] ];
+			case '3': return [ [ x, y, bw, h ], [ x + bw + g, y, w - bw - g, hh ], [ x + bw + g, y + hh + g, w - bw - g, h - hh - g ] ];
+			case '3c': return [ [ x, y, tw, h ], [ x + tw + g, y, tw, h ], [ x + 2 * ( tw + g ), y, w - 2 * ( tw + g ), h ] ];
+			case '4b': return [ [ x, y, w, bh ], [ x, y + bh + g, tw, h - bh - g ], [ x + tw + g, y + bh + g, tw, h - bh - g ], [ x + 2 * ( tw + g ), y + bh + g, w - 2 * ( tw + g ), h - bh - g ] ];
+			default: return [ [ x, y, hw, hh ], [ x + hw + g, y, w - hw - g, hh ], [ x, y + hh + g, hw, h - hh - g ], [ x + hw + g, y + hh + g, w - hw - g, h - hh - g ] ];
+		}
+	}
+	function nEmptyTile( ctx, b, n ) {
+		placeholder( ctx, b[ 0 ], b[ 1 ], b[ 2 ], b[ 3 ] );
+		var cx = b[ 0 ] + b[ 2 ] / 2, cy = b[ 1 ] + b[ 3 ] / 2;
+		ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+		ctx.beginPath(); ctx.moveTo( cx - 22, cy - 18 ); ctx.lineTo( cx + 22, cy - 18 ); ctx.moveTo( cx, cy - 40 ); ctx.lineTo( cx, cy + 4 ); ctx.stroke(); ctx.lineCap = 'butt';
+		line( ctx, 'ছবি ' + bnDigits( n ), { x: cx, top: cy + 16, lh: 40, size: 26, weight: 600, color: '#FFFFFF', align: 'center' } );
+	}
+	function nTiles( ctx, tiles, kind, x, y, w, h, g, more, P ) {
+		var need = NK_NEED[ kind ] || 4, list = tiles.slice( 0, need );
+		rect( ctx, x, y, w, h, '#FFFFFF' );
+		var drawT = function ( t, b, i ) {
+			if ( t && t.img ) { cover( ctx, t.img, b[ 0 ], b[ 1 ], b[ 2 ], b[ 3 ], t.focus, t.zoom ); } else { nEmptyTile( ctx, b, i + 1 ); }
+		};
+		if ( 'vs' === kind ) {
+			var mx = x + w / 2, sl = Math.round( w * 0.07 );
+			ctx.save(); ctx.beginPath(); ctx.moveTo( x, y ); ctx.lineTo( mx + sl, y ); ctx.lineTo( mx - sl, y + h ); ctx.lineTo( x, y + h ); ctx.closePath(); ctx.clip();
+			drawT( list[ 0 ], [ x, y, Math.round( w / 2 + sl ), h ], 0 ); ctx.restore();
+			ctx.save(); ctx.beginPath(); ctx.moveTo( mx + sl, y ); ctx.lineTo( x + w, y ); ctx.lineTo( x + w, y + h ); ctx.lineTo( mx - sl, y + h ); ctx.closePath(); ctx.clip();
+			drawT( list[ 1 ], [ Math.round( mx - sl ), y, Math.round( w / 2 + sl ), h ], 1 ); ctx.restore();
+			ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo( mx + sl, y ); ctx.lineTo( mx - sl, y + h ); ctx.stroke();
+			var cy = y + h / 2, rr = 66;
+			ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 20; ctx.fillStyle = P.acc; ctx.beginPath(); ctx.arc( mx, cy, rr, 0, Math.PI * 2 ); ctx.fill(); ctx.restore();
+			ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc( mx, cy, rr, 0, Math.PI * 2 ); ctx.stroke();
+			line( ctx, 'বনাম', { x: mx, top: cy - 30, lh: 60, size: 36, weight: 700, fam: 'serif', color: P.accInk, align: 'center' } );
+			return;
+		}
+		if ( 'gol' === kind ) {
+			drawT( list[ 0 ], [ x, y, w, h ], 0 );
+			var D = Math.round( Math.min( h * 0.5, w * 0.36 ) ), ix = x + w - D - 56, iy = y + h - D - 40;
+			ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = 24; ctx.fillStyle = P.acc; ctx.beginPath(); ctx.arc( ix + D / 2, iy + D / 2, D / 2 + 12, 0, Math.PI * 2 ); ctx.fill(); ctx.restore();
+			ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc( ix + D / 2, iy + D / 2, D / 2 + 5, 0, Math.PI * 2 ); ctx.fill();
+			ctx.save(); ctx.beginPath(); ctx.arc( ix + D / 2, iy + D / 2, D / 2, 0, Math.PI * 2 ); ctx.clip(); drawT( list[ 1 ], [ ix, iy, D, D ], 1 ); ctx.restore();
+			return;
+		}
+		var boxes = nTileBoxes( kind, x, y, w, h, g );
+		boxes.forEach( function ( b, i ) { drawT( list[ i ], b, i ); } );
+		var extra = Math.max( 0, tiles.length - need ) + ( more || 0 );
+		if ( extra > 0 ) {
+			var lb = boxes[ boxes.length - 1 ], t = '+' + bnDigits( extra ) + ' ছবি';
+			ctx.font = fontStr( 600, 28, 'sans' );
+			var tw = Math.round( width( ctx, t ) ) + 40;
+			ctx.fillStyle = 'rgba(8,20,36,.72)'; rrect( ctx, lb[ 0 ] + lb[ 2 ] - tw - 20, lb[ 1 ] + lb[ 3 ] - 72, tw, 52, 26 ); ctx.fill();
+			line( ctx, t, { x: lb[ 0 ] + lb[ 2 ] - tw / 2 - 20, top: lb[ 1 ] + lb[ 3 ] - 70, lh: 48, size: 28, weight: 600, color: '#FFFFFF', align: 'center' } );
+		}
+	}
+
+	/* ---- layouts (1080 wide; CH = height above the bottom ad strip) */
+	function nPhotoOr( ctx, R, x, y, w, h, P ) {
+		if ( ! cover( ctx, R.photo, x, y, w, h, R.focus, R.zoom ) ) { nGrad( ctx, P, x, y, w, h, 135 ); nGlow( ctx, P, x + w * 0.8, y + h * 0.2, h * 0.9, 0.5 ); }
+	}
+	function nBlock( ctx, W, CH, R, P, o, A, xo ) {
+		var hasP = !! R.photo, ph = hasP ? Math.round( CH * ( CH > 1100 ? 0.56 : 0.53 ) ) : 0;
+		nGrad( ctx, P, 0, ph, W, CH - ph, 165 );
+		ctx.save(); ctx.beginPath(); ctx.rect( 0, ph, W, CH - ph ); ctx.clip();
+		ctx.globalAlpha = 0.32; ctx.fillStyle = P.mid; ctx.beginPath(); ctx.arc( W + 40, ph + ( CH - ph ) * 0.62, ( CH - ph ) * 0.82, 0, Math.PI * 2 ); ctx.fill();
+		ctx.globalAlpha = 0.18; ctx.beginPath(); ctx.arc( W - 60, CH + 40, ( CH - ph ) * 0.55, 0, Math.PI * 2 ); ctx.fill();
+		ctx.restore();
+		var top;
+		if ( hasP ) {
+			nPhotoOr( ctx, R, 0, 0, W, ph, P );
+			nTopShade( ctx, W, 200, 0.5 );
+			rect( ctx, 0, ph, W, 6, P.acc );
+			logo( ctx, W - 56, 50, 190, '#FFFFFF', 'right', A );
+			var brk = 'breaking' === o.type;
+			if ( xo.badge || brk ) { nBadge( ctx, brk ? R.tag : 'ব্রেকিং', 56, 44, 56 ); }
+			var edge = brk ? R.meta : R.tag;
+			if ( edge ) { nTag( ctx, edge, 64, ph - 27, P, brk ? 'amber' : 'white' ); }
+			if ( brk ) { R = Object.assign( {}, R, { meta: '' } ); }
+			top = ph + 60;
+		} else {
+			nGlow( ctx, P, W * 0.15, CH * 0.12, CH * 0.6, 0.35 );
+			logo( ctx, W - 64, 64, 190, '#FFFFFF', 'right', A );
+			if ( xo.badge || R.breaking ) { nBadge( ctx, R.breaking ? R.tag : 'ব্রেকিং', 64, 58, 56 ); } else if ( R.tag ) { nTag( ctx, R.tag, 64, 60, P, 'amber' ); }
+			if ( R.quote ) { nQuote( ctx, 50, 128, 230, hexA( P.acc, 0.95 ) ); }
+			top = R.quote ? 330 : 190;
+		}
+		nText( ctx, R, P, 64, top, W - 128, CH - 124, o, { by: R.long || R.quote, max: hasP ? 64 : 84, min: hasP ? 40 : 48, maxLines: hasP ? 4 : 6 } );
+		nFoot( ctx, R, P, W, CH, A, {} );
+	}
+	function nShade( ctx, W, CH, R, P, o, A ) {
+		rect( ctx, 0, 0, W, CH, P.deep );
+		if ( R.photo ) { nPhotoOr( ctx, R, 0, 0, W, CH, P ); } else { nGrad( ctx, P, 0, 0, W, CH, 150 ); nGlow( ctx, P, W * 0.85, CH * 0.15, CH * 0.7, 0.5 ); }
+		shade( ctx, 0, 0, W, CH, [ [ 0, hexA( P.deep, 0.5 ) ], [ 0.2, hexA( P.deep, 0 ) ], [ 0.42, hexA( P.deep, 0 ) ], [ 0.66, hexA( P.a, 0.82 ) ], [ 1, hexA( P.deep, 0.97 ) ] ] );
+		logo( ctx, W - 56, 50, 190, '#FFFFFF', 'right', A );
+		if ( R.showPerson && ! R.photo ) { nPerson( ctx, R, P, 64, 120, 220 ); }
+		var bot = CH - 132, top = Math.round( CH * 0.42 );
+		var t = nText( ctx, R, P, 100, top, W - 164, bot, o, { valign: 'bottom', max: 70, min: 42, maxLines: 4, by: false } );
+		rect( ctx, 64, t.top + 8, 10, Math.max( 40, t.bottom - t.top - 16 ), P.acc );
+		if ( R.breaking ) { nBadge( ctx, R.tag, 64, t.top - 82, 56 ); } else if ( R.tag ) { nTag( ctx, R.tag, 64, t.top - 80, P, 'amber' ); }
+		if ( R.by ) { R = Object.assign( {}, R, { meta: '— ' + R.by + ( R.by2 ? ', ' + R.by2 : '' ) } ); }
+		nFoot( ctx, R, P, W, CH, A, { rule: false } );
+	}
+	function nDiag( ctx, W, CH, R, P, o, A, prism ) {
+		var ph = Math.round( CH * 0.6 );
+		nPhotoOr( ctx, R, 0, 0, W, ph + 40, P );
+		nTopShade( ctx, W, 200, 0.45 );
+		if ( prism ) {
+			nPoly( ctx, [ [ 0, ph - 70 ], [ W, ph - 190 ], [ W, CH ], [ 0, CH ] ], hexA( P.soft, 0.92 ) );
+			nPoly( ctx, [ [ 0, ph - 20 ], [ W, ph - 130 ], [ W, CH ], [ 0, CH ] ], P.mid );
+			nPoly( ctx, [ [ 0, ph + 34 ], [ W, ph - 72 ], [ W, CH ], [ 0, CH ] ], P.acc );
+			nPoly( ctx, [ [ 0, ph + 46 ], [ W, ph - 60 ], [ W, CH ], [ 0, CH ] ], cssLinear( ctx, 165, 0, ph - 60, W, CH - ph + 60, [ [ 0, P.b ], [ 1, P.a ] ] ) );
+		} else {
+			nPoly( ctx, [ [ 0, ph - 16 ], [ W, ph - 128 ], [ W, CH ], [ 0, CH ] ], hexA( P.soft, 0.85 ) );
+			nPoly( ctx, [ [ 0, ph + 36 ], [ W, ph - 76 ], [ W, CH ], [ 0, CH ] ], cssLinear( ctx, 165, 0, ph - 76, W, CH - ph + 76, [ [ 0, P.b ], [ 1, P.a ] ] ) );
+			ctx.strokeStyle = P.acc; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo( 0, ph + 36 ); ctx.lineTo( W, ph - 76 ); ctx.stroke();
+		}
+		logo( ctx, W - 56, 50, 190, '#FFFFFF', 'right', A );
+		var tt = ph + 70;
+		if ( R.breaking ) { nBadge( ctx, R.tag, 64, tt, 54 ); tt += 74; } else if ( R.tag ) { nTag( ctx, R.tag, 64, tt, P, prism ? 'amber' : 'white' ); tt += 74; }
+		nText( ctx, R, P, 64, tt, W - 128, CH - 120, o, { max: 62, min: 38, maxLines: 4, by: R.long } );
+		nFoot( ctx, R, P, W, CH, A, {} );
+	}
+	function nLayers( ctx, W, CH, R, P, o, A ) {
+		nGrad( ctx, P, 0, 0, W, CH, 140 );
+		ctx.strokeStyle = hexA( '#FFFFFF', 0.08 ); ctx.lineWidth = 3;
+		[ 220, 300, 380 ].forEach( function ( r ) { ctx.beginPath(); ctx.arc( W - 40, 60, r, 0, Math.PI * 2 ); ctx.stroke(); } );
+		var x = 64, y = 64, w = W - 128, h = Math.round( CH * 0.5 );
+		rfill( ctx, x + 26, y + 26, w, h, 30, hexA( P.mid, 0.95 ) );
+		rfill( ctx, x + 13, y + 13, w, h, 30, hexA( P.soft, 0.75 ) );
+		ctx.save(); rrect( ctx, x, y, w, h, 30 ); ctx.clip(); nPhotoOr( ctx, R, x, y, w, h, P ); ctx.restore();
+		ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 6; rrect( ctx, x + 3, y + 3, w - 6, h - 6, 28 ); ctx.stroke();
+		if ( R.breaking ) { nBadge( ctx, R.tag, x + 32, y + h - 28, 56 ); } else if ( R.tag ) { nTag( ctx, R.tag, x + 32, y + h - 28, P, 'amber' ); }
+		nText( ctx, R, P, 64, y + h + 64, W - 128, CH - 120, o, { max: 62, min: 38, maxLines: 4, by: R.long } );
+		nFoot( ctx, R, P, W, CH, A, { logo: 'left', rule: false } );
+	}
+	function nCircle( ctx, W, CH, R, P, o, A, type ) {
+		nGrad( ctx, P, 0, 0, W, CH, 165 );
+		nGlow( ctx, P, W / 2, CH * 0.3, CH * 0.55, 0.45 );
+		var img = R.showPerson ? R.person : R.photo, hasImg = !! img || R.showPerson;
+		var D = Math.round( Math.min( W * 0.46, CH * ( R.long ? 0.3 : 0.4 ) ) ), top = 'condolence' === type ? 150 : 118, cx = W / 2;
+		ctx.strokeStyle = hexA( '#FFFFFF', 0.09 ); ctx.lineWidth = 3;
+		if ( hasImg ) { [ 70, 130, 200 ].forEach( function ( r ) { ctx.beginPath(); ctx.arc( cx, top + D / 2, D / 2 + r, 0, Math.PI * 2 ); ctx.stroke(); } ); }
+		if ( 'birthday' === type ) {
+			confetti( ctx, W, CH, 11, [ 160, 60, W - 160, CH - 140 ], 0.7 );
+		}
+		logo( ctx, 56, 48, 170, '#FFFFFF', 'left', A );
+		if ( 'condolence' === type ) { ribbon( ctx, W - 150, 30, '#E8E2D6', 1 ); if ( R.pre ) { line( ctx, R.pre, { x: cx, top: 92, lh: 40, size: 26, color: P.tint, align: 'center', maxW: 760 } ); } }
+		if ( hasImg ) {
+			if ( R.showPerson ) { nPerson( ctx, R, P, cx - D / 2, top, D ); } else { circleImage( ctx, R.photo, cx - D / 2, top, D, { rings: [ [ 14, P.acc ], [ 7, '#FFFFFF' ] ], focus: R.focus, zoom: R.zoom } ); }
+		}
+		var y = hasImg ? top + D + 40 : 160;
+		if ( 'birthday' === type || 'condolence' === type ) {
+			line( ctx, R.tag, { x: cx, top: y, lh: 76, size: 'birthday' === type ? 60 : 50, min: 34, weight: 700, fam: 'serif', color: P.acc, align: 'center', maxW: W - 160 } );
+			y += 92;
+			var Rb = Object.assign( {}, R, { tag: '', meta: R.meta } );
+			nText( ctx, Rb, P, 90, y, W - 180, CH - 110, o, { align: 'center', max: 64, min: 40, maxLines: 2, valign: 'top' } );
+			if ( R.meta ) { line( ctx, R.meta, { x: cx, top: CH - 92, lh: 40, size: 26, color: P.tint, align: 'center', maxW: W - 200 } ); }
+			return;
+		}
+		if ( R.breaking ) { nBadge( ctx, R.tag, cx - 120, y - 4, 54 ); y += 76; } else if ( R.tag ) { nTag( ctx, R.tag, cx, y, P, 'amber', 'center' ); y += 76; }
+		if ( R.quote && ! hasImg ) { nQuote( ctx, cx, y - 10, 200, P.acc, 'center' ); y += 150; }
+		var Rc = R.quote ? Object.assign( {}, R, { showPerson: false } ) : R;
+		nText( ctx, Rc, P, 90, y, W - 180, CH - 120, o, { align: 'center', max: 68, min: 36, maxLines: R.long ? 6 : 4, by: !! ( R.quote && R.by ) } );
+		nFoot( ctx, R, P, W, CH, A, { rule: false } );
+	}
+	function nQuoteNews( ctx, W, CH, R, P, o, A ) {
+		nGrad( ctx, P, 0, 0, W, CH, 150 );
+		nGlow( ctx, P, W * 0.8, 160, 520, 0.4 );
+		var img = R.showPerson && R.person ? R.person : R.photo, D = img || R.showPerson ? Math.round( Math.min( 400, CH * 0.36 ) ) : 0, top = 96;
+		if ( D ) {
+			var x = W - 72 - D;
+			ctx.fillStyle = hexA( P.soft, 0.35 ); ctx.beginPath(); ctx.arc( x + D / 2 + 26, top + D / 2 + 22, D / 2 + 14, 0, Math.PI * 2 ); ctx.fill();
+			if ( R.showPerson && R.person ) { nPerson( ctx, R, P, x, top, D ); } else if ( R.showPerson ) { nPerson( ctx, R, P, x, top, D ); } else { circleImage( ctx, R.photo, x, top, D, { rings: [ [ 12, P.acc ], [ 6, '#FFFFFF' ] ], focus: R.focus, zoom: R.zoom } ); }
+		}
+		nQuote( ctx, 44, 62, 300, P.acc );
+		logo( ctx, 64, CH - 86, 180, '#FFFFFF', 'left', A );
+		var tt = 300;
+		if ( R.breaking ) { nBadge( ctx, R.tag, 64, tt, 54 ); } else if ( R.tag ) { nTag( ctx, R.tag, 64, tt, P, 'white' ); }
+		var topT = Math.max( tt + 90, D ? top + D + 40 : 0 );
+		if ( D && topT > top + D ) { topT = top + D + 44; }
+		var Rq = Object.assign( {}, R, { showPerson: false } );
+		nText( ctx, Rq, P, 64, topT, W - 128, CH - 130, o, { max: 70, min: 38, maxLines: R.long ? 6 : 4, by: !! R.by } );
+		rect( ctx, 64, CH - 112, W - 128, 1, 'rgba(255,255,255,.2)' );
+		var cw = cta( ctx, R.cta, W - 64, CH - 90, { h: 50, size: 23, align: 'right', fill: '#FFFFFF', color: P.a, maxW: 460 } );
+		if ( ! cw ) { line( ctx, R.meta || watermark(), { x: W - 64, top: CH - 84, lh: 40, size: 25, color: P.tint, align: 'right', maxW: 560 } ); }
+	}
+	function nSide( ctx, W, CH, R, P, o, A ) {
+		var lw = Math.round( W * 0.44 ), img = R.showPerson && R.person ? R.person : R.photo;
+		nGrad( ctx, P, lw, 0, W - lw, CH, 170 );
+		if ( img ) {
+			cover( ctx, img, 0, 0, lw, CH, R.showPerson && R.person ? null : R.focus, R.showPerson && R.person ? 1 : R.zoom );
+			shade( ctx, 0, CH * 0.55, lw, CH * 0.45, [ [ 0, 'rgba(4,10,28,0)' ], [ 1, 'rgba(4,10,28,.55)' ] ] );
+		} else {
+			nGrad( ctx, P, 0, 0, lw, CH, 120 );
+			if ( R.personName ) { line( ctx, firstGrapheme( R.personName ), { x: lw / 2, top: CH / 2 - 120, lh: 240, size: 220, weight: 700, fam: 'serif', color: hexA( '#FFFFFF', 0.85 ), align: 'center' } ); }
+		}
+		rect( ctx, lw, 0, 10, CH, P.acc );
+		var x = lw + 56, w = W - x - 56;
+		logo( ctx, x, 60, 170, '#FFFFFF', 'left', A );
+		var tt = 150;
+		if ( R.breaking ) { nBadge( ctx, R.tag, x, tt, 52 ); tt += 74; } else if ( R.tag ) { nTag( ctx, R.tag, x, tt, P, 'amber' ); tt += 74; }
+		if ( R.quote ) { nQuote( ctx, x - 8, tt - 10, 150, hexA( P.acc, 0.9 ) ); tt += 96; }
+		var Rs = Object.assign( {}, R, { showPerson: false } );
+		nText( ctx, Rs, P, x, tt, w, CH - 130, o, { max: 56, min: 32, maxLines: 7, by: !! R.by } );
+		nFoot( ctx, R, P, W, CH, A, { left: x, rule: false } );
+	}
+	function nMinimal( ctx, W, CH, R, P, o, A ) {
+		rect( ctx, 0, 0, W, CH, '#FFFFFF' );
+		rect( ctx, 0, 0, W, 10, P.b );
+		var hasP = !! R.photo, ph = hasP ? Math.round( CH * 0.5 ) : 0, y = 58;
+		if ( R.center && R.showPerson ) {
+			/* জন্মদিন / শোক: the person in the middle */
+			var D = Math.round( Math.min( 340, CH * 0.32 ) );
+			if ( R.pre ) { line( ctx, R.pre, { x: W / 2, top: 40, lh: 40, size: 26, color: '#5B6676', align: 'center', maxW: 800 } ); }
+			nPerson( ctx, R, P, W / 2 - D / 2, 100, D, true );
+			line( ctx, R.tag, { x: W / 2, top: 130 + D, lh: 70, size: 52, min: 32, weight: 700, fam: 'serif', color: R.gray ? '#2B2B2B' : P.b, align: 'center', maxW: W - 160 } );
+			nText( ctx, Object.assign( {}, R, { showPerson: false } ), P, 90, 220 + D, W - 180, CH - 120, o, { light: true, align: 'center', max: 62, min: 38, maxLines: 2, valign: 'top' } );
+			nFoot( ctx, Object.assign( {}, R, { cta: '' } ), P, W, CH, A, { light: true, logo: 'left', logoW: 170 } );
+			return;
+		}
+		if ( hasP ) { ctx.save(); rrect( ctx, 48, y, W - 96, ph, 26 ); ctx.clip(); nPhotoOr( ctx, R, 48, y, W - 96, ph, P ); ctx.restore(); y += ph + 46; } else { y = 96; }
+		if ( R.showPerson && ! hasP ) { nPerson( ctx, R, P, 64, y, 130, true ); line( ctx, R.by, { x: 220, top: y + 22, lh: 50, size: 34, weight: 700, fam: 'serif', color: '#0B1E3F', maxW: W - 300 } ); line( ctx, R.by2, { x: 220, top: y + 74, lh: 36, size: 24, color: '#5B6676', maxW: W - 300 } ); y += 170; }
+		if ( R.breaking ) { nBadge( ctx, R.tag, 64, y, 48 ); y += 70; } else if ( R.tag ) { nTag( ctx, R.tag, 64, y, P, 'line' ); y += 58; }
+		if ( R.quote && ! hasP ) { nQuote( ctx, W - 64, 40, 240, hexA( P.b, 0.16 ), 'right' ); }
+		var Rm = Object.assign( {}, R, { showPerson: false } );
+		nText( ctx, Rm, P, 64, y, W - 128, CH - 120, o, { light: true, max: hasP ? 58 : 76, min: 36, maxLines: hasP ? 4 : 7, valign: hasP ? 'top' : 'middle', by: ! R.showPerson && !! R.by } );
+		nFoot( ctx, R, P, W, CH, A, { light: true, logo: 'left', logoW: 170 } );
+	}
+	function nRule( ctx, W, CH, R, P, o, A ) {
+		rect( ctx, 0, 0, W, CH, '#F7F9FC' );
+		var hasP = !! R.photo, ph = hasP ? Math.round( CH * 0.54 ) : 0;
+		if ( hasP ) { nPhotoOr( ctx, R, 0, 0, W, ph, P ); nTopShade( ctx, W, 180, 0.4 ); logo( ctx, W - 56, 48, 180, '#FFFFFF', 'right', A ); } else { logo( ctx, W - 64, 60, 180, P.b, 'right', A ); }
+		var y = ph + ( hasP ? 50 : 150 );
+		if ( R.breaking ) { nBadge( ctx, R.tag, 96, y, 46 ); } else if ( R.tag ) { line( ctx, R.tag, { x: 96, top: y, lh: 44, size: 28, weight: 700, color: P.b, maxW: 700 } ); }
+		ctx.fillStyle = P.acc; ctx.beginPath(); ctx.arc( 70, y + 22, 9, 0, Math.PI * 2 ); ctx.fill();
+		var t = nText( ctx, R, P, 96, y + 62, W - 160, CH - 118, o, { light: true, max: hasP ? 60 : 76, min: 36, maxLines: hasP ? 4 : 7, valign: 'top', by: !! R.by } );
+		rect( ctx, 64, y + 62, 10, Math.max( 40, t.bottom - y - 62 ), P.a );
+		nFoot( ctx, R, P, W, CH, A, { light: true, rule: true } );
+	}
+	function nHeadline( ctx, W, CH, R, P, o, A ) {
+		nGrad( ctx, P, 0, 0, W, CH, 155 );
+		ctx.save(); ctx.strokeStyle = hexA( '#FFFFFF', 0.045 ); ctx.lineWidth = 2;
+		for ( var i = -CH; i < W; i += 36 ) { ctx.beginPath(); ctx.moveTo( i, CH ); ctx.lineTo( i + CH, 0 ); ctx.stroke(); }
+		ctx.restore();
+		nGlow( ctx, P, W * 0.9, CH * 0.1, CH * 0.6, 0.45 );
+		logo( ctx, 64, 64, 200, '#FFFFFF', 'left', A );
+		if ( R.breaking ) { nBadge( ctx, R.tag, W - 64 - 300, 58, 56 ); } else if ( R.tag ) { var pw = 0; ctx.font = fontStr( 600, 26, 'sans' ); pw = Math.round( width( ctx, R.tag ) ) + 56; nTag( ctx, R.tag, W - 64 - pw, 60, P, 'amber' ); }
+		if ( R.quote ) { nQuote( ctx, 50, 150, 220, hexA( P.acc, 0.95 ) ); }
+		var t = nText( ctx, R, P, 64, R.quote ? 330 : 190, W - 128, CH - 170, o, { max: 96, min: 52, maxLines: 6, by: !! R.by } );
+		rect( ctx, 64, t.bottom + 30, 150, 10, P.acc );
+		nFoot( ctx, R, P, W, CH, A, { rule: false } );
+	}
+	function nTicker( ctx, W, CH, R, P, o, A ) {
+		rect( ctx, 0, 0, W, CH, P.deep );
+		nPhotoOr( ctx, R, 0, 0, W, CH, P );
+		nTopShade( ctx, W, 220, 0.55 );
+		shade( ctx, 0, CH * 0.45, W, CH * 0.55, [ [ 0, 'rgba(3,10,30,0)' ], [ 1, 'rgba(3,10,30,.55)' ] ] );
+		logo( ctx, W - 56, 50, 190, '#FFFFFF', 'right', A );
+		var hi = nHi( P, false, o ), r = fit( ctx, R.title, { w: W - 150, maxLines: 3, max: 58, min: 38, lh: 1.28 } );
+		var stripH = 70, barH = r.lines.length * r.lineH + 64, barTop = CH - stripH - barH;
+		var bw = nBadge( ctx, 'breaking' === o.type ? R.tag : 'ব্রেকিং', 0, barTop - 64, 64 );
+		if ( 'breaking' !== o.type ) { R = Object.assign( {}, R, { meta: R.tag || R.meta } ); }
+		if ( R.meta ) {
+			ctx.font = fontStr( 700, 28, 'sans' );
+			var mw = Math.round( width( ctx, R.meta ) ) + 40;
+			rect( ctx, bw, barTop - 64, mw, 64, P.acc );
+			line( ctx, R.meta, { x: bw + 20, top: barTop - 64, lh: 64, size: 28, weight: 700, color: P.accInk } );
+		}
+		rect( ctx, 0, barTop, W, barH, hexA( P.a, 0.96 ) );
+		rect( ctx, 0, barTop, 14, barH, P.acc );
+		drawFit( ctx, r, { x: 52, y: barTop + 32, w: W - 150, h: barH - 64, color: '#FFFFFF', hi: hi.hi, hiBg: hi.hiBg } );
+		rect( ctx, 0, CH - stripH, W, stripH, P.deep );
+		var cw = cta( ctx, R.cta, W - 40, CH - stripH + 11, { h: 48, size: 22, align: 'right', fill: P.acc, color: P.accInk, maxW: 440 } );
+		line( ctx, watermark() + '  •  সবার আগে সর্বশেষ খবর', { x: 40, top: CH - stripH, lh: stripH, size: 25, weight: 600, color: P.tint, maxW: W - 120 - cw } );
+	}
+	function nAlert( ctx, W, CH, R, P, o, A ) {
+		nGrad( ctx, P, 0, 0, W, CH, 160 );
+		nGlow( ctx, P, W * 0.1, CH * 0.5, CH * 0.7, 0.35 );
+		var tape = function ( y ) {
+			ctx.save(); ctx.beginPath(); ctx.rect( 0, y, W, 24 ); ctx.clip(); rect( ctx, 0, y, W, 24, P.acc );
+			ctx.fillStyle = P.deep; for ( var i = -40; i < W + 40; i += 56 ) { ctx.beginPath(); ctx.moveTo( i, y + 24 ); ctx.lineTo( i + 24, y ); ctx.lineTo( i + 50, y ); ctx.lineTo( i + 26, y + 24 ); ctx.closePath(); ctx.fill(); }
+			ctx.restore();
+		};
+		tape( 0 );
+		var bw = nBadge( ctx, 'breaking' === o.type ? R.tag : 'ব্রেকিং নিউজ', 64, 80, 76 );
+		if ( R.meta ) { line( ctx, R.meta, { x: 64 + bw + 26, top: 80, lh: 76, size: 34, weight: 700, color: P.acc, maxW: W - bw - 180 } ); }
+		if ( R.photo ) {
+			var D = 200;
+			circleImage( ctx, R.photo, W - 64 - D, 190, D, { rings: [ [ 10, P.acc ], [ 5, '#FFFFFF' ] ], focus: R.focus, zoom: R.zoom } );
+		}
+		var t = nText( ctx, R, P, 64, R.photo ? 420 : 210, W - 128, CH - 170, o, { max: 92, min: 52, maxLines: 6, by: !! R.by } );
+		rect( ctx, 64, t.bottom + 28, 150, 10, '#D7261E' );
+		nFoot( ctx, R, P, W, CH - 24, A, { logo: 'left', rule: false } );
+		tape( CH - 24 );
+	}
+	function nVivid( ctx, W, CH, R, P, o, A, type ) {
+		ctx.fillStyle = cssLinear( ctx, 135, 0, 0, W, CH, [ [ 0, P.b ], [ 0.55, P.a ], [ 1, P.deep ] ] ); ctx.fillRect( 0, 0, W, CH );
+		var g = ctx.createRadialGradient( 0, 0, 0, 0, 0, CH * 0.7 ); g.addColorStop( 0, hexA( P.acc, 0.45 ) ); g.addColorStop( 1, hexA( P.acc, 0 ) );
+		ctx.fillStyle = g; ctx.fillRect( 0, 0, W, CH );
+		ctx.fillStyle = hexA( '#FFFFFF', 0.07 );
+		[ [ W - 80, 120, 230 ], [ 120, CH - 160, 190 ], [ W - 200, CH - 60, 120 ] ].forEach( function ( c ) { ctx.beginPath(); ctx.arc( c[ 0 ], c[ 1 ], c[ 2 ], 0, Math.PI * 2 ); ctx.fill(); } );
+		if ( 'birthday' === type ) { confetti( ctx, W, CH, 5, [ 120, 80, W - 120, CH - 120 ], 0.9 ); }
+		var hasP = !! R.photo, y;
+		if ( hasP ) {
+			var x = 84, cy = 96, w = W - 168, h = Math.round( CH * 0.47 );
+			ctx.save(); ctx.translate( x + w / 2, cy + h / 2 ); ctx.rotate( -0.035 );
+			ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 16; rfill( ctx, -w / 2 - 12, -h / 2 - 12, w + 24, h + 24, 26, '#FFFFFF' ); ctx.shadowColor = 'transparent';
+			rrect( ctx, -w / 2, -h / 2, w, h, 18 ); ctx.clip(); nPhotoOr( ctx, R, -w / 2, -h / 2, w, h, P );
+			ctx.restore();
+			if ( R.tag ) {
+				ctx.save(); ctx.translate( 110, cy + h - 6 ); ctx.rotate( -0.06 );
+				if ( R.breaking ) { nBadge( ctx, R.tag, 0, 0, 58 ); } else { nTag( ctx, R.tag, 0, 0, P, 'amber' ); }
+				ctx.restore();
+			}
+			y = cy + h + 84;
+		} else {
+			y = 150;
+			if ( R.showPerson ) { var D = Math.round( Math.min( 360, CH * 0.3 ) ); nPerson( ctx, R, P, W / 2 - D / 2, 110, D ); y = 110 + D + 50; }
+			if ( R.tag ) { if ( 'birthday' === type ) { line( ctx, R.tag, { x: W / 2, top: y, lh: 76, size: 62, min: 36, weight: 700, fam: 'serif', color: P.acc, align: 'center', maxW: W - 160 } ); y += 92; } else { nTag( ctx, R.tag, W / 2, y, P, 'amber', 'center' ); y += 80; } }
+			if ( R.quote && ! R.showPerson ) { nQuote( ctx, W / 2, y - 10, 200, P.acc, 'center' ); y += 150; }
+		}
+		var Rv = Object.assign( {}, R, { showPerson: false, tag: '' } );
+		nText( ctx, Rv, P, 80, y, W - 160, CH - 126, o, { align: 'center', max: hasP ? 62 : 76, min: 38, maxLines: hasP ? 4 : 6, by: !! R.by } );
+		nFoot( ctx, R, P, W, CH, A, { rule: false } );
+	}
+	function nPop( ctx, W, CH, R, P, o, A ) {
+		rect( ctx, 0, 0, W, CH, P.a );
+		ctx.fillStyle = P.acc; ctx.beginPath(); ctx.arc( W - 10, CH - 10, 330, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = P.mid; ctx.beginPath(); ctx.arc( 30, 60, 280, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = hexA( P.soft, 0.55 ); ctx.beginPath(); ctx.arc( W - 120, 130, 70, 0, Math.PI * 2 ); ctx.fill();
+		var hasP = !! R.photo, y = 72;
+		if ( hasP ) {
+			var x = 72, w = W - 144, h = Math.round( CH * 0.48 );
+			rfill( ctx, x - 10, y - 10, w + 20, h + 20, 44, '#FFFFFF' );
+			ctx.save(); rrect( ctx, x, y, w, h, 36 ); ctx.clip(); nPhotoOr( ctx, R, x, y, w, h, P ); ctx.restore();
+			logo( ctx, W - 100, y + 26, 170, '#FFFFFF', 'right', A );
+			if ( R.breaking ) { nBadge( ctx, R.tag, 100, y + h - 30, 58 ); } else if ( R.tag ) { nTag( ctx, R.tag, 100, y + h - 28, P, 'amber' ); }
+			y += h + 72;
+		} else { logo( ctx, 72, 72, 190, '#FFFFFF', 'left', A ); y = 200; if ( R.tag ) { nTag( ctx, R.tag, 72, 150, P, 'amber' ); y = 240; } }
+		var t = nText( ctx, R, P, 72, y, W - 144, CH - 150, o, { max: hasP ? 64 : 84, min: 38, maxLines: hasP ? 4 : 6, valign: 'top', by: !! R.by } );
+		rect( ctx, 72, t.bottom + 22, 180, 12, P.acc );
+		var Rf = Object.assign( {}, R );
+		nFoot( ctx, Rf, P, W, CH, A, { rule: false } );
+	}
+	function nCollage( ctx, W, CH, R, P, o, A, d, xo ) {
+		var kind = xo.k || '4', tall = '2v' === kind || '4' === kind || '4b' === kind;
+		var ph = Math.round( CH * ( tall ? 0.6 : 0.55 ) );
+		nGrad( ctx, P, 0, ph, W, CH - ph, 165 );
+		ctx.save(); ctx.beginPath(); ctx.rect( 0, ph, W, CH - ph ); ctx.clip(); ctx.globalAlpha = 0.3; ctx.fillStyle = P.mid; ctx.beginPath(); ctx.arc( W + 40, ph + ( CH - ph ) * 0.6, ( CH - ph ) * 0.8, 0, Math.PI * 2 ); ctx.fill(); ctx.restore();
+		var tiles = collageTiles( d, A ).map( function ( t, i ) { return 0 === i && ! t.img ? null : t; } );
+		nTiles( ctx, tiles, kind, 0, 0, W, ph, 8, +d.gallery_more || 0, P );
+		nTopShade( ctx, W, 170, 0.45 );
+		rect( ctx, 0, ph, W, 6, P.acc );
+		logo( ctx, W - 56, 46, 180, '#FFFFFF', 'right', A );
+		if ( R.tag ) { nTag( ctx, R.tag, 64, ph - 27, P, 'white' ); }
+		nText( ctx, R, P, 64, ph + 58, W - 128, CH - 120, o, { max: 60, min: 38, maxLines: 3 } );
+		nFoot( ctx, R, P, W, CH, A, {} );
+	}
+	/* 1200 × 630: photo / circle on the left, the block with the words on the right */
+	function nLand( lay, ctx, W, CH, R, P, o, A, d, xo, type ) {
+		var light = 'minimal' === lay || 'rule' === lay, lw = 560, x = lw + 56, w = W - x - 56;
+		rect( ctx, 0, 0, W, CH, light ? '#FFFFFF' : P.a );
+		if ( ! light ) { nGrad( ctx, P, lw, 0, W - lw, CH, 160 ); nGlow( ctx, P, W, 0, 420, 0.35 ); }
+		var img = R.showPerson && R.person ? R.person : R.photo;
+		if ( 'collage' === lay ) {
+			var tiles = collageTiles( d, A ).map( function ( t, i ) { return 0 === i && ! t.img ? null : t; } );
+			nTiles( ctx, tiles, xo.k || '4', 0, 0, lw, CH, 6, +d.gallery_more || 0, P );
+		} else if ( ( 'circle' === lay || 'quote' === lay || R.showPerson ) && ( img || R.showPerson ) ) {
+			nGrad( ctx, P, 0, 0, lw, CH, 120 );
+			var D = 380;
+			if ( R.showPerson ) { nPerson( ctx, R, P, ( lw - D ) / 2, ( CH - D ) / 2, D ); } else { circleImage( ctx, R.photo, ( lw - D ) / 2, ( CH - D ) / 2, D, { rings: [ [ 14, P.acc ], [ 7, '#FFFFFF' ] ], focus: R.focus, zoom: R.zoom } ); }
+		} else if ( R.photo ) {
+			if ( light ) { ctx.save(); rrect( ctx, 32, 32, lw - 48, CH - 64, 22 ); ctx.clip(); nPhotoOr( ctx, R, 32, 32, lw - 48, CH - 64, P ); ctx.restore(); } else { nPhotoOr( ctx, R, 0, 0, lw, CH, P ); }
+		} else {
+			nGrad( ctx, P, 0, 0, lw, CH, 120 );
+			if ( R.quote ) { nQuote( ctx, lw / 2, 120, 320, P.acc, 'center' ); }
+		}
+		if ( ! light ) { rect( ctx, lw, 0, 8, CH, P.acc ); }
+		logo( ctx, x, 46, 160, light ? P.b : '#FFFFFF', 'left', A );
+		var tt = 116;
+		if ( R.breaking ) { nBadge( ctx, R.tag, x, tt, 48 ); tt += 66; } else if ( R.tag ) { if ( light ) { nTag( ctx, R.tag, x, tt, P, 'line' ); tt += 54; } else { pill( ctx, R.tag, x, tt, { fill: P.acc, color: P.accInk, size: 22, h: 46 } ); tt += 64; } }
+		var Rl = Object.assign( {}, R, { showPerson: false, msg: '' } );
+		nText( ctx, Rl, P, x, tt, w, CH - 96, o, { light: light, max: 50, min: 30, maxLines: 5, by: !! R.by } );
+		nFoot( ctx, R, P, W, CH, A, { light: light, left: x, rule: false, h: 80 } );
+	}
+
+	/* preset id → [layout, label, group, extra]. Ids are new for every type (never an existing preset or DAY theme). */
+	var NIL = {
+		nilblock: [ 'block', 'নীল ব্লক', 'common' ],
+		nilchhaya: [ 'shade', 'নীল ছায়া', 'common' ],
+		tirjok: [ 'diag', 'তির্যক নীল', 'common' ],
+		stor: [ 'layer', 'দুই স্তর', 'common' ],
+		minimal: [ 'minimal', 'মিনিমাল সাদা', 'minimal' ],
+		rekha: [ 'rule', 'মিনিমাল রেখা', 'minimal' ],
+		shirshok: [ 'text', 'শুধু শিরোনাম', 'minimal' ],
+		tv: [ 'ticker', 'টিভি টিকার', 'breaking' ],
+		jorur: [ 'alert', 'জরুরি সতর্কতা', 'breaking' ],
+		brkblock: [ 'block', 'ব্রেকিং ব্লক', 'breaking', { badge: 1 } ],
+		ujjol: [ 'vivid', 'উজ্জ্বল গ্রেডিয়েন্ট', 'vibrant', { pal: 'sky' } ],
+		pop: [ 'pop', 'পপ রঙ', 'vibrant' ],
+		prism: [ 'prism', 'প্রিজম', 'vibrant' ],
+		gol: [ 'circle', 'গোল ছবি', 'circle' ],
+		uktibox: [ 'quote', 'উদ্ধৃতি সংবাদ', 'circle' ],
+		pashe: [ 'side', 'পাশে ছবি', 'circle' ],
+		k2h: [ 'collage', 'পাশাপাশি দুই', 'collage', { k: '2h' } ],
+		k2v: [ 'collage', 'ওপর-নিচ দুই', 'collage', { k: '2v' } ],
+		k3: [ 'collage', 'বড় + দুই', 'collage', { k: '3' } ],
+		k3c: [ 'collage', 'তিন কলাম', 'collage', { k: '3c' } ],
+		k4: [ 'collage', 'চার ঘর', 'collage', { k: '4' } ],
+		k4b: [ 'collage', 'বড় + তিন', 'collage', { k: '4b' } ],
+		kvs: [ 'collage', 'মুখোমুখি (বনাম)', 'collage', { k: 'vs' } ],
+		kgol: [ 'collage', 'ছবি + গোল ইনসেট', 'collage', { k: 'gol' } ]
+	};
+	var NIL_FOR = {
+		news: Object.keys( NIL ),
+		breaking: [ 'tv', 'jorur', 'brkblock', 'nilchhaya', 'tirjok', 'stor', 'minimal', 'rekha', 'shirshok', 'ujjol', 'pop', 'gol' ],
+		feature: [ 'nilblock', 'nilchhaya', 'tirjok', 'stor', 'minimal', 'rekha', 'ujjol', 'pop', 'prism', 'gol', 'pashe', 'uktibox' ],
+		opinion: [ 'nilblock', 'uktibox', 'pashe', 'nilchhaya', 'gol', 'minimal', 'rekha', 'shirshok', 'ujjol' ],
+		literature: [ 'nilblock', 'pashe', 'minimal', 'rekha', 'nilchhaya', 'ujjol' ],
+		poem: [ 'nilblock', 'minimal', 'nilchhaya', 'ujjol' ],
+		morning: [ 'nilblock', 'nilchhaya', 'stor', 'ujjol', 'minimal' ],
+		day: [ 'nilblock', 'gol', 'nilchhaya', 'ujjol', 'minimal' ],
+		birthday: [ 'gol', 'ujjol', 'minimal' ],
+		condolence: [ 'gol', 'minimal' ]
+	};
+	NIL_FOR.category = NIL_FOR.feature;
+	NIL_FOR.quote = NIL_FOR.opinion;
+	/* on these tabs a new layout opens the "সাধারণ" section instead of its own */
+	var NIL_COMMON = { breaking: { tv: 1, jorur: 1, brkblock: 1 }, opinion: { uktibox: 1, pashe: 1 }, quote: { uktibox: 1, pashe: 1 }, birthday: { gol: 1, ujjol: 1 }, condolence: { gol: 1 }, day: { gol: 1 } };
+	var NIL_LABEL = { opinion: { nilblock: 'নীল মতামত', uktibox: 'নীল উদ্ধৃতি', pashe: 'লেখকের ছবি পাশে' }, quote: { nilblock: 'নীল উক্তি', uktibox: 'উক্তি ও গোল ছবি', pashe: 'বক্তার ছবি পাশে' }, literature: { nilblock: 'নীল মলাট' }, poem: { nilblock: 'নীল রাত' }, birthday: { gol: 'নীল উৎসব' }, condolence: { gol: 'নীল-কালো শোক', minimal: 'সাদা শোক' } };
+	function nilDraw( type, id, ctx, W, H, d, o, A ) {
+		var spec = NIL[ id ], lay = spec[ 0 ], xo = spec[ 3 ] || {}, CH = H - ( o.ad ? STRIP_H : 0 );
+		var R = nRoles( type, d, A, o ), P = 'condolence' === type ? NP.shok : npal( d, o, xo.pal );
+		if ( 'condolence' === type ) { R.cta = ''; }
+		if ( 1200 === W ) { nLand( lay, ctx, W, CH, R, P, o, A, d, xo, type ); return; }
+		switch ( lay ) {
+			case 'block': nBlock( ctx, W, CH, R, P, o, A, xo ); break;
+			case 'shade': nShade( ctx, W, CH, R, P, o, A ); break;
+			case 'diag': nDiag( ctx, W, CH, R, P, o, A, false ); break;
+			case 'prism': nDiag( ctx, W, CH, R, P, o, A, true ); break;
+			case 'layer': nLayers( ctx, W, CH, R, P, o, A ); break;
+			case 'circle': nCircle( ctx, W, CH, R, P, o, A, type ); break;
+			case 'quote': nQuoteNews( ctx, W, CH, R, P, o, A ); break;
+			case 'side': nSide( ctx, W, CH, R, P, o, A ); break;
+			case 'minimal': nMinimal( ctx, W, CH, R, P, o, A ); break;
+			case 'rule': nRule( ctx, W, CH, R, P, o, A ); break;
+			case 'text': nHeadline( ctx, W, CH, R, P, o, A ); break;
+			case 'ticker': nTicker( ctx, W, CH, R, P, o, A ); break;
+			case 'alert': nAlert( ctx, W, CH, R, P, o, A ); break;
+			case 'vivid': nVivid( ctx, W, CH, R, P, o, A, type ); break;
+			case 'pop': nPop( ctx, W, CH, R, P, o, A ); break;
+			case 'collage': nCollage( ctx, W, CH, R, P, o, A, d, xo ); break;
+		}
+	}
+
+	/* ================================================================== 2.4.4 · মিহা নিউজের নিজস্ব বিজ্ঞাপন (1080 × 120 strips)
+	   Drawn here (sharp at any width, nothing to upload). Social links come from the theme (configure({ social })),
+	   the campus title / address from configure({ campus: { title, url } }). */
+	var HOUSE = {
+		social: 'সোশ্যাল মিডিয়া', shikkha: 'শিক্ষা ও ক্যাম্পাস', campus: 'ক্যাম্পাস ও ক্যারিয়ার',
+		web: 'ওয়েবসাইট', youtube: 'ইউটিউব চ্যানেল', whatsapp: 'হোয়াটসঅ্যাপ চ্যানেল'
+	};
+	var NETS = { facebook: '#1877F2', youtube: '#FF0000', instagram: '#DD2A7B', x: '#000000', whatsapp: '#25D366', telegram: '#229ED9' };
+	function netIcon( ctx, net, cx, cy, r ) {
+		ctx.save();
+		if ( 'instagram' === net ) {
+			var g = ctx.createLinearGradient( cx - r, cy + r, cx + r, cy - r );
+			g.addColorStop( 0, '#F58529' ); g.addColorStop( 0.5, '#DD2A7B' ); g.addColorStop( 1, '#8134AF' ); ctx.fillStyle = g;
+		} else { ctx.fillStyle = NETS[ net ] || '#1546B8'; }
+		ctx.beginPath(); ctx.arc( cx, cy, r, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = '#FFFFFF'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+		var s = r / 34;
+		if ( 'facebook' === net ) {
+			ctx.font = '700 ' + Math.round( r * 1.45 ) + 'px Arial, Helvetica, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+			ctx.fillText( 'f', cx + r * 0.06, cy + r * 0.52 );
+		} else if ( 'youtube' === net ) {
+			ctx.beginPath(); ctx.moveTo( cx - 9 * s, cy - 13 * s ); ctx.lineTo( cx + 14 * s, cy ); ctx.lineTo( cx - 9 * s, cy + 13 * s ); ctx.closePath(); ctx.fill();
+		} else if ( 'instagram' === net ) {
+			ctx.lineWidth = 4 * s; rrect( ctx, cx - 17 * s, cy - 17 * s, 34 * s, 34 * s, 10 * s ); ctx.stroke();
+			ctx.beginPath(); ctx.arc( cx, cy, 8 * s, 0, Math.PI * 2 ); ctx.stroke();
+			ctx.beginPath(); ctx.arc( cx + 10 * s, cy - 10 * s, 2.6 * s, 0, Math.PI * 2 ); ctx.fill();
+		} else if ( 'x' === net ) {
+			ctx.lineWidth = 5 * s; ctx.beginPath(); ctx.moveTo( cx - 12 * s, cy - 13 * s ); ctx.lineTo( cx + 12 * s, cy + 13 * s ); ctx.moveTo( cx + 12 * s, cy - 13 * s ); ctx.lineTo( cx - 12 * s, cy + 13 * s ); ctx.stroke();
+		} else if ( 'whatsapp' === net ) {
+			ctx.lineWidth = 4 * s; ctx.beginPath(); ctx.arc( cx + 1 * s, cy - 1 * s, 15 * s, 0.7, Math.PI * 2 + 0.35 ); ctx.lineTo( cx - 15 * s, cy + 15 * s ); ctx.closePath(); ctx.stroke();
+			ctx.lineWidth = 5 * s; ctx.beginPath(); ctx.arc( cx + 1 * s, cy - 1 * s, 7 * s, Math.PI * 0.7, Math.PI * 1.25 ); ctx.stroke();
+		} else if ( 'telegram' === net ) {
+			ctx.beginPath(); ctx.moveTo( cx - 16 * s, cy - 1 * s ); ctx.lineTo( cx + 15 * s, cy - 13 * s ); ctx.lineTo( cx + 9 * s, cy + 14 * s ); ctx.lineTo( cx + 1 * s, cy + 6 * s ); ctx.lineTo( cx - 4 * s, cy + 12 * s ); ctx.lineTo( cx - 5 * s, cy + 4 * s ); ctx.closePath(); ctx.fill();
+		}
+		ctx.restore();
+	}
+	function houseSocial() {
+		var list = Array.isArray( cfg().social ) ? cfg().social : [];
+		var nets = list.map( function ( s ) { return Array.isArray( s ) ? s[ 0 ] : ( s && s.key ); } ).filter( function ( k ) { return !! NETS[ k ]; } );
+		var handle = '';
+		list.some( function ( s ) {
+			var u = Array.isArray( s ) ? s[ 2 ] : ( s && s.url );
+			var m = /^https?:\/\/[^\/]+\/(?:@)?([A-Za-z0-9_.\-]{3,40})\/?$/.exec( str( u ) );
+			if ( m && ! /^(channel|c|user|profile\.php|groups|pages)$/i.test( m[ 1 ] ) ) { handle = '@' + m[ 1 ]; return true; }
+			return false;
+		} );
+		return { nets: nets.length ? nets : [ 'facebook', 'youtube' ], handle: handle };
+	}
+	function shortUrl( u ) { return str( u ).replace( /^https?:\/\/(www\.)?/i, '' ).replace( /\/$/, '' ); }
+	function houseAd( ctx, key, x, y, w, h ) {
+		ctx.save();
+		ctx.beginPath(); ctx.rect( x, y, w, h ); ctx.clip();
+		ctx.translate( x, y );
+		var k = h / 120; ctx.scale( k, k ); w = w / k; h = 120;
+		var bg = function ( stops ) { ctx.fillStyle = cssLinear( ctx, 90, 0, 0, w, h, stops ); ctx.fillRect( 0, 0, w, h ); };
+		var bubbles = function ( c ) { ctx.fillStyle = c; [ [ w * 0.62, -30, 90 ], [ w * 0.9, 130, 110 ], [ w * 0.3, 140, 60 ] ].forEach( function ( b ) { ctx.beginPath(); ctx.arc( b[ 0 ], b[ 1 ], b[ 2 ], 0, Math.PI * 2 ); ctx.fill(); } ); };
+		var two = function ( a, b, x0, maxW, ca, cb ) {
+			line( ctx, a, { x: x0, top: 14, lh: 54, size: 38, min: 26, weight: 700, fam: 'serif', color: ca || '#FFFFFF', maxW: maxW } );
+			line( ctx, b, { x: x0, top: 68, lh: 38, size: 24, min: 18, weight: 600, color: cb || 'rgba(255,255,255,.88)', maxW: maxW } );
+		};
+		var right = function ( text, fill, ink ) {
+			ctx.font = fontStr( 700, 26, 'sans' );
+			var tw = Math.round( width( ctx, text ) ) + 56, px = w - 32 - tw;
+			ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 3; rfill( ctx, px, 32, tw, 56, 28, fill ); ctx.restore();
+			line( ctx, text, { x: px + tw / 2, top: 32, lh: 56, size: 26, weight: 700, color: ink, align: 'center' } );
+			return tw + 32;
+		};
+		var campus = cfg().campus || {}, site = watermark();
+		if ( 'social' === key ) {
+			bg( [ [ 0, '#0B2A6B' ], [ 0.55, '#1546B8' ], [ 1, '#5230CF' ] ] ); bubbles( 'rgba(255,255,255,.07)' );
+			var so = houseSocial(), rw = right( so.handle || site, '#FFC20E', '#1B1400' );
+			line( ctx, 'সঙ্গে থাকুন', { x: 40, top: 16, lh: 40, size: 26, weight: 700, color: '#FFC20E' } );
+			var tw2 = line( ctx, 'সোশ্যাল মিডিয়ায় মিহা নিউজ', { x: 40, top: 52, lh: 54, size: 36, min: 26, weight: 700, fam: 'serif', color: '#FFFFFF', maxW: 470 } );
+			var ix = 40 + Math.max( tw2, 300 ) + 46, room = w - rw - ix - 10, n = Math.max( 1, Math.min( so.nets.length, Math.floor( room / 84 ) ) );
+			so.nets.slice( 0, n ).forEach( function ( net, i ) {
+				ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.beginPath(); ctx.arc( ix + 36 + i * 84, 60, 38, 0, Math.PI * 2 ); ctx.fill();
+				netIcon( ctx, net, ix + 36 + i * 84, 60, 33 );
+			} );
+		} else if ( 'shikkha' === key ) {
+			bg( [ [ 0, '#0B3F94' ], [ 0.6, '#0A7FA8' ], [ 1, '#0EA58C' ] ] ); bubbles( 'rgba(255,255,255,.08)' );
+			ctx.fillStyle = '#FFC20E'; ctx.beginPath(); ctx.arc( 78, 60, 44, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = '#0B2A6B'; ctx.beginPath(); ctx.moveTo( 78, 36 ); ctx.lineTo( 112, 52 ); ctx.lineTo( 78, 68 ); ctx.lineTo( 44, 52 ); ctx.closePath(); ctx.fill();
+			ctx.beginPath(); ctx.moveTo( 60, 61 ); ctx.lineTo( 60, 76 ); ctx.quadraticCurveTo( 78, 88, 96, 76 ); ctx.lineTo( 96, 61 ); ctx.lineTo( 78, 70 ); ctx.closePath(); ctx.fill();
+			ctx.strokeStyle = '#0B2A6B'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo( 108, 54 ); ctx.lineTo( 108, 78 ); ctx.stroke();
+			var rw2 = right( 'পড়ুন ' + ( campus.url ? shortUrl( campus.url ) : site ), '#FFC20E', '#1B1400' );
+			two( str( campus.title ) || 'শিক্ষা ও ক্যাম্পাস', 'ভর্তি • পরীক্ষা • ফলাফল • বৃত্তি — সব খবর এক জায়গায়', 144, w - 144 - rw2 - 20 );
+		} else if ( 'campus' === key ) {
+			bg( [ [ 0, '#F97316' ], [ 0.5, '#E11D48' ], [ 1, '#7C3AED' ] ] ); bubbles( 'rgba(255,255,255,.1)' );
+			ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc( 78, 60, 44, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = '#E11D48';
+			ctx.beginPath(); ctx.moveTo( 50, 48 ); ctx.lineTo( 78, 32 ); ctx.lineTo( 106, 48 ); ctx.closePath(); ctx.fill();
+			[ 56, 72, 88 ].forEach( function ( cx ) { ctx.fillRect( cx, 52, 10, 24 ); } ); ctx.fillRect( 50, 78, 56, 7 );
+			var rw3 = right( 'এখনই পড়ুন', '#FFFFFF', '#C2185B' );
+			two( 'ক্যাম্পাস ও ক্যারিয়ার', 'পড়াশোনা, নিয়োগ আর ক্যারিয়ারের খবর — প্রতিদিন মিহা নিউজে', 144, w - 144 - rw3 - 20 );
+		} else if ( 'web' === key ) {
+			bg( [ [ 0, '#071C4D' ], [ 0.6, '#1546B8' ], [ 1, '#2457CF' ] ] ); bubbles( 'rgba(255,255,255,.06)' );
+			logo( ctx, 40, 38, 210, '#FFFFFF', 'left', null );
+			rect( ctx, 278, 26, 5, 68, '#FFC20E' );
+			var rw4 = right( site, '#FFC20E', '#1B1400' );
+			two( 'সবার আগে, সঠিক খবর', 'দেশ-বিদেশের প্রতিদিনের সব খবর পড়ুন আমাদের ওয়েবসাইটে', 306, w - 306 - rw4 - 20 );
+		} else if ( 'youtube' === key ) {
+			bg( [ [ 0, '#111114' ], [ 0.7, '#2B0B0B' ], [ 1, '#5A0D0D' ] ] ); bubbles( 'rgba(255,0,0,.12)' );
+			rfill( ctx, 34, 26, 96, 68, 20, '#FF0000' );
+			ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.moveTo( 70, 44 ); ctx.lineTo( 98, 60 ); ctx.lineTo( 70, 76 ); ctx.closePath(); ctx.fill();
+			var rw5 = right( 'সাবস্ক্রাইব করুন', '#FF0000', '#FFFFFF' );
+			two( 'ভিডিওতে খবর দেখুন', 'মিহা নিউজের ইউটিউব চ্যানেলে — প্রতিদিনের ভিডিও খবর', 152, w - 152 - rw5 - 20, '#FFFFFF', '#FFC9C9' );
+		} else if ( 'whatsapp' === key ) {
+			bg( [ [ 0, '#064E45' ], [ 0.6, '#0B8A5F' ], [ 1, '#25D366' ] ] ); bubbles( 'rgba(255,255,255,.08)' );
+			ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc( 78, 60, 44, 0, Math.PI * 2 ); ctx.fill();
+			netIcon( ctx, 'whatsapp', 78, 60, 38 );
+			var rw6 = right( 'ফলো করুন', '#FFFFFF', '#0B7A4B' );
+			two( 'খবর সরাসরি আপনার ফোনে', 'মিহা নিউজের হোয়াটসঅ্যাপ চ্যানেলে যুক্ত হোন', 144, w - 144 - rw6 - 20 );
+		}
+		ctx.restore();
+	}
+
+	/* ================================================================== 2.4.4 · লেয়ার (texts, arrows, marks, stickers, inset photos, blur)
+	   opts.layers = [ { t, x, y, … } ]: x / y / w / h are % of the card's content area (the ad strips excluded), sizes are
+	   px at 1080 wide. Drawn over the design (under the ad strips); each one leaves a hit region for the studio. */
+	var STICKERS = {
+		live: [ 'লাইভ', '#D7261E', '#FFFFFF', 'dot' ], breaking: [ 'ব্রেকিং', '#D7261E', '#FFFFFF' ], exclusive: [ 'এক্সক্লুসিভ', '#FFC20E', '#1B1400' ],
+		update: [ 'আপডেট', '#1546B8', '#FFFFFF' ], video: [ 'ভিডিও', '#0B0F18', '#FFFFFF', 'play' ], viral: [ 'ভাইরাল', '#7C3AED', '#FFFFFF' ],
+		new: [ 'নতুন', '#0E9F6E', '#FFFFFF' ], photo: [ 'ছবির গল্প', '#0B2A6B', '#FFFFFF' ],
+		fake: [ 'ভুয়া', '#D7261E', '', 'stamp' ], true: [ 'সত্য', '#0E9F6E', '', 'stamp' ], mislead: [ 'বিভ্রান্তিকর', '#EA580C', '', 'stamp' ]
+	};
+	var MARKS = { num: 'নম্বর', pin: 'পিন', target: 'লক্ষ্য', star: 'তারা', check: 'ঠিক', cross: 'ভুল', warn: 'সতর্কতা', q: 'প্রশ্ন', heart: 'হৃদয়' };
+	function lyText( ctx, l, x, y, k ) {
+		var size = Math.max( 12, ( +l.size || 44 ) * k ), fam = 'serif' === l.fam ? 'serif' : 'sans', wt = 'serif' === fam ? 700 : ( l.bold ? 700 : 600 );
+		var lines = String( l.text || '' ).replace( /\r/g, '' ).split( '\n' ).map( function ( s ) { return s.trim(); } );
+		if ( ! lines.join( '' ) ) { lines = [ 'লেখা' ]; }
+		ctx.font = fontStr( wt, size, fam );
+		var lh = Math.round( size * 1.3 ), tw = Math.max.apply( null, lines.map( function ( s ) { return width( ctx, s ); } ) ), th = lh * lines.length;
+		var bgk = l.bg || 'none', pad = 'none' === bgk || 'shadow' === bgk || 'outline' === bgk ? 0 : size * 0.42, bw = tw + 2 * pad * 1.3, bh = th + 2 * pad * 0.7;
+		ctx.translate( x, y ); if ( l.rot ) { ctx.rotate( l.rot * Math.PI / 180 ); }
+		if ( 'box' === bgk || 'pill' === bgk ) {
+			ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = size * 0.4; ctx.shadowOffsetY = size * 0.08;
+			rfill( ctx, -bw / 2, -bh / 2, bw, bh, 'pill' === bgk ? bh / 2 : size * 0.22, l.bgc || '#0B2A6B' ); ctx.restore();
+		}
+		ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+		lines.forEach( function ( s, i ) {
+			var by = baseline( ctx, -th / 2 + i * lh, lh ), lx = -width( ctx, s ) / 2, on = false;
+			s.split( '**' ).forEach( function ( p, j ) {
+				if ( j ) { on = ! on; }
+				if ( ! p ) { return; }
+				if ( 'shadow' === bgk ) { ctx.shadowColor = 'rgba(0,0,0,.75)'; ctx.shadowBlur = size * 0.35; ctx.shadowOffsetY = size * 0.06; }
+				if ( 'outline' === bgk ) { ctx.lineJoin = 'round'; ctx.lineWidth = Math.max( 3, size * 0.16 ); ctx.strokeStyle = l.bgc || '#0B1E3F'; ctx.strokeText( p, lx, by ); }
+				ctx.fillStyle = on ? ( l.hi || '#FFC20E' ) : ( l.color || '#FFFFFF' ); ctx.fillText( p, lx, by );
+				lx += ctx.measureText( p ).width;
+			} );
+			ctx.shadowColor = 'transparent';
+		} );
+		return [ x - bw / 2, y - bh / 2, bw, bh ];
+	}
+	function arrowHead( ctx, x, y, ang, s, color ) {
+		ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo( x, y );
+		ctx.lineTo( x - s * Math.cos( ang - 0.45 ), y - s * Math.sin( ang - 0.45 ) ); ctx.lineTo( x - s * Math.cos( ang + 0.45 ), y - s * Math.sin( ang + 0.45 ) );
+		ctx.closePath(); ctx.fill();
+	}
+	function lyArrow( ctx, l, W, CH, k ) {
+		var x1 = l.x / 100 * W, y1 = l.y / 100 * CH, x2 = ( +l.x2 || l.x + 15 ) / 100 * W, y2 = ( isFinite( +l.y2 ) ? +l.y2 : l.y ) / 100 * CH;
+		var lw = Math.max( 3, ( +l.size || 12 ) * k ), color = l.color || '#FFC20E', len = Math.hypot( x2 - x1, y2 - y1 ) || 1, head = lw * 3.2;
+		var bend = ( +l.curve || 0 ) * len * 0.35, mx = ( x1 + x2 ) / 2 - ( y2 - y1 ) / len * bend, my = ( y1 + y2 ) / 2 + ( x2 - x1 ) / len * bend;
+		var endAng = Math.atan2( y2 - my, x2 - mx ), startAng = Math.atan2( y1 - my, x1 - mx );
+		var ex = x2 - Math.cos( endAng ) * head * 0.7, ey = y2 - Math.sin( endAng ) * head * 0.7;
+		var sx = l.both ? x1 - Math.cos( startAng ) * head * 0.7 : x1, sy = l.both ? y1 - Math.sin( startAng ) * head * 0.7 : y1;
+		var stroke = function ( c, wd ) { ctx.strokeStyle = c; ctx.lineWidth = wd; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo( sx, sy ); ctx.quadraticCurveTo( mx, my, ex, ey ); ctx.stroke(); };
+		if ( false !== l.outline ) {
+			stroke( 'rgba(255,255,255,.95)', lw + 8 * k );
+			arrowHead( ctx, x2 + Math.cos( endAng ) * 4 * k, y2 + Math.sin( endAng ) * 4 * k, endAng, head + 9 * k, 'rgba(255,255,255,.95)' );
+			if ( l.both ) { arrowHead( ctx, x1 + Math.cos( startAng ) * 4 * k, y1 + Math.sin( startAng ) * 4 * k, startAng, head + 9 * k, 'rgba(255,255,255,.95)' ); }
+		}
+		stroke( color, lw ); arrowHead( ctx, x2, y2, endAng, head, color );
+		if ( l.both ) { arrowHead( ctx, x1, y1, startAng, head, color ); }
+		var p = head + 10;
+		return [ Math.min( x1, x2, mx ) - p, Math.min( y1, y2, my ) - p, Math.abs( x2 - x1 ) + 2 * p + Math.abs( bend ), Math.abs( y2 - y1 ) + 2 * p + Math.abs( bend ) ];
+	}
+	function lyShape( ctx, l, W, CH, k ) {
+		var w = ( +l.w || 20 ) / 100 * W, h = ( +l.h || 20 ) / 100 * CH, x = l.x / 100 * W - w / 2, y = l.y / 100 * CH - h / 2, lw = Math.max( 2, ( +l.size || 8 ) * k ), color = l.color || '#FFC20E';
+		var path = function () { ctx.beginPath(); if ( 'rect' === l.s ) { rrect( ctx, x, y, w, h, Math.min( w, h ) * 0.08 ); } else { ctx.ellipse( x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2 ); } };
+		if ( 'spot' === l.s ) {
+			ctx.save(); ctx.beginPath(); ctx.rect( 0, 0, W, CH ); ctx.ellipse( x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2 );
+			ctx.fillStyle = 'rgba(3,8,20,' + ( isFinite( +l.dim ) ? +l.dim : 0.6 ) + ')'; ctx.fill( 'evenodd' ); ctx.restore();
+		}
+		if ( l.fill ) { path(); ctx.fillStyle = hexA( color, 0.22 ); ctx.fill(); }
+		if ( l.dash ) { ctx.setLineDash( [ lw * 2.2, lw * 1.4 ] ); }
+		path(); ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = lw + 5 * k; ctx.stroke();
+		path(); ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.stroke();
+		ctx.setLineDash( [] );
+		return [ x - lw, y - lw, w + 2 * lw, h + 2 * lw ];
+	}
+	function star( ctx, x, y, r, inner ) { ctx.beginPath(); for ( var q = 0; q < 10; q++ ) { var a = -Math.PI / 2 + q * Math.PI / 5, rr = q % 2 ? r * ( inner || 0.45 ) : r; ctx.lineTo( x + Math.cos( a ) * rr, y + Math.sin( a ) * rr ); } ctx.closePath(); }
+	function lyMark( ctx, l, x, y, k ) {
+		var s = Math.max( 16, ( +l.size || 80 ) * k ), r = s / 2, color = l.color || '#D7261E';
+		ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = s * 0.18; ctx.shadowOffsetY = s * 0.05;
+		var disc = function ( c ) { ctx.fillStyle = c; ctx.beginPath(); ctx.arc( x, y, r, 0, Math.PI * 2 ); ctx.fill(); };
+		var ring = function () { ctx.shadowColor = 'transparent'; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = Math.max( 2, s * 0.07 ); ctx.beginPath(); ctx.arc( x, y, r - ctx.lineWidth / 2, 0, Math.PI * 2 ); ctx.stroke(); };
+		var glyph = function ( t, f ) { ctx.shadowColor = 'transparent'; line( ctx, t, { x: x, top: y - r, lh: s, size: Math.round( s * ( f || 0.56 ) ), weight: 700, color: '#FFFFFF', align: 'center' } ); };
+		switch ( l.s ) {
+			case 'pin':
+				ctx.fillStyle = color; ctx.beginPath(); ctx.arc( x, y - r * 0.35, r * 0.62, Math.PI * 0.85, Math.PI * 0.15 ); ctx.lineTo( x, y + r ); ctx.closePath(); ctx.fill();
+				ctx.shadowColor = 'transparent'; ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc( x, y - r * 0.35, r * 0.26, 0, Math.PI * 2 ); ctx.fill(); break;
+			case 'target':
+				ctx.shadowColor = 'transparent'; ctx.lineWidth = Math.max( 3, s * 0.08 );
+				[ 1, 0.62 ].forEach( function ( f ) { ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = Math.max( 3, s * 0.08 ) + 4; ctx.beginPath(); ctx.arc( x, y, r * f, 0, Math.PI * 2 ); ctx.stroke(); ctx.strokeStyle = color; ctx.lineWidth = Math.max( 3, s * 0.08 ); ctx.stroke(); } );
+				ctx.fillStyle = color; ctx.beginPath(); ctx.arc( x, y, r * 0.2, 0, Math.PI * 2 ); ctx.fill(); break;
+			case 'star': ctx.fillStyle = color; star( ctx, x, y, r ); ctx.fill(); break;
+			case 'check':
+				disc( color ); ring(); ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = s * 0.12; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+				ctx.beginPath(); ctx.moveTo( x - r * 0.42, y + r * 0.02 ); ctx.lineTo( x - r * 0.1, y + r * 0.34 ); ctx.lineTo( x + r * 0.45, y - r * 0.32 ); ctx.stroke(); break;
+			case 'cross':
+				disc( color ); ring(); ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = s * 0.12; ctx.lineCap = 'round';
+				ctx.beginPath(); ctx.moveTo( x - r * 0.36, y - r * 0.36 ); ctx.lineTo( x + r * 0.36, y + r * 0.36 ); ctx.moveTo( x + r * 0.36, y - r * 0.36 ); ctx.lineTo( x - r * 0.36, y + r * 0.36 ); ctx.stroke(); break;
+			case 'warn':
+				ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo( x, y - r ); ctx.lineTo( x + r, y + r * 0.82 ); ctx.lineTo( x - r, y + r * 0.82 ); ctx.closePath(); ctx.fill();
+				glyph( '!', 0.6 ); break;
+			case 'q': disc( color ); ring(); glyph( '?', 0.62 ); break;
+			case 'heart':
+				ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo( x, y + r * 0.85 );
+				ctx.bezierCurveTo( x - r * 1.25, y - r * 0.05, x - r * 0.6, y - r * 1.05, x, y - r * 0.38 ); ctx.bezierCurveTo( x + r * 0.6, y - r * 1.05, x + r * 1.25, y - r * 0.05, x, y + r * 0.85 ); ctx.fill(); break;
+			default: disc( color ); ring(); glyph( bnDigits( l.n || 1 ), 0.54 );
+		}
+		ctx.restore();
+		return [ x - r, y - r, s, s ];
+	}
+	function lySticker( ctx, l, x, y, k ) {
+		var st = STICKERS[ l.s ] || STICKERS.live, size = Math.max( 14, ( +l.size || 40 ) * k ), text = str( l.text ) || st[ 0 ];
+		ctx.translate( x, y ); ctx.rotate( ( isFinite( +l.rot ) ? +l.rot : ( 'stamp' === st[ 3 ] ? -10 : 0 ) ) * Math.PI / 180 );
+		ctx.font = fontStr( 700, size, 'sans' );
+		var tw = width( ctx, text ), ic = 'dot' === st[ 3 ] || 'play' === st[ 3 ] ? size * 0.9 : 0, h = size * 1.7, w = tw + size * 1.3 + ic;
+		if ( 'stamp' === st[ 3 ] ) {
+			h = size * 1.9; w = tw + size * 1.6;
+			ctx.fillStyle = hexA( st[ 1 ], 0.12 ); rrect( ctx, -w / 2, -h / 2, w, h, size * 0.25 ); ctx.fill();
+			ctx.strokeStyle = st[ 1 ]; ctx.lineWidth = size * 0.12; rrect( ctx, -w / 2, -h / 2, w, h, size * 0.25 ); ctx.stroke();
+			ctx.lineWidth = size * 0.05; rrect( ctx, -w / 2 + size * 0.2, -h / 2 + size * 0.2, w - size * 0.4, h - size * 0.4, size * 0.15 ); ctx.stroke();
+			line( ctx, text, { x: 0, top: -h / 2, lh: h, size: size, weight: 700, color: st[ 1 ], align: 'center' } );
+		} else {
+			ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = size * 0.4; ctx.shadowOffsetY = size * 0.08; rfill( ctx, -w / 2, -h / 2, w, h, size * 0.28, st[ 1 ] ); ctx.restore();
+			var tx = -w / 2 + size * 0.65;
+			if ( 'dot' === st[ 3 ] ) { ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc( tx + size * 0.3, 0, size * 0.22, 0, Math.PI * 2 ); ctx.fill(); tx += ic; }
+			if ( 'play' === st[ 3 ] ) { ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.moveTo( tx + size * 0.08, -size * 0.32 ); ctx.lineTo( tx + size * 0.62, 0 ); ctx.lineTo( tx + size * 0.08, size * 0.32 ); ctx.closePath(); ctx.fill(); tx += ic; }
+			line( ctx, text, { x: tx, top: -h / 2, lh: h, size: size, weight: 700, color: st[ 2 ] } );
+		}
+		return [ x - w / 2, y - h / 2, w, h ];
+	}
+	function lyInset( ctx, l, img, x, y, W, k ) {
+		var D = Math.max( 40, ( +l.size || 28 ) / 100 * W ), s = l.s || 'circle', ring = l.ring || '#FFC20E', rw = Math.max( 4, D / 26 );
+		var px = x - D / 2, py = y - D / 2, path = function ( pad ) {
+			ctx.beginPath();
+			if ( 'circle' === s ) { ctx.arc( x, y, D / 2 + pad, 0, Math.PI * 2 ); } else { rrect( ctx, px - pad, py - pad, D + 2 * pad, D + 2 * pad, 'round' === s ? D * 0.14 + pad : pad * 0.4 ); }
+		};
+		ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = D * 0.08; ctx.shadowOffsetY = D * 0.02;
+		if ( 'none' !== ring ) { path( rw * 2.2 ); ctx.fillStyle = ring; ctx.fill(); }
+		ctx.shadowColor = 'transparent'; path( rw ); ctx.fillStyle = '#FFFFFF'; ctx.fill();
+		ctx.restore();
+		ctx.save(); path( 0 ); ctx.clip();
+		if ( ! cover( ctx, img, px, py, D, D, l.focus, l.zoom ) ) { placeholder( ctx, px, py, D, D ); }
+		ctx.restore();
+		var bh = 0;
+		if ( str( l.label ) ) {
+			var fs = Math.max( 16, D * 0.11 );
+			ctx.font = fontStr( 700, fs, 'sans' );
+			var lw = Math.min( width( ctx, str( l.label ) ) + fs * 1.4, W * 0.6 ), lh = fs * 1.7;
+			rfill( ctx, x - lw / 2, py + D + rw * 2.2 - lh * 0.3, lw, lh, lh / 2, '#0B2A6B' );
+			line( ctx, l.label, { x: x, top: py + D + rw * 2.2 - lh * 0.3, lh: lh, size: fs, weight: 700, color: '#FFFFFF', align: 'center', maxW: lw - fs } );
+			bh = lh * 0.7;
+		}
+		var p = rw * 2.2;
+		return [ px - p, py - p, D + 2 * p, D + 2 * p + bh ];
+	}
+	function lyBlur( ctx, l, W, CH ) {
+		var w = ( +l.w || 18 ) / 100 * W, h = ( +l.h || 14 ) / 100 * CH, x = l.x / 100 * W - w / 2, y = l.y / 100 * CH - h / 2;
+		var m = ctx.getTransform ? ctx.getTransform() : { a: 1, d: 1, e: 0, f: 0 };
+		var amt = Math.max( 4, +l.amount || 16 ), pixel = 'pixel' === l.mode || ! ( 'filter' in ctx );
+		var cv = ctx.canvas, pad = pixel ? 0 : amt * 2;
+		var sx = Math.max( 0, Math.round( ( x - pad ) * m.a + m.e ) ), sy = Math.max( 0, Math.round( ( y - pad ) * m.d + m.f ) );
+		var sw = Math.min( cv.width - sx, Math.round( ( w + 2 * pad ) * m.a ) ), sh = Math.min( cv.height - sy, Math.round( ( h + 2 * pad ) * m.d ) );
+		if ( sw < 2 || sh < 2 ) { return [ x, y, w, h ]; }
+		var tmp = doc.createElement( 'canvas' ); tmp.width = sw; tmp.height = sh;
+		tmp.getContext( '2d' ).drawImage( cv, sx, sy, sw, sh, 0, 0, sw, sh );
+		ctx.save(); ctx.beginPath();
+		if ( 'ellipse' === l.s ) { ctx.ellipse( x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2 ); } else { rrect( ctx, x, y, w, h, Math.min( w, h ) * 0.08 ); }
+		ctx.clip();
+		var dx = ( sx - m.e ) / m.a, dy = ( sy - m.f ) / m.d, dw = sw / m.a, dh = sh / m.d;
+		if ( pixel ) {
+			var cell = Math.max( 4, amt * 0.9 ), small = doc.createElement( 'canvas' );
+			small.width = Math.max( 1, Math.round( sw / cell ) ); small.height = Math.max( 1, Math.round( sh / cell ) );
+			small.getContext( '2d' ).drawImage( tmp, 0, 0, small.width, small.height );
+			ctx.imageSmoothingEnabled = false; ctx.drawImage( small, dx, dy, dw, dh ); ctx.imageSmoothingEnabled = true;
+		} else {
+			ctx.filter = 'blur(' + amt + 'px)'; ctx.drawImage( tmp, dx, dy, dw, dh ); ctx.filter = 'none';
+		}
+		ctx.restore();
+		return [ x, y, w, h ];
+	}
+	function drawLayers( ctx, W, CH, list, imgs ) {
+		var k = W / 1080;
+		( list || [] ).forEach( function ( l, i ) {
+			if ( ! l || l.hidden ) { return; }
+			var x = ( +l.x || 0 ) / 100 * W, y = ( +l.y || 0 ) / 100 * CH, bb = null;
+			ctx.save();
+			try {
+				switch ( l.t ) {
+					case 'text': bb = lyText( ctx, l, x, y, k ); break;
+					case 'arrow': bb = lyArrow( ctx, l, W, CH, k ); break;
+					case 'shape': bb = lyShape( ctx, l, W, CH, k ); break;
+					case 'mark': bb = lyMark( ctx, l, x, y, k ); break;
+					case 'sticker': bb = lySticker( ctx, l, x, y, k ); break;
+					case 'inset': bb = lyInset( ctx, l, imgs && imgs[ i ], x, y, W, k ); break;
+					case 'blur': bb = lyBlur( ctx, l, W, CH ); break;
+				}
+			} catch ( e ) { /* one broken layer never stops the card */ }
+			ctx.restore();
+			if ( bb ) { reg( ctx, 'layer', i, bb[ 0 ], bb[ 1 ], bb[ 2 ], bb[ 3 ] ); }
+		} );
+	}
+	/* small "ছবি: …" credit on the main photo (bottom right of its first hit region) */
+	function photoCredit( ctx, text ) {
+		text = str( text );
+		if ( ! text || ! REG ) { return; }
+		var r = null;
+		REG.some( function ( g ) { if ( 'photo' === g.k && 0 === g.i && g.w > 200 ) { r = g; return true; } return false; } );
+		if ( ! r ) { return; }
+		var m = ctx.getTransform ? ctx.getTransform() : { a: 1, d: 1, e: 0, f: 0 }, x = ( r.x + r.w - m.e ) / m.a, y = ( r.y + r.h - m.f ) / m.d;
+		var t = /^ছবি\s*[:ঃ]/.test( text ) ? text : 'ছবি: ' + text;
+		ctx.font = fontStr( 600, 20, 'sans' );
+		var w = Math.min( r.w * 0.8, width( ctx, t ) + 26 );
+		ctx.fillStyle = 'rgba(4,10,28,.62)'; rrect( ctx, x - w - 14, y - 46, w, 32, 16 ); ctx.fill();
+		line( ctx, t, { x: x - w / 2 - 14, top: y - 46, lh: 32, size: 20, weight: 600, color: '#FFFFFF', align: 'center', maxW: w - 20 } );
+	}
+	/* logo moved by the studio: drawn once in a corner, white on dark backgrounds, blue on light ones */
+	function logoCorner( ctx, W, CH, L, A ) {
+		var pos = L.pos, w = Math.round( ( L.seen ? L.seen.w : 190 ) * ( L.scale || 1 ) ), h = Math.round( w * 44 / 252 ), m = 48;
+		var x = /l$/.test( pos ) ? m : ( /r$/.test( pos ) ? W - m - w : ( W - w ) / 2 ), y = /^t/.test( pos ) ? m : CH - 78 - h; /* bottom: above the designs' date / button row */
+		var t = ctx.getTransform ? ctx.getTransform() : { e: 0, f: 0 };
+		var lumv = regionLum( ctx, x + t.e, y + t.f, w, h ), plate = 'plate' === L.style;
+		if ( plate ) {
+			ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.22)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 3;
+			rfill( ctx, x - 20, y - 14, w + 40, h + 28, Math.min( 18, h * 0.4 ), '#FFFFFF' ); ctx.restore();
+		}
+		var light = plate || ( null !== lumv && lumv > 0.55 );
+		var saved = LOGO; LOGO = null;
+		logo( ctx, x, y, w, light ? brand().primary : '#FFFFFF', 'left', A );
+		LOGO = saved;
+	}
+	function frameBorder( ctx, W, CH, b ) {
+		if ( ! b || ! b.color || 'none' === b.color ) { return; }
+		var lw = Math.max( 4, +b.width || 14 );
+		ctx.strokeStyle = b.color; ctx.lineWidth = lw; ctx.strokeRect( lw / 2, lw / 2, W - lw, CH - lw );
+		if ( b.inner ) { ctx.strokeStyle = b.inner; ctx.lineWidth = Math.max( 2, lw / 4 ); ctx.strokeRect( lw * 1.6, lw * 1.6, W - lw * 3.2, CH - lw * 3.2 ); }
+	}
+
 	var XDRAW = {
 		opinion: { kagoj: opinionX, potrika: opinionX, moncho: opinionX, uddhriti: opinionX },
 		literature: { diary: literatureX, split: literatureX, kalo: literatureX },
@@ -2038,6 +3056,38 @@
 	DECO.condolence = { kalopar: [ 'light', 'shok-kalo-border', 'কালো পাড়' ], konafita: [ 'dark', 'shok-kona-fita', 'কোণের ফিতা (শ্রদ্ধাঞ্জলি)' ] };
 	function decoOf( type, preset ) { var d = DECO[ type ]; return d && preset && Object.prototype.hasOwnProperty.call( d, preset ) ? d[ preset ] : null; }
 	Object.keys( DECO ).forEach( function ( ty ) { if ( templates[ ty ] ) { var pr = Object.assign( {}, templates[ ty ].presets ); Object.keys( DECO[ ty ] ).forEach( function ( k ) { pr[ k ] = DECO[ ty ][ k ][ 2 ]; } ); templates[ ty ].presets = pr; } } );
+	/* 2.4.4 নীল সংকলন on every tab: XDRAW entries + presets (after the old ones and the রেডিমেড ones) */
+	Object.keys( NIL_FOR ).forEach( function ( ty ) {
+		if ( ! templates[ ty ] ) { return; }
+		var pr = Object.assign( {}, templates[ ty ].presets );
+		XDRAW[ ty ] = XDRAW[ ty ] || {};
+		NIL_FOR[ ty ].forEach( function ( id ) {
+			if ( Object.prototype.hasOwnProperty.call( pr, id ) ) { return; }
+			pr[ id ] = ( NIL_LABEL[ ty ] && NIL_LABEL[ ty ][ id ] ) || NIL[ id ][ 1 ];
+			XDRAW[ ty ][ id ] = function ( c, W, H, d, o, A ) { nilDraw( ty, id, c, W, H, d, o, A ); };
+		} );
+		templates[ ty ].presets = pr;
+	} );
+	/* studio sections: which collapsible group a design belongs to */
+	var GROUP_LABELS = { common: 'সাধারণ', minimal: 'মিনিমাল', breaking: 'ব্রেকিং', vibrant: 'উজ্জ্বল ও ভাইব্রেন্ট', collage: 'কোলাজ', circle: 'গোল ছবি ও উক্তি', classic: 'আগের নকশা', readymade: 'রেডিমেড', own: 'নিজের ফ্রেম' };
+	var OLD_GROUP = {
+		news: { classic: 'common', overlay: 'common', band: 'common', dheu: 'common', chobi: 'common', frame: 'minimal', headline: 'minimal', dheubreaking: 'breaking', collage: 'collage' },
+		breaking: { breaking: 'common', latest: 'common' },
+		feature: { shade: 'common', band: 'common', dheu: 'common' },
+		category: { shade: 'common', band: 'common', rongpata: 'common', chhapa: 'minimal' },
+		opinion: { blue: 'common', navy: 'common', paper: 'minimal', uddhriti: 'circle' },
+		literature: { paper: 'common', window: 'common', modern: 'common' },
+		poem: { paper: 'common', night: 'common', photo: 'common', shada: 'minimal' }
+	};
+	var OPEN_TYPES = { quote: 1, morning: 1, day: 1, birthday: 1, condolence: 1 };
+	function groupOf( type, preset ) {
+		type = ALIASES[ type ] || type;
+		if ( decoOf( type, preset ) ) { return 'readymade'; }
+		if ( NIL[ preset ] && NIL_FOR[ type ] && NIL_FOR[ type ].indexOf( preset ) > -1 ) { return NIL_COMMON[ type ] && NIL_COMMON[ type ][ preset ] ? 'common' : NIL[ preset ][ 2 ]; }
+		if ( OPEN_TYPES[ type ] ) { return 'common'; }
+		var g = OLD_GROUP[ type ] && OLD_GROUP[ type ][ preset ];
+		return g || 'classic';
+	}
 
 	function frameUrl( key, W, H ) {
 		var c = cfg(), sfx = 1080 === W && 1080 === H ? '' : '-' + W + 'x' + H;
@@ -2067,23 +3117,29 @@
 		var sz = SIZES[ opts.size ] || SIZES[ '1080x1080' ], W = sz[ 0 ], H = sz[ 1 ];
 		if ( 1920 === H && ! soloMode( type, opts ) ) { return story( type, data, opts ); }
 		var land = 1200 === W;
-		var o = { preset: opts.preset, ad: !! opts.ad && t.ad && ! land, cta: opts.cta, type: type };
+		var o = { preset: opts.preset, ad: !! opts.ad && t.ad && ! land, cta: opts.cta, type: type, palette: opts.palette, hiStyle: opts.hiStyle };
 		var solo = soloMode( type, opts ); /* own frame on a full-artwork type → the frame is the whole design */
 		if ( 'condolence' === type || ( 'day' === type && ! solo && DAY[ dayTheme( data, o ) ].noAd ) ) { o.ad = false; } /* dignity rule */
 		if ( solo && o.ad && ! adAllowed( type, data, opts ) ) { o.ad = false; }
-		var adUrl = o.ad && typeof opts.ad === 'object' ? [ opts.ad.url, opts.ad.fallback ] : ( o.ad && typeof opts.ad === 'string' ? opts.ad : '' );
+		/* 2.4.4: the strip may go on top, at the bottom or both (an own full-artwork frame keeps it at the bottom) */
+		var adPos = solo ? 'bottom' : ( 'top' === opts.adPos || 'both' === opts.adPos ? opts.adPos : 'bottom' );
+		var topAd = o.ad && 'bottom' !== adPos, botAd = o.ad && 'top' !== adPos, adTopDesc = topAd ? ( opts.adTop || opts.ad ) : null;
+		var adSrc = function ( a ) { return a && 'object' === typeof a ? ( a.house ? '' : [ a.url, a.fallback ] ) : ( 'string' === typeof a ? a : '' ); };
 		var lg = opts.logo || cfg().logo || {};
 		var qKey = 'quote' === type ? quoteScheme( data, o ).key : '';
+		var layers = Array.isArray( opts.layers ) ? opts.layers : [];
 		var jobs = {
 			image: loadImage( data.image_fallback ? [ data.image, data.image_fallback ] : data.image ),
 			authorPhoto: false !== data.show_photo ? loadImage( data.author_photo ) : Promise.resolve( null ),
 			speakerPhoto: loadImage( data.speaker_photo ),
 			gallery: Array.isArray( data.gallery ) && data.gallery.length ? Promise.all( data.gallery.slice( 0, 3 ).map( function ( g ) { return loadImage( g && g.image ); } ) ) : Promise.resolve( [] ),
 			frameImg: loadImage( opts.frame ),
-			adImg: loadImage( adUrl ),
+			adImg: botAd ? loadImage( adSrc( opts.ad ) ) : Promise.resolve( null ),
+			adTopImg: topAd ? loadImage( adSrc( adTopDesc ) ) : Promise.resolve( null ),
+			layerImgs: Promise.all( layers.map( function ( l ) { return l && 'inset' === l.t ? loadImage( l.img ) : Promise.resolve( null ); } ) ),
 			logoImg: 'image' === lg.mode && lg.url ? loadImage( [ lg.url, lg.fallback ] ) : Promise.resolve( null ),
 			logoLight: 'image' === lg.mode && lg.url && lg.light && lg.light.url ? loadImage( [ lg.light.url, lg.light.fallback ] ) : Promise.resolve( null ),
-			quoteFrame: qKey && false !== opts.builtinFrame && ! solo ? loadImage( frameUrl( qKey, W, H ) ) : Promise.resolve( null )
+			quoteFrame: qKey && false !== opts.builtinFrame && ! solo && QUOTE[ o.preset || qKey ] !== undefined && ! ( NIL[ o.preset ] ) ? loadImage( frameUrl( qKey, W, H ) ) : Promise.resolve( null )
 		};
 		var keys = Object.keys( jobs );
 		return loadFonts().then( function () {
@@ -2101,16 +3157,34 @@
 			if ( solo && ! A.frameImg ) {
 				/* the frame did not load: fall back to the built-in design (and its dignity rule) */
 				solo = false;
-				if ( 'day' === type && DAY[ dayTheme( data, o ) ].noAd ) { o.ad = false; }
+				if ( 'day' === type && DAY[ dayTheme( data, o ) ].noAd ) { o.ad = false; topAd = botAd = false; }
 			}
-			ctx.save();
-			NO_VF = !! dz && !! A.frameImg;
+			var off = topAd ? STRIP_H : 0, DH = H - ( topAd && botAd ? STRIP_H : 0 ), CH = DH - ( o.ad ? STRIP_H : 0 );
+			var pos = { tl: 1, tr: 1, bl: 1, br: 1, tc: 1, bc: 1, hide: 1 }[ opts.logoPos ] ? opts.logoPos : 'auto', lsc = Math.max( 0.5, Math.min( 1.8, +opts.logoScale || 1 ) );
+			REG = []; CUR = cv; MAINS = [ A.image ].concat( A.gallery || [] ).filter( Boolean );
+			TSC = Math.max( 0.6, Math.min( 1.5, +opts.titleScale || 1 ) );
+			LOGO = 'auto' !== pos || 1 !== lsc ? { pos: pos, scale: lsc, seen: null, style: opts.logoStyle } : null;
 			try {
-				var xd = ! solo && XDRAW[ type ] && Object.prototype.hasOwnProperty.call( XDRAW[ type ], o.preset ) ? XDRAW[ type ][ o.preset ] : null;
-				if ( xd ) { xd( ctx, W, H, data, o, A ); } else if ( solo ) { ink = standalone( type, ctx, W, H, data, o, A, opts.frameText ); } else if ( land ) { landscape( type, ctx, W, H, data, o, A ); } else { t.draw( ctx, W, H, data, o, A ); }
-			} finally { NO_VF = false; }
-			ctx.restore();
-			if ( o.ad ) { adStrip( ctx, W, H, A.adImg ); }
+				ctx.save();
+				if ( off ) { ctx.beginPath(); ctx.rect( 0, off, W, H - off - ( botAd ? STRIP_H : 0 ) ); ctx.clip(); ctx.translate( 0, off ); }
+				ctx.save();
+				NO_VF = !! dz && !! A.frameImg;
+				try {
+					var xd = ! solo && XDRAW[ type ] && Object.prototype.hasOwnProperty.call( XDRAW[ type ], o.preset ) ? XDRAW[ type ][ o.preset ] : null;
+					if ( xd ) { xd( ctx, W, DH, data, o, A ); } else if ( solo ) { ink = standalone( type, ctx, W, DH, data, o, A, opts.frameText ); } else if ( land ) { landscape( type, ctx, W, DH, data, o, A ); } else { t.draw( ctx, W, DH, data, o, A ); }
+				} finally { NO_VF = false; }
+				ctx.restore();
+				var L = LOGO;
+				if ( L && 'auto' !== L.pos && 'hide' !== L.pos && ! solo ) { logoCorner( ctx, W, CH, L, A ); }
+				LOGO = null;
+				photoCredit( ctx, opts.credit );
+				drawLayers( ctx, W, CH, layers, A.layerImgs );
+				frameBorder( ctx, W, CH, opts.border );
+				ctx.restore();
+				if ( topAd ) { adStrip( ctx, W, 0, A.adTopImg, adTopDesc ); }
+				if ( botAd ) { adStrip( ctx, W, H - STRIP_H, A.adImg, opts.ad ); }
+				cv.__regions = REG; cv.__content = { x: 0, y: off, w: W, h: CH };
+			} finally { REG = null; CUR = null; MAINS = null; TSC = 1; LOGO = null; }
 			cv.setAttribute( 'data-card-type', type );
 			if ( solo ) { cv.setAttribute( 'data-frame-mode', 'standalone' ); cv.setAttribute( 'data-ink', ink ); } else { cv.removeAttribute( 'data-frame-mode' ); cv.removeAttribute( 'data-ink' ); }
 			return cv;
@@ -2151,6 +3225,8 @@
 				line( ctx, foot || watermark(), { x: W / 2, top: cy + ch + 52, lh: 50, size: 30, weight: 600, color: 'rgba(255,255,255,.88)', align: 'center', maxW: 900 } );
 			}
 			if ( v[ 1 ] ) { ctx.drawImage( v[ 1 ], 0, 0, W, H ); }
+			var k = cw / card.width, map = function ( r ) { return r ? { k: r.k, i: r.i, x: cx + r.x * k, y: cy + r.y * k, w: r.w * k, h: r.h * k } : null; };
+			cv.__regions = ( card.__regions || [] ).map( map ); cv.__content = map( card.__content );
 			cv.setAttribute( 'data-card-type', type ); cv.setAttribute( 'data-story', '1' );
 			cv.removeAttribute( 'data-frame-mode' ); cv.removeAttribute( 'data-ink' );
 			return cv;
@@ -2330,7 +3406,7 @@
 	}
 
 	root.MeehaCards = {
-		version: '2.0.7',
+		version: '2.4.4',
 		configure: configure,
 		preview: preview,
 		render: render,
@@ -2346,6 +3422,16 @@
 		bnDigits: bnDigits,
 		adAllowed: adAllowed,
 		isStandalone: function ( type ) { return !! SOLO_TYPES[ ALIASES[ type ] || type ]; },
+		/* 2.4.4 */
+		groupOf: groupOf,
+		isNil: function ( preset ) { return !! NIL[ preset ]; },
+		groupLabels: GROUP_LABELS,
+		palettes: ( function () { var o = {}; Object.keys( NP ).forEach( function ( k ) { if ( 'shok' !== k ) { o[ k ] = NP[ k ].label; } } ); return o; }() ),
+		houseAds: HOUSE,
+		drawHouseAd: function ( key, canvas, w, h ) { var c = canvas || doc.createElement( 'canvas' ); c.width = w || 1080; c.height = h || STRIP_H; houseAd( c.getContext( '2d' ), key, 0, 0, c.width, c.height ); return c; },
+		stickers: ( function () { var o = {}; Object.keys( STICKERS ).forEach( function ( k ) { o[ k ] = STICKERS[ k ][ 0 ]; } ); return o; }() ),
+		marks: MARKS,
+		collageNeed: function ( type, preset ) { var n = NIL[ preset ]; if ( n && 'collage' === n[ 0 ] ) { return NK_NEED[ n[ 3 ].k ] || 4; } return 'news' === ( ALIASES[ type ] || type ) && 'collage' === preset ? 4 : 0; },
 		standaloneText: SOLO_TEXT,
 		_fit: fit
 	};

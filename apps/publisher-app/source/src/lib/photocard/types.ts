@@ -49,7 +49,7 @@ export interface FieldDef {
   half?: boolean
 }
 
-const TITLE = (hint: string, rows = 3): FieldDef => ({ k: 'title', label: 'শিরোনাম', kind: 'textarea', rows, hint })
+const TITLE = (hint: string, rows = 3): FieldDef => ({ k: 'title', label: 'শিরোনাম', kind: 'textarea', rows, hint, mark: true })
 
 export const FIELDS: Record<CardType, FieldDef[]> = {
   news: [

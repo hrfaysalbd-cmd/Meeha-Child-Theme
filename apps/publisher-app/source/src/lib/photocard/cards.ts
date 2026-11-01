@@ -32,6 +32,7 @@ export interface MeehaCardsApi {
   bnDigits: (s: string | number) => string
   /* round 25 (theme 2.4.4) — optional: an older copy of the renderer lacks them */
   groupOf?: (type: string, preset: string) => string
+  isNil?: (preset: string) => boolean
   groupLabels?: Record<string, string>
   palettes?: Record<string, string>
   houseAds?: Record<string, string>

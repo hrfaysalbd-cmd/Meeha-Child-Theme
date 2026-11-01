@@ -48,6 +48,7 @@ export default function PhotoPanel({
   smartBusy,
   smartNote,
   collage,
+  collageSlots = 4,
   galleryKeys,
   onToggleGallery,
   focusSync,
@@ -65,6 +66,8 @@ export default function PhotoPanel({
   smartBusy: boolean
   smartNote: string
   collage: boolean
+  /** Round 25: how many photos the chosen collage holds (2–4). */
+  collageSlots?: number
   galleryKeys: string[]
   onToggleGallery: (key: string) => void
   focusSync: boolean
@@ -146,7 +149,8 @@ export default function PhotoPanel({
 
       {collage && (
         <p className="text-[12px] text-brand-700 bg-brand-50 rounded-lg px-2.5 py-1.5 mt-1.5">
-          কোলাজ: বড় ঘরে বাছাই করা ছবি, বাকি ঘরে <b>+</b> চাপা ছবিগুলো (সর্বোচ্চ ৩টি)।
+          কোলাজ ({bnNumber(collageSlots)}টি ঘর): প্রথম ঘরে বাছাই করা ছবি, বাকি {bnNumber(collageSlots - 1)}টি ঘরে <b>+</b> চাপা ছবি
+          {galleryKeys.length < collageSlots - 1 ? ` — আরও ${bnNumber(collageSlots - 1 - galleryKeys.length)}টি বাছুন` : ' ✓'}। প্রিভিউতে যেকোনো ঘরের ছবি আলাদা করে টেনে সরানো ও জুম করা যায়।
         </p>
       )}
 
@@ -189,12 +193,30 @@ export default function PhotoPanel({
             </span>
             <input
               type="range"
-              min={100}
-              max={250}
+              min={40}
+              max={300}
               value={Math.round(selected.zoom * 100)}
               onChange={(e) => onPatch(selected.key, { zoom: Number(e.target.value) / 100 })}
               className="w-full accent-brand-600"
             />
+            <span className="flex flex-wrap gap-1 mt-1">
+              {[
+                [0.6, 'পুরো ছবি'],
+                [1, 'ঘর ভরে'],
+                [1.4, 'কাছে'],
+                [2, 'আরও কাছে'],
+              ].map(([z, l]) => (
+                <button
+                  key={z}
+                  type="button"
+                  onClick={() => onPatch(selected.key, { zoom: z as number })}
+                  className={`px-2 py-0.5 rounded-full border text-[11px] ${Math.abs(selected.zoom - (z as number)) < 0.01 ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-neutral-200 text-neutral-600'}`}
+                >
+                  {l}
+                </button>
+              ))}
+            </span>
+            {selected.zoom < 1 && <span className="block text-[11px] text-neutral-400 mt-1">১০০%-এর কম জুমে পুরো ছবি দেখা যায়, চারপাশে একই ছবির ঝাপসা ভরাট।</span>}
           </label>
 
           <div>
