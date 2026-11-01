@@ -62,7 +62,7 @@ function meeha_campus_register_settings() {
 			'desc'     => 'চাকরি, পরীক্ষার প্রস্তুতি ও কুইজের সেকশন। একটি পাতায় [meeha_campus] শর্টকোড রেখে নিচে তার আইডি দিন। পেমেন্ট, টেস্ট ও কুইজের নিয়ম "প্রস্তুতি ও পেমেন্ট" ট্যাবে।',
 			'fields'   => array(
 				array( 'type' => 'heading', 'label' => 'সেকশনের পাতা' ),
-				array( 'key' => 'hub_page', 'type' => 'post_id', 'label' => 'হাব পাতার আইডি', 'default' => 0, 'desc' => 'যে পাতায় [meeha_campus] আছে। পাতার ঠিকানাই সেকশনের ঠিকানা (যেমন /campus-test/); নিচের সব পাতা হবে /campus-test/jobs/ ইত্যাদি।' ),
+				array( 'key' => 'hub_page', 'type' => 'post_id', 'label' => 'হাব পাতার আইডি', 'default' => 0, 'desc' => 'যে পাতায় [meeha_campus] আছে। পাতার ঠিকানাই সেকশনের ঠিকানা (যেমন /campus/); নিচের সব পাতা হবে /campus/jobs/ ইত্যাদি। পাতার স্লাগ বদলালে সব লিংক নিজে বদলে যায়।' ),
 				array( 'key' => 'beta', 'type' => 'checkbox', 'label' => 'পরীক্ষামূলক মোড', 'default' => 1, 'desc' => 'চালু থাকলে শুধু লগইন করা স্টাফ (লেখক বা তার ওপরের ভূমিকা) সেকশনটি দেখবেন; অন্যরা "পাওয়া যায়নি" দেখবে এবং সার্চ ইঞ্জিনকে noindex বলা হবে। লাইভ করার সময় বন্ধ করুন।' ),
 				array( 'type' => 'heading', 'label' => 'বিভাগ (খবরের উৎস)' ),
 				array( 'key' => 'cat_main', 'type' => 'category', 'label' => 'মূল বিভাগ', 'default' => 0, 'desc' => 'খালি = "শিক্ষা ও ক্যাম্পাস" নামের বিভাগ।' ),
