@@ -728,7 +728,7 @@ export default function PhotocardStudio() {
   function addLibraryImage(img: LibraryImage) {
     const key = `m${img.id}`
     setPhotos((prev) => (prev.some((p) => p.key === key) ? prev : [...prev, { key, id: img.id, thumb: img.thumb || img.url, label: img.title || img.caption || 'গ্যালারির ছবি', focus: { x: 50, y: 50 }, zoom: 1, look: NO_LOOK }]))
-    setPhotoSel((s) => ({ ...s, [type]: key }))
+    placeNewPhoto(key)
   }
 
   async function addDeviceImage(file: File) {
@@ -745,6 +745,16 @@ export default function PhotocardStudio() {
       return
     }
     setPhotos((prev) => [...prev, { key, file: u, thumb: u, label: file.name, width: w, height: h, focus: { x: 50, y: 50 }, zoom: 1, look: NO_LOOK }])
+    placeNewPhoto(key)
+  }
+
+  /** A newly added photo: in a collage it fills the next empty tile, otherwise it becomes the card's photo. */
+  function placeNewPhoto(key: string) {
+    if (collage && photo && key !== photo.key) {
+      setGalleryKeys((g) => (g.includes(key) ? g : [...g, key].slice(-3)))
+      setStatus({ kind: 'ok', text: 'ছবিটি কোলাজের পরের ঘরে বসেছে। প্রথম ঘরের ছবি বদলাতে ছবিতে ক্লিক করুন।' })
+      return
+    }
     setPhotoSel((s) => ({ ...s, [type]: key }))
   }
 

@@ -150,7 +150,7 @@ export default function PhotoPanel({
       {collage && (
         <p className="text-[12px] text-brand-700 bg-brand-50 rounded-lg px-2.5 py-1.5 mt-1.5">
           কোলাজ ({bnNumber(collageSlots)}টি ঘর): প্রথম ঘরে বাছাই করা ছবি, বাকি {bnNumber(collageSlots - 1)}টি ঘরে <b>+</b> চাপা ছবি
-          {galleryKeys.length < collageSlots - 1 ? ` — আরও ${bnNumber(collageSlots - 1 - galleryKeys.length)}টি বাছুন` : ' ✓'}। প্রিভিউতে যেকোনো ঘরের ছবি আলাদা করে টেনে সরানো ও জুম করা যায়।
+          {galleryKeys.length < collageSlots - 1 ? ` — আরও ${bnNumber(collageSlots - 1 - galleryKeys.length)}টি বাছুন` : ' ✓'}। নতুন ছবি “গ্যালারি” বা “ডিভাইস” থেকে আনলে নিজেই পরের ঘরে বসে। প্রিভিউতে যেকোনো ঘরের ছবি আলাদা করে টেনে সরানো ও জুম করা যায়।
         </p>
       )}
 
