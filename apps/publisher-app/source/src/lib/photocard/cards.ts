@@ -44,7 +44,7 @@ export interface MeehaCardsApi {
 
 /** Hit regions the renderer leaves on a card (canvas pixels). */
 export interface CardRegion {
-  k: 'photo' | 'layer'
+  k: 'photo' | 'layer' | 'empty'
   i: number
   x: number
   y: number
@@ -62,7 +62,7 @@ declare global {
 
 // Bump together with the theme version whenever cards.js changes, so a
 // browser never keeps an old copy next to new app code.
-export const CARDS_VERSION = '2.4.4'
+export const CARDS_VERSION = '2.4.4-2'
 
 /** Absolute URL of public/photocard/ (fonts, frames and the script live there). */
 export function cardsBase() {

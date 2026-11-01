@@ -37,6 +37,7 @@ export default function CardPreview({
   onLayerSelect,
   onLayerEdit,
   onLayerRemove,
+  onEmptyTile,
   meta,
   story,
 }: {
@@ -55,6 +56,8 @@ export default function CardPreview({
   onLayerSelect?: (id: string | null) => void
   onLayerEdit?: (id: string, patch: Partial<Layer>, phase: Phase) => void
   onLayerRemove?: (id: string) => void
+  /** An empty collage tile was clicked (its 0-based slot). */
+  onEmptyTile?: (slot: number) => void
   meta: string
   story: boolean
 }) {
@@ -191,6 +194,11 @@ export default function CardPreview({
       }
     }
     if (selLayer) onLayerSelect?.(null)
+    if (r?.k === 'empty' && onEmptyTile) {
+      pointers.current.delete(e.pointerId)
+      onEmptyTile(r.i)
+      return
+    }
     if (r?.k === 'photo') {
       drag.current = { m: 'tile', i: r.i, x: e.clientX, y: e.clientY, id: e.pointerId, w: r.w / p.k, h: r.h / p.k }
       return

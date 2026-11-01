@@ -2200,6 +2200,7 @@
 	}
 	function nEmptyTile( ctx, b, n ) {
 		placeholder( ctx, b[ 0 ], b[ 1 ], b[ 2 ], b[ 3 ] );
+		reg( ctx, 'empty', n - 1, b[ 0 ], b[ 1 ], b[ 2 ], b[ 3 ] ); /* the studio opens a photo picker on a click here */
 		var cx = b[ 0 ] + b[ 2 ] / 2, cy = b[ 1 ] + b[ 3 ] / 2;
 		ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 6; ctx.lineCap = 'round';
 		ctx.beginPath(); ctx.moveTo( cx - 22, cy - 18 ); ctx.lineTo( cx + 22, cy - 18 ); ctx.moveTo( cx, cy - 40 ); ctx.lineTo( cx, cy + 4 ); ctx.stroke(); ctx.lineCap = 'butt';

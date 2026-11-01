@@ -64,7 +64,7 @@ import {
   type PhotoInput,
 } from '../lib/photocard/types'
 import { makeZip, saveBlob } from '../lib/photocard/zip'
-import { Banner, Card, ErrorRetry, PageHeader, Spinner, bnNumber, inputClass } from '../components/ui'
+import { Banner, Card, ErrorRetry, Modal, PageHeader, Spinner, bnNumber, inputClass } from '../components/ui'
 import { IconClipboard, IconCopy, IconDeviceFloppy, IconDownload, IconFileZip, IconRedo, IconShare, IconUndo } from '../components/Icon'
 import MediaGallery from '../components/MediaGallery'
 import PostPicker from '../components/photocard/PostPicker'
@@ -198,6 +198,8 @@ export default function PhotocardStudio() {
   const [adBottom, setAdBottom] = useState<AdChoice | null>(null)
   const [adTop, setAdTop] = useState<AdChoice | null>(null)
   const [adPick, setAdPick] = useState<null | 'bottom' | 'top'>(null)
+  const [emptyPick, setEmptyPick] = useState(false)
+  const emptyFileRef = useRef<HTMLInputElement>(null)
   const hist = useRef<{ past: Snap[]; future: Snap[]; key: string; t: number }>({ past: [], future: [], key: '', t: 0 })
   const [, setHistTick] = useState(0)
   const snapRef = useRef<Snap>({ looks, design })
@@ -1067,6 +1069,7 @@ export default function PhotocardStudio() {
               onLayerSelect={setSelLayer}
               onLayerEdit={onLayerEdit}
               onLayerRemove={removeLayer}
+              onEmptyTile={() => setEmptyPick(true)}
               story={story}
               meta={`${sizeInfo?.hint || ''}${adOn && !adWhy ? ' · বিজ্ঞাপনসহ' : ''}`}
             />
@@ -1429,6 +1432,39 @@ export default function PhotocardStudio() {
           </Card>
         </div>
       </div>
+
+      {emptyPick && (
+        <Modal title="কোলাজের ঘরে ছবি দিন" onClose={() => setEmptyPick(false)}>
+          <p className="text-[13px] text-neutral-600 mb-3">ছবিটি কোলাজের পরের খালি ঘরে বসবে।{photos.length > 1 ? ' ওপরের “ছবি” অংশে অন্য ছবির + বোতাম চেপেও যোগ করা যায়।' : ''}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setEmptyPick(false)
+                setLibrary('photo')
+              }}
+              className="rounded-xl bg-brand-600 text-white font-semibold text-[13.5px] py-3"
+            >
+              গ্যালারি থেকে
+            </button>
+            <button type="button" onClick={() => emptyFileRef.current?.click()} className="rounded-xl bg-neutral-900 text-white font-semibold text-[13.5px] py-3">
+              ডিভাইস থেকে
+            </button>
+          </div>
+          <input
+            ref={emptyFileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              e.target.value = ''
+              setEmptyPick(false)
+              if (f) addDeviceImage(f)
+            }}
+          />
+        </Modal>
+      )}
 
       {adPick && (
         <AdGallery
