@@ -751,15 +751,26 @@ export default function PhotocardStudio() {
   /** A newly added photo: in a collage it fills the next empty tile, otherwise it becomes the card's photo. */
   function placeNewPhoto(key: string) {
     if (collage && photo && key !== photo.key) {
-      setGalleryKeys((g) => (g.includes(key) ? g : [...g, key].slice(-3)))
+      addToCollage(key)
       setStatus({ kind: 'ok', text: 'ছবিটি কোলাজের পরের ঘরে বসেছে। প্রথম ঘরের ছবি বদলাতে ছবিতে ক্লিক করুন।' })
       return
     }
     setPhotoSel((s) => ({ ...s, [type]: key }))
   }
 
+  /** How many extra photos the chosen collage shows (besides the main one). */
+  const collageCap = collageNeed > 1 ? collageNeed - 1 : 3
+  /** Add a photo to the collage: it always shows; the oldest extra photo makes room when the collage is full. */
+  function addToCollage(key: string) {
+    setGalleryKeys((g) => {
+      const vis = g.filter((k) => k !== key && k !== photo?.key && photos.some((p) => p.key === k)).slice(0, collageCap)
+      return [...vis, key].slice(-collageCap)
+    })
+  }
   function toggleGallery(key: string) {
-    setGalleryKeys((g) => (g.includes(key) ? g.filter((k) => k !== key) : [...g, key].slice(-3)))
+    const shown = galleryKeys.filter((k) => k !== photo?.key && photos.some((p) => p.key === k)).slice(0, collageCap)
+    if (shown.includes(key)) setGalleryKeys((g) => g.filter((k) => k !== key))
+    else addToCollage(key)
   }
 
   // ---------------------------------------------------------------- frames
@@ -1147,7 +1158,7 @@ export default function PhotocardStudio() {
                 smartNote={smartNote}
                 collage={collage}
                 collageSlots={collageNeed || 4}
-                galleryKeys={galleryKeys}
+                galleryKeys={tileKeys.slice(1)}
                 onToggleGallery={toggleGallery}
                 focusSync={focusSync}
                 onFocusSync={setFocusSync}
