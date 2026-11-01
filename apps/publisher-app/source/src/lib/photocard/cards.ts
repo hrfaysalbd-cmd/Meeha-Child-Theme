@@ -30,7 +30,27 @@ export interface MeehaCardsApi {
   standaloneText: Record<string, [string, string, string][]>
   adAllowed: (type: string, data: Record<string, unknown>, opts: Record<string, unknown>) => boolean
   bnDigits: (s: string | number) => string
+  /* round 25 (theme 2.4.4) — optional: an older copy of the renderer lacks them */
+  groupOf?: (type: string, preset: string) => string
+  groupLabels?: Record<string, string>
+  palettes?: Record<string, string>
+  houseAds?: Record<string, string>
+  drawHouseAd?: (key: string, canvas?: HTMLCanvasElement | null, w?: number, h?: number) => HTMLCanvasElement
+  stickers?: Record<string, string>
+  marks?: Record<string, string>
+  collageNeed?: (type: string, preset: string) => number
 }
+
+/** Hit regions the renderer leaves on a card (canvas pixels). */
+export interface CardRegion {
+  k: 'photo' | 'layer'
+  i: number
+  x: number
+  y: number
+  w: number
+  h: number
+}
+export type CardCanvas = HTMLCanvasElement & { __regions?: CardRegion[]; __content?: { x: number; y: number; w: number; h: number } | null }
 
 declare global {
   interface Window {
@@ -41,7 +61,7 @@ declare global {
 
 // Bump together with the theme version whenever cards.js changes, so a
 // browser never keeps an old copy next to new app code.
-export const CARDS_VERSION = '2.4.3'
+export const CARDS_VERSION = '2.4.4'
 
 /** Absolute URL of public/photocard/ (fonts, frames and the script live there). */
 export function cardsBase() {

@@ -60,6 +60,7 @@ class NROS_Photocard {
 			'/admin/photocard/dates'  => 'get_dates',
 			'/admin/photocard/file'   => 'stream_file',
 			'/admin/photocard/made'   => 'get_made',
+			'/admin/photocard/ads'    => 'get_ads',
 		);
 		foreach ( $get as $route => $cb ) {
 			register_rest_route(
@@ -76,6 +77,7 @@ class NROS_Photocard {
 			'/admin/photocard/focus'  => 'save_focus',
 			'/admin/photocard/save'   => 'save_card',
 			'/admin/photocard/frames' => 'upload_frame',
+			'/admin/photocard/ads'    => 'upload_ad',
 		);
 		foreach ( $post as $route => $cb ) {
 			register_rest_route(
@@ -88,6 +90,15 @@ class NROS_Photocard {
 				)
 			);
 		}
+		register_rest_route(
+			NROS_API_NS,
+			'/admin/photocard/ads/(?P<id>\d+)',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'mark_ad' ),
+				'permission_callback' => $staff,
+			)
+		);
 		register_rest_route(
 			NROS_API_NS,
 			'/admin/photocard/frames/(?P<id>f[a-z0-9]{6,20})',
@@ -329,6 +340,14 @@ class NROS_Photocard {
 		$cards = meeha_cards_config();
 		unset( $cards['base'], $cards['fonts'] );
 		$out['cards']  = $cards;
+		// 1.9.0: what the built-in Meeha house ads print (social links, the campus section).
+		$out['house'] = array(
+			'social' => function_exists( 'meeha_social_profiles' ) ? array_values( meeha_social_profiles() ) : array(),
+			'campus' => array(
+				'title' => function_exists( 'meeha_opt' ) ? (string) meeha_opt( 'campus', 'title', 'শিক্ষা ও ক্যাম্পাস' ) : 'শিক্ষা ও ক্যাম্পাস',
+				'url'   => function_exists( 'meeha_campus_url' ) ? (string) meeha_campus_url() : '',
+			),
+		);
 		$out['studio_config'] = $conf;
 		return rest_ensure_response( $out );
 	}
@@ -643,5 +662,149 @@ class NROS_Photocard {
 			return $r;
 		}
 		return rest_ensure_response( array( 'deleted' => true ) );
+	}
+
+	// -------------------------------------------------------------------------
+	// 1.9.0 · বিজ্ঞাপন গ্যালারি — images, GIFs and videos kept as ads only.
+	// Images / GIFs carry _nros_card_ad; videos keep the video editor's own
+	// _nros_video_ad flag, so both editors share one gallery.
+	// -------------------------------------------------------------------------
+
+	const AD_META = '_nros_card_ad';
+
+	/**
+	 * One gallery row.
+	 *
+	 * @param WP_Post $a Attachment.
+	 * @return array
+	 */
+	protected static function ad_row( $a ) {
+		$mime  = (string) $a->post_mime_type;
+		$video = 0 === strpos( $mime, 'video/' );
+		$meta  = wp_get_attachment_metadata( $a->ID );
+		$meta  = is_array( $meta ) ? $meta : array();
+		$thumb = '';
+		if ( $video ) {
+			$t = get_post_thumbnail_id( $a->ID );
+			$thumb = $t ? (string) wp_get_attachment_image_url( $t, 'medium' ) : '';
+		} else {
+			$thumb = (string) wp_get_attachment_image_url( $a->ID, 'medium' );
+		}
+		return array(
+			'id'     => (int) $a->ID,
+			'url'    => (string) wp_get_attachment_url( $a->ID ),
+			'thumb'  => $thumb,
+			'title'  => (string) $a->post_title,
+			'mime'   => $mime,
+			'kind'   => $video ? 'video' : ( 'image/gif' === $mime ? 'gif' : 'image' ),
+			'width'  => isset( $meta['width'] ) ? (int) $meta['width'] : null,
+			'height' => isset( $meta['height'] ) ? (int) $meta['height'] : null,
+			'date'   => $a->post_date,
+		);
+	}
+
+	/**
+	 * GET /admin/photocard/ads?offset=0[&search=]
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response
+	 */
+	public static function get_ads( $request ) {
+		$offset = max( 0, (int) $request->get_param( 'offset' ) );
+		$search = trim( sanitize_text_field( (string) $request->get_param( 'search' ) ) );
+		$args   = array(
+			'post_type'      => 'attachment',
+			'post_status'    => 'inherit',
+			'post_mime_type' => array( 'image', 'video' ),
+			'orderby'        => 'date',
+			'order'          => 'DESC',
+			'posts_per_page' => 30,
+			'offset'         => $offset,
+			'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+				'relation' => 'OR',
+				array(
+					'key'   => self::AD_META,
+					'value' => '1',
+				),
+				array(
+					'key'   => '_nros_video_ad',
+					'value' => '1',
+				),
+			),
+		);
+		if ( '' !== $search ) {
+			$args['s'] = $search;
+		}
+		$q = new WP_Query( $args );
+		return new WP_REST_Response(
+			array(
+				'items'    => array_map( array( __CLASS__, 'ad_row' ), $q->posts ),
+				'has_more' => ( $offset + count( $q->posts ) ) < (int) $q->found_posts,
+				'total'    => (int) $q->found_posts,
+			),
+			200
+		);
+	}
+
+	/**
+	 * POST /admin/photocard/ads (multipart: file, title) — a new ad image / GIF / video.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function upload_ad( $request ) {
+		$user  = self::as_user( $request );
+		$files = $request->get_file_params();
+		$file  = isset( $files['file'] ) ? $files['file'] : array();
+		if ( empty( $file ) || UPLOAD_ERR_OK !== (int) $file['error'] ) {
+			return new WP_Error( 'nros_missing_file', 'ফাইল পৌঁছায়নি — আবার চেষ্টা করুন।', array( 'status' => 400 ) );
+		}
+		$finfo = finfo_open( FILEINFO_MIME_TYPE );
+		$mime  = finfo_file( $finfo, $file['tmp_name'] );
+		finfo_close( $finfo );
+		$ok = array( 'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'video/quicktime' );
+		if ( ! in_array( $mime, $ok, true ) ) {
+			return new WP_Error( 'nros_bad_file_type', 'শুধু ছবি (PNG, JPG, WEBP), GIF বা ভিডিও (MP4, WEBM) রাখা যায়।', array( 'status' => 400 ) );
+		}
+		$video = 0 === strpos( $mime, 'video/' );
+		if ( (int) $file['size'] > ( $video ? 200 : 10 ) * 1048576 ) {
+			return new WP_Error( 'nros_file_too_large', $video ? 'ভিডিও ২০০ এমবির বেশি।' : 'ছবি ১০ এমবির বেশি।', array( 'status' => 400 ) );
+		}
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/media.php';
+		$title = sanitize_text_field( (string) $request->get_param( 'title' ) );
+		$_FILES['nros_ad_upload'] = $file;
+		$id = media_handle_upload( 'nros_ad_upload', 0, array( 'post_title' => '' !== $title ? mb_substr( $title, 0, 180 ) : 'বিজ্ঞাপন' ) );
+		unset( $_FILES['nros_ad_upload'] );
+		if ( is_wp_error( $id ) ) {
+			return $id;
+		}
+		update_post_meta( $id, $video ? '_nros_video_ad' : self::AD_META, '1' );
+		update_post_meta( $id, '_nros_uploaded_by', $user ? $user->ID : 0 );
+		return new WP_REST_Response( self::ad_row( get_post( $id ) ), 201 );
+	}
+
+	/**
+	 * POST /admin/photocard/ads/{id} {is_ad} — put a library image / video into the gallery, or take it out.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function mark_ad( $request ) {
+		self::as_user( $request );
+		$id   = (int) $request->get_param( 'id' );
+		$mime = (string) get_post_mime_type( $id );
+		if ( 'attachment' !== get_post_type( $id ) || ! preg_match( '~^(image|video)/~', $mime ) ) {
+			return new WP_Error( 'nros_not_found', 'ফাইলটি পাওয়া যায়নি।', array( 'status' => 404 ) );
+		}
+		$key = 0 === strpos( $mime, 'video/' ) ? '_nros_video_ad' : self::AD_META;
+		if ( rest_sanitize_boolean( $request->get_param( 'is_ad' ) ) ) {
+			update_post_meta( $id, $key, '1' );
+		} else {
+			delete_post_meta( $id, self::AD_META );
+			delete_post_meta( $id, '_nros_video_ad' );
+		}
+		return new WP_REST_Response( self::ad_row( get_post( $id ) ), 200 );
 	}
 }

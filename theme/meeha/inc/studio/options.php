@@ -92,6 +92,11 @@ function meeha_studio_types() {
 			$types[ $type ]['presets'] += $deco;
 		}
 	}
+	foreach ( meeha_studio_nil_presets() as $type => $nil ) {
+		if ( isset( $types[ $type ] ) ) {
+			$types[ $type ]['presets'] += $nil;
+		}
+	}
 	return apply_filters( 'meeha_studio_types', $types );
 }
 
@@ -815,4 +820,51 @@ function meeha_cards_config() {
 			'storyCta'  => (string) meeha_studio_opt( 'story_cta', 'বিস্তারিত পড়ুন meeha.news-এ' ),
 		)
 	);
+}
+
+/**
+ * 2.4.4 নীল সংকলন: deep navy / royal blue designs with an amber accent, drawn natively by cards.js (NIL, NIL_FOR,
+ * NIL_LABEL — keep the ids and labels in sync; ids never reuse an existing preset or দিবস theme).
+ *
+ * @return array type => [ id => label ]
+ */
+function meeha_studio_nil_presets() {
+	$l = array(
+		'nilblock' => 'নীল ব্লক', 'nilchhaya' => 'নীল ছায়া', 'tirjok' => 'তির্যক নীল', 'stor' => 'দুই স্তর',
+		'minimal' => 'মিনিমাল সাদা', 'rekha' => 'মিনিমাল রেখা', 'shirshok' => 'শুধু শিরোনাম',
+		'tv' => 'টিভি টিকার', 'jorur' => 'জরুরি সতর্কতা', 'brkblock' => 'ব্রেকিং ব্লক',
+		'ujjol' => 'উজ্জ্বল গ্রেডিয়েন্ট', 'pop' => 'পপ রঙ', 'prism' => 'প্রিজম',
+		'gol' => 'গোল ছবি', 'uktibox' => 'উদ্ধৃতি সংবাদ', 'pashe' => 'পাশে ছবি',
+		'k2h' => 'পাশাপাশি দুই', 'k2v' => 'ওপর-নিচ দুই', 'k3' => 'বড় + দুই', 'k3c' => 'তিন কলাম',
+		'k4' => 'চার ঘর', 'k4b' => 'বড় + তিন', 'kvs' => 'মুখোমুখি (বনাম)', 'kgol' => 'ছবি + গোল ইনসেট',
+	);
+	$for = array(
+		'news'       => array_keys( $l ),
+		'breaking'   => array( 'tv', 'jorur', 'brkblock', 'nilchhaya', 'tirjok', 'stor', 'minimal', 'rekha', 'shirshok', 'ujjol', 'pop', 'gol' ),
+		'feature'    => array( 'nilblock', 'nilchhaya', 'tirjok', 'stor', 'minimal', 'rekha', 'ujjol', 'pop', 'prism', 'gol', 'pashe', 'uktibox' ),
+		'opinion'    => array( 'nilblock', 'uktibox', 'pashe', 'nilchhaya', 'gol', 'minimal', 'rekha', 'shirshok', 'ujjol' ),
+		'literature' => array( 'nilblock', 'pashe', 'minimal', 'rekha', 'nilchhaya', 'ujjol' ),
+		'poem'       => array( 'nilblock', 'minimal', 'nilchhaya', 'ujjol' ),
+		'morning'    => array( 'nilblock', 'nilchhaya', 'stor', 'ujjol', 'minimal' ),
+		'day'        => array( 'nilblock', 'gol', 'nilchhaya', 'ujjol', 'minimal' ),
+		'birthday'   => array( 'gol', 'ujjol', 'minimal' ),
+		'condolence' => array( 'gol', 'minimal' ),
+	);
+	$for['category'] = $for['feature'];
+	$for['quote']    = $for['opinion'];
+	$rename = array(
+		'opinion'    => array( 'nilblock' => 'নীল মতামত', 'uktibox' => 'নীল উদ্ধৃতি', 'pashe' => 'লেখকের ছবি পাশে' ),
+		'quote'      => array( 'nilblock' => 'নীল উক্তি', 'uktibox' => 'উক্তি ও গোল ছবি', 'pashe' => 'বক্তার ছবি পাশে' ),
+		'literature' => array( 'nilblock' => 'নীল মলাট' ),
+		'poem'       => array( 'nilblock' => 'নীল রাত' ),
+		'birthday'   => array( 'gol' => 'নীল উৎসব' ),
+		'condolence' => array( 'gol' => 'নীল-কালো শোক', 'minimal' => 'সাদা শোক' ),
+	);
+	$out = array();
+	foreach ( $for as $type => $ids ) {
+		foreach ( $ids as $id ) {
+			$out[ $type ][ $id ] = isset( $rename[ $type ][ $id ] ) ? $rename[ $type ][ $id ] : $l[ $id ];
+		}
+	}
+	return $out;
 }

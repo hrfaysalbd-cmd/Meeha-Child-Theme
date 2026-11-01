@@ -1882,6 +1882,24 @@ export interface PhotocardKit {
     storyCta?: string
   }
   studio_config?: StudioConfig
+  /** newsroom-os 1.9.0: what the built-in Meeha house ads print. */
+  house?: {
+    social: [string, string, string][]
+    campus: { title: string; url: string }
+  }
+}
+
+/** Round 25: one file of the ad gallery (images, GIFs, videos kept as ads). */
+export interface CardAdItem {
+  id: number
+  url: string
+  thumb: string
+  title: string
+  mime: string
+  kind: 'image' | 'gif' | 'video'
+  width: number | null
+  height: number | null
+  date: string
 }
 
 export interface CardFocus {
@@ -2002,5 +2020,16 @@ export const PhotocardApi = {
     form.append('label', data.label)
     return request<CardFrame>('/admin/photocard/frames', { method: 'POST', body: form })
   },
+  ads: (offset = 0, search = '') =>
+    request<{ items: CardAdItem[]; has_more: boolean; total: number }>(
+      `/admin/photocard/ads?offset=${offset}${search ? `&search=${encodeURIComponent(search)}` : ''}`,
+    ),
+  uploadAd: (file: File, title: string) => {
+    const form = new FormData()
+    form.append('file', file, file.name)
+    form.append('title', title)
+    return request<CardAdItem>('/admin/photocard/ads', { method: 'POST', body: form })
+  },
+  markAd: (id: number, isAd: boolean) => request<CardAdItem>(`/admin/photocard/ads/${id}`, { method: 'POST', body: { is_ad: isAd } }),
   deleteFrame: (id: string) => request<{ deleted: true }>(`/admin/photocard/frames/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 }
