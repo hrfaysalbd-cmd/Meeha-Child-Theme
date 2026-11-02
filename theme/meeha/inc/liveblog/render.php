@@ -320,7 +320,7 @@ function meeha_lb_avatar( $photo, $name, $cls = 'm-lb-ava' ) {
 		return '<img class="' . esc_attr( $cls ) . '" src="' . esc_url( $url ) . '" alt="" loading="lazy" width="56" height="56">';
 	}
 	$first = function_exists( 'mb_substr' ) ? mb_substr( $name, 0, 1 ) : substr( $name, 0, 1 );
-	return '<span class="' . esc_attr( $cls ) . ' ' . esc_attr( $cls ) . '--txt" aria-hidden="true">' . esc_html( $first ) . '</span>';
+	return '<span class="' . esc_attr( $cls ) . ' m-lb-ava--txt" aria-hidden="true">' . esc_html( $first ) . '</span>';
 }
 
 /**
