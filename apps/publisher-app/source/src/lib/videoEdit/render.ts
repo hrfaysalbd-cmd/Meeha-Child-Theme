@@ -31,7 +31,7 @@ import {
 } from 'mediabunny'
 import type { EditConfig } from './config'
 import { drawOutputFrame, sfxCues, type DrawEnv, type Picture } from './draw'
-import { denoisedReader, mixWindow, newMixState, SAMPLE_RATE, type AudioReader } from './audio'
+import { denoisedReader, musicRemovedReader, mixWindow, newMixState, SAMPLE_RATE, type AudioReader } from './audio'
 import { musicBuffer } from './music'
 import { LoudnessMeter, normalizeGain } from './loudness'
 import { clipsUsed, pipActive, pipClipTime, segSource, type ClipKey, type Timeline } from './timeline'
@@ -125,7 +125,11 @@ function audioReaders(io: Partial<Record<ClipKey, { audio: AudioReader | null }>
   const readers: Partial<Record<ClipKey, AudioReader | null>> = {}
   for (const k of used) {
     const r = io[k]?.audio ?? null
-    readers[k] = r && k === 'main' && cfg.audio.denoise !== 'off' ? denoisedReader(r, cfg.audio.denoise) : r
+    let x = r
+    // round 26: the music under the speech goes down first, then the steady noise
+    if (x && k === 'main' && cfg.audio.unmusic !== 'off') x = musicRemovedReader(x, cfg.audio.unmusic)
+    if (x && k === 'main' && cfg.audio.denoise !== 'off') x = denoisedReader(x, cfg.audio.denoise)
+    readers[k] = x
   }
   return readers
 }

@@ -2494,6 +2494,7 @@ function drawMain(ctx: Ctx, env: DrawEnv, seg: Segment, local: number, pic: Pict
   const src = segSource(seg, local)
   drawMainArea(ctx, env, seg, local, src, pic, pip)
   if (seg.rate === 0) drawFreezeOverlay(ctx, L, seg.freezeText ?? '', local, seg.dur)
+  if (seg.replay) drawReplayTag(ctx, env, local, seg.dur)
   // the glass frame's bands are a frosted copy of the picture
   if (cfg.frame.id === 'glass' && pic) {
     if (L.header) drawBlurFill(ctx, env, pic, L.header, cfg.look.rotate, cfg.look.flip)
@@ -2522,6 +2523,44 @@ function drawMain(ctx: Ctx, env: DrawEnv, seg: Segment, local: number, pic: Pict
     const used = drawCaption(ctx, env, c, src - c.at, c.dur === null ? dur + 1 : dur, theme?.accent ?? BRAND.red, stacks[c.pos] ?? 0)
     stacks[c.pos] = (stacks[c.pos] ?? 0) + used
   }
+}
+
+/** Round 26 — the slowed second pass of an action replay: a white flash, then a "রিপ্লে" tag in the corner. */
+function drawReplayTag(ctx: Ctx, env: DrawEnv, local: number, dur: number) {
+  const { L } = env
+  const s = L.s / L.k
+  const v = L.video
+  const flash = 1 - win(local, 0, 0.35)
+  if (flash > 0) {
+    ctx.save()
+    ctx.globalAlpha = flash * 0.75
+    ctx.fillStyle = '#FFFFFF'
+    ctx.fillRect(v.x, v.y, v.w, v.h)
+    ctx.restore()
+  }
+  const appear = ease.outBack(win(local, 0.15, 0.55)) * (1 - win(local, dur - 0.4, dur))
+  if (appear <= 0.01) return
+  const h = 58 * s
+  const x = v.x + 28 * s
+  const y = v.y + 28 * s
+  ctx.save()
+  ctx.font = dispFont(800, h * 0.52)
+  const text = 'স্লো মোশন রিপ্লে'
+  const w = ctx.measureText(text).width + h * 1.5
+  ctx.translate(x, y + h / 2)
+  ctx.scale(appear, appear)
+  fillRoundRect(ctx, 0, -h / 2, w, h, h / 2, 'rgba(11,42,107,0.92)')
+  // a turning "replay" ring
+  ctx.strokeStyle = '#FFC20E'
+  ctx.lineWidth = 5 * s
+  ctx.beginPath()
+  const a0 = local * 4
+  ctx.arc(h * 0.55, 0, h * 0.24, a0, a0 + Math.PI * 1.5)
+  ctx.stroke()
+  ctx.fillStyle = '#FFFFFF'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, h * 1.0, h * 0.04)
+  ctx.restore()
 }
 
 function drawClipFull(ctx: Ctx, env: DrawEnv, pic: Picture | null, local: number, dur: number, fadeIn: boolean) {
@@ -2590,6 +2629,7 @@ export function sfxCues(tl: Timeline, cfg: EditConfig): { t: number; kind: SfxKi
   }
   if (cfg.frame.id !== 'none') cues.push({ t: tl.mainStart, kind: 'whoosh', gain: 0.35 })
   for (const s of tl.segments) if (s.rate === 0) cues.push({ t: s.t0, kind: 'hit', gain: 0.35 })
+  for (const s of tl.segments) if (s.replay) cues.push({ t: s.t0, kind: 'whoosh', gain: 0.4 })
   for (const t of transitionTimes(tl, cfg)) cues.push({ t: t - cfg.transition.dur * 0.4, kind: cfg.transition.id === 'fade' ? 'soft' : 'whoosh', gain: 0.45 })
   return cues
 }

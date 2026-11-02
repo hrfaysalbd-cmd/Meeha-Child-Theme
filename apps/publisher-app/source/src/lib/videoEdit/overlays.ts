@@ -348,6 +348,14 @@ export function drawTransition(ctx: Ctx, id: TransitionId, p: number, r: Rect, s
     }
     ctx.fillStyle = `rgba(255,255,255,${Math.pow(cover, 3) * 0.95})`
     ctx.fillRect(r.x, r.y, r.w, r.h)
+  } else if (id === 'flash') {
+    // round 26 — a quick soft white flash: the newsroom's jump-cut join
+    ctx.fillStyle = `rgba(255,255,255,${Math.pow(cover, 1.6) * 0.9})`
+    ctx.fillRect(r.x, r.y, r.w, r.h)
+  } else if (id === 'dip') {
+    // round 26 — a dip to black and back
+    ctx.fillStyle = `rgba(0,0,0,${ease.inOutCubic(cover)})`
+    ctx.fillRect(r.x, r.y, r.w, r.h)
   }
   ctx.restore()
 }

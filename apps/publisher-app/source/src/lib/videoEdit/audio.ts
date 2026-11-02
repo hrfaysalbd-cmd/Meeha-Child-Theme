@@ -16,6 +16,7 @@ import type { EditConfig } from './config'
 import type { SfxKind } from './draw'
 import { pipClipTime, segSourceEnd, type ClipKey, type Segment, type Timeline } from './timeline'
 import { Denoiser, type DenoiseLevel } from './denoise'
+import { removeMusic, type MusicRemoveLevel } from './musicremove'
 
 export const SAMPLE_RATE = 48000
 
@@ -210,8 +211,10 @@ export async function mixWindow(
     const b = Math.min(t1, segEnd)
     if (b <= a) continue
     const vol = segmentVolume(seg, cfg)
-    // slow / fast / held parts play without their own sound (the music carries on)
-    if (vol <= 0 || seg.rate !== 1) continue
+    // held frames and speed parts set to silent have no sound of their own (the music carries on);
+    // round 26: slow / fast parts play their sound slowed / sped up with the picture (a slower, deeper voice)
+    if (vol <= 0 || seg.rate <= 0 || seg.mute) continue
+    const rate = seg.rate
 
     const g = ctx.createGain()
     g.connect(seg.kind === 'main' && voiceIn ? voiceIn : ctx.destination)
@@ -242,20 +245,22 @@ export async function mixWindow(
       }
     }
 
-    const from = seg.clipStart + (a - seg.t0)
-    const to = seg.clipStart + (b - seg.t0)
+    const from = seg.clipStart + (a - seg.t0) * rate
+    const to = seg.clipStart + (b - seg.t0) * rate
     for await (const chunk of reader.buffers(from, to)) {
-      // where this chunk's first sample lands in the window
-      const when = seg.t0 + (chunk.timestamp - seg.clipStart) - r0
-      const offset = Math.max(0, -when, seg.t0 - r0 - when)
-      const start = when + offset
+      // where this chunk's first sample lands in the window (output seconds)
+      const when = seg.t0 + (chunk.timestamp - seg.clipStart) / rate - r0
+      const start = Math.max(0, when, seg.t0 - r0)
       const stop = Math.min(span, sOut)
-      const len = Math.min(chunk.buffer.duration - offset, stop - start)
+      // offset and length are in the chunk's own (source) seconds
+      const offset = (start - when) * rate
+      const len = Math.min(chunk.buffer.duration - offset, (stop - start) * rate)
       if (len <= 0) continue
       const src = ctx.createBufferSource()
       src.buffer = chunk.buffer
+      if (rate !== 1) src.playbackRate.value = rate
       src.connect(g)
-      src.start(Math.max(0, start), offset, len)
+      src.start(start, offset, len)
     }
   }
 
@@ -388,6 +393,34 @@ function finishWindow(mixed: AudioBuffer, lead: number, frames: number, tl: Time
   return out
 }
 
+/** Decodes [from, to] of a clip into one contiguous block per channel (at most stereo). */
+async function gather(base: AudioReader, from: number, to: number) {
+  const parts: { buffer: AudioBuffer; timestamp: number }[] = []
+  for await (const c of base.buffers(from, to)) parts.push({ buffer: c.buffer, timestamp: c.timestamp })
+  if (!parts.length) return null
+  const sr = parts[0].buffer.sampleRate
+  const chans = Math.min(2, parts[0].buffer.numberOfChannels)
+  const start = parts[0].timestamp
+  const last = parts[parts.length - 1]
+  const len = Math.max(1, Math.round((last.timestamp - start) * sr) + last.buffer.length)
+  const data = Array.from({ length: chans }, () => new Float32Array(len))
+  for (const p of parts) {
+    const at = Math.round((p.timestamp - start) * sr)
+    for (let c = 0; c < chans; c++) {
+      const src = p.buffer.getChannelData(Math.min(c, p.buffer.numberOfChannels - 1))
+      const n = Math.min(src.length, len - at)
+      if (n > 0 && at >= 0) data[c].set(src.subarray(0, n), at)
+    }
+  }
+  return { data, sr, start, len, chans }
+}
+
+function toBuffer(chans: Float32Array<ArrayBuffer>[], sr: number) {
+  const buffer = new AudioBuffer({ numberOfChannels: chans.length, length: chans[0].length, sampleRate: sr })
+  chans.forEach((d, c) => buffer.copyToChannel(d, c))
+  return buffer
+}
+
 /**
  * Wraps a clip's audio so it comes out with the background noise reduced.
  * Each request is decoded with a little extra on both sides (the FFT
@@ -398,29 +431,27 @@ export function denoisedReader(base: AudioReader, level: Exclude<DenoiseLevel, '
   const EDGE = 0.1
   return {
     async *buffers(from: number, to: number) {
-      const a = Math.max(0, from - EDGE)
-      const parts: { buffer: AudioBuffer; timestamp: number }[] = []
-      for await (const c of base.buffers(a, to + EDGE)) parts.push({ buffer: c.buffer, timestamp: c.timestamp })
-      if (!parts.length) return
-      const sr = parts[0].buffer.sampleRate
-      const chans = Math.min(2, parts[0].buffer.numberOfChannels)
-      const start = parts[0].timestamp
-      const last = parts[parts.length - 1]
-      const len = Math.max(1, Math.round((last.timestamp - start) * sr) + last.buffer.length)
-      const data = Array.from({ length: chans }, () => new Float32Array(len))
-      for (const p of parts) {
-        const at = Math.round((p.timestamp - start) * sr)
-        for (let c = 0; c < chans; c++) {
-          const src = p.buffer.getChannelData(Math.min(c, p.buffer.numberOfChannels - 1))
-          const n = Math.min(src.length, len - at)
-          if (n > 0 && at >= 0) data[c].set(src.subarray(0, n), at)
-        }
-      }
-      dn ??= new Denoiser(level, sr)
-      const clean = dn.process(data)
-      const buffer = new AudioBuffer({ numberOfChannels: chans, length: len, sampleRate: sr })
-      clean.forEach((d, c) => buffer.copyToChannel(d, c))
-      yield { buffer, timestamp: start }
+      const g = await gather(base, Math.max(0, from - EDGE), to + EDGE)
+      if (!g) return
+      dn ??= new Denoiser(level, g.sr)
+      yield { buffer: toBuffer(dn.process(g.data), g.sr), timestamp: g.start }
+    },
+  }
+}
+
+/**
+ * Round 26 — wraps a clip's audio so a music bed under the speech is
+ * lowered (musicremove.ts). Each request is decoded with 0.6 s extra on
+ * both sides, because the "held note" test looks half a second around
+ * every moment.
+ */
+export function musicRemovedReader(base: AudioReader, level: Exclude<MusicRemoveLevel, 'off'>): AudioReader {
+  const EDGE = 0.6
+  return {
+    async *buffers(from: number, to: number) {
+      const g = await gather(base, Math.max(0, from - EDGE), to + EDGE)
+      if (!g) return
+      yield { buffer: toBuffer(removeMusic(g.data, g.sr, level), g.sr), timestamp: g.start }
     },
   }
 }

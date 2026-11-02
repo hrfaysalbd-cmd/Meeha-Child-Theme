@@ -27,6 +27,10 @@ export interface Segment {
   rate: number
   /** Text shown over a frozen frame. */
   freezeText?: string
+  /** Round 26: the clip's own sound is left out (a held frame, or a speed part set to silent). */
+  mute?: boolean
+  /** Round 26: the slowed second pass of a slow-motion replay. */
+  replay?: boolean
 }
 
 /** Source second shown at `local` seconds into a segment. */
@@ -183,7 +187,7 @@ export function buildTimeline(cfg: EditConfig, d: ClipDurations): Timeline {
     .sort((a, b) => a.at - b.at)
 
   // speed changes and held frames split the kept ranges further
-  const rateAt = (src: number) => cfg.speeds.find((x) => src >= x.from && src < x.to)?.rate ?? 1
+  const speedAt = (src: number) => cfg.speeds.find((x) => src >= x.from && src < x.to) ?? null
   const freezes = [...cfg.freezes].sort((a, b) => a.at - b.at)
 
   let shown = 0
@@ -200,7 +204,7 @@ export function buildTimeline(cfg: EditConfig, d: ClipDurations): Timeline {
       for (const f of freezes) {
         if (Math.abs(f.at - a) < 0.0015 && a < r.to - 0.05 && !used.has(f.at)) {
           used.add(f.at)
-          push({ kind: 'main', dur: f.dur, clip: 'main', clipStart: a, mainOffset: shown, rate: 0, freezeText: f.text })
+          push({ kind: 'main', dur: f.dur, clip: 'main', clipStart: a, mainOffset: shown, rate: 0, freezeText: f.text, mute: true })
           shown += f.dur
         }
       }
@@ -212,9 +216,19 @@ export function buildTimeline(cfg: EditConfig, d: ClipDurations): Timeline {
       }
       const b = cuts[k + 1]
       if (b === undefined || b - a < 0.02) continue
-      const rate = rateAt((a + b) / 2)
+      const sp = speedAt((a + b) / 2)
+      const rate = sp?.rate ?? 1
+      if (sp && sp.replay && rate < 1) {
+        // action replay: the moment as it happened (with its sound), then again slowly
+        push({ kind: 'main', dur: b - a, clip: 'main', clipStart: a, mainOffset: shown, rate: 1 })
+        shown += b - a
+        const dur = (b - a) / rate
+        push({ kind: 'main', dur, clip: 'main', clipStart: a, mainOffset: shown, rate, replay: true, mute: sp.sound === 'off' })
+        shown += dur
+        continue
+      }
       const dur = (b - a) / rate
-      push({ kind: 'main', dur, clip: 'main', clipStart: a, mainOffset: shown, rate })
+      push({ kind: 'main', dur, clip: 'main', clipStart: a, mainOffset: shown, rate, mute: rate !== 1 && sp?.sound === 'off' })
       shown += dur
     }
   }

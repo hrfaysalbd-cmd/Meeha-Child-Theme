@@ -8,6 +8,7 @@
  * config, so an old or hand-edited value can never break the editor.
  */
 import type { DenoiseLevel } from './denoise'
+import type { MusicRemoveLevel } from './musicremove'
 
 export type FormatId = 'source' | '16:9' | '9:16' | '1:1' | '4:5'
 export type FitMode = 'blur' | 'cover' | 'black'
@@ -51,6 +52,8 @@ export interface AudioSettings {
   musicOver: 'all' | 'main'
   voice: VoiceMode
   denoise: DenoiseLevel
+  /** Round 26: lower a music bed recorded under the speech of the main video. */
+  unmusic: MusicRemoveLevel
   /** Target loudness of the finished video (LUFS), or off. */
   loudness: 'off' | '-14' | '-16'
 }
@@ -94,6 +97,8 @@ export interface Caption {
 export interface Cut {
   from: number
   to: number
+  /** Round 26: found by "নীরব অংশ কাটুন" (can be removed together). */
+  auto?: boolean
 }
 
 export type LookFilter = 'none' | 'vivid' | 'warm' | 'cool' | 'bw' | 'cinema' | 'fade' | 'night'
@@ -134,6 +139,13 @@ export interface SpeedRange {
   from: number
   to: number
   rate: number
+  /**
+   * Round 26 — slow motion as an action replay: the part plays first at
+   * normal speed with its own sound, then again slowed down.
+   */
+  replay: boolean
+  /** Round 26 — the part's own sound, slowed / sped up with the picture ('on'), or silent ('off'). */
+  sound: 'on' | 'off'
 }
 
 /** A held frame: the picture stops at `at` (source s) for `dur` seconds, optionally with a line of text. */
@@ -143,7 +155,7 @@ export interface Freeze {
   text: string
 }
 
-export type TransitionId = 'none' | 'fade' | 'slide' | 'zoom' | 'wipe'
+export type TransitionId = 'none' | 'fade' | 'slide' | 'zoom' | 'wipe' | 'flash' | 'dip'
 
 export type StickerKind = 'arrow' | 'circle' | 'box' | 'highlight' | 'cross' | 'check' | 'focus'
 
@@ -257,7 +269,7 @@ export const DEFAULT_CONFIG: EditConfig = {
   outro: { id: 'none', clip: null },
   ads: [],
   captions: [],
-  audio: { main: 1, clips: 1, sfx: true, music: DEFAULT_MUSIC, musicVol: 0.25, duck: true, musicOver: 'all', voice: 'off', denoise: 'off', loudness: '-14' },
+  audio: { main: 1, clips: 1, sfx: true, music: DEFAULT_MUSIC, musicVol: 0.25, duck: true, musicOver: 'all', voice: 'off', denoise: 'off', unmusic: 'off', loudness: '-14' },
   cuts: [],
   look: { filter: 'none', brightness: 1, contrast: 1, saturation: 1, zoom: 1, panX: 0, panY: 0, rotate: 0, flip: false },
   blurs: [],
@@ -407,7 +419,7 @@ export const LIMITS = {
   capSub: 70,
   ads: 6,
   captions: 12,
-  cuts: 20,
+  cuts: 150,
   blurs: 8,
   speeds: 12,
   freezes: 8,
@@ -429,6 +441,8 @@ export const TRANSITIONS: { id: TransitionId; name: string; hint: string }[] = [
   { id: 'slide', name: 'স্লাইড', hint: 'নীল-লাল প্যানেল পর্দা ঢেকে সরে যায়' },
   { id: 'zoom', name: 'জুম', hint: 'জুম করে ঢুকে সাদা ঝলকে বদলায়' },
   { id: 'wipe', name: 'ওয়াইপ', hint: 'কোনাকুনি ব্র্যান্ড রেখা মুছে নিয়ে যায়' },
+  { id: 'flash', name: 'সাদা ঝলক', hint: 'ছোট্ট সাদা ঝলক — কথার মাঝের কাটে সবচেয়ে মানানসই' },
+  { id: 'dip', name: 'কালোয় মিলিয়ে', hint: 'এক পলক কালো হয়ে আবার ফিরে আসে' },
 ]
 
 export const STICKERS: { id: StickerKind; name: string }[] = [
@@ -547,15 +561,26 @@ export function normalizeConfig(raw: unknown): EditConfig {
       musicOver: oneOf(audio.musicOver, ['all', 'main'] as const, d.audio.musicOver),
       voice: oneOf(audio.voice, ['off', 'clear', 'strong'] as const, d.audio.voice),
       denoise: oneOf(audio.denoise, ['off', 'low', 'medium', 'high'] as const, d.audio.denoise),
+      unmusic: oneOf(audio.unmusic, ['off', 'low', 'medium', 'high'] as const, d.audio.unmusic),
       loudness: oneOf(audio.loudness, ['off', '-14', '-16'] as const, d.audio.loudness),
     },
     cuts: (Array.isArray(o.cuts) ? o.cuts : [])
-      .map((c: any) => ({ from: num(c?.from, 0, 0, 86400), to: num(c?.to, 0, 0, 86400) }))
+      .map((c: any) => ({ from: num(c?.from, 0, 0, 86400), to: num(c?.to, 0, 0, 86400), ...(c?.auto === true ? { auto: true } : {}) }))
       .filter((c: Cut) => c.to - c.from >= 0.1)
       .slice(0, LIMITS.cuts),
     look: normalizeLook(o.look),
     speeds: (Array.isArray(o.speeds) ? o.speeds : [])
-      .map((r: any) => ({ from: num(r?.from, 0, 0, 86400), to: num(r?.to, 0, 0, 86400), rate: num(r?.rate, 1, 0.25, 4) }))
+      .map((r: any) => {
+        const rate = num(r?.rate, 1, 0.25, 4)
+        return {
+          from: num(r?.from, 0, 0, 86400),
+          to: num(r?.to, 0, 0, 86400),
+          rate,
+          // an edit saved before round 26 keeps its length (no replay) but now has sound
+          replay: rate < 1 && bool(r?.replay, false),
+          sound: oneOf(r?.sound, ['on', 'off'] as const, rate < 1 ? 'on' : 'off'),
+        }
+      })
       .filter((r: SpeedRange) => r.to - r.from >= 0.2 && Math.abs(r.rate - 1) > 0.01)
       .slice(0, LIMITS.speeds),
     freezes: (Array.isArray(o.freezes) ? o.freezes : [])
@@ -735,6 +760,7 @@ export function hasEdits(cfg: EditConfig, srcDuration: number | null): boolean {
     cfg.audio.music !== 'none' ||
     cfg.audio.voice !== 'off' ||
     cfg.audio.denoise !== 'off' ||
+    cfg.audio.unmusic !== 'off' ||
     cfg.cuts.length > 0 ||
     cfg.blurs.length > 0 ||
     cfg.speeds.length > 0 ||

@@ -125,12 +125,14 @@ export class PreviewPlayer {
         const want = segSource(seg, T - seg.t0)
         if (Math.abs(el.currentTime - want) > 0.08) el.currentTime = want
         el.volume = this.volumeFor(seg)
-        // slow / fast / held parts are silent, as in the export
-        el.muted = this.muted || seg.rate !== 1
+        // held frames and silent speed parts are muted, as in the export; slowed sound drops in
+        // pitch like the export's (a slower, deeper voice) instead of the browser's time-stretch
+        el.muted = this.muted || seg.rate === 0 || !!seg.mute
         if (seg.rate === 0) {
           el.pause()
           return
         }
+        el.preservesPitch = false
         el.playbackRate = seg.rate
         el.play().catch(() => {
           // autoplay refused (no gesture yet): play muted instead

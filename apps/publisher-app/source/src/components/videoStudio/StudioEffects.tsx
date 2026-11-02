@@ -132,12 +132,12 @@ export default function EffectsPanel({
         )}
       </Section>
 
-      <Section title="স্লো-মোশন ও দ্রুত চালানো" hint="প্রিভিউ থামিয়ে যোগ করুন, তারপর শেষ সময় ঠিক করুন। এই অংশে মূল ভিডিওর শব্দ বন্ধ থাকবে (মিউজিক চলবে)।">
+      <Section title="স্লো-মোশন ও দ্রুত চালানো" hint="প্রিভিউ থামিয়ে যোগ করুন, তারপর শেষ সময় ঠিক করুন। স্লো-মোশন “রিপ্লে” হলে অংশটি আগে আসল গতিতে শব্দসহ চলে, তারপর আবার ধীরে — কথাও ধীর হয়ে।">
         <button
           type="button"
           onClick={() => {
             const from = here()
-            set((c) => ({ ...c, speeds: [...c.speeds, { from, to: r1(Math.min(range.end, from + 3)), rate: 0.5 }] }))
+            set((c) => ({ ...c, speeds: [...c.speeds, { from, to: r1(Math.min(range.end, from + 3)), rate: 0.5, replay: true, sound: 'on' }] }))
           }}
           disabled={cfg.speeds.length >= LIMITS.speeds}
           data-testid="add-speed"
@@ -162,7 +162,7 @@ export default function EffectsPanel({
                     <button
                       key={v}
                       type="button"
-                      onClick={() => updateSpeed(i, { rate: v })}
+                      onClick={() => updateSpeed(i, { rate: v, replay: v < 1 ? r.replay || r.rate >= 1 : false, sound: v < 1 ? (r.rate >= 1 ? 'on' : r.sound) : r.rate < 1 ? 'off' : r.sound })}
                       aria-pressed={r.rate === v}
                       className={`rounded-lg border px-2 py-1 text-[12px] font-medium tabular-nums ${r.rate === v ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-neutral-200 text-neutral-600'}`}
                     >
@@ -170,8 +170,25 @@ export default function EffectsPanel({
                     </button>
                   ))}
                 </div>
+                {r.rate < 1 && (
+                  <SwitchRow
+                    label="রিপ্লে: আগে আসল গতিতে, তারপর স্লো-মোশনে"
+                    hint="অংশটি প্রথমে স্বাভাবিকভাবে শব্দসহ চলবে, তারপর একই দৃশ্য পরের সিন হিসেবে ধীরে আবার চলবে।"
+                    checked={r.replay}
+                    onChange={(v) => updateSpeed(i, { replay: v })}
+                    testId="speed-replay"
+                  />
+                )}
+                <SwitchRow
+                  label={r.rate < 1 ? 'স্লো অংশে কথা/শব্দ থাকবে (ধীর হয়ে)' : 'দ্রুত অংশে শব্দ থাকবে (দ্রুত হয়ে)'}
+                  hint={r.sound === 'on' ? 'শব্দ ছবির সাথে একই গতিতে বাজবে।' : 'এই অংশে শুধু মিউজিক চলবে।'}
+                  checked={r.sound === 'on'}
+                  onChange={(v) => updateSpeed(i, { sound: v ? 'on' : 'off' })}
+                  testId="speed-sound"
+                />
                 <p className="text-[11px] text-neutral-400 mt-1.5">
-                  {r.rate < 1 ? 'স্লো-মোশন' : 'দ্রুত'} · এই অংশ ভিডিওতে চলবে {bnNumber(Math.max(0, (r.to - r.from) / r.rate).toFixed(1))} সেকেন্ড
+                  {r.rate < 1 ? (r.replay ? 'রিপ্লে' : 'স্লো-মোশন') : 'দ্রুত'} · এই অংশ ভিডিওতে চলবে{' '}
+                  {bnNumber(Math.max(0, (r.to - r.from) / r.rate + (r.rate < 1 && r.replay ? r.to - r.from : 0)).toFixed(1))} সেকেন্ড
                 </p>
               </div>
             ))}

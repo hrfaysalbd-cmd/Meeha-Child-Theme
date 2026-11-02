@@ -52,6 +52,11 @@ import { DeleteConfirmModal, PublishInfoCard } from '../components/PostManagemen
 import type { AuthorValue } from '../components/AuthorPicker'
 import { CharCount, RejectVideoModal, VideoStatusBadge } from '../components/VideoBits'
 import PaymentPanel from '../components/PaymentPanel'
+import CategoryPicker from '../components/CategoryPicker'
+import { rememberCategory } from '../lib/categoryTree'
+
+/** Round 26: the same "recent" list as the post editor, so a desk's usual categories are one tap away for videos too. */
+const RECENT_CATEGORIES_KEY = 'nros_pub_recent_categories'
 
 const TITLE_MAX = 100
 const EXCERPT_MAX = 300
@@ -390,6 +395,7 @@ export default function VideoEditor() {
   }
 
   function body(status: 'draft' | 'pending' | 'publish'): VideoInput {
+    if (categoryId) rememberCategory(RECENT_CATEGORIES_KEY, categoryId)
     return {
       title: title.trim(),
       excerpt: excerpt.trim(),
@@ -956,14 +962,9 @@ export default function VideoEditor() {
 
           <Card className="p-5">
             <p className="text-[13px] font-semibold text-neutral-700 mb-3">ক্যাটেগরি ও ফরম্যাট</p>
-            <select className={`${inputClass} mb-4`} value={categoryId} onChange={(e) => setCategoryId(Number(e.target.value))} aria-label="ক্যাটেগরি">
-              <option value={0}>কোনো ক্যাটেগরি নয়</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <div className="mb-4" data-testid="video-category">
+              <CategoryPicker categories={categories} value={categoryId} onChange={setCategoryId} recentKey={RECENT_CATEGORIES_KEY} />
+            </div>
             <div className="flex items-center justify-between mb-1.5">
               <p className="text-[12.5px] font-medium text-neutral-600">অরিয়েন্টেশন</p>
               {orientationAuto && <span className="text-[11px] text-emerald-700 bg-emerald-50 rounded-full px-2 py-0.5">স্বয়ংক্রিয়ভাবে শনাক্ত</span>}

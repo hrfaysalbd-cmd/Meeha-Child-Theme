@@ -1167,7 +1167,7 @@ export default function VideoStudio() {
               <AdsPanel cfg={cfg} set={set} range={range} playhead={playheadSrc} onAdd={() => setPicker({ kind: 'ad-add' })} onReplace={(i) => setPicker({ kind: 'ad-replace', index: i })} />
             )}
             {tab === 'tools' && (
-              <ToolsPanel cfg={cfg} set={set} range={range} playhead={playheadSrc} selectedBlur={selectedBlur} onSelectBlur={setSelectedBlur} />
+              <ToolsPanel cfg={cfg} set={set} range={range} playhead={playheadSrc} selectedBlur={selectedBlur} onSelectBlur={setSelectedBlur} wave={wave} waveJob={waveJob} onLoadWave={loadWave} />
             )}
             {tab === 'fx' && (
               <EffectsPanel

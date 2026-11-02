@@ -3,7 +3,10 @@
  * video — cut parts out of the middle, colour and light, zoom / turn /
  * mirror, and blur or pixelate boxes (faces, number plates, documents).
  */
-import { LIMITS, LOOK_FILTERS, keptRanges, type BlurBox, type EditConfig } from '../../lib/videoEdit/config'
+import { useMemo, useState } from 'react'
+import { LIMITS, LOOK_FILTERS, TRANSITIONS, keptRanges, type BlurBox, type EditConfig, type TransitionId } from '../../lib/videoEdit/config'
+import { AUTOCUT_DEFAULTS, findSilences, mergeCuts, type AutoCutOptions } from '../../lib/videoEdit/autocut'
+import type { Waveform } from '../../lib/videoEdit/analyse'
 import { bnClock } from '../../lib/videoEdit/motion'
 import { bnNumber } from '../ui'
 import { IconPlus, IconRotate, IconScissors, IconTrash } from '../Icon'
@@ -19,6 +22,9 @@ export default function ToolsPanel({
   playhead,
   selectedBlur,
   onSelectBlur,
+  wave,
+  waveJob,
+  onLoadWave,
 }: {
   cfg: EditConfig
   set: Setter
@@ -26,7 +32,31 @@ export default function ToolsPanel({
   playhead: () => number | null
   selectedBlur: number | null
   onSelectBlur: (i: number | null) => void
+  /** Round 26: the main video's loudness (for "নীরব অংশ কাটুন"). */
+  wave: Waveform | null
+  waveJob: null | { ratio: number; label: string } | { error: string }
+  onLoadWave: () => void
 }) {
+  const [ac, setAc] = useState<AutoCutOptions>(AUTOCUT_DEFAULTS)
+  const [acTr, setAcTr] = useState<TransitionId>('flash')
+  const found = useMemo(() => (wave ? findSilences(wave, range.start, range.end, ac) : null), [wave, range.start, range.end, ac])
+  const autoCuts = cfg.cuts.filter((c) => c.auto)
+  const autoRemoved = autoCuts.reduce((n, c) => n + c.to - c.from, 0)
+  function applyAuto() {
+    if (!found || !found.cuts.length) return
+    set((c) => {
+      const manual = c.cuts.filter((x) => !x.auto)
+      const auto = found.cuts.map((x) => ({ ...x, auto: true as const }))
+      // a manual cut that overlaps an automatic one wins (it is kept as typed)
+      const free = auto.filter((a) => !manual.some((m) => a.from < Math.max(m.from, m.to) && a.to > Math.min(m.from, m.to)))
+      const merged = mergeCuts([], free, LIMITS.cuts - manual.length).map((x) => ({ ...x, auto: true as const }))
+      return {
+        ...c,
+        cuts: [...manual, ...merged],
+        transition: acTr === 'none' ? { ...c.transition, cuts: false } : { id: acTr, dur: Math.min(c.transition.id === acTr ? c.transition.dur : 0.35, 0.6), cuts: true },
+      }
+    })
+  }
   const look = cfg.look
   const setLook = (patch: Partial<EditConfig['look']>) => set((c) => ({ ...c, look: { ...c.look, ...patch } }))
   const updateCut = (i: number, patch: Partial<EditConfig['cuts'][number]>) => set((c) => ({ ...c, cuts: c.cuts.map((x, j) => (j === i ? { ...x, ...patch } : x)) }))
@@ -66,7 +96,17 @@ export default function ToolsPanel({
         </button>
         {cfg.cuts.length > 0 && (
           <div className="flex flex-col gap-2 mt-2.5">
-            {cfg.cuts.map((c, i) => (
+            {autoCuts.length > 0 && (
+              <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-2.5 flex items-center gap-2" data-testid="auto-cut-summary">
+                <p className="flex-1 text-[12.5px] text-violet-900">
+                  স্বয়ংক্রিয় কাট: <b>{bnNumber(autoCuts.length)}টি</b> নীরব অংশ · {bnClock(autoRemoved)} বাদ
+                </p>
+                <button type="button" onClick={() => set((x) => ({ ...x, cuts: x.cuts.filter((c) => !c.auto) }))} className="text-[11.5px] px-2 py-1 rounded-md bg-white border border-violet-200 text-violet-800">
+                  সব সরান
+                </button>
+              </div>
+            )}
+            {cfg.cuts.map((c, i) => c.auto ? null : (
               <div key={i} className="rounded-xl border border-neutral-200 p-2.5 flex items-end gap-3 flex-wrap" data-testid="cut-row">
                 <TimeField
                   label="কোথা থেকে"
@@ -98,6 +138,86 @@ export default function ToolsPanel({
             <p className="text-[11.5px] text-neutral-500">
               বাদ যাচ্ছে {bnClock(removed)} · থাকছে {bnClock(keptLen)}
             </p>
+          </div>
+        )}
+      </Section>
+
+      <Section
+        title="নীরব অংশ স্বয়ংক্রিয়ভাবে কাটুন"
+        hint="কেউ কথা বলছে না এমন বিরতিগুলো খুঁজে এক ক্লিকে বাদ দেয়, আর প্রতিটি জোড়ায় ছোট ট্রানজিশন বসায়। কথার শুরু-শেষ যাতে না কাটে, বিরতির দুই পাশে একটু জায়গা রাখা হয়।"
+      >
+        {!wave ? (
+          waveJob && 'ratio' in waveJob ? (
+            <p className="text-[12px] text-neutral-500">{waveJob.label}</p>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onLoadWave}
+                data-testid="autocut-scan"
+                className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-violet-300 bg-violet-50 text-violet-800 py-2.5 text-[13px] font-semibold"
+              >
+                <IconScissors className="w-4 h-4" />
+                নীরব অংশ খুঁজুন
+              </button>
+              {waveJob && 'error' in waveJob && <p className="text-[11.5px] text-red-600 mt-1">{waveJob.error}</p>}
+            </>
+          )
+        ) : (
+          <div className="rounded-xl border border-neutral-200 p-2.5">
+            <p className="text-[11.5px] text-neutral-500 mb-1">কতটা নীরবতা ধরবে</p>
+            <Segmented
+              value={ac.sensitivity}
+              options={[
+                { id: 'low', name: 'শুধু একদম চুপ' },
+                { id: 'medium', name: 'মাঝারি' },
+                { id: 'high', name: 'হালকা আওয়াজও' },
+              ]}
+              onChange={(v) => setAc((o) => ({ ...o, sensitivity: v }))}
+              size="sm"
+            />
+            <p className="text-[11.5px] text-neutral-500 mt-2.5 mb-1">কত লম্বা বিরতি কাটবে</p>
+            <Segmented
+              value={String(ac.minSilence) as '0.4' | '0.7' | '1.2' | '2'}
+              options={[
+                { id: '0.4', name: '০.৪ সে.+ (দ্রুত)' },
+                { id: '0.7', name: '০.৭ সে.+' },
+                { id: '1.2', name: '১.২ সে.+' },
+                { id: '2', name: '২ সে.+ (শুধু লম্বা)' },
+              ]}
+              onChange={(v) => setAc((o) => ({ ...o, minSilence: Number(v) }))}
+              size="sm"
+            />
+            <p className="text-[11.5px] text-neutral-500 mt-2.5 mb-1">জোড়ায় ট্রানজিশন</p>
+            <Segmented
+              value={acTr}
+              options={[{ id: 'none' as TransitionId, name: 'নেই (সরাসরি)' }, ...TRANSITIONS.filter((x) => ['flash', 'dip', 'fade', 'zoom'].includes(x.id)).map((x) => ({ id: x.id, name: x.name }))]}
+              onChange={setAcTr}
+              size="sm"
+            />
+            {found && !found.usable ? (
+              <p className="text-[11.5px] text-amber-700 mt-2.5">এই ভিডিওতে কথা আর নীরবতার পার্থক্য স্পষ্ট নয় (পুরোটা জুড়ে মিউজিক বা আওয়াজ) — স্বয়ংক্রিয় কাট নিরাপদ নয়।</p>
+            ) : found ? (
+              <p className="text-[12px] text-neutral-700 mt-2.5" data-testid="autocut-found">
+                {found.cuts.length ? (
+                  <>
+                    <b>{bnNumber(found.cuts.length)}টি</b> বিরতি পাওয়া গেছে — মোট {bnClock(found.removed)} বাদ যাবে।
+                  </>
+                ) : (
+                  'কাটার মতো লম্বা বিরতি পাওয়া যায়নি।'
+                )}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={applyAuto}
+              disabled={!found?.usable || !found.cuts.length}
+              data-testid="autocut-apply"
+              className="mt-2 w-full rounded-xl bg-violet-600 text-white py-2.5 text-[13px] font-semibold disabled:opacity-40"
+            >
+              {autoCuts.length ? 'আবার কাটুন (আগের স্বয়ংক্রিয় কাট বদলে যাবে)' : 'নীরব অংশ কেটে ফেলুন'}
+            </button>
+            <p className="text-[11px] text-neutral-400 mt-1.5">প্রিভিউ চালিয়ে দেখুন; কোনো কথা কেটে গেলে “সব সরান” দিয়ে ফেরত আনুন বা “শুধু একদম চুপ” বেছে আবার কাটুন।</p>
           </div>
         )}
       </Section>
