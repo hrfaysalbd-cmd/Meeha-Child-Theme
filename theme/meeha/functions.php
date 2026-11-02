@@ -56,6 +56,7 @@ foreach ( array(
 	'metrics',
 	'search',
 	'single',
+	'liveblog',
 	'literature',
 	'quotes',
 	'studio',

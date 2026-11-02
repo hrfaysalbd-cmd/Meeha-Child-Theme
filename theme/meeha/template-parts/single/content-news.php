@@ -39,6 +39,9 @@ $meeha_dek  = '' !== $meeha_dek ? $meeha_dek : ( has_excerpt( $meeha_p ) && ! po
 			</header>
 
 			<?php
+			if ( function_exists( 'meeha_lb_render_top' ) ) {
+				meeha_lb_render_top( $meeha_p ); // 2.5.0: live post status / scoreboard / case file.
+			}
 			meeha_single_lead_figure( $meeha_p, array( 'viewfinder' => $meeha_inv ) );
 			meeha_single_toc( $meeha_toc, 'details' );
 			?>
@@ -53,6 +56,9 @@ $meeha_dek  = '' !== $meeha_dek ? $meeha_dek : ( has_excerpt( $meeha_p ) && ! po
 					'after'  => '</nav>',
 				)
 			);
+			if ( function_exists( 'meeha_lb_render_feed' ) ) {
+				meeha_lb_render_feed( $meeha_p ); // 2.5.0: live updates.
+			}
 			?>
 
 			<footer class="m-article__foot">
