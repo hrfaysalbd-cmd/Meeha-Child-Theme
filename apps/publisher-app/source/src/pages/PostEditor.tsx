@@ -441,6 +441,21 @@ export default function PostEditor() {
       {error && <Banner kind="error">{error}</Banner>}
       {notice && <Banner kind="success">{notice}</Banner>}
 
+      {/* Round 26: editorial placement runs across the page, right under the header. */}
+      <div className="mb-5">
+        <Section title="সম্পাদকীয়" summary={flagsSummary(flags)} defaultOpen testId="sec-flags">
+          <EditorialFlags
+            layout="row"
+            flags={flags}
+            onChange={setFlags}
+            glanceText={glanceText}
+            onGlanceText={setGlanceText}
+            title={title}
+            trendingAt={post?.flag_times?.trending_at}
+          />
+        </Section>
+      </div>
+
       <div className="grid lg:grid-cols-[1fr_340px] gap-5">
         <Card className="p-3.5 sm:p-5 min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-start sm:gap-2 mb-1">
@@ -541,10 +556,100 @@ export default function PostEditor() {
         </Card>
 
         <div className="flex flex-col gap-5 min-w-0">
-          {/* Round 18: editorial placement (lead, trending…) first in this column. */}
-          <Section title="সম্পাদকীয়" summary={flagsSummary(flags)} defaultOpen testId="sec-flags">
-            <EditorialFlags flags={flags} onChange={setFlags} glanceText={glanceText} onGlanceText={setGlanceText} title={title} trendingAt={post?.flag_times?.trending_at} />
-          </Section>
+          {/* Round 26: the featured image leads this column (editorial flags moved to the strip above). */}
+          <Card className="p-5" data-testid="featured-card">
+            <p className="text-[13px] font-semibold text-neutral-700 mb-3">ফিচার ইমেজ</p>
+            <input
+              ref={featuredInput}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) onPickFeatured(f)
+                e.target.value = ''
+              }}
+            />
+            {featuredImage ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => featuredInput.current?.click()}
+                  className="relative w-full h-36 rounded-xl overflow-hidden border border-neutral-200 mb-3"
+                >
+                  <img src={featuredImage} alt={featuredAlt} className="w-full h-full object-cover" />
+                  {uploadingFeatured ? (
+                    <span className="absolute inset-0 bg-black/45 text-white text-[13px] font-medium flex items-center justify-center">
+                      {featuredUploadLabel(featuredProgress)}
+                    </span>
+                  ) : (
+                    <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[12px] px-2 py-1 rounded-lg">
+                      বদলাতে ক্লিক করুন
+                    </span>
+                  )}
+                </button>
+                <Field label="ইমেজ অল্ট টেক্সট">
+                  <input
+                    className={inputClass}
+                    value={featuredAlt}
+                    onChange={(e) => setFeaturedAlt(e.target.value)}
+                    onBlur={saveFeaturedMeta}
+                    placeholder="ছবিতে কী দেখা যাচ্ছে"
+                  />
+                </Field>
+                <Field label="ইমেজ ক্যাপশন">
+                  <input
+                    className={inputClass}
+                    value={featuredCaption}
+                    onChange={(e) => setFeaturedCaption(e.target.value)}
+                    onBlur={saveFeaturedMeta}
+                    placeholder="ছবির ক্যাপশন"
+                  />
+                </Field>
+                {savingMeta && <p className="text-[11.5px] text-neutral-400">সংরক্ষণ হচ্ছে…</p>}
+                <button
+                  type="button"
+                  onClick={() => setFeaturedGalleryOpen(true)}
+                  disabled={uploadingFeatured}
+                  className="mt-1 w-full flex items-center justify-center gap-1.5 rounded-lg bg-neutral-100 text-neutral-700 py-2 text-[12.5px] font-medium hover:bg-neutral-200"
+                >
+                  <IconLibraryPhoto className="w-4 h-4" />
+                  গ্যালারি থেকে অন্য ছবি বেছে নিন
+                </button>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => featuredInput.current?.click()}
+                  disabled={uploadingFeatured}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-neutral-300 text-neutral-500 py-5 text-[13.5px]"
+                >
+                  <IconPhotoPlus className="w-5 h-5" />
+                  {uploadingFeatured ? featuredUploadLabel(featuredProgress) : 'নতুন ছবি আপলোড করুন'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFeaturedGalleryOpen(true)}
+                  disabled={uploadingFeatured}
+                  className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-neutral-100 text-neutral-700 py-2 text-[12.5px] font-medium hover:bg-neutral-200"
+                >
+                  <IconLibraryPhoto className="w-4 h-4" />
+                  গ্যালারি থেকে বেছে নিন
+                </button>
+              </div>
+            )}
+            {featuredGalleryOpen && (
+              <MediaGallery
+                title="ফিচার ইমেজ — গ্যালারি থেকে বেছে নিন"
+                onClose={() => setFeaturedGalleryOpen(false)}
+                onSelect={(img) => {
+                  setFeaturedGalleryOpen(false)
+                  applyFeatured({ attachmentId: img.id })
+                }}
+              />
+            )}
+          </Card>
 
           <Card className="p-5">
             <p className="text-[13px] font-semibold text-neutral-700 mb-3">প্রকাশনা</p>
@@ -648,99 +753,6 @@ export default function PostEditor() {
             <AreaPicker value={area} onChange={setArea} />
           </Section>
 
-          <Card className="p-5">
-            <p className="text-[13px] font-semibold text-neutral-700 mb-3">ফিচার ইমেজ</p>
-            <input
-              ref={featuredInput}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) onPickFeatured(f)
-                e.target.value = ''
-              }}
-            />
-            {featuredImage ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => featuredInput.current?.click()}
-                  className="relative w-full h-36 rounded-xl overflow-hidden border border-neutral-200 mb-3"
-                >
-                  <img src={featuredImage} alt={featuredAlt} className="w-full h-full object-cover" />
-                  {uploadingFeatured ? (
-                    <span className="absolute inset-0 bg-black/45 text-white text-[13px] font-medium flex items-center justify-center">
-                      {featuredUploadLabel(featuredProgress)}
-                    </span>
-                  ) : (
-                    <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[12px] px-2 py-1 rounded-lg">
-                      বদলাতে ক্লিক করুন
-                    </span>
-                  )}
-                </button>
-                <Field label="ইমেজ অল্ট টেক্সট">
-                  <input
-                    className={inputClass}
-                    value={featuredAlt}
-                    onChange={(e) => setFeaturedAlt(e.target.value)}
-                    onBlur={saveFeaturedMeta}
-                    placeholder="ছবিতে কী দেখা যাচ্ছে"
-                  />
-                </Field>
-                <Field label="ইমেজ ক্যাপশন">
-                  <input
-                    className={inputClass}
-                    value={featuredCaption}
-                    onChange={(e) => setFeaturedCaption(e.target.value)}
-                    onBlur={saveFeaturedMeta}
-                    placeholder="ছবির ক্যাপশন"
-                  />
-                </Field>
-                {savingMeta && <p className="text-[11.5px] text-neutral-400">সংরক্ষণ হচ্ছে…</p>}
-                <button
-                  type="button"
-                  onClick={() => setFeaturedGalleryOpen(true)}
-                  disabled={uploadingFeatured}
-                  className="mt-1 w-full flex items-center justify-center gap-1.5 rounded-lg bg-neutral-100 text-neutral-700 py-2 text-[12.5px] font-medium hover:bg-neutral-200"
-                >
-                  <IconLibraryPhoto className="w-4 h-4" />
-                  গ্যালারি থেকে অন্য ছবি বেছে নিন
-                </button>
-              </>
-            ) : (
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => featuredInput.current?.click()}
-                  disabled={uploadingFeatured}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-neutral-300 text-neutral-500 py-5 text-[13.5px]"
-                >
-                  <IconPhotoPlus className="w-5 h-5" />
-                  {uploadingFeatured ? featuredUploadLabel(featuredProgress) : 'নতুন ছবি আপলোড করুন'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFeaturedGalleryOpen(true)}
-                  disabled={uploadingFeatured}
-                  className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-neutral-100 text-neutral-700 py-2 text-[12.5px] font-medium hover:bg-neutral-200"
-                >
-                  <IconLibraryPhoto className="w-4 h-4" />
-                  গ্যালারি থেকে বেছে নিন
-                </button>
-              </div>
-            )}
-            {featuredGalleryOpen && (
-              <MediaGallery
-                title="ফিচার ইমেজ — গ্যালারি থেকে বেছে নিন"
-                onClose={() => setFeaturedGalleryOpen(false)}
-                onSelect={(img) => {
-                  setFeaturedGalleryOpen(false)
-                  applyFeatured({ attachmentId: img.id })
-                }}
-              />
-            )}
-          </Card>
         </div>
       </div>
 

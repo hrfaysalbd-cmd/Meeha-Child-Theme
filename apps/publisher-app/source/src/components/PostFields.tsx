@@ -356,6 +356,7 @@ export function EditorialFlags({
   onGlanceText,
   title,
   trendingAt,
+  layout = 'stack',
 }: {
   flags: PostFlags
   onChange: (f: PostFlags) => void
@@ -363,9 +364,61 @@ export function EditorialFlags({
   onGlanceText: (v: string) => void
   title: string
   trendingAt?: number | null
+  /** 'row' = round 26 strip under the page header: four tiles side by side. */
+  layout?: 'stack' | 'row'
 }) {
   const [now] = useState(() => Date.now())
   const pinEnds = trendingAt ? trendingAt * 1000 + 24 * 3600 * 1000 : 0
+  if (layout === 'row') {
+    return (
+      <div data-testid="editorial-flags">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          {FLAG_DEFS.map((f) => {
+            const on = flags[f.key]
+            return (
+              <label
+                key={f.key}
+                className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 cursor-pointer transition-colors min-w-0 ${
+                  on ? 'border-[#BBD5F0] bg-[#EEF4FB]' : 'border-neutral-200 bg-white hover:border-neutral-300'
+                }`}
+              >
+                <span className="flex-1 min-w-0">
+                  <span className={`block text-[13.5px] font-semibold ${on ? 'text-[#025AB2]' : 'text-neutral-800'}`}>{f.label}</span>
+                  <span className="block text-[11px] leading-snug text-neutral-400 truncate" title={f.hint}>
+                    {f.hint}
+                  </span>
+                </span>
+                <Switch checked={on} onChange={(v) => onChange({ ...flags, [f.key]: v })} label={f.label} testId={`flag-${f.key}`} />
+              </label>
+            )
+          })}
+        </div>
+        {flags.trending && pinEnds > 0 && (
+          <p className={`text-[11.5px] mt-2 ${pinEnds < now ? 'text-amber-700' : 'text-neutral-500'}`} data-testid="trending-expiry">
+            {pinEnds < now
+              ? 'ট্রেন্ডিং পিনের ২৪ ঘণ্টা শেষ — আবার পিন করতে বন্ধ করে চালু করুন ও সংরক্ষণ করুন।'
+              : `ট্রেন্ডিং পিন থাকবে: ${new Date(pinEnds).toLocaleString('bn-BD', { timeZone: 'Asia/Dhaka', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hourCycle: 'h23' })} পর্যন্ত`}
+          </p>
+        )}
+        {flags.glance && (
+          <div className="mt-3">
+            <Label htmlFor="glance-text" right={<Counter value={glanceText} max={GLANCE_MAX} testId="glance-count" />}>
+              একনজরে বাক্য
+            </Label>
+            <input
+              id="glance-text"
+              className={`${inputClass} min-h-[44px]`}
+              value={glanceText}
+              maxLength={GLANCE_MAX}
+              onChange={(e) => onGlanceText(e.target.value)}
+              placeholder={title.trim() || 'খালি থাকলে শিরোনাম দেখাবে'}
+            />
+            <p className="text-[11.5px] text-neutral-400 mt-1">খালি রাখলে শিরোনামটিই দেখাবে।</p>
+          </div>
+        )}
+      </div>
+    )
+  }
   return (
     <div className="flex flex-col gap-1" data-testid="editorial-flags">
       {FLAG_DEFS.map((f) => (

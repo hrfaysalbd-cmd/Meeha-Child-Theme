@@ -10,5 +10,12 @@ blockquote { padding-left: 20px; border-left: 3px solid var(--m-blue); }
 .m-callout, .is-style-callout { padding: 16px 18px; border-left: 3px solid var(--m-blue); background: var(--m-blue-50); }
 
 /* Round 12 — হাইলাইট বক্স / mark in the block editor */
-.is-style-meeha-highlight { padding: 18px 20px 18px 22px; border: 1px solid #D6E6F7; border-left: 5px solid #025AB2; border-radius: 0 8px 8px 0; background: #EEF4FB; font-weight: 700; font-size: 1.25rem; line-height: 1.65; }
+/* Round 26 — same card as the site: accent bar, "মূল কথা" chip, key-point diamonds. */
+.is-style-meeha-highlight { position: relative; padding: 50px 22px 20px 26px; overflow: hidden; border: 1px solid #D6E6F7; border-left: 0; border-radius: 14px; background: linear-gradient(135deg, #EEF4FB 0%, #fff 92%); font-weight: 700; font-size: 1.25rem; line-height: 1.7; }
+.is-style-meeha-highlight::before { content: ""; position: absolute; inset-block: 0; left: 0; width: 5px; background: linear-gradient(180deg, #1546B8, #0B2A6B); }
+.is-style-meeha-highlight::after { content: "মূল কথা"; position: absolute; top: 16px; left: 26px; padding: 5px 11px 5px 24px; border-radius: 999px; background: radial-gradient(circle at 12px 50%, #FFC20E 0 4px, transparent 4.5px), #D6E6F7; color: #025AB2; font-size: .75rem; line-height: 1.2; }
+.is-style-meeha-highlight p:not(:only-child) { position: relative; padding-left: 22px; }
+.is-style-meeha-highlight p:not(:only-child)::before { content: ""; position: absolute; top: .72em; left: 2px; width: 8px; height: 8px; border-radius: 2px; background: #FFC20E; transform: rotate(45deg); }
+.wp-block-table th { background: #0B2A6B; color: #fff; }
+.wp-block-table tr:nth-child(even) td { background: #F3F5F8; }
 mark, .m-mark { background: #FFF1B8; color: inherit; }
