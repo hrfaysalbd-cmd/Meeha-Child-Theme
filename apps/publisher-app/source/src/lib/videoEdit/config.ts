@@ -10,6 +10,7 @@
 import type { DenoiseLevel } from './denoise'
 import type { MusicRemoveLevel } from './musicremove'
 import { SFX_IDS, type SfxId } from './sfxlib'
+import { HOUSE_ADS, type HouseAdId } from './houseads'
 
 /** Round 26: a sound from the library, placed at a moment of the news (source seconds). */
 export interface PlacedSound {
@@ -93,7 +94,10 @@ export interface MediaRef {
 export interface AdBreak {
   /** Where in the ORIGINAL video the ad goes (seconds). */
   at: number
-  clip: MediaRef
+  /** An ad clip from the gallery, or null for a Meeha house ad. */
+  clip: MediaRef | null
+  /** Round 26: a drawn Meeha house ad (houseads.ts) instead of a clip. */
+  house: HouseAdId | null
   /** Short "বিজ্ঞাপন বিরতি" / "সংবাদে ফিরছি" cards around the ad. */
   bumper: boolean
 }
@@ -563,7 +567,8 @@ export function normalizeConfig(raw: unknown): EditConfig {
     ads: (Array.isArray(o.ads) ? o.ads : [])
       .map((a: any) => {
         const clip = mediaRef(a?.clip)
-        return clip ? { at: num(a.at, 0, 0, 86400), clip, bumper: bool(a.bumper, true) } : null
+        const house = HOUSE_ADS.some((h) => h.id === a?.house) ? (a.house as HouseAdId) : null
+        return clip || house ? { at: num(a.at, 0, 0, 86400), clip: house ? null : clip, house, bumper: bool(a.bumper, true) } : null
       })
       .filter(Boolean)
       .slice(0, LIMITS.ads) as AdBreak[],

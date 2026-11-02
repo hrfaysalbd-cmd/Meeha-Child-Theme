@@ -29,7 +29,8 @@ import type { VideoKit } from '../../lib/api'
 import { bnNumber } from '../ui'
 import { IconPlus, IconTrash, IconUsers, IconX } from '../Icon'
 import PeoplePicker from './StudioPeople'
-import { ChoiceCard, Section, Segmented, Slider, SwitchRow, TextInput, TimeField } from './StudioFields'
+import { ChoiceCard, Group, Section, Segmented, Slider, SwitchRow, TextInput, TimeField, useGroups } from './StudioFields'
+import { HOUSE_ADS, type HouseAdId } from '../../lib/videoEdit/houseads'
 
 export type Setter = (fn: (c: EditConfig) => EditConfig) => void
 
@@ -43,7 +44,7 @@ export function Thumb({ paint, ratio, deps }: { paint: (c: HTMLCanvasElement) =>
   return <canvas ref={ref} className="block w-full bg-neutral-900" style={{ aspectRatio: String(ratio) }} />
 }
 
-export type ThumbPainter = (kind: 'frame' | 'intro' | 'outro', id: string) => ((c: HTMLCanvasElement) => void) | null
+export type ThumbPainter = (kind: 'frame' | 'intro' | 'outro' | 'house', id: string) => ((c: HTMLCanvasElement) => void) | null
 
 // ---------------------------------------------------------------------------
 // Frame
@@ -302,6 +303,10 @@ export function AdsPanel({
   playhead,
   onAdd,
   onReplace,
+  onAddHouse,
+  thumb,
+  thumbRatio,
+  thumbKey,
 }: {
   cfg: EditConfig
   set: Setter
@@ -309,7 +314,14 @@ export function AdsPanel({
   playhead: () => number | null
   onAdd: () => void
   onReplace: (index: number) => void
+  /** Round 26: a Meeha house ad at the playhead (or in place of break `replace`). */
+  onAddHouse: (id: HouseAdId, replace?: number) => void
+  thumb: ThumbPainter
+  thumbRatio: number
+  thumbKey: string
 }) {
+  const [houseFor, setHouseFor] = useState<number | null>(null)
+  const houseOpen = useGroups('house')
   const update = (i: number, patch: Partial<EditConfig['ads'][number]>) =>
     set((c) => ({ ...c, ads: c.ads.map((a, j) => (j === i ? { ...a, ...patch } : a)) }))
   const remove = (i: number) => set((c) => ({ ...c, ads: c.ads.filter((_, j) => j !== i) }))
@@ -328,9 +340,44 @@ export function AdsPanel({
           className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-amber-400 bg-amber-50 text-amber-800 py-2.5 text-[13px] font-semibold disabled:opacity-50"
         >
           <IconPlus className="w-4 h-4" />
-          এখানে বিজ্ঞাপন যোগ করুন
+          এখানে বিজ্ঞাপন যোগ করুন (গ্যালারি থেকে)
         </button>
       </Section>
+      <div className="mb-5">
+        <Group
+          title="মিহা নিউজের নিজস্ব ভিডিও বিজ্ঞাপন"
+          hint="আঁকা এনিমেশন, আপলোড লাগে না, সব মাপে মানায়"
+          count={HOUSE_ADS.length}
+          open={houseOpen.isOpen('house') || houseFor !== null}
+          onToggle={() => {
+            setHouseFor(null)
+            houseOpen.toggle('house')
+          }}
+          testId="house-ads"
+        >
+          {houseFor !== null && <p className="text-[12px] text-brand-700 mb-2">বিরতি {bnNumber(order.findIndex((o) => o.i === houseFor) + 1)}-এর বিজ্ঞাপন বদলাতে একটি বেছে নিন।</p>}
+          <div className="grid grid-cols-2 gap-2.5">
+            {HOUSE_ADS.map((h) => {
+              const paint = thumb('house', h.id)
+              return (
+                <ChoiceCard
+                  key={h.id}
+                  active={false}
+                  onClick={() => {
+                    onAddHouse(h.id, houseFor ?? undefined)
+                    setHouseFor(null)
+                  }}
+                  title={h.name}
+                  hint={`${h.hint} · ${bnNumber(h.dur)} সে.`}
+                  testId={`house-${h.id}`}
+                  preview={paint ? <Thumb paint={paint} ratio={thumbRatio} deps={[thumbKey, h.id]} /> : <div className="bg-neutral-100" style={{ aspectRatio: String(thumbRatio) }} />}
+                />
+              )
+            })}
+          </div>
+          <p className="text-[11px] text-neutral-400 mt-2">ক্লিক করলে প্রিভিউ যেখানে থেমে আছে সেখানে বসবে। সোশ্যাল হ্যান্ডেল ও ক্যাম্পাসের ঠিকানা সাইটের সেটিংস থেকে আসে — না থাকলে ওয়েবসাইটের নাম দেখায়।</p>
+        </Group>
+      </div>
       {order.length === 0 ? (
         <p className="text-[12.5px] text-neutral-400 text-center py-4">এখনো কোনো বিজ্ঞাপন বিরতি নেই।</p>
       ) : (
@@ -358,11 +405,18 @@ export function AdsPanel({
                     }}
                   />
                   <div className="flex-1 min-w-[120px]">
-                    <span className="block text-[11.5px] text-neutral-500 mb-1">বিজ্ঞাপন ক্লিপ</span>
-                    <button type="button" onClick={() => onReplace(i)} className="w-full text-left text-[12.5px] rounded-lg border border-neutral-200 px-2.5 py-1.5 truncate hover:border-neutral-300">
-                      {a.clip.title || `ভিডিও #${bnNumber(a.clip.id)}`}
-                      {a.clip.duration ? <span className="text-neutral-400"> · {bnClock(a.clip.duration)}</span> : null}
-                    </button>
+                    <span className="block text-[11.5px] text-neutral-500 mb-1">{a.house ? 'মিহা নিজস্ব বিজ্ঞাপন' : 'বিজ্ঞাপন ক্লিপ'}</span>
+                    {a.house ? (
+                      <button type="button" onClick={() => setHouseFor(i)} className="w-full text-left text-[12.5px] rounded-lg border border-brand-200 bg-brand-50/50 px-2.5 py-1.5 truncate hover:border-brand-300">
+                        {HOUSE_ADS.find((h) => h.id === a.house)?.name}
+                        <span className="text-neutral-400"> · বদলান</span>
+                      </button>
+                    ) : a.clip ? (
+                      <button type="button" onClick={() => onReplace(i)} className="w-full text-left text-[12.5px] rounded-lg border border-neutral-200 px-2.5 py-1.5 truncate hover:border-neutral-300">
+                        {a.clip.title || `ভিডিও #${bnNumber(a.clip.id)}`}
+                        {a.clip.duration ? <span className="text-neutral-400"> · {bnClock(a.clip.duration)}</span> : null}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
                 <SwitchRow label="“বিজ্ঞাপন বিরতি” ও “সংবাদে ফিরছি” কার্ড" checked={a.bumper} onChange={(v) => update(i, { bumper: v })} />

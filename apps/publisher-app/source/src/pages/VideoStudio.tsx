@@ -15,6 +15,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   AdminVideosApi,
   MediaApi,
+  PhotocardApi,
   VideoKitApi,
   describeError,
   downloadMediaFile,
@@ -26,6 +27,7 @@ import {
 import { DEFAULT_CONFIG, FRAMES, INTROS, LIMITS, OUTROS, hasEdits, normalizeConfig, styleOnly, type EditConfig, type FormatId, type MediaRef } from '../lib/videoEdit/config'
 import { BUILTIN_CLIPS, fetchBlob, loadFonts, loadLogo, type LogoAsset } from '../lib/videoEdit/assets'
 import { drawOutputFrame, drawScene, makeScratch, type DrawEnv, type Picture } from '../lib/videoEdit/draw'
+import { EMPTY_HOUSE, HOUSE_ADS, houseInfo, type HouseAdId, type HouseInfo } from '../lib/videoEdit/houseads'
 import { bnClock, bnDate } from '../lib/videoEdit/motion'
 import { PreviewPlayer, probeUrl, type PreviewState } from '../lib/videoEdit/preview'
 import { RenderCancelled, exportCapability, renderAudioPreview, renderEdit, type RenderProgress } from '../lib/videoEdit/render'
@@ -171,6 +173,13 @@ export default function VideoStudio() {
   const [notice, setNotice] = useState('')
   const [presetMenu, setPresetMenu] = useState(false)
   const [kit, setKit] = useState<VideoKit | null>(null)
+  // round 26: the site's social links + campus address, for the Meeha house ads (newsroom-os ≥ 1.9.0)
+  const [house, setHouse] = useState<HouseInfo>(EMPTY_HOUSE)
+  useEffect(() => {
+    PhotocardApi.kit()
+      .then((k) => setHouse(houseInfo(k.house?.social, k.house?.campus)))
+      .catch(() => undefined)
+  }, [])
   const [stillTick, setStillTick] = useState(0)
   const [selectedBlur, setSelectedBlur] = useState<number | null>(null)
   const [audition, setAudition] = useState<AuditionState>(null)
@@ -307,7 +316,9 @@ export default function VideoStudio() {
     else if (cfg.intro.id === 'custom' && cfg.intro.clip) u.intro = cfg.intro.clip.url
     if (cfg.outro.id === 'meeha-social') u.outro = BUILTIN_CLIPS['meeha-social']
     else if (cfg.outro.id === 'custom' && cfg.outro.clip) u.outro = cfg.outro.clip.url
-    cfg.ads.forEach((a, i) => (u[`ad${i}`] = a.clip.url))
+    cfg.ads.forEach((a, i) => {
+      if (a.clip) u[`ad${i}`] = a.clip.url
+    })
     if (cfg.pip?.clip) u.pip = cfg.pip.clip.url
     return u
   }, [loaded, cfg.intro, cfg.outro, cfg.ads, cfg.pip])
@@ -366,7 +377,7 @@ export default function VideoStudio() {
     main: loaded?.main.duration ?? 0,
     intro: dur(urls.intro, cfg.intro.clip?.duration),
     outro: dur(urls.outro, cfg.outro.clip?.duration),
-    ads: cfg.ads.map((a, i) => dur(urls[`ad${i}`], a.clip.duration)),
+    ads: cfg.ads.map((a, i) => (a.clip ? dur(urls[`ad${i}`], a.clip.duration) : null)),
   })
   const tl = useMemo(() => {
     if (!loaded) return null
@@ -390,9 +401,10 @@ export default function VideoStudio() {
       ticker: cfg.frame.ticker.trim() || title,
       dateText: bnDate(),
       website: kit?.website || 'meeha.news',
+      house,
       scratch,
     }
-  }, [loaded, L, tl, cfg, adPic, kit, postTitle, scratch])
+  }, [loaded, L, tl, cfg, adPic, kit, postTitle, scratch, house])
   const thumbEnv = useMemo(() => (env ? { ...env, scratch: thumbScratch } : null), [env, thumbScratch])
 
   // ---- preview player ----
@@ -455,7 +467,9 @@ export default function VideoStudio() {
         const e2: DrawEnv = { ...env, cfg: c2, L: L2, tl: tl2, scratch: thumbScratch }
         const still = stillRef.current
         const pic: Picture | null = still && still.videoWidth ? { src: still, w: still.videoWidth, h: still.videoHeight } : null
-        if (kind === 'frame') {
+        if (kind === 'house') {
+          drawScene(ctx, e2, `house-${id as HouseAdId}`, 3.3, HOUSE_ADS.find((h) => h.id === id)?.dur ?? 6)
+        } else if (kind === 'frame') {
           const seg = tl2.segments[0]
           drawOutputFrame(ctx, e2, { ...seg, mainOffset: 3 - 0 }, seg.t0, pic)
         } else {
@@ -556,13 +570,24 @@ export default function VideoStudio() {
   function addAd(v: LibraryVideo, replaceIndex?: number) {
     const clip: MediaRef = { id: v.id, url: v.url, title: v.title, duration: v.duration }
     if (replaceIndex !== undefined) {
-      set((c) => ({ ...c, ads: c.ads.map((a, i) => (i === replaceIndex ? { ...a, clip } : a)) }))
+      set((c) => ({ ...c, ads: c.ads.map((a, i) => (i === replaceIndex ? { ...a, clip, house: null } : a)) }))
       return
     }
     const p = playheadSrc()
     const at = p !== null && p > range.start + 0.3 && p < range.end - 0.3 ? p : range.start + (range.end - range.start) / 2
-    set((c) => ({ ...c, ads: [...c.ads, { at: Math.round(at * 10) / 10, clip, bumper: true }] }))
+    set((c) => ({ ...c, ads: [...c.ads, { at: Math.round(at * 10) / 10, clip, house: null, bumper: true }] }))
     setTab('ads')
+  }
+
+  /** Round 26: a Meeha house ad (drawn, nothing to download) at the playhead, or in place of break `replaceIndex`. */
+  function addHouseAd(house: HouseAdId, replaceIndex?: number) {
+    if (replaceIndex !== undefined) {
+      set((c) => ({ ...c, ads: c.ads.map((a, i) => (i === replaceIndex ? { ...a, clip: null, house } : a)) }))
+      return
+    }
+    const p = playheadSrc()
+    const at = p !== null && p > range.start + 0.3 && p < range.end - 0.3 ? p : range.start + (range.end - range.start) / 2
+    set((c) => ({ ...c, ads: [...c.ads, { at: Math.round(at * 10) / 10, clip: null, house, bumper: false }].slice(0, LIMITS.ads) }))
   }
 
   async function getBlob(
@@ -1164,7 +1189,18 @@ export default function VideoStudio() {
               <IntroOutroPanel cfg={cfg} set={set} postTitle={postTitle} thumb={thumb} thumbRatio={thumbRatio} thumbKey={thumbKey} kit={kit} onPick={(w) => setPicker({ kind: w })} />
             )}
             {tab === 'ads' && (
-              <AdsPanel cfg={cfg} set={set} range={range} playhead={playheadSrc} onAdd={() => setPicker({ kind: 'ad-add' })} onReplace={(i) => setPicker({ kind: 'ad-replace', index: i })} />
+              <AdsPanel
+                cfg={cfg}
+                set={set}
+                range={range}
+                playhead={playheadSrc}
+                onAdd={() => setPicker({ kind: 'ad-add' })}
+                onReplace={(i) => setPicker({ kind: 'ad-replace', index: i })}
+                onAddHouse={addHouseAd}
+                thumb={thumb}
+                thumbRatio={thumbRatio}
+                thumbKey={`${thumbKey}|${house.handle}|${house.nets.join()}`}
+              />
             )}
             {tab === 'tools' && (
               <ToolsPanel cfg={cfg} set={set} range={range} playhead={playheadSrc} selectedBlur={selectedBlur} onSelectBlur={setSelectedBlur} wave={wave} waveJob={waveJob} onLoadWave={loadWave} />

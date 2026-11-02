@@ -7,10 +7,11 @@
  * Both the live preview and the MP4 export walk the same segments, so the
  * preview is exactly what gets rendered.
  */
+import { houseAdDur, type HouseAdId } from './houseads'
 import { AD_IN_CARD, AD_OUT_CARD, FRAME_SIZES, INTROS, OUTROS, keptRanges, type EditConfig } from './config'
 
 export type ClipKey = 'main' | 'intro' | 'outro' | 'pip' | `ad${number}`
-export type SceneId = 'breaking' | 'headline' | 'special' | 'swipe' | 'live' | 'countdown' | 'thanks' | 'follow' | 'ad-in' | 'ad-out'
+export type SceneId = 'breaking' | 'headline' | 'special' | 'swipe' | 'live' | 'countdown' | 'thanks' | 'follow' | 'ad-in' | 'ad-out' | `house-${HouseAdId}`
 
 export interface Segment {
   kind: 'intro' | 'outro' | 'main' | 'ad' | 'card'
@@ -182,7 +183,7 @@ export function buildTimeline(cfg: EditConfig, d: ClipDurations): Timeline {
   const mainStart = t
   const kept = keptRanges(cfg.cuts, start, end)
   const breaks = cfg.ads
-    .map((a, i) => ({ ...a, i, dur: d.ads?.[i] ?? a.clip.duration ?? 0 }))
+    .map((a, i) => ({ ...a, i, dur: a.house ? houseAdDur(a.house) : (d.ads?.[i] ?? a.clip?.duration ?? 0) }))
     .filter((a) => a.dur > 0 && a.at > start + 0.25 && a.at < end - 0.25 && kept.some((r) => a.at > r.from + 0.1 && a.at < r.to - 0.1))
     .sort((a, b) => a.at - b.at)
 
@@ -211,7 +212,8 @@ export function buildTimeline(cfg: EditConfig, d: ClipDurations): Timeline {
       const br = breaks.find((x) => Math.abs(x.at - a) < 0.0015 && a > r.from + 0.1 && a < r.to - 0.1)
       if (br) {
         if (br.bumper) push({ kind: 'card', dur: AD_IN_CARD, scene: 'ad-in', clipStart: 0 })
-        push({ kind: 'ad', dur: br.dur, clip: `ad${br.i}`, clipStart: 0 })
+        if (br.house) push({ kind: 'ad', dur: br.dur, scene: `house-${br.house}`, clipStart: 0 })
+        else push({ kind: 'ad', dur: br.dur, clip: `ad${br.i}`, clipStart: 0 })
         if (br.bumper) push({ kind: 'card', dur: AD_OUT_CARD, scene: 'ad-out', clipStart: 0 })
       }
       const b = cuts[k + 1]

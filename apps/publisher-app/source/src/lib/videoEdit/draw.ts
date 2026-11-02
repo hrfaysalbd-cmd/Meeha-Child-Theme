@@ -16,6 +16,7 @@ import { FRAMES, lookFilter, reframeAt, type BlurBox, type Caption, type EditCon
 import { drawFreezeOverlay, drawSticker, drawTransition, transitionAt, transitionTimes } from './overlays'
 import { BRAND, FONT_BODY, FONT_DISPLAY, type LogoAsset } from './assets'
 import type { SfxId } from './sfxlib'
+import { EMPTY_HOUSE, drawHouseAd, type HouseAdId, type HouseInfo } from './houseads'
 import { clamp, ease, fillRoundRect, fitText, lerp, rnd, win, type Ctx } from './motion'
 import { pipActive, segSource, segSourceEnd, type Layout, type Rect, type SceneId, type Segment, type Timeline } from './timeline'
 
@@ -39,6 +40,8 @@ export interface DrawEnv {
   ticker: string
   dateText: string
   website: string
+  /** Round 26: what the Meeha house ads print (social links, campus). */
+  house?: HouseInfo
   scratch: { blur: HTMLCanvasElement | OffscreenCanvas; shine: HTMLCanvasElement | OffscreenCanvas; box: HTMLCanvasElement | OffscreenCanvas }
 }
 
@@ -2335,6 +2338,7 @@ function sceneFollow(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
 }
 
 export function drawScene(ctx: Ctx, env: DrawEnv, id: SceneId, t: number, dur: number) {
+  if (id.startsWith('house-')) return drawHouseAd(ctx, id.slice(6) as HouseAdId, env.L.W, env.L.H, t, dur, env.house ?? EMPTY_HOUSE, env.logo, env.website || 'meeha.news')
   switch (id) {
     case 'breaking':
       return sceneBreaking(ctx, env, t, dur)
@@ -2600,8 +2604,11 @@ export function drawOutputFrame(ctx: Ctx, env: DrawEnv, seg: Segment, T: number,
       else drawClipFull(ctx, env, pic, local, seg.dur, seg.kind === 'outro')
       break
     case 'ad':
-      drawClipFull(ctx, env, pic, local, seg.dur, true)
-      drawAdTag(ctx, env)
+      if (seg.scene) drawScene(ctx, env, seg.scene, local, seg.dur)
+      else {
+        drawClipFull(ctx, env, pic, local, seg.dur, true)
+        drawAdTag(ctx, env)
+      }
       break
     case 'card':
       if (seg.scene) drawScene(ctx, env, seg.scene, local, seg.dur)
@@ -2638,6 +2645,7 @@ export function sfxCues(tl: Timeline, cfg: EditConfig): { t: number; kind: SfxKi
     else if (s.scene === 'countdown') cues.push({ t: s.t0 + 0.1, kind: 'hit', gain: 0.55 }, { t: s.t0 + 0.9, kind: 'hit', gain: 0.55 }, { t: s.t0 + 1.7, kind: 'hit', gain: 0.55 }, { t: s.t0 + 2.5, kind: 'whoosh', gain: 0.7 }, { t: s.t0 + 2.6, kind: 'chime', gain: 0.5 })
     else if (s.scene === 'follow') cues.push({ t: s.t0 + 0.4, kind: 'chime', gain: 0.45 }, { t: s.t0 + 1.3, kind: 'soft', gain: 0.6 }, { t: s.t0 + 2.05, kind: 'soft', gain: 0.6 }, { t: s.t0 + 2.8, kind: 'soft', gain: 0.6 })
     else if (s.scene === 'ad-in' || s.scene === 'ad-out') cues.push({ t: s.t0, kind: 'soft', gain: 0.5 })
+    else if (s.scene?.startsWith('house-')) cues.push({ t: s.t0 + 0.1, kind: 'whoosh', gain: 0.5 }, { t: s.t0 + 1.3, kind: 'pop', gain: 0.6 }, { t: s.t0 + 0.5, kind: 'chime', gain: 0.4 })
   }
   if (cfg.frame.id !== 'none') cues.push({ t: tl.mainStart, kind: 'whoosh', gain: 0.35 })
   for (const s of tl.segments) if (s.rate === 0) cues.push({ t: s.t0, kind: 'hit', gain: 0.35 })
