@@ -1103,3 +1103,54 @@ export const AnalyticsApi = {
       `/me/analytics?range=${range}`
     ),
 }
+
+// ---- 1.10.0: live posts the correspondent is assigned to ----
+
+export type LiveKind = 'update' | 'key' | 'breaking' | 'statement' | 'score' | 'document' | 'evidence' | 'milestone'
+export interface LivePostRow {
+  id: number
+  title: string
+  link: string
+  type: 'event' | 'investigation'
+  status: 'live' | 'paused' | 'ended'
+  last: number
+  count: number
+  pending: number
+  thumb: string
+}
+export interface LiveEntry {
+  id: number
+  title: string
+  content: string
+  kind: LiveKind
+  pinned: boolean
+  source: string
+  status: 'publish' | 'pending'
+  time: number
+  modified: number
+  author: { id: number; name: string }
+  can_edit: boolean
+}
+export interface LiveDetail {
+  post: LivePostRow
+  config: { type: 'event' | 'investigation'; status: 'live' | 'paused' | 'ended'; moderate: boolean }
+  entries: LiveEntry[]
+  me: number
+  kinds: { id: LiveKind; label: string; for: 'both' | 'event' | 'investigation' }[]
+}
+export interface LiveEntryInput {
+  title?: string
+  content?: string
+  kind?: LiveKind
+  source?: string
+}
+
+export const LiveApi = {
+  list: () => request<{ items: LivePostRow[] }>('/live'),
+  get: (id: number) => request<LiveDetail>(`/live/${id}`),
+  addEntry: (id: number, data: LiveEntryInput) =>
+    request<LiveEntry>(`/live/${id}/entries`, { method: 'POST', body: data as Record<string, unknown> }),
+  editEntry: (id: number, eid: number, data: LiveEntryInput) =>
+    request<LiveEntry>(`/live/${id}/entries/${eid}`, { method: 'PATCH', body: data as Record<string, unknown> }),
+  removeEntry: (id: number, eid: number) => request<{ ok: true }>(`/live/${id}/entries/${eid}`, { method: 'DELETE' }),
+}

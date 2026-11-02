@@ -12,6 +12,7 @@ import News from './pages/News'
 import VideoEditor from './pages/VideoEditor'
 import Earn from './pages/Earn'
 import Profile from './pages/Profile'
+import Live from './pages/Live'
 
 function Root() {
   const { profile, loading } = useAuth()
@@ -72,6 +73,8 @@ export default function App() {
         <Route path="news" element={<News />} />
         <Route path="earn" element={<Earn />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="live" element={<Live />} />
+        <Route path="live/:id" element={<Live />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

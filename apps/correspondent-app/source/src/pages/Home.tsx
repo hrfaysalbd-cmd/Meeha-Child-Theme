@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { LiveStrip } from './Live'
 import { Area, AreaChart, Bar, BarChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useAuth } from '../lib/AuthContext'
 import {
@@ -513,6 +514,8 @@ export default function Home() {
       </div>
 
       {partialError != null && <PartialLoadBanner error={partialError} onRetry={() => load()} />}
+
+      <LiveStrip />
 
       <button
         onClick={() => navigate('/app/write')}
