@@ -554,8 +554,12 @@ export function drawHouseAd(ctx: Ctx, id: HouseAdId, W: number, H: number, t: nu
   const lw = (logo.w / logo.h) * lh
   const lk = win(t, 0.6, 1.1)
   ctx.globalAlpha = lk
-  fillRoundRect(ctx, (wide ? W - pad - lw : W / 2 - lw / 2) - 22 * u, H - pad * 0.7 - lh - 14 * u, lw + 44 * u, lh + 28 * u, (lh + 28 * u) / 2, 'rgba(255,255,255,0.95)')
-  ctx.drawImage(logo.color, wide ? W - pad - lw : W / 2 - lw / 2, H - pad * 0.7 - lh, lw, lh)
+  // square frames have no room under the button: the logo goes top right there
+  const square = !wide && H / W <= 1.5
+  const lx = wide || square ? W - pad - lw : W / 2 - lw / 2
+  const ly = square ? pad * 0.7 : H - pad * 0.7 - lh
+  fillRoundRect(ctx, lx - 22 * u, ly - 14 * u, lw + 44 * u, lh + 28 * u, (lh + 28 * u) / 2, 'rgba(255,255,255,0.95)')
+  ctx.drawImage(logo.color, lx, ly, lw, lh)
   ctx.globalAlpha = 1
 
   // in from black / out to black

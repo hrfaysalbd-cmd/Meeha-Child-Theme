@@ -104,7 +104,22 @@ export function sfxBuffer(kind: SfxKind): Promise<AudioBuffer> {
   if (!p) {
     const ctx = new OfflineAudioContext(2, Math.ceil((sfxLength(kind) + 0.2) * SAMPLE_RATE), SAMPLE_RATE)
     synth(ctx, ctx.destination, kind, 0, 1)
-    p = ctx.startRendering()
+    // a few hits stack above full scale: bring every effect under 0.9 so nothing clips
+    p = ctx.startRendering().then((buf) => {
+      let peak = 0
+      for (let c = 0; c < buf.numberOfChannels; c++) {
+        const d = buf.getChannelData(c)
+        for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]))
+      }
+      if (peak > 0.9) {
+        const k = 0.9 / peak
+        for (let c = 0; c < buf.numberOfChannels; c++) {
+          const d = buf.getChannelData(c)
+          for (let i = 0; i < d.length; i++) d[i] *= k
+        }
+      }
+      return buf
+    })
     sfxCache.set(kind, p)
   }
   return p

@@ -99,10 +99,16 @@ function rgba(hex: string, a: number) {
 // Rich text: **marked** words are highlighted, like the photocards
 // ---------------------------------------------------------------------------
 
-interface Word {
+interface Seg {
   t: string
   hi: boolean
 }
+/** One word; a word can change colour midway ("**বৃষ্টি**," keeps its comma). */
+interface Word {
+  segs: Seg[]
+}
+const wt = (w: Word) => w.segs.map((x) => x.t).join('')
+const lineText = (l: Word[]) => l.map(wt).join(' ')
 interface Rich {
   size: number
   lineHeight: number
@@ -116,8 +122,17 @@ interface Rich {
 
 function parseRich(text: string): Word[] {
   const out: Word[] = []
+  let glue = false
   text.split('**').forEach((part, i) => {
-    for (const t of part.split(/\s+/).filter(Boolean)) out.push({ t, hi: i % 2 === 1 })
+    const hi = i % 2 === 1
+    const toks = part.split(/\s+/)
+    toks.forEach((t, j) => {
+      if (!t) return
+      if (j === 0 && glue && out.length) out[out.length - 1].segs.push({ t, hi })
+      else out.push({ segs: [{ t, hi }] })
+    })
+    // the next part sticks to this word unless whitespace separates them
+    glue = part.length > 0 ? !/\s$/.test(part) : glue
   })
   return out
 }
@@ -132,7 +147,7 @@ function wrapWords(ctx: Ctx, words: Word[], maxW: number): Word[][] {
   let cur: Word[] = []
   for (const w of words) {
     const next = [...cur, w]
-    if (cur.length && ctx.measureText(next.map((x) => x.t).join(' ')).width > maxW) {
+    if (cur.length && ctx.measureText(lineText(next)).width > maxW) {
       lines.push(cur)
       cur = [w]
     } else cur = next
@@ -141,11 +156,11 @@ function wrapWords(ctx: Ctx, words: Word[], maxW: number): Word[][] {
   return lines
 }
 
-function richFit(ctx: Ctx, text: string, font: (px: number) => string, maxW: number, maxLines: number, max: number, min: number, lh = 1.2): Rich {
+function richFit(ctx: Ctx, text: string, font: (px: number) => string, maxW: number, maxLines: number, max: number, min: number, lh = 1.2, maxH = Infinity): Rich {
   const words = parseRich(text)
   const done = (size: number, lines: Word[][]): Rich => {
     ctx.font = font(size)
-    const widths = lines.map((l) => ctx.measureText(l.map((x) => x.t).join(' ')).width)
+    const widths = lines.map((l) => ctx.measureText(lineText(l)).width)
     return { size, lineHeight: size * lh, lines, widths, h: lines.length * size * lh, w: Math.max(0, ...widths) }
   }
   if (!words.length) return done(max, [])
@@ -153,15 +168,17 @@ function richFit(ctx: Ctx, text: string, font: (px: number) => string, maxW: num
   for (let size = max; size >= min - 0.01; size -= step) {
     ctx.font = font(size)
     const lines = wrapWords(ctx, words, maxW)
-    if (lines.length <= maxLines && lines.every((l) => ctx.measureText(l.map((x) => x.t).join(' ')).width <= maxW)) return done(size, lines)
+    if (lines.length <= maxLines && lines.length * size * lh <= maxH && lines.every((l) => ctx.measureText(lineText(l)).width <= maxW)) return done(size, lines)
   }
   ctx.font = font(min)
-  const lines = wrapWords(ctx, words, maxW).slice(0, maxLines)
+  const lines = wrapWords(ctx, words, maxW).slice(0, Math.max(1, Math.min(maxLines, Math.floor(maxH / (min * lh)))))
   const last = lines[lines.length - 1]
   if (last) {
     // drop words until the ellipsis fits
-    while (last.length > 1 && ctx.measureText(last.map((x) => x.t).join(' ') + '…').width > maxW) last.pop()
-    last[last.length - 1] = { ...last[last.length - 1], t: last[last.length - 1].t + '…' }
+    while (last.length > 1 && ctx.measureText(lineText(last) + '…').width > maxW) last.pop()
+    const lw = last[last.length - 1]
+    const ls = lw.segs[lw.segs.length - 1]
+    last[last.length - 1] = { segs: [...lw.segs.slice(0, -1), { ...ls, t: ls.t + '…' }] }
   }
   return done(min, lines)
 }
@@ -188,29 +205,32 @@ function drawRich(ctx: Ctx, r: Rich, font: (px: number) => string, x: number, y:
     const lw = r.widths[i]
     let cx = st.align === 'center' ? x - lw / 2 : st.align === 'right' ? x - lw : x
     const base = y + i * r.lineHeight + r.size * 0.98
-    for (const w of line) {
-      const ww = ctx.measureText(w.t).width
-      if (w.hi && st.marker) {
-        ctx.fillStyle = st.hi
-        ctx.fillRect(cx - space * 0.35, base - r.size * 0.86, ww + space * 0.7, r.size * 1.08)
+    for (const word of line) {
+      for (const w of word.segs) {
+        const ww = ctx.measureText(w.t).width
+        if (w.hi && st.marker) {
+          ctx.fillStyle = st.hi
+          ctx.fillRect(cx - space * 0.35, base - r.size * 0.86, ww + space * 0.7, r.size * 1.08)
+        }
+        if (st.stroke) {
+          ctx.lineJoin = 'round'
+          ctx.lineWidth = r.size * 0.16
+          ctx.strokeStyle = st.stroke
+          ctx.strokeText(w.t, cx, base)
+        }
+        if (st.shadow) {
+          ctx.shadowColor = 'rgba(0,0,0,0.55)'
+          ctx.shadowBlur = r.size * 0.14
+          ctx.shadowOffsetY = r.size * 0.04
+        }
+        ctx.fillStyle = w.hi ? (st.marker ? (st.markerInk ?? '#111') : st.hi) : st.color
+        ctx.fillText(w.t, cx, base)
+        ctx.shadowColor = 'transparent'
+        ctx.shadowBlur = 0
+        ctx.shadowOffsetY = 0
+        cx += ww
       }
-      if (st.stroke) {
-        ctx.lineJoin = 'round'
-        ctx.lineWidth = r.size * 0.16
-        ctx.strokeStyle = st.stroke
-        ctx.strokeText(w.t, cx, base)
-      }
-      if (st.shadow) {
-        ctx.shadowColor = 'rgba(0,0,0,0.55)'
-        ctx.shadowBlur = r.size * 0.14
-        ctx.shadowOffsetY = r.size * 0.04
-      }
-      ctx.fillStyle = w.hi ? (st.marker ? (st.markerInk ?? '#111') : st.hi) : st.color
-      ctx.fillText(w.t, cx, base)
-      ctx.shadowColor = 'transparent'
-      ctx.shadowBlur = 0
-      ctx.shadowOffsetY = 0
-      cx += ww + space
+      cx += space
     }
   })
 }
@@ -247,8 +267,8 @@ interface TC {
 /** Max headline lines by shape. */
 const lines = (c: TC, wide: number, square: number, tall: number) => (c.wide ? wide : c.tall ? tall : square)
 
-function fitTitle(c: TC, maxW: number, maxLines: number, maxPx: number, minPx = 30, font = disp, lh = 1.18) {
-  return richFit(c.ctx, c.title, font, maxW, maxLines, maxPx * c.u * c.scale, minPx * c.u, lh)
+function fitTitle(c: TC, maxW: number, maxLines: number, maxPx: number, minPx = 30, font = disp, lh = 1.18, maxH = Infinity) {
+  return richFit(c.ctx, c.title, font, maxW, maxLines, maxPx * c.u * c.scale, minPx * c.u, lh, maxH)
 }
 
 /** The scene (cropped to fill `r`), with the picture punch applied. */
@@ -435,7 +455,8 @@ function drawLogo(c: TC, corner: Corner, plate: boolean, inset: number) {
   const m = c.pad * 0.8
   const x = corner === 'tl' || corner === 'bl' ? m : W - m - w
   const y = corner === 'tl' || corner === 'tr' ? m + inset : H - m - h - inset
-  if (plate) fillRoundRect(ctx, x - 14 * u, y - 12 * u, w + 28 * u, h + 24 * u, 12 * u, 'rgba(255,255,255,0.94)')
+  // a soft dark pill keeps the white logo readable over bright pictures
+  fillRoundRect(ctx, x - 14 * u, y - 12 * u, w + 28 * u, h + 24 * u, 12 * u, plate ? 'rgba(255,255,255,0.94)' : 'rgba(0,0,0,0.3)')
   ctx.save()
   if (!plate) {
     ctx.shadowColor = 'rgba(0,0,0,0.45)'
@@ -516,7 +537,7 @@ const DESIGNS: Record<ThumbTemplate, (c: TC) => void> = {
     ctx.lineTo(W, y0)
     ctx.stroke()
     const subH = c.sub ? 50 * u : 0
-    const ft = fitTitle(c, W - pad * 2, lines(c, 3, 4, 6), 84)
+    const ft = fitTitle(c, W - pad * 2, lines(c, 3, 4, 6), 84, 26, disp, 1.18, H - y0 - 60 * u - subH - pad * 1.2)
     const top = y0 + 60 * u + (H - y0 - 60 * u - ft.h - subH) / 2
     smallText(c, c.sub, pad, top, pal.accent, 32, 'left', 700)
     drawRich(ctx, ft, disp, pad, top + subH, { color: '#fff', hi: pal.accent })
@@ -586,7 +607,7 @@ const DESIGNS: Record<ThumbTemplate, (c: TC) => void> = {
     }
     if (c.face && c.wide) circle(c, c.face, W * 0.82, H * 0.5, H * 0.26)
     if (c.badge) pill(c, c.badge, W - pad, pad, pal.hot, 30, 'right')
-    c.logo = { corner: c.badge ? 'br' : 'tr', plate: false, inset: 0 }
+    c.logo = { corner: c.wide ? (c.badge ? 'br' : 'tr') : 'tl', plate: false, inset: 0 }
   },
   'nil-card': (c) => {
     const { ctx, W, H, u, pad, pal } = c
@@ -693,7 +714,7 @@ const DESIGNS: Record<ThumbTemplate, (c: TC) => void> = {
     ctx.fillStyle = pal.accent
     ctx.fillRect(W / 2 - 60 * u, r.y + r.h - 18 * u, 120 * u, 8 * u)
     if (c.badge) pill(c, c.badge, W / 2, r.y - 76 * u, pal.hot, 32, 'center')
-    c.logo = { corner: 'tl', plate: false, inset: 0 }
+    c.logo = { corner: 'br', plate: false, inset: 0 }
   },
   minimal: (c) => {
     const { ctx, W, H, u, pad, pal } = c
@@ -978,8 +999,8 @@ const DESIGNS: Record<ThumbTemplate, (c: TC) => void> = {
     shade(c, ph * 0.6, ph, pal.dark, 0, 1)
     pill(c, label, pad, pad, pal.accent, 30)
     const nameH = c.sub ? 60 * u : 0
-    const ft = fitTitle(c, W - pad * 2, lines(c, 3, 4, 6), 66, 28, (px) => body(700, px), 1.3)
     const top = ph + 20 * u
+    const ft = fitTitle(c, W - pad * 2, lines(c, 3, 4, 6), 66, 24, (px) => body(700, px), 1.3, H - top - nameH - pad)
     smallText(c, c.sub, pad, top, pal.accent, 38, 'left', 800)
     drawRich(ctx, ft, (px) => body(700, px), pad, top + nameH, { color: '#fff', hi: pal.accent })
     c.logo = { corner: 'tr', plate: false, inset: 0 }
@@ -1010,10 +1031,11 @@ const DESIGNS: Record<ThumbTemplate, (c: TC) => void> = {
     }
     ctx.restore()
     const maxW = c.wide ? W * 0.44 : W - pad * 2
-    const ft = fitTitle(c, maxW, lines(c, 4, 3, 4), c.wide ? 84 : 92, 34)
-    const top = c.wide ? (H - ft.h) / 2 : r.y + r.h + pad * 0.9
+    const top0 = r.y + r.h + pad * 0.9
+    const ft = fitTitle(c, maxW, lines(c, 4, 3, 4), c.wide ? 84 : 92, 30, disp, 1.18, c.wide ? H - pad * 2 : H - top0 - pad - 120 * u)
+    const top = c.wide ? (H - ft.h) / 2 : top0
     drawRich(ctx, ft, disp, pad, top, { color: '#fff', hi: pal.accent, stroke: '#000' })
-    smallText(c, c.sub, pad, top - 46 * u, pal.accent, 30, 'left', 700)
+    smallText(c, c.sub, pad, c.wide ? top - 46 * u : top + ft.h + 10 * u, pal.accent, 30, 'left', 700)
     if (c.badge) burst(ctx, r.x + r.w - 10 * u, r.y + 20 * u, 80 * u, pal.hot, c.badge)
     c.logo = { corner: c.wide ? 'tl' : 'br', plate: false, inset: 0 }
   },
@@ -1051,8 +1073,8 @@ const DESIGNS: Record<ThumbTemplate, (c: TC) => void> = {
     const top = c.wide ? (H - ft.h) / 2 : H - pad - ft.h
     drawRich(ctx, ft, disp, pad, top, { color: '#fff', hi: pal.accent, shadow: true })
     smallText(c, c.sub, pad, top - 48 * u, pal.accent, 30, 'left', 700)
-    if (c.badge) pill(c, c.badge, pad, pad, pal.hot)
-    c.logo = { corner: c.wide ? 'br' : 'tr', plate: false, inset: 0 }
+    if (c.badge) pill(c, c.badge, pad, c.wide ? pad : pad + 100 * u, pal.hot)
+    c.logo = { corner: c.wide ? 'br' : 'tl', plate: false, inset: 0 }
   },
   number: (c) => {
     const { ctx, W, H, u, pad, pal } = c
@@ -1086,8 +1108,9 @@ const DESIGNS: Record<ThumbTemplate, (c: TC) => void> = {
       ctx.fillStyle = pal.accent
       ctx.fillRect(tx - 24 * u, H * 0.22, 8 * u, H * 0.56)
     }
-    const ft = fitTitle(c, c.wide ? W - tx - pad : W - pad * 2, lines(c, 4, 4, 5), c.wide ? 58 : 74, 26)
-    const top = c.wide ? (H - ft.h) / 2 : pad + area.h + pad * 0.6
+    const top0 = pad + area.h + pad * 0.6
+    const ft = fitTitle(c, c.wide ? W - tx - pad : W - pad * 2, lines(c, 4, 4, 5), c.wide ? 58 : 74, 24, disp, 1.18, c.wide ? H - pad * 2 : H - top0 - pad - 110 * u)
+    const top = c.wide ? (H - ft.h) / 2 : top0
     drawRich(ctx, ft, disp, tx, top, { color: '#fff', hi: pal.accent })
     smallText(c, c.sub, tx, top + ft.h + 14 * u, pal.accent, 30, 'left', 700)
     c.logo = { corner: c.wide ? 'tr' : 'br', plate: false, inset: 0 }
@@ -1149,7 +1172,7 @@ const DESIGNS: Record<ThumbTemplate, (c: TC) => void> = {
     ctx.restore()
     const ang = Math.atan2(target.y - from.y, target.x - from.x)
     bigArrow(ctx, from.x, from.y, target.x - Math.cos(ang) * (R + 20 * u), target.y - Math.sin(ang) * (R * 0.9 + 20 * u), pal.hot, 16 * u, c.wide ? -0.25 : 0.25)
-    if (c.badge) pill(c, c.badge, W - pad, H - pad - 58 * u, pal.hot, 32, 'right')
+    if (c.badge) pill(c, c.badge, c.wide ? W - pad : pad, H - pad - 58 * u, pal.hot, 32, c.wide ? 'right' : 'left')
     c.logo = { corner: c.wide ? 'tr' : 'br', plate: false, inset: 0 }
   },
 
@@ -1233,8 +1256,8 @@ const DESIGNS: Record<ThumbTemplate, (c: TC) => void> = {
     const y = H - pad - ft.h
     drawRich(ctx, ft, disp, W / 2, y, { color: '#fff', hi: pal.accent, align: 'center', shadow: true })
     smallText(c, c.sub, W / 2, y - 48 * u, pal.accent, 30, 'center', 700)
-    pill(c, c.badge || 'বিনোদন', W / 2, pad, pal.hot, 32, 'center')
-    c.logo = { corner: 'tl', plate: false, inset: 0 }
+    pill(c, c.badge || 'বিনোদন', W / 2, pad + (c.wide ? 0 : 100 * u), pal.hot, 32, 'center')
+    c.logo = { corner: c.wide ? 'tl' : 'tr', plate: false, inset: 0 }
   },
   economy: (c) => {
     const { ctx, W, H, u, pad, pal } = c
@@ -1258,7 +1281,7 @@ const DESIGNS: Record<ThumbTemplate, (c: TC) => void> = {
       [0.6, 0.7],
       [0.76, 0.46],
       [0.94, 0.26],
-    ].map(([x, y]) => [x * W, y * H])
+    ].map(([x, y]) => [x * W, (c.wide ? y : 0.5 + y * 0.46) * H])
     ctx.save()
     ctx.lineJoin = 'round'
     ctx.lineCap = 'round'
@@ -1308,7 +1331,7 @@ const DESIGNS: Record<ThumbTemplate, (c: TC) => void> = {
     ctx.lineTo(pad * 1.6, H)
     ctx.stroke()
     // the photo, pasted on with tape
-    const r: Rect = c.wide ? { x: W * 0.52, y: H * 0.12, w: W * 0.42, h: H * 0.68 } : { x: W * 0.12, y: H * 0.06, w: W * 0.76, h: H * (c.tall ? 0.4 : 0.44) }
+    const r: Rect = c.wide ? { x: W * 0.52, y: H * 0.12, w: W * 0.42, h: H * 0.68 } : { x: W * 0.1, y: H * 0.07, w: W * 0.62, h: H * (c.tall ? 0.36 : 0.4) }
     ctx.save()
     ctx.translate(r.x + r.w / 2, r.y + r.h / 2)
     ctx.rotate(0.035)
@@ -1332,7 +1355,7 @@ const DESIGNS: Record<ThumbTemplate, (c: TC) => void> = {
     pill(c, c.badge || 'শিক্ষা', tx, top - 80 * u, pal.mid, 28)
     drawRich(ctx, ft, disp, tx, top, { color: pal.dark, hi: pal.accent, marker: true, markerInk: pal.dark })
     smallText(c, c.sub, tx, top + ft.h + 12 * u, pal.mid, 30, 'left', 700)
-    c.logo = { corner: c.wide ? 'bl' : 'br', plate: false, inset: 0 }
+    c.logo = { corner: c.wide ? 'bl' : 'tr', plate: true, inset: 0 }
   },
 }
 
