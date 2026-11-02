@@ -61,8 +61,10 @@ input[type=number]::-webkit-outer-spin-button {
 
 /* ===================== Round 12 — rich editor ===================== */
 .rich-editor { position: relative; border: 1px solid #e5e5e5; border-radius: 12px; background: #fff; }
+.re-top { position: sticky; top: 53px; z-index: 20; border-radius: 12px 12px 0 0; }
+@media (min-width: 1024px) { .re-top { top: 0; } }
 .re-toolbar {
-  position: sticky; top: 53px; z-index: 20;
+  position: relative;
   display: flex; align-items: center; gap: 4px; padding: 6px 8px;
   overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
   background: rgba(250, 250, 250, 0.97); backdrop-filter: blur(6px);
@@ -70,7 +72,6 @@ input[type=number]::-webkit-outer-spin-button {
 }
 .re-toolbar::-webkit-scrollbar { display: none; }
 .re-toolbar-static { position: static; }
-@media (min-width: 1024px) { .re-toolbar { top: 0; } }
 .re-btn {
   width: 44px; height: 44px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
   border-radius: 10px; color: #525252; background: transparent; transition: background .12s, color .12s;
@@ -138,14 +139,66 @@ input[type=number]::-webkit-outer-spin-button {
 .re-kbsheet .re-insert-menu { width: auto; border: 0; box-shadow: none; padding: 0; }
 .rich-editor[data-compact="1"][data-focused="1"] .re-content { padding-bottom: 120px; }
 
+/* Round 26 — table: contextual bar, size picker, cells */
+.re-tablebar {
+  display: flex; align-items: center; gap: 6px; padding: 6px 8px; overflow-x: auto; scrollbar-width: none;
+  background: #EEF4FB; border-bottom: 1px solid #D6E6F7;
+}
+.re-tablebar::-webkit-scrollbar { display: none; }
+@media (min-width: 1024px) and (pointer: fine) { .re-tablebar { flex-wrap: wrap; overflow: visible; } }
+.re-tablebar-title { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; padding: 0 4px 0 2px; font-size: 12px; font-weight: 700; color: #025AB2; }
+.re-tchip {
+  flex-shrink: 0; height: 32px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; font-weight: 500; white-space: nowrap;
+  background: #fff; color: #334155; border: 1px solid #D6E6F7; -webkit-tap-highlight-color: transparent;
+}
+.re-tchip:hover { border-color: #025AB2; color: #025AB2; }
+.re-tchip-on { background: #025AB2; border-color: #025AB2; color: #fff; }
+.re-tchip-on:hover { color: #fff; }
+.re-tchip-danger { color: #b91c1c; border-color: #fee2e2; }
+.re-tchip-danger:hover { color: #b91c1c; border-color: #b91c1c; background: #fef2f2; }
+.re-tchip:disabled { opacity: .4; pointer-events: none; }
+@media (pointer: coarse) { .re-tchip { height: 40px; } }
+.re-kbsheet-table { padding: 0; }
+.re-kbsheet-table .re-tablebar { border-bottom: 0; }
+.re-tpick-pop { position: absolute; top: calc(100% - 4px); z-index: 30; }
+.re-tpick { width: 252px; padding: 10px; background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.14); }
+.re-tpick-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+.re-tpick-cell { aspect-ratio: 1; border-radius: 3px; border: 1px solid #d4d4d4; background: #fafafa; }
+.re-tpick-on { background: #D6E6F7; border-color: #025AB2; }
+.re-tpick-label { margin-top: 8px; font-size: 12.5px; font-weight: 600; color: #171717; text-align: center; }
+.re-tpick-label span { font-weight: 400; color: #8a8a8a; }
+.prose-editor .tableWrapper { margin: 1.2em 0; overflow-x: auto; }
+.prose-editor table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: .92em; line-height: 1.55; }
+.prose-editor th, .prose-editor td { position: relative; min-width: 80px; padding: 8px 10px; border: 1px solid #DFE4EA; vertical-align: top; text-align: left; }
+.prose-editor th { background: #0B2A6B; color: #fff; font-weight: 700; }
+.prose-editor tr:nth-child(even) td { background: #F6F8FB; }
+.prose-editor th p, .prose-editor td p { margin: 0; }
+.prose-editor th p + p, .prose-editor td p + p { margin-top: .4em; }
+.prose-editor .selectedCell::after { content: ""; position: absolute; inset: 0; background: rgba(2, 90, 178, .16); pointer-events: none; }
+.prose-editor th .is-empty::before, .prose-editor td .is-empty::before { content: none !important; }
+
 /* content: site look-alikes */
 .prose-editor blockquote {
   margin: 1.1em 0; padding: 4px 0 4px 18px; border-left: 3px solid #025AB2; color: #142030;
 }
+/* Round 26 — matches the site's হাইলাইট বক্স card (theme components.css). */
 .prose-editor blockquote.is-style-meeha-highlight {
-  margin: 1.4em 0; padding: 16px 18px 16px 20px; border: 1px solid #D6E6F7; border-left: 5px solid #025AB2;
-  border-radius: 0 10px 10px 0; background: #EEF4FB; color: #142030;
-  font-size: 1.2em; font-weight: 700; line-height: 1.65;
+  position: relative; margin: 1.5em 0; padding: 46px 18px 16px 22px; overflow: hidden;
+  border: 1px solid #D6E6F7; border-radius: 14px; background: linear-gradient(135deg, #EEF4FB 0%, #fff 92%);
+  box-shadow: 0 14px 30px -22px rgba(11, 42, 107, .45); color: #142030;
+  font-size: 1.15em; font-weight: 700; line-height: 1.7;
+}
+.prose-editor blockquote.is-style-meeha-highlight::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 5px; background: linear-gradient(180deg, #1546B8, #0B2A6B);
+}
+.prose-editor blockquote.is-style-meeha-highlight::after {
+  content: "মূল কথা"; position: absolute; top: 14px; left: 22px; padding: 4px 10px 4px 22px; border-radius: 999px;
+  background: radial-gradient(circle at 11px 50%, #FFC20E 0 4px, transparent 4.5px), #D6E6F7;
+  color: #025AB2; font-size: 11.5px; font-weight: 700; line-height: 1.2; pointer-events: none;
+}
+.prose-editor blockquote.is-style-meeha-highlight p:not(:only-child) { position: relative; padding-left: 20px; }
+.prose-editor blockquote.is-style-meeha-highlight p:not(:only-child)::before {
+  content: ""; position: absolute; top: .72em; left: 2px; width: 8px; height: 8px; border-radius: 2px; background: #FFC20E; transform: rotate(45deg);
 }
 .prose-editor blockquote p { margin: 0; }
 .prose-editor blockquote p + p { margin-top: .7em; }

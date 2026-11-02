@@ -321,11 +321,19 @@
 .m-prose::after { content: ""; display: table; clear: both; }
 .m-prose blockquote, .m-prose .wp-block-quote { padding: 4px 0 4px 20px; border-left: 3px solid var(--m-blue); color: var(--m-ink); }
 .m-prose blockquote cite, .m-prose .wp-block-quote cite { display: block; margin-top: 8px; color: var(--m-muted); font-size: var(--m-fs-sm); font-style: normal; }
-/* Round 12 — হাইলাইট বক্স (apps' highlight block = core/quote style "meeha-highlight") + inline highlight mark */
-.m-prose .is-style-meeha-highlight { margin-block: 1.6em; padding: 18px 20px 18px 22px; border: 1px solid var(--m-blue-100); border-left: 5px solid var(--m-blue); border-radius: 0 var(--m-r-md) var(--m-r-md) 0; background: var(--m-blue-50); color: var(--m-ink); font: 700 clamp(1.1875rem, 1.1rem + .4vw, 1.375rem)/1.65 var(--m-font-head); }
+/* Round 26 — হাইলাইট বক্স (apps' highlight block = core/quote style "meeha-highlight"): a branded card —
+   navy→royal accent bar, "মূল কথা" chip with the amber dot, soft blue wash; several paragraphs read as key points. */
+.m-prose .is-style-meeha-highlight { position: relative; margin-block: 1.9em; padding: 50px 22px 20px 26px; overflow: hidden; border: 1px solid var(--m-blue-100); border-radius: 14px; background: linear-gradient(135deg, var(--m-blue-50) 0%, var(--m-paper) 92%); box-shadow: 0 14px 30px -22px rgba(11, 42, 107, .45); color: var(--m-ink); font: 700 clamp(1.125rem, 1.05rem + .35vw, 1.3125rem)/1.7 var(--m-font-head); }
+.m-prose .is-style-meeha-highlight::before { content: ""; position: absolute; inset-block: 0; left: 0; width: 5px; background: linear-gradient(180deg, #1546B8 0%, #0B2A6B 100%); }
+.m-prose .is-style-meeha-highlight::after { content: "মূল কথা"; position: absolute; top: 16px; left: 26px; padding: 5px 11px 5px 24px; border-radius: 999px; background: radial-gradient(circle at 12px 50%, #FFC20E 0 4px, transparent 4.5px), var(--m-blue-100); color: var(--m-blue); font: 700 .75rem/1.2 var(--m-font-body); letter-spacing: .02em; }
 .m-prose .is-style-meeha-highlight p { margin: 0; }
-.m-prose .is-style-meeha-highlight p + p { margin-top: .7em; }
-.m-prose .is-style-meeha-highlight cite { font: 400 var(--m-fs-sm)/1.5 var(--m-font-body); }
+.m-prose .is-style-meeha-highlight p + p { margin-top: .75em; }
+.m-prose .is-style-meeha-highlight p:not(:only-child) { position: relative; padding-left: 22px; }
+.m-prose .is-style-meeha-highlight p:not(:only-child)::before { content: ""; position: absolute; top: .72em; left: 2px; width: 8px; height: 8px; border-radius: 2px; background: #FFC20E; transform: rotate(45deg); }
+.m-prose .is-style-meeha-highlight a { color: var(--m-blue); }
+.m-prose .is-style-meeha-highlight cite { display: block; margin-top: 10px; color: var(--m-muted); font: 400 var(--m-fs-sm)/1.5 var(--m-font-body); font-style: normal; }
+@media (max-width: 599.98px) { .m-prose .is-style-meeha-highlight { padding: 46px 16px 16px 20px; border-radius: 12px; } .m-prose .is-style-meeha-highlight::after { left: 20px; top: 14px; } }
+@media print { .m-prose .is-style-meeha-highlight { box-shadow: none; background: none; } }
 .m-prose mark, .m-prose .m-mark { padding: 0 .15em; border-radius: 2px; background: #FFF1B8; color: inherit; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .m-prose mark, :root:not([data-theme="light"]) .m-prose .m-mark { background: #5A4A12; color: var(--m-ink); } }
 :root[data-theme="dark"] .m-prose mark, :root[data-theme="dark"] .m-prose .m-mark { background: #5A4A12; color: var(--m-ink); }
@@ -334,8 +342,19 @@
 .m-prose pre, .m-prose code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .875em; }
 .m-prose pre { overflow-x: auto; padding: 14px 16px; border-radius: var(--m-r-sm); background: var(--m-surface); line-height: 1.6; }
 .m-prose :not(pre) > code { padding: 1px 5px; border-radius: 3px; background: var(--m-surface); }
-.m-prose .wp-block-table { overflow-x: auto; }
-.m-prose .wp-block-table table { min-width: 100%; }
+/* Round 26 — tables (apps' টেবিল = core table markup <figure class="wp-block-table m-table">): navy header row,
+   zebra rows, rounded frame; wide tables scroll sideways inside the frame instead of breaking the page. */
+.m-prose .wp-block-table { margin: 1.8em 0; overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; border: 1px solid var(--m-line); border-radius: 12px; background: var(--m-paper); }
+.m-prose .wp-block-table table { width: 100%; min-width: 100%; margin: 0; border: 0; border-collapse: collapse; font-size: var(--m-fs-sm); line-height: 1.6; }
+.m-prose .wp-block-table :is(th, td) { min-width: 7.5em; padding: 11px 14px; border: 0; border-bottom: 1px solid var(--m-line); text-align: left; vertical-align: top; }
+.m-prose .wp-block-table :is(th, td) + :is(th, td) { border-left: 1px solid var(--m-line); }
+.m-prose .wp-block-table :is(th, td) p { margin: 0; }
+.m-prose .wp-block-table :is(th, td) p + p { margin-top: .4em; }
+.m-prose .wp-block-table th { background: var(--m-blue-50); color: var(--m-ink); font-weight: 700; }
+.m-prose .wp-block-table :is(thead tr, tbody tr:first-child:has(> th:only-child), tbody tr:first-child:not(:has(> td))) th { background: #0B2A6B; color: #fff; border-color: rgba(255, 255, 255, .14); }
+.m-prose .wp-block-table tbody tr:nth-child(even) td { background: var(--m-surface); }
+.m-prose .wp-block-table tbody tr:last-child :is(th, td) { border-bottom: 0; }
+.m-prose .wp-block-table figcaption { padding: 8px 14px; border-top: 1px solid var(--m-line); }
 .m-prose .wp-block-separator { height: 1px; border: 0; background: var(--m-line); }
 .m-prose .wp-block-embed__wrapper, .m-prose .wp-block-video { position: relative; }
 .m-prose .wp-embed-aspect-16-9 .wp-block-embed__wrapper { aspect-ratio: 16 / 9; }

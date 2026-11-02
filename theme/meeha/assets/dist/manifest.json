@@ -1,5 +1,5 @@
 {
-    "generated": "2026-11-01T19:54:28+00:00",
+    "generated": "2026-11-02T17:34:00+00:00",
     "bundles": {
         "core": {
             "css": [
@@ -12,8 +12,8 @@
             "critical": [],
             "deps": [],
             "css_file": "core.min.css",
-            "css_ver": "facdd9d95e",
-            "css_bytes": 41111
+            "css_ver": "85c7e7f39f",
+            "css_bytes": 43443
         },
         "base": {
             "css": [
@@ -86,8 +86,8 @@
             "critical": [],
             "deps": [],
             "css_file": "editor.min.css",
-            "css_ver": "826c6a1890",
-            "css_bytes": 5090
+            "css_ver": "96ab842160",
+            "css_bytes": 5931
         },
         "glance": {
             "css": [
@@ -352,8 +352,8 @@
                 "assets/css/header.css",
                 "assets/css/components.css"
             ],
-            "bytes": 41111,
-            "gzip": 8725
+            "bytes": 43443,
+            "gzip": 9255
         },
         "page": {
             "file": "critical-page.min.css",
@@ -364,8 +364,8 @@
                 "assets/css/components.css",
                 "assets/css/page.css"
             ],
-            "bytes": 45042,
-            "gzip": 9492
+            "bytes": 47374,
+            "gzip": 9997
         },
         "404": {
             "file": "critical-404.min.css",
@@ -376,8 +376,8 @@
                 "assets/css/components.css",
                 "assets/css/page.css"
             ],
-            "bytes": 45042,
-            "gzip": 9492
+            "bytes": 47374,
+            "gzip": 9997
         },
         "account": {
             "file": "critical-account.min.css",
@@ -388,8 +388,8 @@
                 "assets/css/components.css",
                 "assets/css/page.css"
             ],
-            "bytes": 45042,
-            "gzip": 9492
+            "bytes": 47374,
+            "gzip": 9997
         },
         "home": {
             "file": "critical-home.min.css",
@@ -400,8 +400,8 @@
                 "assets/css/components.css",
                 "assets/css/home.css"
             ],
-            "bytes": 49285,
-            "gzip": 9949
+            "bytes": 51617,
+            "gzip": 10469
         },
         "archive": {
             "file": "critical-archive.min.css",
@@ -412,8 +412,8 @@
                 "assets/css/components.css",
                 "assets/css/archive.css"
             ],
-            "bytes": 50663,
-            "gzip": 10198
+            "bytes": 52995,
+            "gzip": 10745
         },
         "search": {
             "file": "critical-search.min.css",
@@ -424,8 +424,8 @@
                 "assets/css/components.css",
                 "assets/css/archive.css"
             ],
-            "bytes": 50663,
-            "gzip": 10198
+            "bytes": 52995,
+            "gzip": 10745
         },
         "single": {
             "file": "critical-single.min.css",
@@ -436,8 +436,8 @@
                 "assets/css/components.css",
                 "assets/css/single.css"
             ],
-            "bytes": 58543,
-            "gzip": 11867
+            "bytes": 60875,
+            "gzip": 12400
         },
         "literature": {
             "file": "critical-literature.min.css",
@@ -449,8 +449,8 @@
                 "assets/css/literary-font.css",
                 "assets/css/literature.css"
             ],
-            "bytes": 55279,
-            "gzip": 11168
+            "bytes": 57611,
+            "gzip": 11712
         },
         "quotes": {
             "file": "critical-quotes.min.css",
@@ -461,8 +461,8 @@
                 "assets/css/components.css",
                 "assets/css/quotes.css"
             ],
-            "bytes": 55368,
-            "gzip": 12419
+            "bytes": 57700,
+            "gzip": 12940
         },
         "campus": {
             "file": "critical-campus.min.css",
@@ -473,8 +473,8 @@
                 "assets/css/components.css",
                 "assets/css/campus.css"
             ],
-            "bytes": 85987,
-            "gzip": 16921
+            "bytes": 88319,
+            "gzip": 17445
         }
     }
 }

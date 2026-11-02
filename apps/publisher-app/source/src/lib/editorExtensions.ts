@@ -14,6 +14,10 @@
  *      allow-list the site uses (p, h2, h3, strong, em, a, mark, lists,
  *      blockquote) — no fonts, colours, classes, tables-as-layout or remote
  *      images.
+ *  - MeehaTable (round 26): a real data table, stored the way WordPress's own
+ *      table block stores it, so wp-admin and the theme both understand it:
+ *        <figure class="wp-block-table m-table"><table><tbody><tr><th><p>…</p></th>…
+ *      (no colgroup / inline widths — the theme sizes and scrolls it).
  *  - insertBlockAtom(): inserts a figure (or any block atom) at the caret —
  *      splitting the paragraph when the caret is mid-text, replacing an empty
  *      line — and leaves the caret in the paragraph right after it.
@@ -21,6 +25,7 @@
 import { Extension, Mark, Node, mergeAttributes, type Editor } from '@tiptap/core'
 import { NodeSelection, Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state'
 import type { Node as PMNode } from '@tiptap/pm/model'
+import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
 
 export const HIGHLIGHT_BOX_CLASS = 'wp-block-quote is-style-meeha-highlight'
 export const INLINE_MARK_CLASS = 'm-mark'
@@ -103,6 +108,28 @@ export const MeehaMark = Mark.create({
     return { 'Mod-Shift-h': () => this.editor.commands.toggleMeehaMark() }
   },
 })
+
+// ---------------------------------------------------------------------------
+// Table (round 26)
+
+export const TABLE_FIGURE_CLASS = 'wp-block-table m-table'
+
+const MeehaTableNode = Table.extend({
+  renderHTML({ HTMLAttributes }) {
+    // Plain markup for the site: drop the editor's min-width style + colgroup.
+    const { style: _style, ...attrs } = HTMLAttributes as Record<string, unknown>
+    void _style
+    return ['figure', { class: TABLE_FIGURE_CLASS }, ['table', mergeAttributes(this.options.HTMLAttributes, attrs), ['tbody', 0]]]
+  },
+})
+
+/** Table + rows + header/body cells, configured for the article body. */
+export const MeehaTable = [
+  MeehaTableNode.configure({ resizable: false, HTMLAttributes: {} }),
+  TableRow,
+  TableHeader,
+  TableCell,
+]
 
 // ---------------------------------------------------------------------------
 // Node-selection escape
@@ -374,6 +401,20 @@ export function cleanPastedHtml(html: string): { html: string; droppedImages: nu
   while (walker.nextNode()) comments.push(walker.currentNode)
   comments.forEach((c) => c.parentNode?.removeChild(c))
 
+  // Round 26: real data tables (2+ rows, 2+ columns, no table inside) are
+  // kept as tables; layout tables (web pages, e-mails) are flattened.
+  const dataTables = new Set<Element>()
+  for (const t of Array.from(doc.body.querySelectorAll('table'))) {
+    if (t.querySelector('table') || t.parentElement?.closest('table')) continue
+    const rows = Array.from(t.querySelectorAll('tr'))
+    const maxCols = Math.max(0, ...rows.map((r) => r.querySelectorAll(':scope > td, :scope > th').length))
+    if (rows.length >= 2 && maxCols >= 2 && maxCols <= 12) dataTables.add(t)
+  }
+  const inDataTable = (el: Element) => {
+    const t = el.closest('table')
+    return !!t && dataTables.has(t)
+  }
+
   // Depth-first, children before parents, over a static list.
   const all = Array.from(doc.body.querySelectorAll('*')).reverse()
   for (const el of all) {
@@ -422,6 +463,18 @@ export function cleanPastedHtml(html: string): { html: string; droppedImages: nu
         while (inner.firstChild) em.appendChild(inner.firstChild)
         inner.appendChild(em)
       }
+      continue
+    }
+
+    if ((tag === 'TABLE' || tag === 'TBODY' || tag === 'THEAD' || tag === 'TFOOT' || tag === 'TR' || tag === 'TD' || tag === 'TH') && inDataTable(el)) {
+      for (const attr of Array.from(el.attributes)) {
+        if ((tag === 'TD' || tag === 'TH') && (attr.name === 'colspan' || attr.name === 'rowspan')) continue
+        el.removeAttribute(attr.name)
+      }
+      continue
+    }
+    if (tag === 'CAPTION' || tag === 'COLGROUP' || tag === 'COL') {
+      el.remove()
       continue
     }
 
