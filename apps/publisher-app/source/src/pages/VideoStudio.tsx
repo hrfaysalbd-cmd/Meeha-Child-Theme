@@ -1218,7 +1218,7 @@ export default function VideoStudio() {
               />
             )}
             {tab === 'thumb' && (
-              <ThumbPanel cfg={cfg} set={set} env={thumbEnv ?? env} mainUrl={loaded.mainUrl} range={range} playhead={playheadSrc} face={facePic} onPickFace={() => setImagePicker('face')} />
+              <ThumbPanel cfg={cfg} set={set} env={thumbEnv ?? env} mainUrl={loaded.mainUrl} range={range} playhead={playheadSrc} face={facePic} onPickFace={() => setImagePicker('face')} getMain={mainBlob} />
             )}
             {tab === 'captions' && <CaptionsPanel cfg={cfg} set={set} range={range} playhead={playheadSrc} defaultName={loaded.video.author.name} kit={kit} onKit={setKit} />}
             {tab === 'layout' && (

@@ -225,17 +225,78 @@ export interface Reframe {
   ys: number[]
 }
 
-export type ThumbTemplate = 'bold' | 'breaking' | 'face' | 'minimal'
+export type ThumbTemplate =
+  | 'bold'
+  | 'breaking'
+  | 'face'
+  | 'minimal'
+  // round 26
+  | 'nil-bar'
+  | 'nil-split'
+  | 'nil-frame'
+  | 'nil-quote'
+  | 'nil-card'
+  | 'top'
+  | 'lower'
+  | 'glass'
+  | 'live'
+  | 'alert'
+  | 'exclusive'
+  | 'duo'
+  | 'interview'
+  | 'reaction'
+  | 'question'
+  | 'number'
+  | 'shock'
+  | 'pointer'
+  | 'sports'
+  | 'showbiz'
+  | 'economy'
+  | 'campus'
+
+/** Round 26: the thumbnail's shape. 'video' = the video's own shape. */
+export type ThumbSize = '16:9' | '9:16' | '1:1' | '4:5' | 'video'
+export type ThumbPaletteId = 'auto' | 'nil' | 'red' | 'night' | 'green' | 'purple' | 'orange' | 'teal'
+export type ThumbLogo = 'auto' | 'tl' | 'tr' | 'bl' | 'br' | 'off'
+export type ThumbLayerKind = 'text' | 'burst' | StickerKind
+
+/**
+ * Round 26: a free layer on the thumbnail, dragged on the preview. x/y is
+ * the centre as a fraction of the thumbnail; for text `h` is the font size
+ * (fraction of the short side), for shapes w/h are the box.
+ */
+export interface ThumbLayer {
+  kind: ThumbLayerKind
+  x: number
+  y: number
+  w: number
+  h: number
+  angle: number
+  color: string
+  text: string
+  /** Text: on a coloured plate (true) or outlined (false). */
+  plate: boolean
+}
 
 export interface ThumbDesign {
   on: boolean
   /** Source second of the picture; null = early in the news. */
   at: number | null
   template: ThumbTemplate
+  /** **শব্দ** = highlighted, like the photocards. */
   title: string
   badge: string
   face: MediaRef | null
-  size: '16:9' | 'video'
+  size: ThumbSize
+  /** Round 26 */
+  sub: string
+  palette: ThumbPaletteId
+  /** Headline size, 0.75–1.35. */
+  scale: number
+  logo: ThumbLogo
+  /** Picture punch: none, brighter colours, or darker for text. */
+  grade: 'none' | 'pop' | 'dark'
+  layers: ThumbLayer[]
 }
 
 export interface EditConfig {
@@ -308,7 +369,7 @@ export const DEFAULT_CONFIG: EditConfig = {
   stickers: [],
   pip: null,
   reframe: { on: false, step: 0.5, xs: [], ys: [] },
-  thumb: { on: true, at: null, template: 'bold', title: '', badge: '', face: null, size: '16:9' },
+  thumb: { on: true, at: null, template: 'nil-bar', title: '', badge: '', face: null, size: '16:9', sub: '', palette: 'auto', scale: 1, logo: 'auto', grade: 'none', layers: [] },
   sounds: [],
 }
 
@@ -490,6 +551,9 @@ export const LIMITS = {
   pipLabel: 30,
   thumbTitle: 90,
   thumbBadge: 20,
+  thumbSub: 60,
+  thumbLayers: 12,
+  thumbLayerText: 40,
   sounds: 40,
   /** Reframe samples (2 per second → about 40 minutes). */
   reframe: 5000,
@@ -519,12 +583,70 @@ export const STICKERS: { id: StickerKind; name: string }[] = [
 
 export const STICKER_COLORS = ['#EF4444', '#FACC15', '#22C55E', '#FFFFFF', '#025AB2']
 
-export const THUMB_TEMPLATES: { id: ThumbTemplate; name: string; hint: string }[] = [
-  { id: 'bold', name: 'বড় শিরোনাম', hint: 'নিচে গাঢ় পট্টিতে বড় লেখা' },
-  { id: 'breaking', name: 'ব্রেকিং', hint: 'লাল ব্যানার, তির্যক রেখা' },
-  { id: 'face', name: 'মুখের ছবি', hint: 'গোল ফ্রেমে মুখ, পাশে শিরোনাম' },
-  { id: 'minimal', name: 'মিনিমাল', hint: 'ছবির উপর হালকা লেখা' },
+export type ThumbGroup = 'nil' | 'news' | 'breaking' | 'face' | 'impact' | 'topic'
+export const THUMB_GROUPS: { id: ThumbGroup; name: string; hint: string }[] = [
+  { id: 'nil', name: 'মিহা নীল', hint: 'ফটোকার্ডের নীল-সোনালি নকশা' },
+  { id: 'news', name: 'সংবাদ', hint: 'সাধারণ খবরের থাম্বনেইল' },
+  { id: 'breaking', name: 'ব্রেকিং ও লাইভ', hint: 'জরুরি, সরাসরি, এক্সক্লুসিভ' },
+  { id: 'face', name: 'মুখ ও সাক্ষাৎকার', hint: 'মানুষের ছবি সামনে' },
+  { id: 'impact', name: 'নজরকাড়া (ইউটিউব ধাঁচ)', hint: 'প্রশ্ন, সংখ্যা, তীর, চমক' },
+  { id: 'topic', name: 'বিষয়ভিত্তিক', hint: 'খেলা, বিনোদন, অর্থনীতি, শিক্ষা' },
 ]
+
+export const THUMB_TEMPLATES: { id: ThumbTemplate; name: string; hint: string; group: ThumbGroup; isNew?: boolean }[] = [
+  { id: 'nil-bar', name: 'নীল পট্টি', hint: 'নিচে নেভি পট্টি, সোনালি দাগ', group: 'nil', isNew: true },
+  { id: 'nil-split', name: 'নীল ভাগ', hint: 'একপাশে ছবি, অন্যপাশে লেখা', group: 'nil', isNew: true },
+  { id: 'nil-frame', name: 'নীল ফ্রেম', hint: 'ছবি ফ্রেমে, সোনালি কোণ', group: 'nil', isNew: true },
+  { id: 'nil-quote', name: 'নীল উক্তি', hint: 'বড় উদ্ধৃতি চিহ্ন, বক্তার নাম', group: 'nil', isNew: true },
+  { id: 'nil-card', name: 'সাদা কার্ড', hint: 'সাদা কার্ডে নেভি লেখা, মার্কার', group: 'nil', isNew: true },
+  { id: 'bold', name: 'বড় শিরোনাম', hint: 'নিচে গাঢ় পট্টিতে বড় লেখা', group: 'news' },
+  { id: 'top', name: 'উপরে শিরোনাম', hint: 'উপরে রঙিন পট্টি', group: 'news', isNew: true },
+  { id: 'lower', name: 'টিভি লোয়ার থার্ড', hint: 'টিভির মতো নামফলক', group: 'news', isNew: true },
+  { id: 'glass', name: 'কাচের বাক্স', hint: 'মাঝে ঝাপসা কাচে লেখা', group: 'news', isNew: true },
+  { id: 'minimal', name: 'মিনিমাল', hint: 'ছবির উপর হালকা লেখা', group: 'news' },
+  { id: 'breaking', name: 'ব্রেকিং', hint: 'লাল ব্যানার, তির্যক রেখা', group: 'breaking' },
+  { id: 'live', name: 'সরাসরি', hint: 'লাইভ চিহ্ন ও লাল পট্টি', group: 'breaking', isNew: true },
+  { id: 'alert', name: 'জরুরি সতর্কতা', hint: 'হলুদ-কালো সতর্ক দাগ', group: 'breaking', isNew: true },
+  { id: 'exclusive', name: 'এক্সক্লুসিভ', hint: 'কোণে সোনালি ফিতা', group: 'breaking', isNew: true },
+  { id: 'face', name: 'মুখের ছবি', hint: 'গোল ফ্রেমে মুখ, পাশে শিরোনাম', group: 'face' },
+  { id: 'duo', name: 'মুখোমুখি', hint: 'দুই ছবি, মাঝে “বনাম”', group: 'face', isNew: true },
+  { id: 'interview', name: 'সাক্ষাৎকার', hint: 'বড় মুখ, নাম ও উক্তি', group: 'face', isNew: true },
+  { id: 'reaction', name: 'প্রতিক্রিয়া', hint: 'হেলানো বড় ছবি, সাদা দাগ', group: 'face', isNew: true },
+  { id: 'question', name: 'বড় প্রশ্ন', hint: 'বিশাল “?” আর প্রশ্ন', group: 'impact', isNew: true },
+  { id: 'number', name: 'বড় সংখ্যা', hint: 'শিরোনামের সংখ্যা বিশাল করে', group: 'impact', isNew: true },
+  { id: 'shock', name: 'চমক', hint: 'দাগ-দেওয়া বড় লেখা, বিস্ফোরণ ব্যাজ', group: 'impact', isNew: true },
+  { id: 'pointer', name: 'তীর দিয়ে দেখানো', hint: 'লেখা থেকে তীর ছবির দিকে', group: 'impact', isNew: true },
+  { id: 'sports', name: 'খেলা', hint: 'তির্যক সবুজ দাগ, স্কোরের মতো ব্যাজ', group: 'topic', isNew: true },
+  { id: 'showbiz', name: 'বিনোদন', hint: 'গোলাপি-বেগুনি ঝলক', group: 'topic', isNew: true },
+  { id: 'economy', name: 'অর্থনীতি', hint: 'ঊর্ধ্বমুখী রেখা, সবুজ-সোনালি', group: 'topic', isNew: true },
+  { id: 'campus', name: 'শিক্ষা ও ক্যাম্পাস', hint: 'খাতার দাগ, নীল কালি', group: 'topic', isNew: true },
+]
+
+export const THUMB_SIZES: { id: ThumbSize; name: string; hint: string }[] = [
+  { id: '16:9', name: '১৬:৯', hint: 'YouTube, ওয়েবসাইট' },
+  { id: '9:16', name: '৯:১৬', hint: 'রিল, শর্টস, স্টোরি' },
+  { id: '1:1', name: '১:১', hint: 'ফেসবুক, ইনস্টাগ্রাম' },
+  { id: '4:5', name: '৪:৫', hint: 'ফেসবুক/ইনস্টা পোস্ট' },
+  { id: 'video', name: 'ভিডিওর মাপে', hint: 'ভিডিও যেমন' },
+]
+
+export const THUMB_PALETTES: { id: ThumbPaletteId; name: string; dark: string; mid: string; accent: string; hot: string }[] = [
+  { id: 'auto', name: 'নকশার নিজের', dark: '#0B2A6B', mid: '#1546B8', accent: '#FFC20E', hot: '#E53935' },
+  { id: 'nil', name: 'মিহা নীল', dark: '#0B2A6B', mid: '#1546B8', accent: '#FFC20E', hot: '#E53935' },
+  { id: 'red', name: 'লাল', dark: '#3D0A0A', mid: '#C62828', accent: '#FFD54F', hot: '#FFD54F' },
+  { id: 'night', name: 'কালো', dark: '#0A0A0A', mid: '#262626', accent: '#FACC15', hot: '#EF4444' },
+  { id: 'green', name: 'সবুজ', dark: '#06301F', mid: '#0E7A4A', accent: '#FDE047', hot: '#EF4444' },
+  { id: 'purple', name: 'বেগুনি', dark: '#23093F', mid: '#6D28D9', accent: '#F9A8D4', hot: '#F43F5E' },
+  { id: 'orange', name: 'কমলা', dark: '#3A1600', mid: '#EA580C', accent: '#FFF3A3', hot: '#B91C1C' },
+  { id: 'teal', name: 'সমুদ্র', dark: '#042F35', mid: '#0E7490', accent: '#FDE68A', hot: '#F43F5E' },
+]
+
+export const THUMB_LAYER_KINDS: { id: ThumbLayerKind; name: string }[] = [
+  { id: 'text', name: 'লেখা' },
+  { id: 'burst', name: 'বিস্ফোরণ ব্যাজ' },
+  ...STICKERS.filter((s) => s.id !== 'focus'),
+]
+export const THUMB_COLORS = ['#FFC20E', '#E53935', '#FFFFFF', '#0B2A6B', '#1546B8', '#22C55E', '#111111', '#F472B6']
 
 // ---- normalisation ----
 
@@ -681,7 +803,26 @@ export function normalizeConfig(raw: unknown): EditConfig {
       title: str(o.thumb?.title, LIMITS.thumbTitle),
       badge: str(o.thumb?.badge, LIMITS.thumbBadge),
       face: mediaRef(o.thumb?.face),
-      size: oneOf(o.thumb?.size, ['16:9', 'video'] as const, d.thumb.size),
+      size: oneOf(o.thumb?.size, THUMB_SIZES.map((x) => x.id), d.thumb.size),
+      sub: str(o.thumb?.sub, LIMITS.thumbSub),
+      palette: oneOf(o.thumb?.palette, THUMB_PALETTES.map((x) => x.id), d.thumb.palette),
+      scale: num(o.thumb?.scale, 1, 0.75, 1.35),
+      logo: oneOf(o.thumb?.logo, ['auto', 'tl', 'tr', 'bl', 'br', 'off'] as const, d.thumb.logo),
+      grade: oneOf(o.thumb?.grade, ['none', 'pop', 'dark'] as const, d.thumb.grade),
+      layers: (Array.isArray(o.thumb?.layers) ? o.thumb.layers : [])
+        .filter((b: any) => b && typeof b === 'object')
+        .map((b: any): ThumbLayer => ({
+          kind: oneOf(b.kind, THUMB_LAYER_KINDS.map((x) => x.id), 'text'),
+          x: num(b.x, 0.5, 0, 1),
+          y: num(b.y, 0.5, 0, 1),
+          w: num(b.w, 0.2, 0.02, 1),
+          h: num(b.h, 0.08, 0.02, 1),
+          angle: num(b.angle, 0, -360, 360),
+          color: THUMB_COLORS.includes(b.color) ? b.color : THUMB_COLORS[0],
+          text: str(b.text, LIMITS.thumbLayerText),
+          plate: bool(b.plate, true),
+        }))
+        .slice(0, LIMITS.thumbLayers),
     },
     sounds: (Array.isArray(o.sounds) ? o.sounds : [])
       .filter((x: any) => SFX_IDS.includes(x?.id))
@@ -806,7 +947,7 @@ export function styleOnly(cfg: EditConfig): EditConfig {
     sounds: [],
     pip: null,
     reframe: { on: false, step: 0.5, xs: [], ys: [] },
-    thumb: { ...cfg.thumb, at: null, title: '', face: null },
+    thumb: { ...cfg.thumb, at: null, title: '', sub: '', face: null, layers: [] },
     // colour is a house style; zoom / rotation belong to one particular video
     look: { ...cfg.look, zoom: 1, panX: 0, panY: 0, rotate: 0, flip: false },
   }
