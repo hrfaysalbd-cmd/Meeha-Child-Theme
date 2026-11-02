@@ -9,6 +9,15 @@
  */
 import type { DenoiseLevel } from './denoise'
 import type { MusicRemoveLevel } from './musicremove'
+import { SFX_IDS, type SfxId } from './sfxlib'
+
+/** Round 26: a sound from the library, placed at a moment of the news (source seconds). */
+export interface PlacedSound {
+  id: SfxId
+  at: number
+  /** 0..1.5 */
+  vol: number
+}
 
 export type FormatId = 'source' | '16:9' | '9:16' | '1:1' | '4:5'
 export type FitMode = 'blur' | 'cover' | 'black'
@@ -22,14 +31,29 @@ export type LogoStyle = 'reveal' | 'spin' | 'pulse' | 'static'
 export type Corner = 'tr' | 'tl' | 'br' | 'bl'
 export type Quality = '720' | '1080'
 /* brand music catalogue (the pieces themselves are in music.ts) */
-export type MusicId = 'signature' | 'pulse' | 'calm' | 'showbiz' | 'desi'
+export type MusicId = 'signature' | 'pulse' | 'calm' | 'showbiz' | 'desi' | 'investigation' | 'sports' | 'tech' | 'sad' | 'anthem' | 'morning'
 
-export const MUSIC: { id: MusicId; name: string; hint: string }[] = [
-  { id: 'signature', name: 'মীহা সিগনেচার', hint: 'সব খবরে মানানসই · উজ্জ্বল, স্থির ছন্দ' },
-  { id: 'pulse', name: 'ব্রেকিং পালস', hint: 'জরুরি ও ব্রেকিং খবর · ঘড়ির টিকটিক' },
-  { id: 'calm', name: 'শান্ত পটভূমি', hint: 'সাক্ষাৎকার, মানবিক ও ফিচার · নরম পিয়ানো' },
-  { id: 'showbiz', name: 'বিনোদন পপ', hint: 'বিনোদন, শোবিজ ও লাইফস্টাইল · হালকা পপ' },
-  { id: 'desi', name: 'দেশি সুর', hint: 'দেশ, সংস্কৃতি ও উৎসব · বাঁশি, দোতারা ও তবলা' },
+/** Round 26: the music library is shown in collapsible groups. */
+export type MusicGroup = 'news' | 'human' | 'fun' | 'deep'
+export const MUSIC_GROUPS: { id: MusicGroup; name: string; hint: string }[] = [
+  { id: 'news', name: 'সংবাদ', hint: 'প্রতিদিনের খবর, ব্রেকিং, অর্থনীতি' },
+  { id: 'deep', name: 'অনুসন্ধান ও খেলা', hint: 'টানটান রহস্য, দ্রুত ছন্দ' },
+  { id: 'human', name: 'মানবিক ও ফিচার', hint: 'সাক্ষাৎকার, শোক, সকাল' },
+  { id: 'fun', name: 'বিনোদন ও উৎসব', hint: 'শোবিজ, দেশি সুর, জাতীয় দিবস' },
+]
+
+export const MUSIC: { id: MusicId; name: string; hint: string; group: MusicGroup; isNew?: boolean }[] = [
+  { id: 'signature', name: 'মীহা সিগনেচার', hint: 'সব খবরে মানানসই · উজ্জ্বল, স্থির ছন্দ', group: 'news' },
+  { id: 'pulse', name: 'ব্রেকিং পালস', hint: 'জরুরি ও ব্রেকিং খবর · ঘড়ির টিকটিক', group: 'news' },
+  { id: 'tech', name: 'অর্থনীতি ও প্রযুক্তি', hint: 'বাজার, ব্যবসা, প্রযুক্তি · মারিম্বা ও প্রতিধ্বনি', group: 'news', isNew: true },
+  { id: 'investigation', name: 'অনুসন্ধান', hint: 'তদন্ত, অপরাধ, রহস্য · নিচু স্পন্দন ও হার্টবিট', group: 'deep', isNew: true },
+  { id: 'sports', name: 'খেলার মাঠ', hint: 'খেলা ও হাইলাইটস · জোরালো বিট ও ব্রাস', group: 'deep', isNew: true },
+  { id: 'calm', name: 'শান্ত পটভূমি', hint: 'সাক্ষাৎকার, মানবিক ও ফিচার · নরম পিয়ানো', group: 'human' },
+  { id: 'sad', name: 'শোক ও মানবিক', hint: 'দুর্ঘটনা, শোক, মানবিক গল্প · ধীর পিয়ানো', group: 'human', isNew: true },
+  { id: 'morning', name: 'সকাল ও জীবনধারা', hint: 'লাইফস্টাইল, ভ্রমণ, খাবার · গিটার ও শেকার', group: 'human', isNew: true },
+  { id: 'showbiz', name: 'বিনোদন পপ', hint: 'বিনোদন, শোবিজ ও লাইফস্টাইল · হালকা পপ', group: 'fun' },
+  { id: 'desi', name: 'দেশি সুর', hint: 'দেশ, সংস্কৃতি ও উৎসব · বাঁশি, দোতারা ও তবলা', group: 'fun' },
+  { id: 'anthem', name: 'জাতীয় ও উৎসব', hint: 'জাতীয় দিবস, বিজয়, উৎসব · বড় কর্ড ও টিম্পানি', group: 'fun', isNew: true },
 ]
 
 export const DEFAULT_MUSIC: MusicId = 'signature'
@@ -253,6 +277,7 @@ export interface EditConfig {
   pip: Pip | null
   reframe: Reframe
   thumb: ThumbDesign
+  sounds: PlacedSound[]
 }
 
 export const DEFAULT_LOOK: Look = { filter: 'none', brightness: 1, contrast: 1, saturation: 1, zoom: 1, panX: 0, panY: 0, rotate: 0, flip: false }
@@ -280,6 +305,7 @@ export const DEFAULT_CONFIG: EditConfig = {
   pip: null,
   reframe: { on: false, step: 0.5, xs: [], ys: [] },
   thumb: { on: true, at: null, template: 'bold', title: '', badge: '', face: null, size: '16:9' },
+  sounds: [],
 }
 
 // ---- catalogue ----
@@ -429,6 +455,7 @@ export const LIMITS = {
   pipLabel: 30,
   thumbTitle: 90,
   thumbBadge: 20,
+  sounds: 40,
   /** Reframe samples (2 per second → about 40 minutes). */
   reframe: 5000,
 }
@@ -620,6 +647,10 @@ export function normalizeConfig(raw: unknown): EditConfig {
       face: mediaRef(o.thumb?.face),
       size: oneOf(o.thumb?.size, ['16:9', 'video'] as const, d.thumb.size),
     },
+    sounds: (Array.isArray(o.sounds) ? o.sounds : [])
+      .filter((x: any) => SFX_IDS.includes(x?.id))
+      .map((x: any) => ({ id: x.id as SfxId, at: num(x?.at, 0, 0, 86400), vol: num(x?.vol, 0.8, 0, 1.5) }))
+      .slice(0, LIMITS.sounds),
     blurs: (Array.isArray(o.blurs) ? o.blurs : [])
       .map((b: any) => {
         const w = num(b?.w, 0.3, 0.02, 1)
@@ -736,6 +767,7 @@ export function styleOnly(cfg: EditConfig): EditConfig {
     speeds: [],
     freezes: [],
     stickers: [],
+    sounds: [],
     pip: null,
     reframe: { on: false, step: 0.5, xs: [], ys: [] },
     thumb: { ...cfg.thumb, at: null, title: '', face: null },
@@ -766,6 +798,7 @@ export function hasEdits(cfg: EditConfig, srcDuration: number | null): boolean {
     cfg.speeds.length > 0 ||
     cfg.freezes.length > 0 ||
     cfg.stickers.length > 0 ||
+    cfg.sounds.length > 0 ||
     cfg.pip !== null ||
     cfg.reframe.on ||
     lookFilter(cfg.look) !== '' ||

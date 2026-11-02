@@ -6,12 +6,19 @@
  * make.
  */
 import { useEffect, useRef, useState } from 'react'
-import { MUSIC, type EditConfig, type MusicId } from '../../lib/videoEdit/config'
+import { LIMITS, MUSIC, MUSIC_GROUPS, type EditConfig, type MusicId } from '../../lib/videoEdit/config'
 import { musicBuffer } from '../../lib/videoEdit/music'
+import { sfxBuffer } from '../../lib/videoEdit/audio'
+import { SFX, SFX_GROUPS, type SfxId } from '../../lib/videoEdit/sfxlib'
+import { downloadBlob, wavBlob } from '../../lib/videoEdit/wav'
+import { bnClock } from '../../lib/videoEdit/motion'
 import { bnNumber } from '../ui'
-import { IconPlayerPause, IconPlayerPlay, IconVolume } from '../Icon'
-import { Section, Segmented, Slider, SwitchRow } from './StudioFields'
+import { IconDownload, IconPlayerPause, IconPlayerPlay, IconPlus, IconTrash, IconVolume } from '../Icon'
+import { Group, Section, Segmented, Slider, SwitchRow, TimeField, useGroups } from './StudioFields'
 import type { Setter } from './StudioPanels'
+
+type SampleId = MusicId | `sfx:${SfxId}`
+const fileName = (id: SampleId) => `meeha-${id.replace(':', '-')}.wav`
 
 const pct = (v: number) => `${bnNumber(Math.round(v * 100))}%`
 
@@ -25,6 +32,8 @@ export default function SoundPanel({
   audition,
   onAudition,
   onStopAudition,
+  range,
+  playhead,
 }: {
   cfg: EditConfig
   set: Setter
@@ -34,12 +43,27 @@ export default function SoundPanel({
   audition: AuditionState
   onAudition: () => void
   onStopAudition: () => void
+  range: { start: number; end: number }
+  playhead: () => number | null
 }) {
   const a = cfg.audio
   const setAudio = (patch: Partial<EditConfig['audio']>) => set((c) => ({ ...c, audio: { ...c.audio, ...patch } }))
-  const [sample, setSample] = useState<{ id: MusicId; ready: boolean } | null>(null)
+  const [sample, setSample] = useState<{ id: SampleId; ready: boolean } | null>(null)
   const sampleSrc = useRef<AudioBufferSourceNode | null>(null)
-  const wanted = useRef<MusicId | null>(null)
+  const wanted = useRef<SampleId | null>(null)
+  const musicGroups = useGroups('news', MUSIC.find((m) => m.id === a.music)?.group)
+  const sfxGroups = useGroups('brand')
+  const bufferOf = (id: SampleId) => (id.startsWith('sfx:') ? sfxBuffer(id.slice(4) as SfxId) : musicBuffer(id as MusicId))
+  async function download(id: SampleId) {
+    const buf = await bufferOf(id)
+    downloadBlob(wavBlob(buf), fileName(id))
+  }
+  const here = () => {
+    const p = playhead()
+    return Math.round(Math.min(range.end, Math.max(range.start, p ?? range.start)) * 10) / 10
+  }
+  const placeSound = (id: SfxId) => set((c) => ({ ...c, sounds: [...c.sounds, { id, at: here(), vol: 0.8 }].slice(0, LIMITS.sounds) }))
+  const updateSound = (i: number, patch: Partial<EditConfig['sounds'][number]>) => set((c) => ({ ...c, sounds: c.sounds.map((x, j) => (j === i ? { ...x, ...patch } : x)) }))
 
   const stopSample = () => {
     wanted.current = null
@@ -53,14 +77,14 @@ export default function SoundPanel({
   }
   useEffect(() => () => stopSample(), [])
 
-  async function playSample(id: MusicId) {
+  async function playSample(id: SampleId) {
     if (wanted.current === id) return stopSample()
     stopSample()
     onSample()
     wanted.current = id
     setSample({ id, ready: false })
     const ctx = audioContext()
-    const buf = await musicBuffer(id)
+    const buf = await bufferOf(id)
     if (!ctx || wanted.current !== id) return
     await ctx.resume().catch(() => undefined)
     if (wanted.current !== id) return
@@ -80,38 +104,55 @@ export default function SoundPanel({
     setSample({ id, ready: true })
   }
 
+  const playBtn = (id: SampleId, label: string, testId?: string) => {
+    const playing = sample?.id === id
+    return (
+      <button
+        type="button"
+        onClick={() => playSample(id)}
+        className={`shrink-0 flex items-center gap-1 rounded-full px-2.5 py-1 text-[11.5px] font-medium ${playing ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+        aria-label={`${label} শুনুন`}
+        data-testid={testId}
+      >
+        {playing ? <IconPlayerPause className="w-3.5 h-3.5" /> : <IconPlayerPlay className="w-3.5 h-3.5" />}
+        {playing ? (sample?.ready ? 'থামান' : 'তৈরি হচ্ছে…') : 'শুনুন'}
+      </button>
+    )
+  }
+  const dlBtn = (id: SampleId, label: string) => (
+    <button type="button" onClick={() => download(id)} title="WAV ফাইল নামান" aria-label={`${label} ডাউনলোড`} className="shrink-0 w-7 h-7 rounded-full bg-neutral-100 text-neutral-600 hover:bg-neutral-200 flex items-center justify-center">
+      <IconDownload className="w-3.5 h-3.5" />
+    </button>
+  )
+  const musicRow = (m: { id: MusicId | 'none'; name: string; hint: string; isNew?: boolean }) => {
+    const on = a.music === m.id
+    return (
+      <div key={m.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${on ? 'border-brand-600 bg-brand-50' : 'border-neutral-200 hover:border-neutral-300'}`}>
+        <button type="button" role="radio" aria-checked={on} onClick={() => setAudio({ music: m.id })} className="flex-1 min-w-0 text-left" data-testid={`music-${m.id}`}>
+          <span className={`block text-[13px] font-semibold ${on ? 'text-brand-700' : 'text-neutral-800'}`}>
+            {m.name}
+            {m.id === 'signature' && <span className="ml-1.5 text-[10.5px] font-medium text-neutral-400">ডিফল্ট</span>}
+            {m.isNew && <span className="ml-1.5 text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-amber-400 text-amber-950">নতুন</span>}
+          </span>
+          <span className="block text-[11.5px] text-neutral-500 truncate">{m.hint}</span>
+        </button>
+        {m.id !== 'none' && playBtn(m.id, m.name, `music-sample-${m.id}`)}
+        {m.id !== 'none' && dlBtn(m.id, m.name)}
+      </div>
+    )
+  }
+
   return (
     <div>
-      <Section title="ব্র্যান্ড মিউজিক" hint="মীহা নিউজের নিজস্ব সুর। ভিডিও যত বড়ই হোক, পুরোটা জুড়ে নিচু ভলিউমে বারবার বাজবে। প্রতিটি সুর শুরু হয় মীহার চার-নোটের সিগনেচার সুর দিয়ে।">
+      <Section title="মিউজিক লাইব্রেরি" hint="মীহা নিউজের নিজস্ব ১১টি সুর — এই অ্যাপের ভেতরেই তৈরি, কারও রেকর্ডিং বা স্যাম্পল নেই। ভিডিও যত বড়ই হোক, পুরোটা জুড়ে নিচু ভলিউমে বারবার বাজবে। প্রতিটি সুর শুরু হয় মীহার চার-নোটের সিগনেচার সুর দিয়ে। ⤓ দিয়ে WAV ফাইল নামানো যায়।">
         <div className="space-y-1.5" role="radiogroup" aria-label="ব্র্যান্ড মিউজিক">
-          {[{ id: 'none' as const, name: 'মিউজিক নেই', hint: 'শুধু ভিডিওর নিজের শব্দ' }, ...MUSIC].map((m) => {
-            const on = a.music === m.id
-            const playing = sample?.id === m.id
+          {musicRow({ id: 'none', name: 'মিউজিক নেই', hint: 'শুধু ভিডিওর নিজের শব্দ' })}
+          {MUSIC_GROUPS.map((g) => {
+            const list = MUSIC.filter((m) => m.group === g.id)
             return (
-              <div
-                key={m.id}
-                className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${on ? 'border-brand-600 bg-brand-50' : 'border-neutral-200 hover:border-neutral-300'}`}
-              >
-                <button type="button" role="radio" aria-checked={on} onClick={() => setAudio({ music: m.id })} className="flex-1 min-w-0 text-left" data-testid={`music-${m.id}`}>
-                  <span className={`block text-[13px] font-semibold ${on ? 'text-brand-700' : 'text-neutral-800'}`}>
-                    {m.name}
-                    {m.id === 'signature' && <span className="ml-1.5 text-[10.5px] font-medium text-neutral-400">ডিফল্ট</span>}
-                  </span>
-                  <span className="block text-[11.5px] text-neutral-500 truncate">{m.hint}</span>
-                </button>
-                {m.id !== 'none' && (
-                  <button
-                    type="button"
-                    onClick={() => playSample(m.id)}
-                    className={`shrink-0 flex items-center gap-1 rounded-full px-2.5 py-1 text-[11.5px] font-medium ${playing ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
-                    aria-label={`${m.name} শুনুন`}
-                    data-testid={`music-sample-${m.id}`}
-                  >
-                    {playing ? <IconPlayerPause className="w-3.5 h-3.5" /> : <IconPlayerPlay className="w-3.5 h-3.5" />}
-                    {playing ? (sample?.ready ? 'থামান' : 'তৈরি হচ্ছে…') : 'শুনুন'}
-                  </button>
-                )}
-              </div>
+              <Group key={g.id} title={g.name} hint={g.hint} count={list.length} open={musicGroups.isOpen(g.id)} onToggle={() => musicGroups.toggle(g.id)} hasSelected={list.some((m) => m.id === a.music)} testId={`music-group-${g.id}`}>
+                <div className="space-y-1.5">{list.map((m) => musicRow(m))}</div>
+              </Group>
             )
           })}
         </div>
@@ -129,6 +170,64 @@ export default function SoundPanel({
               onChange={(v) => setAudio({ musicOver: v })}
               size="sm"
             />
+          </div>
+        )}
+      </Section>
+
+      <Section title="সাউন্ড লাইব্রেরি" hint="প্রিভিউ থামিয়ে যে মুহূর্তে শব্দ চান সেখানে “+ বসান” দিন। সব শব্দ মিহার নিজস্ব, অ্যাপেই তৈরি।">
+        <div className="space-y-1.5">
+          {SFX_GROUPS.map((g) => {
+            const list = SFX.filter((x) => x.group === g.id)
+            return (
+              <Group key={g.id} title={g.name} hint={g.hint} count={list.length} open={sfxGroups.isOpen(g.id)} onToggle={() => sfxGroups.toggle(g.id)} testId={`sfx-group-${g.id}`}>
+                <div className="space-y-1.5">
+                  {list.map((x) => (
+                    <div key={x.id} className="flex items-center gap-2 rounded-xl border border-neutral-200 px-3 py-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-neutral-800">{x.name}</p>
+                        <p className="text-[11.5px] text-neutral-500 truncate">{x.hint}</p>
+                      </div>
+                      {playBtn(`sfx:${x.id}`, x.name, `sfx-sample-${x.id}`)}
+                      <button
+                        type="button"
+                        onClick={() => placeSound(x.id)}
+                        disabled={cfg.sounds.length >= LIMITS.sounds}
+                        data-testid={`sfx-place-${x.id}`}
+                        className="shrink-0 flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold bg-brand-600 text-white disabled:opacity-40"
+                      >
+                        <IconPlus className="w-3.5 h-3.5" />
+                        বসান
+                      </button>
+                      {dlBtn(`sfx:${x.id}`, x.name)}
+                    </div>
+                  ))}
+                </div>
+              </Group>
+            )
+          })}
+        </div>
+        {cfg.sounds.length > 0 && (
+          <div className="mt-3 flex flex-col gap-2">
+            <p className="text-[12px] font-semibold text-neutral-700">ভিডিওতে বসানো শব্দ ({bnNumber(cfg.sounds.length)})</p>
+            {cfg.sounds
+              .map((x, i) => ({ x, i }))
+              .sort((p, q) => p.x.at - q.x.at)
+              .map(({ x, i }) => (
+                <div key={i} className="rounded-xl border border-neutral-200 p-2.5" data-testid="sound-row">
+                  <div className="flex items-end gap-3 flex-wrap">
+                    <div className="min-w-[110px]">
+                      <span className="block text-[11.5px] text-neutral-500 mb-1">শব্দ</span>
+                      <span className="text-[12.5px] font-semibold text-neutral-800">{SFX.find((y) => y.id === x.id)?.name}</span>
+                    </div>
+                    <TimeField label="মূল ভিডিওর কোন সময়ে" value={x.at} min={range.start} max={range.end} onChange={(v) => updateSound(i, { at: v })} onPlayhead={() => updateSound(i, { at: here() })} />
+                    <button type="button" onClick={() => set((c) => ({ ...c, sounds: c.sounds.filter((_, j) => j !== i) }))} aria-label="সরান" className="ml-auto mb-1.5 text-red-500 hover:text-red-700">
+                      <IconTrash className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <Slider label="ভলিউম" value={Math.round(x.vol * 100)} min={10} max={150} step={10} onChange={(v) => updateSound(i, { vol: v / 100 })} format={(v) => pct(v / 100)} />
+                </div>
+              ))}
+            <p className="text-[11px] text-neutral-400">সময় মূল ভিডিওর হিসাবে — কাটা অংশে পড়লে শব্দটি বাজবে না। এখন: {bnClock(here())}</p>
           </div>
         )}
       </Section>

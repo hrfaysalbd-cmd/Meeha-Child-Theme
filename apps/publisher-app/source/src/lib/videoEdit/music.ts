@@ -289,6 +289,49 @@ function clap(k: Kit, t: number, vel = 1) {
     noiseHit(k, t + dt, 'bandpass', 1500, 0.9, 0.11 * vel * a, dt === 0.023 ? 0.16 : 0.012, 0.001, 0.35)
 }
 
+/** Round 26: snare (noise body + short tone). */
+function snare(k: Kit, t: number, vel = 1) {
+  noiseHit(k, t, 'bandpass', 2200, 0.7, 0.11 * vel, 0.14, 0.001, 0.3)
+  noiseHit(k, t, 'highpass', 5000, 0.6, 0.05 * vel, 0.08, 0.001, 0.2)
+  const o = k.ctx.createOscillator()
+  o.type = 'triangle'
+  o.frequency.setValueAtTime(240, t)
+  o.frequency.exponentialRampToValueAtTime(170, t + 0.06)
+  const g = k.ctx.createGain()
+  g.gain.setValueAtTime(0.0001, t)
+  g.gain.linearRampToValueAtTime(0.08 * vel, t + 0.002)
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12)
+  o.connect(g)
+  out(k, g, 1, 0.2)
+  o.start(t)
+  o.stop(t + 0.14)
+}
+
+/** Round 26: short bright brass-like stab (filtered saw chord). */
+function stab(k: Kit, notes: number[], t: number, len: number, vel = 1) {
+  const { ctx } = k
+  const lp = ctx.createBiquadFilter()
+  lp.type = 'lowpass'
+  lp.Q.value = 1.2
+  lp.frequency.setValueAtTime(3800, t)
+  lp.frequency.exponentialRampToValueAtTime(900, t + len)
+  const g = ctx.createGain()
+  env(g, t, 0.05 * vel, 0.01, len * 0.6, 0.5, t + len * 0.8, 0.12)
+  lp.connect(g)
+  out(k, g, 0.8, 0.35)
+  for (const n of notes) {
+    for (const det of [-9, 9]) {
+      const o = ctx.createOscillator()
+      o.type = 'sawtooth'
+      o.frequency.value = midi(n)
+      o.detune.value = det
+      o.connect(lp)
+      o.start(t)
+      o.stop(t + len + 0.4)
+    }
+  }
+}
+
 /** Clock tick (high, dry, short). */
 function tick(k: Kit, t: number, vel = 1, pan = 0) {
   const { ctx } = k
@@ -684,6 +727,182 @@ const PIECES: Record<MusicId, Piece> = {
       phrase.forEach(([n, b, l, from], i) => flute(k, n, at(bars[i], b), k.beat * l * 0.95, 0.8, from))
       flute(k, 69, at(6, 2), k.beat * 1.9, 0.6, 71)
       flute(k, 74, at(7, 0), k.beat * 3.5, 0.55, 72)
+    },
+  },
+  // ---- round 26 ----
+  // D minor, 84 BPM. Dm - Bb - Gm - A: low pulse, heartbeat kick, ticking — for investigations.
+  investigation: {
+    bpm: 84,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [50, 53, 57],
+        [46, 50, 53],
+        [43, 46, 50],
+        [45, 49, 52],
+      ]
+      const roots = [38, 34, 31, 33]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        pad(k, c, at(bar, 0), k.beat * 4, 0.9, 650)
+        for (let e = 0; e < 8; e++) bass(k, roots[bar % 4], at(bar, e / 2), k.beat * 0.3, e % 2 ? 0.45 : 0.75)
+        kick(k, at(bar, 0), 0.75)
+        kick(k, at(bar, 0.35), 0.5)
+        kick(k, at(bar, 2), 0.7)
+        kick(k, at(bar, 2.35), 0.45)
+        for (let s = 0; s < 8; s++) tick(k, at(bar, s / 2), s % 2 ? 0.35 : 0.7, s % 2 ? 0.4 : -0.4)
+        if (bar % 4 === 3) timpani(k, 33, at(bar, 3), 0.55)
+      }
+      for (const [n, b] of motif(74, true)) bell(k, n - 12, at(0, b), 0.9, 0)
+      for (const [n, b] of motif(74, true)) bell(k, n, at(4, b), 0.45, 0.3)
+      swell(k, at(7, 2), k.beat * 2, 0.7)
+    },
+  },
+  // E minor, 128 BPM. Em - C - G - D: four-on-the-floor, claps, brass stabs — for sport.
+  sports: {
+    bpm: 128,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [64, 67, 71],
+        [60, 64, 67],
+        [62, 67, 71],
+        [62, 66, 69],
+      ]
+      const roots = [40, 36, 43, 38]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        const r = roots[bar % 4]
+        pad(k, c.map((n) => n - 12), at(bar, 0), k.beat * 4, 0.55, 1400)
+        for (let b = 0; b < 4; b++) kick(k, at(bar, b), 0.95)
+        clap(k, at(bar, 1), 0.85)
+        clap(k, at(bar, 3), 0.85)
+        for (let s = 0; s < 16; s++) hat(k, at(bar, s / 4), s % 4 === 2 ? 1 : 0.45, s === 14)
+        for (let e = 0; e < 8; e++) bass(k, e % 2 ? r + 12 : r, at(bar, e / 2), k.beat * 0.4, 0.85)
+        if (bar >= 1) {
+          stab(k, c, at(bar, 0.5), k.beat * 0.35, 0.9)
+          stab(k, c, at(bar, 2.5), k.beat * 0.35, 0.8)
+        }
+        if (bar === 7) for (let s = 0; s < 8; s++) snare(k, at(bar, 2 + s / 4), 0.4 + s * 0.08)
+      }
+      for (const [n, b, l] of motif(76, true)) stab(k, [n, n + 7], at(0, b), k.beat * l * 0.8, 1.1)
+    },
+  },
+  // F major, 118 BPM. Fmaj7 - Dm7 - Bbmaj7 - C: plucked arpeggios with echo — economy, business, tech.
+  tech: {
+    bpm: 118,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [53, 57, 60, 64],
+        [50, 53, 57, 60],
+        [46, 50, 53, 57],
+        [48, 52, 55, 60],
+      ]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        pad(k, [c[1], c[2], c[3]], at(bar, 0), k.beat * 4, 0.45, 1800)
+        bass(k, c[0] - 12, at(bar, 0), k.beat * 0.9, 0.8)
+        bass(k, c[0] - 12, at(bar, 1.5), k.beat * 0.4, 0.6)
+        bass(k, c[0] - 5, at(bar, 2.5), k.beat * 1.2, 0.7)
+        kick(k, at(bar, 0), 0.75)
+        kick(k, at(bar, 2), 0.65)
+        snare(k, at(bar, 1), 0.35)
+        snare(k, at(bar, 3), 0.35)
+        for (let s = 0; s < 16; s++) shaker(k, at(bar, s / 4), s % 2 ? 0.35 : 0.6)
+        for (let s = 0; s < 8; s++) {
+          if (bar === 0 && s < 6) continue
+          marimba(k, c[[0, 2, 1, 3, 2, 1, 3, 2][s]] + 12, at(bar, s / 2), s % 2 ? 0.55 : 0.8, s % 2 ? 0.4 : -0.4, 0.35)
+        }
+      }
+      for (const [n, b] of motif(77, false)) bell(k, n, at(0, b), 1, 0)
+      bell(k, 84, at(4, 2), 0.5, -0.3)
+      swell(k, at(7, 3), k.beat, 0.7)
+    },
+  },
+  // A minor, 66 BPM. Am - F - C - E: slow piano, soft strings, no drums — loss, grief, human stories.
+  sad: {
+    bpm: 66,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [45, 52, 57, 60],
+        [41, 48, 53, 57],
+        [48, 55, 60, 64],
+        [40, 52, 56, 59],
+      ]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        pad(k, [c[1], c[2], c[3]], at(bar, 0), k.beat * 4, 0.6, 700)
+        bass(k, c[0] - 12, at(bar, 0), k.beat * 3.8, 0.45)
+        const arp = [c[1], c[2], c[3], c[2]]
+        arp.forEach((n, i) => {
+          if (bar === 0 && i > 0) return
+          epiano(k, n + 12, at(bar, i), k.beat * 1.2, i === 0 ? 0.7 : 0.5, i % 2 ? 0.25 : -0.25)
+        })
+      }
+      for (const [n, b, l] of motif(69, true)) epiano(k, n + 12, at(0, b + 1), k.beat * l, 0.95, 0)
+      for (const [n, b, l] of motif(69, true)) epiano(k, n + 12, at(4, b + 1), k.beat * l, 0.5, 0.15)
+    },
+  },
+  // C major, 96 BPM. C - G - Am - F: big chords, timpani, bells — national days, festivals, celebration.
+  anthem: {
+    bpm: 96,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [60, 64, 67],
+        [59, 62, 67],
+        [57, 60, 64],
+        [57, 60, 65],
+      ]
+      const roots = [36, 43, 45, 41]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        pad(k, c, at(bar, 0), k.beat * 4, 0.95, 2000)
+        pad(k, c.map((n) => n - 12), at(bar, 0), k.beat * 4, 0.5, 900)
+        bass(k, roots[bar % 4], at(bar, 0), k.beat * 1.8, 0.9)
+        bass(k, roots[bar % 4], at(bar, 2), k.beat * 1.8, 0.8)
+        kick(k, at(bar, 0), 0.85)
+        snare(k, at(bar, 2), 0.6)
+        if (bar % 2 === 0) timpani(k, roots[bar % 4] - 12 + 12, at(bar, 0), 0.7)
+        for (let e = 0; e < 4; e++) stab(k, c, at(bar, e + 0.5), k.beat * 0.25, 0.35)
+      }
+      for (const [n, b] of motif(72, false)) bell(k, n + 12, at(0, b), 1, 0)
+      for (const [n, b, l] of motif(72, false)) stab(k, [n, n + 4], at(4, b), k.beat * l * 0.9, 0.8)
+      for (let s = 0; s < 8; s++) snare(k, at(7, 2 + s / 4), 0.3 + s * 0.08)
+      swell(k, at(7, 2), k.beat * 2, 1)
+    },
+  },
+  // G major, 100 BPM. Gmaj7 - Em7 - Cmaj7 - D: plucked guitar, shaker, bells — morning, lifestyle, travel.
+  morning: {
+    bpm: 100,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [55, 59, 62, 66],
+        [52, 55, 59, 62],
+        [48, 52, 55, 59],
+        [50, 54, 57, 62],
+      ]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        pad(k, [c[1], c[2], c[3]], at(bar, 0), k.beat * 4, 0.35, 1500)
+        bass(k, c[0] - 12, at(bar, 0), k.beat * 1.4, 0.7)
+        bass(k, c[0] - 5, at(bar, 2), k.beat * 1.4, 0.6)
+        kick(k, at(bar, 0), 0.6)
+        kick(k, at(bar, 2.5), 0.45)
+        clap(k, at(bar, 1), 0.4)
+        clap(k, at(bar, 3), 0.4)
+        for (let s = 0; s < 16; s++) shaker(k, at(bar, s / 4), s % 4 === 2 ? 0.8 : 0.4)
+        // strum: the chord's notes a few ms apart, on a skipping rhythm
+        for (const b of [0, 0.75, 1.5, 2, 2.75, 3.5]) {
+          if (bar === 0 && b < 2) continue
+          c.forEach((n, i) => pluck(k, n + 12, at(bar, b) + i * 0.012, b % 1 ? 0.55 : 0.8, i % 2 ? 0.25 : -0.25, 0.6))
+        }
+      }
+      for (const [n, b] of motif(74, false)) pluck(k, n + 12, at(0, b), 1.1, 0, 0.7)
+      for (const [n, b] of motif(74, false)) bell(k, n + 12, at(4, b), 0.35, 0.3)
     },
   },
 }

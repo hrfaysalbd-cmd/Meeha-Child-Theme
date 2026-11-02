@@ -254,3 +254,49 @@ export function ChoiceCard({
     </button>
   )
 }
+
+/**
+ * Round 26 — a collapsible group, the same look as the photocard studio's
+ * design sections: a header with the name, a short hint, a count and a
+ * "বাছাই এখানে" tag when the chosen item sits inside a closed group.
+ */
+export function Group({
+  title,
+  hint,
+  count,
+  open,
+  onToggle,
+  hasSelected,
+  children,
+  testId,
+}: {
+  title: string
+  hint?: string
+  count: number
+  open: boolean
+  onToggle: () => void
+  hasSelected?: boolean
+  children: ReactNode
+  testId?: string
+}) {
+  return (
+    <section className={`rounded-xl border ${open ? 'border-neutral-200' : 'border-neutral-100'} bg-white`} data-testid={testId}>
+      <button type="button" aria-expanded={open} onClick={onToggle} className="w-full flex items-center gap-2 px-3 py-2.5 text-left">
+        <span className="text-[13px] font-semibold text-neutral-800 shrink-0">{title}</span>
+        {hint && <span className="text-[11px] text-neutral-400 truncate">{hint}</span>}
+        {hasSelected && !open && <span className="shrink-0 text-[10.5px] font-semibold text-brand-700 bg-brand-50 rounded px-1.5 py-0.5">বাছাই এখানে</span>}
+        <span className="ml-auto shrink-0 text-[11.5px] text-neutral-500 bg-neutral-100 rounded-full px-2 py-0.5">{bnNumber(count)}</span>
+        <svg viewBox="0 0 24 24" className={`w-4 h-4 shrink-0 text-neutral-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && <div className="px-2.5 pb-2.5">{children}</div>}
+    </section>
+  )
+}
+
+/** Which groups are open: the first one and the one holding `selected`, until the user toggles. */
+export function useGroups(first: string, selectedGroup?: string) {
+  const [open, setOpen] = useState<Record<string, boolean>>(() => ({ [first]: true, ...(selectedGroup ? { [selectedGroup]: true } : {}) }))
+  return { isOpen: (g: string) => !!open[g], toggle: (g: string) => setOpen((o) => ({ ...o, [g]: !o[g] })) }
+}

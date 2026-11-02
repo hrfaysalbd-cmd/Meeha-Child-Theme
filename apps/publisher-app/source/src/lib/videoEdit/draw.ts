@@ -15,6 +15,7 @@
 import { FRAMES, lookFilter, reframeAt, type BlurBox, type Caption, type EditConfig, type FrameId } from './config'
 import { drawFreezeOverlay, drawSticker, drawTransition, transitionAt, transitionTimes } from './overlays'
 import { BRAND, FONT_BODY, FONT_DISPLAY, type LogoAsset } from './assets'
+import type { SfxId } from './sfxlib'
 import { clamp, ease, fillRoundRect, fitText, lerp, rnd, win, type Ctx } from './motion'
 import { pipActive, segSource, segSourceEnd, type Layout, type Rect, type SceneId, type Segment, type Timeline } from './timeline'
 
@@ -2612,10 +2613,21 @@ export function drawOutputFrame(ctx: Ctx, env: DrawEnv, seg: Segment, T: number,
 }
 
 /** Sound-effect cues on the output timeline (whoosh / hit / chime). */
-export type SfxKind = 'whoosh' | 'hit' | 'chime' | 'soft'
+export type SfxKind = SfxId
 export function sfxCues(tl: Timeline, cfg: EditConfig): { t: number; kind: SfxKind; gain: number }[] {
-  if (!cfg.audio.sfx) return []
   const cues: { t: number; kind: SfxKind; gain: number }[] = []
+  // round 26: sounds placed from the library play wherever their moment of the news is shown
+  for (const p of cfg.sounds) {
+    for (const s of tl.segments) {
+      if (s.kind !== 'main' || s.rate <= 0) continue
+      const end = segSourceEnd(s)
+      if (p.at >= s.clipStart - 1e-3 && p.at < end) {
+        cues.push({ t: s.t0 + (p.at - s.clipStart) / s.rate, kind: p.id, gain: p.vol })
+        break
+      }
+    }
+  }
+  if (!cfg.audio.sfx) return cues
   for (const s of tl.segments) {
     if (s.scene === 'breaking') cues.push({ t: s.t0, kind: 'whoosh', gain: 0.8 }, { t: s.t0 + 0.17, kind: 'hit', gain: 1 }, { t: s.t0 + s.dur - 0.5, kind: 'whoosh', gain: 0.6 })
     else if (s.scene === 'headline') cues.push({ t: s.t0 + 0.05, kind: 'whoosh', gain: 0.6 }, { t: s.t0 + 0.6, kind: 'chime', gain: 0.6 })

@@ -1208,6 +1208,8 @@ export default function VideoStudio() {
                 audition={audition}
                 onAudition={startAudition}
                 onStopAudition={stopAudition}
+                range={range}
+                playhead={playheadSrc}
               />
             )}
             {tab === 'captions' && cfg.captions.length > 0 && (

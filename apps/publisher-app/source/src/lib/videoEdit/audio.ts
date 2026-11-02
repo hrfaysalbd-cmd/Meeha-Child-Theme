@@ -14,6 +14,7 @@
  */
 import type { EditConfig } from './config'
 import type { SfxKind } from './draw'
+import { sfxLength, synthLib } from './sfxlib'
 import { pipClipTime, segSourceEnd, type ClipKey, type Segment, type Timeline } from './timeline'
 import { Denoiser, type DenoiseLevel } from './denoise'
 import { removeMusic, type MusicRemoveLevel } from './musicremove'
@@ -33,6 +34,8 @@ function noiseBuffer(ctx: BaseAudioContext, seconds: number) {
 
 /** Schedules one effect into `ctx` at `when`. */
 function synth(ctx: BaseAudioContext, out: AudioNode, kind: SfxKind, when: number, gain: number) {
+  // round 26: the sound library's own sounds
+  if (synthLib(ctx, out, kind, when, gain)) return
   const g = ctx.createGain()
   g.connect(out)
   if (kind === 'whoosh' || kind === 'soft') {
@@ -95,11 +98,11 @@ function synth(ctx: BaseAudioContext, out: AudioNode, kind: SfxKind, when: numbe
 
 const sfxCache = new Map<SfxKind, Promise<AudioBuffer>>()
 
-/** Pre-rendered effect (≈1.7 s, stereo). */
+/** Pre-rendered effect (stereo, its own length plus a short tail). */
 export function sfxBuffer(kind: SfxKind): Promise<AudioBuffer> {
   let p = sfxCache.get(kind)
   if (!p) {
-    const ctx = new OfflineAudioContext(2, Math.ceil(1.7 * SAMPLE_RATE), SAMPLE_RATE)
+    const ctx = new OfflineAudioContext(2, Math.ceil((sfxLength(kind) + 0.2) * SAMPLE_RATE), SAMPLE_RATE)
     synth(ctx, ctx.destination, kind, 0, 1)
     p = ctx.startRendering()
     sfxCache.set(kind, p)
@@ -297,7 +300,7 @@ export async function mixWindow(
   }
 
   for (const c of cues) {
-    if (c.t >= t1 || c.t + 1.7 <= r0) continue
+    if (c.t >= t1 || c.t + sfxLength(c.kind) + 0.2 <= r0) continue
     const buf = await sfxBuffer(c.kind)
     const src = ctx.createBufferSource()
     src.buffer = buf
