@@ -488,3 +488,27 @@ add_action(
 	},
 	1
 );
+
+/**
+ * Past-paper info of a test made from a প্রশ্নব্যাংক pack: [ 'rank' => position in the pack index (newest exam first),
+ * 'date' => exam date ] — or null for an ordinary test / practice set.
+ *
+ * @param int $test_id Test.
+ * @return array|null
+ */
+function mhp_test_paper( $test_id ) {
+	static $packs = null;
+	if ( null === $packs ) {
+		$f     = MHP_DIR . '/data/bank/index.php';
+		$p     = file_exists( $f ) ? include $f : array();
+		$packs = is_array( $p ) ? $p : array();
+	}
+	$slug = (string) get_post_meta( (int) $test_id, '_mhp_pack', true );
+	if ( '' === $slug || empty( $packs[ $slug ] ) || 'paper' !== $packs[ $slug ]['kind'] ) {
+		return null;
+	}
+	return array(
+		'rank' => (int) array_search( $slug, array_keys( $packs ), true ),
+		'date' => (string) $packs[ $slug ]['date'],
+	);
+}

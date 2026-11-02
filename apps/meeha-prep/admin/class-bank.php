@@ -312,6 +312,21 @@ class MHP_Bank {
 	}
 
 	/**
+	 * Whether a pack still has draft questions without a review mark (they would go live on publish).
+	 *
+	 * @param string $slug Pack.
+	 * @return bool
+	 */
+	private static function unreviewed_drafts( $slug ) {
+		foreach ( self::ids( $slug, 'mh_question', 'draft' ) as $id ) {
+			if ( ! get_post_meta( $id, '_mhp_review', true ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * A teacher publishing a marked question from its edit screen has checked it.
 	 *
 	 * @param string  $new  New status.
@@ -456,6 +471,24 @@ class MHP_Bank {
 			<?php endif; ?>
 			<p>তৈরি প্রশ্নের সেট। <b>ইমপোর্ট</b> করলে সব প্রশ্ন ও টেস্ট খসড়া হিসেবে ঢোকে, সাইটে দেখা যায় না। শিক্ষক <b>রিভিউ শিট</b> প্রিন্ট করে উত্তর ও ব্যাখ্যা মিলিয়ে নেবেন, ভুল থাকলে প্রশ্নটি এডিট করবেন। তারপর <b>প্রকাশ</b> চাপলে "যাচাই দরকার" চিহ্ন ছাড়া প্রশ্ন আর টেস্টগুলো প্রকাশ হবে; চিহ্নিত প্রশ্ন এডিট স্ক্রিন থেকে একে একে প্রকাশ করতে হবে।</p>
 			<p>বিগত সালের প্রশ্নের মূল লেখা ও অপশন সংশ্লিষ্ট পরীক্ষার; উত্তর ও ব্যাখ্যা মিহা প্রস্তুতির। প্রতিটি প্রশ্নে পরীক্ষার নাম ও সাল উৎস হিসেবে থাকে।</p>
+			<?php
+			$waiting = array();
+			foreach ( $packs as $slug => $p ) {
+				if ( isset( $done[ $slug ] ) && self::ids( $slug, 'mh_test', 'draft' ) ) {
+					$waiting[] = $p['title'];
+				}
+			}
+			if ( $waiting ) :
+				?>
+				<div class="notice notice-warning inline"><p><b><?php echo esc_html( mhp_num( count( $waiting ) ) ); ?>টি সেট ইমপোর্ট হয়েছে কিন্তু এখনো খসড়ায়, তাই সাইটে দেখা যাচ্ছে না:</b> <?php echo esc_html( implode( ', ', array_slice( $waiting, 0, 12 ) ) . ( count( $waiting ) > 12 ? ' …' : '' ) ); ?></p>
+				<p>রিভিউ শেষ হলে নিচের সারিতে "প্রকাশ করুন" চাপুন, অথবা একবারে সব প্রকাশ করুন। "যাচাই দরকার" চিহ্নিত প্রশ্নগুলো খসড়াতেই থাকবে; টেস্টে সেগুলো বাদে বাকি প্রশ্ন আসবে।</p>
+				<?php
+				if ( current_user_can( 'publish_mhp_items' ) ) {
+					$form( 'publish_all', '', 'রিভিউ-করা সব সেট প্রকাশ করুন', true, 'সব ইমপোর্ট-করা সেটের প্রশ্ন (যাচাই-চিহ্ন ছাড়া) ও টেস্ট প্রকাশ হবে। নিশ্চিত?' );
+				}
+				?>
+				</div>
+			<?php endif; ?>
 			<p><?php $form( 'import_all', '', 'সব সেট ইমপোর্ট করুন (খসড়া)', true ); ?>
 			<a class="button" href="<?php echo esc_url( admin_url( 'edit.php?post_type=mh_question&post_status=draft&mhp_review=1' ) ); ?>">যাচাই দরকার এমন প্রশ্ন</a></p>
 			<?php foreach ( $kinds as $kind => $kl ) : ?>
@@ -476,7 +509,7 @@ class MHP_Bank {
 							<td><b><?php echo esc_html( $p['title'] ); ?></b><?php echo ! empty( $p['date'] ) ? '<br><span class="description">পরীক্ষা: ' . esc_html( $p['date'] ) . '</span>' : ''; ?></td>
 							<td><?php echo esc_html( mhp_num( $p['count'] ) ); ?><?php echo $p['flagged'] ? '<br><span class="description">যাচাই দরকার ' . esc_html( mhp_num( $p['flagged'] ) ) . '</span>' : ''; ?><?php echo $p['skipped'] ? '<br><span class="description">ছবিনির্ভর/বাদ ' . esc_html( mhp_num( $p['skipped'] ) ) . '</span>' : ''; ?></td>
 							<td><?php echo esc_html( implode( ', ', (array) $p['tracks'] ) ); ?></td>
-							<td><?php echo $imported ? esc_html( sprintf( '%s / %s প্রকাশিত', mhp_num( $pub ), mhp_num( $all ) ) ) : '—'; ?></td>
+							<td><?php echo $imported ? ( $pub ? '' : '<b style="color:#b32d2e">খসড়া, সাইটে নেই</b><br>' ) . esc_html( sprintf( '%s / %s প্রকাশিত', mhp_num( $pub ), mhp_num( $all ) ) ) : '—'; ?></td>
 							<td>
 								<a class="button" target="_blank" href="<?php echo esc_url( admin_url( 'admin.php?page=mhp-bank&sheet=' . $slug ) ); ?>">রিভিউ শিট</a>
 								<?php
@@ -587,6 +620,46 @@ class MHP_Bank {
 				exit;
 			}
 			$msg = 'সব সেট খসড়া হিসেবে ইমপোর্ট হয়েছে।';
+		} elseif ( 'publish_all' === $op && current_user_can( 'publish_mhp_items' ) ) {
+			// Pack by pack, a few per request (a 200-question paper takes a while on shared hosting).
+			$done  = (array) get_option( 'mhp_bank_done', array() );
+			$start = time();
+			$prev  = 'POST' === $_SERVER['REQUEST_METHOD'] ? false : get_transient( 'mhp_bank_pub_' . get_current_user_id() ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+			$tot   = ( is_array( $prev ) ? $prev : array() ) + array(
+				'published' => 0,
+				'held'      => 0,
+				'tests'     => 0,
+			);
+			$left  = false;
+			foreach ( array_keys( $packs ) as $s ) {
+				if ( ! isset( $done[ $s ] ) || ( ! self::ids( $s, 'mh_test', 'draft' ) && ! self::unreviewed_drafts( $s ) ) ) {
+					continue;
+				}
+				if ( time() - $start > 20 ) {
+					$left = true;
+					break;
+				}
+				$r = self::publish( $s );
+				foreach ( $r as $k => $v ) {
+					$tot[ $k ] += $v;
+				}
+			}
+			if ( $left ) {
+				set_transient( 'mhp_bank_pub_' . get_current_user_id(), $tot, 600 );
+				wp_safe_redirect(
+					add_query_arg(
+						array(
+							'action'   => 'mhp_bank',
+							'op'       => 'publish_all',
+							'_wpnonce' => wp_create_nonce( 'mhp_bank' ),
+						),
+						admin_url( 'admin-post.php' )
+					)
+				);
+				exit;
+			}
+			delete_transient( 'mhp_bank_pub_' . get_current_user_id() );
+			$msg = sprintf( 'সব সেট প্রকাশ হয়েছে: %s প্রশ্ন ও %s টেস্ট; যাচাই-চিহ্নের জন্য খসড়ায় রইল %s।', mhp_num( $tot['published'] ), mhp_num( $tot['tests'] ), mhp_num( $tot['held'] ) );
 		} elseif ( 'publish' === $op && isset( $packs[ $slug ] ) && current_user_can( 'publish_mhp_items' ) ) {
 			$r   = self::publish( $slug );
 			$msg = sprintf( '%s: প্রকাশ %s প্রশ্ন ও %s টেস্ট; যাচাই-চিহ্নের জন্য খসড়ায় রইল %s।', $packs[ $slug ]['title'], mhp_num( $r['published'] ), mhp_num( $r['tests'] ), mhp_num( $r['held'] ) );

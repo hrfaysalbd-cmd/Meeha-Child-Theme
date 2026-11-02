@@ -37,15 +37,48 @@ $mhp_min  = max( 1, (int) mhp_opt( 'count_min', 20 ) );
 
 <?php if ( 'tests' === $tab ) : ?>
 	<section class="mc-sec mc-g mc-tight">
-		<?php if ( $tests ) : ?>
+		<?php
+		// Past papers (প্রশ্নব্যাংক) get their own block, newest exam first; model tests and practice sets follow.
+		$mhp_papers = array();
+		$mhp_rest   = array();
+		foreach ( (array) $tests as $mhp_t ) {
+			$mhp_pp = mhp_test_paper( $mhp_t['id'] );
+			if ( $mhp_pp ) {
+				$mhp_papers[] = array( $mhp_pp['rank'], $mhp_t );
+			} else {
+				$mhp_rest[] = $mhp_t;
+			}
+		}
+		usort(
+			$mhp_papers,
+			function ( $a, $b ) {
+				return $a[0] - $b[0];
+			}
+		);
+		?>
+		<?php if ( $mhp_papers ) : ?>
+			<div class="mc-sech"><h2>বিগত সালের প্রশ্ন</h2><span class="mc-xs mc-muted"><?php echo esc_html( mhp_num( count( $mhp_papers ) ) ); ?>টি পরীক্ষা · আসল সময় ও নেগেটিভ মার্কিং</span></div>
 			<div class="mc-col">
 				<?php
-				foreach ( $tests as $mhp_t ) {
+				foreach ( $mhp_papers as $mhp_pp ) {
+					echo mhp_test_row( $mhp_pp[1], $mhp_uid ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+				}
+				?>
+			</div>
+		<?php endif; ?>
+		<?php if ( $mhp_rest ) : ?>
+			<?php if ( $mhp_papers ) : ?>
+				<div class="mc-sech mc-mt"><h2>মডেল টেস্ট ও অনুশীলন</h2></div>
+			<?php endif; ?>
+			<div class="mc-col">
+				<?php
+				foreach ( $mhp_rest as $mhp_t ) {
 					echo mhp_test_row( $mhp_t, $mhp_uid ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 				}
 				?>
 			</div>
-		<?php else : ?>
+		<?php endif; ?>
+		<?php if ( ! $tests ) : ?>
 			<div class="mc-card mc-pad mc-center mc-muted">এই ট্র্যাকের টেস্ট শিগগির আসছে। ততক্ষণ <a class="mc-link" href="<?php echo esc_url( add_query_arg( 'tab', 'practice', $mhp_base ) ); ?>">অনুশীলনের প্রশ্ন</a> দেখুন।</div>
 		<?php endif; ?>
 	</section>

@@ -3,7 +3,7 @@
  * Plugin Name:       মিহা প্রস্তুতি (Meeha Prep)
  * Plugin URI:        https://meeha.news/
  * Description:       মিহা নিউজের শিক্ষা ও ক্যাম্পাস সেকশনের ইঞ্জিন: চাকরির বিজ্ঞপ্তি, প্রশ্ন ব্যাংক, মডেল/মক টেস্ট, দৈনিক কুইজ, লিডারবোর্ড, ইভেন্ট, পাঠ, শিক্ষার্থীর ড্যাশবোর্ড (পয়েন্ট, চ্যালেঞ্জ, ভুলের খাতা), কুইজ পুরস্কার, প্রকাশনা (ডিজিটাল ও প্রিন্ট), সিভি স্টুডিও, ক্যারিয়ার পরামর্শ, অর্ডার ও SSLCommerz পেমেন্ট। নকশা আসে "Meeha News" থিম থেকে।
- * Version:           1.3.0
+ * Version:           1.3.1
  * Requires at least: 6.4
  * Requires PHP:      7.4
  * Author:            Meeha News
@@ -16,7 +16,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'MHP_VERSION', '1.3.0' );
+define( 'MHP_VERSION', '1.3.1' );
 define( 'MHP_DB_VERSION', 5 );
 define( 'MHP_FILE', __FILE__ );
 define( 'MHP_DIR', untrailingslashit( plugin_dir_path( __FILE__ ) ) );
