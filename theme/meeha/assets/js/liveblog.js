@@ -1,4 +1,4 @@
-/* Meeha — live posts (2.5.0). Keeps an open live page current without a reload:
+/* Meeha — live posts (2.4.8). Keeps an open live page current without a reload:
  * polls meeha/v1/liveblog/{id} every ~30 s while the tab is visible (pauses when hidden, catches up on return),
  * inserts new updates (flash), replaces edited ones, drops deleted ones, refreshes the status / scoreboard / case
  * file, keeps "৫ মিনিট আগে" labels ticking, and offers filters, oldest-first order, older pages and per-update links. */

@@ -1,5 +1,5 @@
 /**
- * 1.10.0 — লাইভ: the live posts an editor assigned this correspondent to, and sending updates to one of them
+ * 1.11.0 — লাইভ: the live posts an editor assigned this correspondent to, and sending updates to one of them
  * from the spot. An update is published at once, or waits for the editor when the live post is set to
  * "যাচাই করে প্রকাশ". The correspondent can edit or delete only their own updates; everyone's updates are shown
  * so they know what is already covered. The page refreshes itself every 20 seconds.

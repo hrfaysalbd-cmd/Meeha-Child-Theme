@@ -5,7 +5,8 @@
  * thumbnails, authors) so rendering runs without N+1 queries.
  *
  * De-duplication (setting `dedupe`, default on): category sections (S1, S4, S5, S7 বিশ্ব, S8, S9) never repeat
- * a post shown in an earlier category section — in the configured order. Ranked lists (S2, S7 সর্বাধিক পঠিত,
+ * a post shown in an earlier category section — in the configured order, except that অনুসন্ধান (S4) always picks
+ * right after the lead package so its stories are never taken by a category section above it. Ranked lists (S2, S7 সর্বাধিক পঠিত,
  * S10), the একনজরে digest and the area widget are exempt.
  *
  * @package meeha
@@ -185,7 +186,18 @@ function meeha_home_compute_plan() {
 		}
 	};
 
-	foreach ( array_keys( meeha_home_enabled_sections() ) as $sid ) {
+	/*
+	 * অনুসন্ধান (S4) picks right after the lead package, wherever it sits on the page: investigative stories are
+	 * usually also filed under a news category (মাতৃভূমি, রাজনীতি …), and a category section placed above S4 would
+	 * otherwise take them and leave S4 empty — or showing only the parent "মিহা স্পেশাল" stories.
+	 */
+	$order = array_keys( meeha_home_enabled_sections() );
+	if ( in_array( 's4', $order, true ) ) {
+		$order = array_values( array_diff( $order, array( 's4' ) ) );
+		$at    = array_search( 's1', $order, true );
+		array_splice( $order, false === $at ? 0 : $at + 1, 0, array( 's4' ) );
+	}
+	foreach ( $order as $sid ) {
 		switch ( $sid ) {
 			case 's1':
 				$hero    = meeha_home_cats( 'hero_cats' );
@@ -256,10 +268,10 @@ function meeha_home_compute_plan() {
 
 			case 's4':
 				$cats  = meeha_home_cats( 'inv_cats' );
-				$a     = $cats ? meeha_home_newest( $cats, 8, $excl() ) : array();
+				$a     = $cats ? meeha_home_newest( $cats, 12, $excl() ) : array();
 				$b     = meeha_home_newest(
 					array(),
-					8,
+					12,
 					$excl(),
 					array(
 						'meta_key'   => '_meeha_investigation', // phpcs:ignore WordPress.DB.SlowDBQuery
@@ -268,10 +280,19 @@ function meeha_home_compute_plan() {
 				);
 				$ids   = array_values( array_unique( array_merge( $a, $b ) ) );
 				if ( $ids ) {
-					_prime_post_caches( $ids, false, false );
+					_prime_post_caches( $ids, true, true );
+					// Real investigations first (flagged, or filed under অনুসন্ধান / its sub-categories), newest first;
+					// other stories of a broader chosen category (e.g. মিহা স্পেশাল) only fill the empty places.
+					$inv = array();
+					foreach ( $ids as $id ) {
+						$inv[ $id ] = meeha_is_investigative( $id ) || meeha_in_category_tree( $id, array( 'search' ) ) ? 1 : 0;
+					}
 					usort(
 						$ids,
-						function ( $x, $y ) {
+						function ( $x, $y ) use ( $inv ) {
+							if ( $inv[ $x ] !== $inv[ $y ] ) {
+								return $inv[ $y ] - $inv[ $x ];
+							}
 							return strcmp( get_post( $y )->post_date_gmt, get_post( $x )->post_date_gmt );
 						}
 					);

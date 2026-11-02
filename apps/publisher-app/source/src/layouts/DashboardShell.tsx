@@ -20,6 +20,7 @@ import {
   IconQuote,
   IconBroadcast,
   IconPhoto,
+  IconMapStats,
   IconWalletCoins,
   IconX,
 } from '../components/Icon'
@@ -45,6 +46,7 @@ const NAV: NavItem[] = [
   { to: '/app/live', label: 'লাইভ', icon: IconBroadcast },
   { to: '/app/quotes', label: 'উক্তি', icon: IconQuote },
   { to: '/app/photocard', label: 'ফটোকার্ড', icon: IconPhoto },
+  { to: '/app/deshchitro', label: 'দেশচিত্র', icon: IconMapStats },
   { to: '/app/correspondents', label: 'সংবাদদাতা', icon: IconUsers },
   { to: '/app/applications', label: 'আবেদন', icon: IconFileCheck, count: 'applications' },
   { to: '/app/ad-clients', label: 'বিজ্ঞাপনদাতা', icon: IconBuildingStore },

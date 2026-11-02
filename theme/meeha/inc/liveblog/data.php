@@ -1,6 +1,6 @@
 <?php
 /**
- * Live posts (2.5.0) — data model.
+ * Live posts (2.4.8) — data model.
  *
  * A live post is an ordinary `post` with a live configuration in the `_meeha_live` meta. Its timestamped updates are
  * a hidden child post type, `meeha_live_entry` (post_parent = the live post), so several people can add updates at

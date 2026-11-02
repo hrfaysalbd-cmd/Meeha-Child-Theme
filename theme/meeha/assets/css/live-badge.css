@@ -1,5 +1,5 @@
 /* =====================================================================
-   Live badge (2.5.0) — "● লাইভ" on live posts: story cards, article labels, the live page itself.
+   Live badge (2.4.8) — "● লাইভ" on live posts: story cards, article labels, the live page itself.
    Tiny, so it rides in the core CSS (cards appear everywhere).
    ===================================================================== */
 .m-lb-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 8px; border-radius: var(--m-r-pill); background: #CC2A1F; color: #fff; font: 700 var(--m-fs-xs)/1.4 var(--m-font-body); letter-spacing: .01em; white-space: nowrap; vertical-align: middle; }

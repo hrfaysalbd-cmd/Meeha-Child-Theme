@@ -1104,7 +1104,7 @@ export const AnalyticsApi = {
     ),
 }
 
-// ---- 1.10.0: live posts the correspondent is assigned to ----
+// ---- 1.11.0: live posts the correspondent is assigned to ----
 
 export type LiveKind = 'update' | 'key' | 'breaking' | 'statement' | 'score' | 'document' | 'evidence' | 'milestone'
 export interface LivePostRow {

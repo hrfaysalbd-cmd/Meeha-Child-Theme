@@ -1,6 +1,6 @@
 <?php
 /**
- * Live posts module (2.5.0): লাইভ ইভেন্ট and অপরাধ তদন্ত লাইভ — one post, timestamped updates that reach open pages
+ * Live posts module (2.4.8): লাইভ ইভেন্ট and অপরাধ তদন্ত লাইভ — one post, timestamped updates that reach open pages
  * by themselves. See data.php for the model; the publisher / correspondent apps write through newsroom-os.
  *
  * @package meeha

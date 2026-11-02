@@ -1,0 +1,10 @@
+{
+	"_comment": "Live posts (2.4.8, inc/liveblog): `liveblog` loads only on a live post's page; the small live badge rides in `core` because story cards show it everywhere.",
+	"core": {
+		"css": [ "assets/css/live-badge.css" ]
+	},
+	"liveblog": {
+		"css": [ "assets/css/liveblog.css" ],
+		"js": [ "assets/js/liveblog.js" ]
+	}
+}

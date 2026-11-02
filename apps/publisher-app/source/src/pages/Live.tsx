@@ -1,5 +1,5 @@
 /**
- * 1.10.0 — লাইভ: every live post (লাইভ ইভেন্ট / অপরাধ তদন্ত লাইভ), running ones first, and starting a new one —
+ * 1.11.0 — লাইভ: every live post (লাইভ ইভেন্ট / অপরাধ তদন্ত লাইভ), running ones first, and starting a new one —
  * either a brand-new post (title, category, short intro) or an already-written post switched to live.
  * Each live post opens in its console (LiveConsole) where updates are added minute by minute.
  */

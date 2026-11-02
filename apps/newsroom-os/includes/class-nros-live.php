@@ -1,6 +1,6 @@
 <?php
 /**
- * NROS_Live — 1.10.0: live posts (লাইভ ইভেন্ট / অপরাধ তদন্ত লাইভ) in the publisher and correspondent apps.
+ * NROS_Live — 1.11.0: live posts (লাইভ ইভেন্ট / অপরাধ তদন্ত লাইভ) in the publisher and correspondent apps.
  *
  * The model, sanitising and rendering live in the Meeha News theme (inc/liveblog): the live configuration is the
  * `_meeha_live` meta of an ordinary post, every timestamped update is a hidden `meeha_live_entry` child post. This
@@ -74,7 +74,7 @@ class NROS_Live {
 		if ( function_exists( 'meeha_lb_save_config' ) && post_type_exists( 'meeha_live_entry' ) ) {
 			return null;
 		}
-		return new WP_Error( 'nros_live_unavailable', 'লাইভ পোস্টের জন্য Meeha News থিম ২.৪.৬ বা নতুন সংস্করণ লাগবে।', array( 'status' => 501 ) );
+		return new WP_Error( 'nros_live_unavailable', 'লাইভ পোস্টের জন্য Meeha News থিম ২.৪.৮ বা নতুন সংস্করণ লাগবে।', array( 'status' => 501 ) );
 	}
 
 	/**

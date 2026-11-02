@@ -11,7 +11,7 @@
 defined( 'ABSPATH' ) || exit;
 
 if ( ! defined( 'MEEHA_VERSION' ) ) {
-	define( 'MEEHA_VERSION', '2.4.6' );
+	define( 'MEEHA_VERSION', '2.4.8' );
 }
 if ( ! defined( 'MEEHA_DIR' ) ) {
 	define( 'MEEHA_DIR', untrailingslashit( get_template_directory() ) );
@@ -62,6 +62,7 @@ foreach ( array(
 	'studio',
 	'campus',
 	'push',
+	'deshchitro',
 ) as $meeha_module ) {
 	$meeha_module_file = MEEHA_DIR . '/inc/' . $meeha_module . '/bootstrap.php';
 	if ( ! is_readable( $meeha_module_file ) ) {

@@ -1,5 +1,5 @@
 /**
- * 1.10.0 — the live console for one live post. Left: write an update (kind, optional headline, text with photos,
+ * 1.11.0 — the live console for one live post. Left: write an update (kind, optional headline, text with photos,
  * source for documents / evidence, pin) and the running feed, where every update can be edited, pinned, approved
  * (when it came from a correspondent and needs checking) or deleted. Right (staff): live state, scoreboard and key
  * figures for a live event, or the whole case file for a crime-investigation live, plus the correspondents who
