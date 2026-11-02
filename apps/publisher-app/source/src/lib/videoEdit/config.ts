@@ -22,12 +22,12 @@ export interface PlacedSound {
 
 export type FormatId = 'source' | '16:9' | '9:16' | '1:1' | '4:5'
 export type FitMode = 'blur' | 'cover' | 'black'
-export type FrameId = 'none' | 'breaking' | 'news' | 'live' | 'special' | 'wave' | 'minimal' | 'exclusive' | 'sports' | 'election' | 'alert' | 'glass' | 'campus' | 'showbiz' | 'cinema' | 'music'
+export type FrameId = 'none' | 'breaking' | 'news' | 'live' | 'special' | 'wave' | 'minimal' | 'exclusive' | 'sports' | 'election' | 'alert' | 'glass' | 'campus' | 'showbiz' | 'cinema' | 'music' | 'nil' | 'tv' | 'ujjol' | 'investigation' | 'interview' | 'economy' | 'national'
 /** How big the frame bands, their text and the captions are (auto = bigger for reels). */
 export type FrameSize = 'auto' | 's' | 'm' | 'l' | 'xl'
 export type FooterMode = 'none' | 'ticker' | 'ad-text' | 'ad-image' | 'brand'
-export type IntroId = 'none' | 'meeha-logo' | 'breaking' | 'headline' | 'special' | 'swipe' | 'live' | 'countdown' | 'custom'
-export type OutroId = 'none' | 'meeha-social' | 'thanks' | 'follow' | 'custom'
+export type IntroId = 'none' | 'meeha-logo' | 'breaking' | 'headline' | 'special' | 'swipe' | 'live' | 'countdown' | 'nil-reveal' | 'tv-open' | 'investigation' | 'sports' | 'showbiz' | 'custom'
+export type OutroId = 'none' | 'meeha-social' | 'thanks' | 'follow' | 'nil-end' | 'endscreen' | 'credits' | 'custom'
 export type LogoStyle = 'reveal' | 'spin' | 'pulse' | 'static'
 export type Corner = 'tr' | 'tl' | 'br' | 'bl'
 export type Quality = '720' | '1080'
@@ -314,31 +314,52 @@ export const DEFAULT_CONFIG: EditConfig = {
 
 // ---- catalogue ----
 
+/** Round 26: frames, intros and outros sit in collapsible sections, like the photocard designs. */
+export type DesignGroup = 'nil' | 'news' | 'breaking' | 'special' | 'topic' | 'brand' | 'clip'
+export const DESIGN_GROUPS: { id: DesignGroup; name: string; hint: string }[] = [
+  { id: 'nil', name: 'মিহা নীল (নতুন)', hint: 'ফটোকার্ডের মতো নীল-সোনালি নকশা' },
+  { id: 'news', name: 'সংবাদ', hint: 'প্রতিদিনের খবর' },
+  { id: 'breaking', name: 'ব্রেকিং ও সরাসরি', hint: 'জরুরি, লাইভ, এক্সক্লুসিভ' },
+  { id: 'special', name: 'বিশেষ ও অনুসন্ধান', hint: 'অনুসন্ধান, সাক্ষাৎকার, অর্থনীতি, নির্বাচন' },
+  { id: 'topic', name: 'খেলা, বিনোদন ও দেশ', hint: 'খেলা, শোবিজ, সিনেমা, ক্যাম্পাস, জাতীয়' },
+  { id: 'brand', name: 'মিহা ব্র্যান্ড', hint: 'লোগো ও সোশ্যাল' },
+  { id: 'clip', name: 'নিজের ভিডিও', hint: 'গ্যালারি থেকে' },
+]
+
 export interface FrameInfo {
   id: Exclude<FrameId, 'none'>
   name: string
   hint: string
+  group: DesignGroup
+  isNew?: boolean
   /** Default footer label for the ticker. */
   label: string
   swatch: [string, string]
 }
 
 export const FRAMES: FrameInfo[] = [
-  { id: 'breaking', name: 'ব্রেকিং নিউজ', hint: 'লাল, জ্বলজ্বলে ব্যাজ ও চলমান স্ক্রল', label: 'সর্বশেষ', swatch: ['#C8102E', '#111827'] },
-  { id: 'news', name: 'সংবাদ', hint: 'মিহা নীল, ক্যাটেগরি চিপ ও তারিখ', label: 'শিরোনাম', swatch: ['#025AB2', '#0B2746'] },
-  { id: 'live', name: 'সরাসরি', hint: 'জ্বলা-নেভা লাল বিন্দু, গাঢ় পটভূমি', label: 'সরাসরি', swatch: ['#0F172A', '#DC2626'] },
-  { id: 'special', name: 'বিশেষ প্রতিবেদন', hint: 'গাঢ় নীল ও সোনালি রেখা', label: 'বিশেষ', swatch: ['#0B1220', '#E8B33A'] },
-  { id: 'wave', name: 'মিহা ঢেউ', hint: 'চলমান ঢেউ — থিমের ঢেউ ডিজাইন', label: 'শিরোনাম', swatch: ['#025AB2', '#CC2A1F'] },
-  { id: 'exclusive', name: 'এক্সক্লুসিভ', hint: 'কালো ও হলুদ টেপ', label: 'এক্সক্লুসিভ', swatch: ['#0A0A0A', '#FACC15'] },
-  { id: 'minimal', name: 'মিনিমাল সাদা', hint: 'সাদা পটভূমি, পরিষ্কার লেখা', label: 'শিরোনাম', swatch: ['#FFFFFF', '#025AB2'] },
-  { id: 'sports', name: 'খেলা', hint: 'সবুজ মাঠ, দ্রুতগতির রেখা', label: 'খেলা', swatch: ['#065F46', '#A3E635'] },
-  { id: 'election', name: 'নির্বাচন', hint: 'গাঢ় বেগুনি ও কমলা, তারার ঝিলিক', label: 'নির্বাচন', swatch: ['#1E1B4B', '#F59E0B'] },
-  { id: 'alert', name: 'জরুরি সতর্কতা', hint: 'কালো-লাল, জ্বলা-নেভা হলুদ সতর্ক রেখা', label: 'সতর্কতা', swatch: ['#111111', '#F59E0B'] },
-  { id: 'glass', name: 'আধুনিক কাচ', hint: 'ভিডিওর ঝাপসা কাচের মতো ব্যাকগ্রাউন্ড', label: 'শিরোনাম', swatch: ['#1F2937', '#38BDF8'] },
-  { id: 'campus', name: 'ক্যাম্পাস', hint: 'উজ্জ্বল সাদা-নীল, কমলা ফিতা', label: 'ক্যাম্পাস', swatch: ['#EFF6FF', '#F97316'] },
-  { id: 'showbiz', name: 'বিনোদন', hint: 'গোলাপি-বেগুনি, ঝিকমিক তারা ও আলো', label: 'বিনোদন', swatch: ['#BE185D', '#FDE047'] },
-  { id: 'cinema', name: 'সিনেমা', hint: 'কালো পর্দা, সোনালি স্পটলাইট ও চলমান ফিল্ম রিল', label: 'সিনেমা', swatch: ['#0A0A0A', '#FACC15'] },
-  { id: 'music', name: 'গান-বাজনা', hint: 'নীল-বেগুনি, তালে তালে ইকুয়ালাইজার', label: 'মিউজিক', swatch: ['#312E81', '#22D3EE'] },
+  { id: 'nil', name: 'মিহা নীল', hint: 'নীল গ্রেডিয়েন্ট, সোনালি রেখা ও চিপ', label: 'শিরোনাম', swatch: ['#0B2A6B', '#FFC20E'], group: 'nil', isNew: true },
+  { id: 'tv', name: 'টিভি নিউজ', hint: 'চ্যানেলের মতো সোনালি স্ল্যাব, স্ক্যান লাইন', label: 'সংবাদ', swatch: ['#1546B8', '#FFC20E'], group: 'nil', isNew: true },
+  { id: 'ujjol', name: 'উজ্জ্বল নীল', hint: 'উজ্জ্বল নীল, সোনালি চলমান রেখা ও ফুটার', label: 'শিরোনাম', swatch: ['#2E6BFF', '#FFC20E'], group: 'nil', isNew: true },
+  { id: 'investigation', name: 'অনুসন্ধান', hint: 'গাঢ় নীল-কালো, নথির গ্রিড ও স্ক্যানিং আলো', label: 'অনুসন্ধান', swatch: ['#05070D', '#FFC20E'], group: 'special', isNew: true },
+  { id: 'interview', name: 'সাক্ষাৎকার', hint: 'বেগুনি-নীল, বড় উদ্ধৃতি চিহ্ন', label: 'সাক্ষাৎকার', swatch: ['#3730A3', '#FFC20E'], group: 'special', isNew: true },
+  { id: 'economy', name: 'অর্থনীতি', hint: 'টিল সবুজ, চলমান বাজার-রেখা', label: 'বাজার', swatch: ['#0F766E', '#FFC20E'], group: 'special', isNew: true },
+  { id: 'national', name: 'জাতীয়', hint: 'সবুজ ও লাল সূর্য — জাতীয় দিবস, দেশের খবর', label: 'জাতীয়', swatch: ['#006A4E', '#F42A41'], group: 'topic', isNew: true },
+  { id: 'breaking', name: 'ব্রেকিং নিউজ', hint: 'লাল, জ্বলজ্বলে ব্যাজ ও চলমান স্ক্রল', label: 'সর্বশেষ', swatch: ['#C8102E', '#111827'], group: 'breaking' },
+  { id: 'news', name: 'সংবাদ', hint: 'মিহা নীল, ক্যাটেগরি চিপ ও তারিখ', label: 'শিরোনাম', swatch: ['#025AB2', '#0B2746'], group: 'news' },
+  { id: 'live', name: 'সরাসরি', hint: 'জ্বলা-নেভা লাল বিন্দু, গাঢ় পটভূমি', label: 'সরাসরি', swatch: ['#0F172A', '#DC2626'], group: 'breaking' },
+  { id: 'special', name: 'বিশেষ প্রতিবেদন', hint: 'গাঢ় নীল ও সোনালি রেখা', label: 'বিশেষ', swatch: ['#0B1220', '#E8B33A'], group: 'special' },
+  { id: 'wave', name: 'মিহা ঢেউ', hint: 'চলমান ঢেউ — থিমের ঢেউ ডিজাইন', label: 'শিরোনাম', swatch: ['#025AB2', '#CC2A1F'], group: 'news' },
+  { id: 'exclusive', name: 'এক্সক্লুসিভ', hint: 'কালো ও হলুদ টেপ', label: 'এক্সক্লুসিভ', swatch: ['#0A0A0A', '#FACC15'], group: 'breaking' },
+  { id: 'minimal', name: 'মিনিমাল সাদা', hint: 'সাদা পটভূমি, পরিষ্কার লেখা', label: 'শিরোনাম', swatch: ['#FFFFFF', '#025AB2'], group: 'news' },
+  { id: 'sports', name: 'খেলা', hint: 'সবুজ মাঠ, দ্রুতগতির রেখা', label: 'খেলা', swatch: ['#065F46', '#A3E635'], group: 'topic' },
+  { id: 'election', name: 'নির্বাচন', hint: 'গাঢ় বেগুনি ও কমলা, তারার ঝিলিক', label: 'নির্বাচন', swatch: ['#1E1B4B', '#F59E0B'], group: 'special' },
+  { id: 'alert', name: 'জরুরি সতর্কতা', hint: 'কালো-লাল, জ্বলা-নেভা হলুদ সতর্ক রেখা', label: 'সতর্কতা', swatch: ['#111111', '#F59E0B'], group: 'breaking' },
+  { id: 'glass', name: 'আধুনিক কাচ', hint: 'ভিডিওর ঝাপসা কাচের মতো ব্যাকগ্রাউন্ড', label: 'শিরোনাম', swatch: ['#1F2937', '#38BDF8'], group: 'news' },
+  { id: 'campus', name: 'ক্যাম্পাস', hint: 'উজ্জ্বল সাদা-নীল, কমলা ফিতা', label: 'ক্যাম্পাস', swatch: ['#EFF6FF', '#F97316'], group: 'topic' },
+  { id: 'showbiz', name: 'বিনোদন', hint: 'গোলাপি-বেগুনি, ঝিকমিক তারা ও আলো', label: 'বিনোদন', swatch: ['#BE185D', '#FDE047'], group: 'topic' },
+  { id: 'cinema', name: 'সিনেমা', hint: 'কালো পর্দা, সোনালি স্পটলাইট ও চলমান ফিল্ম রিল', label: 'সিনেমা', swatch: ['#0A0A0A', '#FACC15'], group: 'topic' },
+  { id: 'music', name: 'গান-বাজনা', hint: 'নীল-বেগুনি, তালে তালে ইকুয়ালাইজার', label: 'মিউজিক', swatch: ['#312E81', '#22D3EE'], group: 'topic' },
 ]
 
 export const FRAME_SIZES: { id: FrameSize; name: string; k: number }[] = [
@@ -363,24 +384,34 @@ export interface SceneInfo<T extends string> {
   hint: string
   /** Fixed length for drawn scenes; clips use the file's length. */
   duration?: number
+  group: DesignGroup
+  isNew?: boolean
 }
 
 export const INTROS: SceneInfo<IntroId>[] = [
-  { id: 'meeha-logo', name: 'মিহা লোগো এনিমেশন', hint: 'আপনার দেওয়া লোগো এনিমেশন (৩.৫ সেকেন্ড)' },
-  { id: 'breaking', name: 'ব্রেকিং নিউজ', hint: 'লাল ফ্ল্যাশ, ঝাঁকুনি ও শিরোনাম', duration: 3 },
-  { id: 'headline', name: 'শিরোনাম কার্ড', hint: 'লোগো, ক্যাটেগরি ও শিরোনাম লাইন ধরে', duration: 4 },
-  { id: 'special', name: 'বিশেষ প্রতিবেদন', hint: 'সোনালি রেখা ও শিরোনাম', duration: 3.5 },
-  { id: 'swipe', name: 'রঙিন সোয়াইপ', hint: 'রঙের প্যানেল সরে লোগো ও শিরোনাম', duration: 3.2 },
-  { id: 'live', name: 'সরাসরি', hint: 'রাডারের মতো লাল ঢেউ, “সরাসরি”', duration: 3 },
-  { id: 'countdown', name: 'কাউন্টডাউন', hint: '৩ · ২ · ১ — তারপর শিরোনাম', duration: 3.6 },
-  { id: 'custom', name: 'গ্যালারি থেকে', hint: 'নিজের ইন্ট্রো ভিডিও' },
+  { id: 'nil-reveal', name: 'মিহা নীল রিভিল', hint: 'সোনালি রেখা থেকে লোগো, তারপর শিরোনাম', duration: 3.6, group: 'nil', isNew: true },
+  { id: 'tv-open', name: 'টিভি নিউজ ওপেনিং', hint: 'ঘুরন্ত বলয়, আলোর রেখা, লোয়ার-থার্ডে শিরোনাম', duration: 4, group: 'nil', isNew: true },
+  { id: 'meeha-logo', name: 'মিহা লোগো এনিমেশন', hint: 'আপনার দেওয়া লোগো এনিমেশন (৩.৫ সেকেন্ড)', group: 'brand' },
+  { id: 'headline', name: 'শিরোনাম কার্ড', hint: 'লোগো, ক্যাটেগরি ও শিরোনাম লাইন ধরে', duration: 4, group: 'news' },
+  { id: 'swipe', name: 'রঙিন সোয়াইপ', hint: 'রঙের প্যানেল সরে লোগো ও শিরোনাম', duration: 3.2, group: 'news' },
+  { id: 'countdown', name: 'কাউন্টডাউন', hint: '৩ · ২ · ১ — তারপর শিরোনাম', duration: 3.6, group: 'news' },
+  { id: 'breaking', name: 'ব্রেকিং নিউজ', hint: 'লাল ফ্ল্যাশ, ঝাঁকুনি ও শিরোনাম', duration: 3, group: 'breaking' },
+  { id: 'live', name: 'সরাসরি', hint: 'রাডারের মতো লাল ঢেউ, “সরাসরি”', duration: 3, group: 'breaking' },
+  { id: 'special', name: 'বিশেষ প্রতিবেদন', hint: 'সোনালি রেখা ও শিরোনাম', duration: 3.5, group: 'special' },
+  { id: 'investigation', name: 'অনুসন্ধান', hint: 'অন্ধকার নথির গ্রিড, স্পটলাইট, টাইপ হওয়া শিরোনাম', duration: 4, group: 'special', isNew: true },
+  { id: 'sports', name: 'খেলা', hint: 'দৌড়ানো রেখা, ঝাঁপিয়ে আসা লেখা', duration: 3, group: 'topic', isNew: true },
+  { id: 'showbiz', name: 'বিনোদন', hint: 'গোলাপি-বেগুনি, ঝিকমিক তারা', duration: 3.2, group: 'topic', isNew: true },
+  { id: 'custom', name: 'গ্যালারি থেকে', hint: 'নিজের ইন্ট্রো ভিডিও', group: 'clip' },
 ]
 
 export const OUTROS: SceneInfo<OutroId>[] = [
-  { id: 'meeha-social', name: 'মিহা সোশ্যাল আউট্রো', hint: 'আপনার দেওয়া আউট্রো — সোশ্যাল লিংকসহ (৮ সেকেন্ড)' },
-  { id: 'thanks', name: 'ধন্যবাদ কার্ড', hint: 'লোগো, “দেখার জন্য ধন্যবাদ” ও ওয়েবসাইট', duration: 4 },
-  { id: 'follow', name: 'ফলো করুন', hint: 'লাইক · শেয়ার · ফলো বোতামে ট্যাপের এনিমেশন', duration: 4.5 },
-  { id: 'custom', name: 'গ্যালারি থেকে', hint: 'নিজের আউট্রো ভিডিও' },
+  { id: 'nil-end', name: 'মিহা নীল এন্ড কার্ড', hint: 'লোগো, “ফলো করুন”, সোশ্যাল আইকন ও ঠিকানা', duration: 5, group: 'nil', isNew: true },
+  { id: 'endscreen', name: 'ইউটিউব এন্ড স্ক্রিন', hint: 'ইউটিউবের “পরের ভিডিও” ও সাবস্ক্রাইবের জায়গা রেখে (২০ সে. পর্যন্ত লাগে না, ৮ সে.)', duration: 8, group: 'nil', isNew: true },
+  { id: 'credits', name: 'ক্রেডিট', hint: 'প্রতিবেদক, সম্পাদনা ও তারিখ', duration: 4.5, group: 'nil', isNew: true },
+  { id: 'meeha-social', name: 'মিহা সোশ্যাল আউট্রো', hint: 'আপনার দেওয়া আউট্রো — সোশ্যাল লিংকসহ (৮ সেকেন্ড)', group: 'brand' },
+  { id: 'thanks', name: 'ধন্যবাদ কার্ড', hint: 'লোগো, “দেখার জন্য ধন্যবাদ” ও ওয়েবসাইট', duration: 4, group: 'news' },
+  { id: 'follow', name: 'ফলো করুন', hint: 'লাইক · শেয়ার · ফলো বোতামে ট্যাপের এনিমেশন', duration: 4.5, group: 'news' },
+  { id: 'custom', name: 'গ্যালারি থেকে', hint: 'নিজের আউট্রো ভিডিও', group: 'clip' },
 ]
 
 export const LOGO_STYLES: { id: LogoStyle; name: string; hint: string }[] = [

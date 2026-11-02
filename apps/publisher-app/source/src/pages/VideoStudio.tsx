@@ -402,6 +402,7 @@ export default function VideoStudio() {
       dateText: bnDate(),
       website: kit?.website || 'meeha.news',
       house,
+      reporter: loaded.video.author?.name,
       scratch,
     }
   }, [loaded, L, tl, cfg, adPic, kit, postTitle, scratch, house])

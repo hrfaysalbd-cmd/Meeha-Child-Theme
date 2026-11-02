@@ -228,6 +228,7 @@ export function ChoiceCard({
   hint,
   preview,
   testId,
+  badge,
 }: {
   active: boolean
   onClick: () => void
@@ -235,6 +236,8 @@ export function ChoiceCard({
   hint?: string
   preview?: ReactNode
   testId?: string
+  /** Small tag on the card, e.g. "নতুন". */
+  badge?: string
 }) {
   return (
     <button
@@ -248,7 +251,10 @@ export function ChoiceCard({
     >
       {preview}
       <span className="block px-2.5 py-2">
-        <span className={`block text-[12.5px] font-semibold ${active ? 'text-brand-700' : 'text-neutral-800'}`}>{title}</span>
+        <span className={`flex items-center gap-1.5 text-[12.5px] font-semibold ${active ? 'text-brand-700' : 'text-neutral-800'}`}>
+          <span className="min-w-0 truncate">{title}</span>
+          {badge && <span className="shrink-0 text-[10px] font-bold text-amber-800 bg-amber-100 rounded px-1 py-px">{badge}</span>}
+        </span>
         {hint && <span className="block text-[11px] text-neutral-400 leading-snug mt-0.5">{hint}</span>}
       </span>
     </button>

@@ -16,7 +16,7 @@ import { FRAMES, lookFilter, reframeAt, type BlurBox, type Caption, type EditCon
 import { drawFreezeOverlay, drawSticker, drawTransition, transitionAt, transitionTimes } from './overlays'
 import { BRAND, FONT_BODY, FONT_DISPLAY, type LogoAsset } from './assets'
 import type { SfxId } from './sfxlib'
-import { EMPTY_HOUSE, drawHouseAd, type HouseAdId, type HouseInfo } from './houseads'
+import { EMPTY_HOUSE, drawHouseAd, netIcon, type HouseAdId, type HouseInfo } from './houseads'
 import { clamp, ease, fillRoundRect, fitText, lerp, rnd, win, type Ctx } from './motion'
 import { pipActive, segSource, segSourceEnd, type Layout, type Rect, type SceneId, type Segment, type Timeline } from './timeline'
 
@@ -42,6 +42,8 @@ export interface DrawEnv {
   website: string
   /** Round 26: what the Meeha house ads print (social links, campus). */
   house?: HouseInfo
+  /** Round 26: the reporter's name (credits outro). */
+  reporter?: string
   scratch: { blur: HTMLCanvasElement | OffscreenCanvas; shine: HTMLCanvasElement | OffscreenCanvas; box: HTMLCanvasElement | OffscreenCanvas }
 }
 
@@ -255,6 +257,9 @@ interface Theme {
   /** Thin line between header and video. */
   edge?: string
 }
+
+/** Round 26: the agreed blue brand look (same as the photocards). */
+const NIL = { navy: '#0B2A6B', royal: '#1546B8', amber: '#FFC20E' }
 
 function linear(ctx: Ctx, r: Rect, stops: [number, string][], angle = 0) {
   const cx = r.x + r.w / 2
@@ -894,6 +899,275 @@ const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
     accent: '#22D3EE',
     edge: '#E879F9',
   },
+  // ---------------- round 26: the blue "NIL" brand family and topic frames ----------------
+  nil: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, NIL.navy],
+        [1, NIL.royal],
+      ], -0.3)
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      // soft circles on the right, like the photocards
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(r.x, r.y, r.w, r.h)
+      ctx.clip()
+      ctx.fillStyle = 'rgba(255,255,255,0.06)'
+      ctx.beginPath()
+      ctx.arc(r.x + r.w * 0.92, r.y + r.h * 0.1, r.h * 0.9, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.beginPath()
+      ctx.arc(r.x + r.w * 0.78 + Math.sin(t * 0.5) * 10 * s, r.y + r.h * 1.1, r.h * 0.55, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+      sweep(ctx, r, t, 7, 0.1)
+    },
+    footerBg: (ctx, r, _t, s) => {
+      ctx.fillStyle = '#FFFFFF'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.fillStyle = NIL.amber
+      ctx.fillRect(r.x, r.y, r.w, 5 * s)
+    },
+    title: '#FFFFFF',
+    date: '#C7D6F5',
+    kickerBg: NIL.amber,
+    kickerFg: '#1B1400',
+    labelBg: NIL.navy,
+    labelFg: NIL.amber,
+    tickerFg: NIL.navy,
+    accent: NIL.amber,
+    edge: NIL.amber,
+  },
+  tv: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, NIL.royal],
+        [1, NIL.navy],
+      ], Math.PI / 2)
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      // an amber slab cut at an angle on the left, like a broadcast graphic
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(r.x, r.y, r.w, r.h)
+      ctx.clip()
+      ctx.fillStyle = NIL.amber
+      ctx.beginPath()
+      ctx.moveTo(r.x, r.y)
+      ctx.lineTo(r.x + 22 * s, r.y)
+      ctx.lineTo(r.x + 22 * s - r.h * 0.25, r.y + r.h)
+      ctx.lineTo(r.x, r.y + r.h)
+      ctx.closePath()
+      ctx.fill()
+      // thin moving scan lines
+      ctx.fillStyle = 'rgba(255,255,255,0.05)'
+      for (let y = r.y + ((t * 30 * s) % (8 * s)); y < r.y + r.h; y += 8 * s) ctx.fillRect(r.x, y, r.w, 2 * s)
+      ctx.restore()
+      sweep(ctx, r, t, 6, 0.12)
+    },
+    footerBg: (ctx, r, _t, s) => {
+      ctx.fillStyle = NIL.navy
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.fillStyle = 'rgba(255,255,255,0.12)'
+      ctx.fillRect(r.x, r.y, r.w, 2 * s)
+    },
+    title: '#FFFFFF',
+    date: '#FFE08A',
+    kickerBg: '#FFFFFF',
+    kickerFg: NIL.navy,
+    badge: { text: 'মিহা নিউজ', bg: '#FFFFFF', fg: NIL.royal, kind: 'pulse' },
+    labelBg: NIL.amber,
+    labelFg: '#1B1400',
+    tickerFg: '#FFFFFF',
+    accent: NIL.amber,
+    edge: '#FFFFFF',
+  },
+  ujjol: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#1546B8'],
+        [1, '#2E6BFF'],
+      ])
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      stripes(ctx, r, t, s, 'rgba(255,194,14,0.16)', 120, 34, 30)
+      sweep(ctx, r, t, 5, 0.16)
+    },
+    footerBg: (ctx, r) => {
+      ctx.fillStyle = NIL.amber
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+    },
+    title: '#FFFFFF',
+    date: '#FFE08A',
+    kickerBg: NIL.amber,
+    kickerFg: '#1B1400',
+    badge: { text: 'সর্বশেষ', bg: NIL.amber, fg: '#1B1400', kind: 'tape' },
+    labelBg: NIL.navy,
+    labelFg: '#FFFFFF',
+    tickerFg: '#1B1400',
+    accent: NIL.amber,
+    edge: NIL.amber,
+  },
+  investigation: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#05070D'],
+        [1, '#0B1A3A'],
+      ])
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(r.x, r.y, r.w, r.h)
+      ctx.clip()
+      // case-file grid and a slow scanning light
+      ctx.strokeStyle = 'rgba(255,194,14,0.07)'
+      ctx.lineWidth = 1.5 * s
+      for (let x = r.x; x < r.x + r.w; x += 40 * s) {
+        ctx.beginPath()
+        ctx.moveTo(x, r.y)
+        ctx.lineTo(x, r.y + r.h)
+        ctx.stroke()
+      }
+      for (let y = r.y; y < r.y + r.h; y += 40 * s) {
+        ctx.beginPath()
+        ctx.moveTo(r.x, y)
+        ctx.lineTo(r.x + r.w, y)
+        ctx.stroke()
+      }
+      const sx = r.x + ((t * 0.25) % 1) * r.w * 1.3 - r.w * 0.15
+      const g = ctx.createLinearGradient(sx - 80 * s, 0, sx + 80 * s, 0)
+      g.addColorStop(0, 'rgba(255,194,14,0)')
+      g.addColorStop(0.5, 'rgba(255,194,14,0.12)')
+      g.addColorStop(1, 'rgba(255,194,14,0)')
+      ctx.fillStyle = g
+      ctx.fillRect(sx - 80 * s, r.y, 160 * s, r.h)
+      ctx.restore()
+    },
+    footerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = '#05070D'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      stripes(ctx, { x: r.x, y: r.y, w: r.w, h: 6 * s }, t, s, NIL.amber, 26, 9, 20)
+    },
+    title: '#FFFFFF',
+    date: '#B8C3DA',
+    kickerBg: 'rgba(255,194,14,0.16)',
+    kickerFg: NIL.amber,
+    badge: { text: 'অনুসন্ধান', bg: NIL.amber, fg: NIL.amber, kind: 'gold' },
+    labelBg: NIL.amber,
+    labelFg: '#05070D',
+    tickerFg: '#E5E7EB',
+    accent: NIL.amber,
+    edge: NIL.amber,
+  },
+  interview: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#1E1B4B'],
+        [1, '#3730A3'],
+      ], -0.25)
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      // a big soft quotation mark on the right
+      ctx.save()
+      ctx.globalAlpha = 0.12 + 0.03 * Math.sin(t)
+      ctx.fillStyle = '#FFFFFF'
+      ctx.font = `800 ${r.h * 1.5}px Georgia, serif`
+      ctx.textBaseline = 'top'
+      ctx.textAlign = 'right'
+      ctx.fillText('”', r.x + r.w - 30 * s, r.y - r.h * 0.2)
+      ctx.restore()
+      sweep(ctx, r, t, 8, 0.08)
+    },
+    footerBg: (ctx, r) => {
+      ctx.fillStyle = '#F5F3FF'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+    },
+    title: '#FFFFFF',
+    date: '#C7D2FE',
+    kickerBg: NIL.amber,
+    kickerFg: '#1B1400',
+    badge: { text: 'সাক্ষাৎকার', bg: '#FFFFFF', fg: '#3730A3', kind: 'tape' },
+    labelBg: '#3730A3',
+    labelFg: '#FFFFFF',
+    tickerFg: '#1E1B4B',
+    accent: NIL.amber,
+    edge: NIL.amber,
+  },
+  economy: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#0B3B3A'],
+        [1, '#0F766E'],
+      ], -0.3)
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      // a market line drawing itself along the band, then holding
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(r.x, r.y, r.w, r.h)
+      ctx.clip()
+      const pts = 18
+      const shown = Math.min(1, t / 2.5)
+      ctx.strokeStyle = 'rgba(255,194,14,0.35)'
+      ctx.lineWidth = 4 * s
+      ctx.beginPath()
+      for (let i = 0; i <= pts * shown; i++) {
+        const x = r.x + r.w * 0.45 + (i / pts) * r.w * 0.55
+        const y = r.y + r.h * (0.8 - 0.55 * (i / pts) + 0.12 * Math.sin(i * 1.7 + t * 0.6))
+        if (i === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
+      }
+      ctx.stroke()
+      ctx.restore()
+      sweep(ctx, r, t, 7, 0.08)
+    },
+    footerBg: (ctx, r) => {
+      ctx.fillStyle = '#ECFDF5'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+    },
+    title: '#FFFFFF',
+    date: '#99F6E4',
+    kickerBg: NIL.amber,
+    kickerFg: '#1B1400',
+    badge: { text: 'অর্থনীতি', bg: NIL.amber, fg: '#1B1400', kind: 'tape' },
+    labelBg: '#0F766E',
+    labelFg: '#FFFFFF',
+    tickerFg: '#0B3B3A',
+    accent: NIL.amber,
+    edge: NIL.amber,
+  },
+  national: {
+    headerBg: (ctx, r, t) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#00412F'],
+        [1, '#006A4E'],
+      ], -0.3)
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      // the red disc of the flag, rising gently at the right
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(r.x, r.y, r.w, r.h)
+      ctx.clip()
+      const rr = r.h * 0.42
+      ctx.fillStyle = '#F42A41'
+      ctx.beginPath()
+      ctx.arc(r.x + r.w - rr * 1.6, r.y + r.h * 0.55 - Math.min(1, t / 1.5) * r.h * 0.05, rr, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+      sweep(ctx, r, t, 7, 0.1)
+    },
+    footerBg: (ctx, r, _t, s) => {
+      ctx.fillStyle = '#FFFFFF'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.fillStyle = '#F42A41'
+      ctx.fillRect(r.x, r.y, r.w, 5 * s)
+    },
+    title: '#FFFFFF',
+    date: '#BBF7D0',
+    kickerBg: '#F42A41',
+    kickerFg: '#FFFFFF',
+    labelBg: '#006A4E',
+    labelFg: '#FFFFFF',
+    tickerFg: '#00412F',
+    accent: '#F42A41',
+    edge: '#F42A41',
+  },
 }
 
 export function themeOf(id: FrameId): Theme | null {
@@ -1013,7 +1287,7 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t: number) {
   let x = r.x + padX
   const minimal = env.cfg.frame.id === 'minimal'
   // room kept free for the campus frame's ribbons
-  const extraR = env.cfg.frame.id === 'campus' ? 170 * s : 0
+  const extraR = env.cfg.frame.id === 'campus' ? 170 * s : env.cfg.frame.id === 'national' ? r.h * 0.9 : 0
   if (minimal) {
     // accent bar left of the text block
     const bh = (r.h - 44 * s) * ease.outCubic(win(t, 0.15, 0.6))
@@ -2337,6 +2611,421 @@ function sceneFollow(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
   blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.4, dur)))
 }
 
+// ---------------------------------------------------------------------------
+// Round 26 — new intros and outros (the blue NIL family and topic scenes)
+// ---------------------------------------------------------------------------
+
+const full = (env: DrawEnv): Rect => ({ x: 0, y: 0, w: env.L.W, h: env.L.H })
+const tall = (env: DrawEnv) => env.L.H > env.L.W * 1.1
+
+function nilBg(ctx: Ctx, env: DrawEnv, t: number, from = NIL.navy, to = NIL.royal) {
+  const { W, H } = env.L
+  ctx.fillStyle = linear(ctx, full(env), [
+    [0, from],
+    [1, to],
+  ], tall(env) ? Math.PI / 2.4 : 0.45)
+  ctx.fillRect(0, 0, W, H)
+  const u = Math.min(W, H)
+  ctx.fillStyle = 'rgba(255,255,255,0.05)'
+  ctx.beginPath()
+  ctx.arc(W * 0.88, H * 0.12, u * 0.5 + Math.sin(t * 0.7) * u * 0.02, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.arc(W * 0.08, H * 0.95, u * 0.34, 0, Math.PI * 2)
+  ctx.fill()
+}
+
+/** NIL reveal: an amber line draws across, the logo pops out of it, the headline rises line by line. */
+function sceneNilReveal(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const { W, H } = env.L
+  const s = Math.min(W, H) / 1080
+  const portrait = tall(env)
+  nilBg(ctx, env, t)
+  sweep(ctx, full(env), t, 2.6, 0.12)
+  const ly = H * (portrait ? 0.3 : 0.3)
+  const line = ease.inOutCubic(win(t, 0.1, 0.7))
+  ctx.fillStyle = NIL.amber
+  ctx.fillRect(W / 2 - (W * 0.36 * line), ly, W * 0.72 * line, 6 * s)
+  logoPill(ctx, env, W / 2, ly - 70 * s, (portrait ? 70 : 62) * s, win(t, 0.5, 1))
+  const kicker = env.kicker.trim()
+  if (kicker) {
+    const chipH = 56 * s
+    ctx.font = bodyFont(700, chipH * 0.56)
+    const cw = ctx.measureText(kicker).width + chipH * 0.8
+    drawChip(ctx, kicker, W / 2 - cw / 2, ly + 62 * s, chipH, NIL.amber, '#1B1400', win(t, 0.8, 1.15))
+  }
+  centredTitle(ctx, env, t, 1.0, H * (portrait ? 0.56 : 0.62), W * (portrait ? 0.84 : 0.8), '#FFFFFF', s, portrait ? 5 : 3, portrait ? 92 : 84)
+  ctx.save()
+  ctx.globalAlpha = win(t, 1.5, 2)
+  ctx.font = bodyFont(500, 30 * s)
+  ctx.fillStyle = '#C7D6F5'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText([env.dateText, env.website].filter(Boolean).join('  •  '), W / 2, H * (portrait ? 0.88 : 0.9))
+  ctx.restore()
+  blackFade(ctx, W, H, 1 - win(t, 0, 0.15))
+  blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.3, dur)))
+}
+
+/** TV opening: light streaks and turning rings, the logo, "সংবাদ" and the date, then the headline on a lower third. */
+function sceneTvOpen(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const { W, H } = env.L
+  const s = Math.min(W, H) / 1080
+  const portrait = tall(env)
+  nilBg(ctx, env, t, '#06143A', NIL.royal)
+  const cx = W / 2
+  const cy = H * (portrait ? 0.36 : 0.42)
+  const u = Math.min(W, H)
+  ctx.save()
+  ctx.lineWidth = 3 * s
+  for (let i = 0; i < 4; i++) {
+    const rr = u * (0.2 + i * 0.08) * ease.outCubic(win(t, 0.05 * i, 0.8 + 0.05 * i))
+    ctx.strokeStyle = i % 2 ? 'rgba(255,194,14,0.5)' : 'rgba(255,255,255,0.25)'
+    ctx.beginPath()
+    ctx.ellipse(cx, cy, rr, rr * 0.36, t * (0.4 + i * 0.15) * (i % 2 ? -1 : 1), 0, Math.PI * 2)
+    ctx.stroke()
+  }
+  // streaks
+  for (let i = 0; i < 6; i++) {
+    const p = (t * (0.5 + rnd(i) * 0.6) + rnd(i + 7)) % 1
+    const y = H * (0.1 + rnd(i + 3) * 0.8)
+    const x = -W * 0.3 + p * W * 1.6
+    const g = ctx.createLinearGradient(x - W * 0.25, 0, x, 0)
+    g.addColorStop(0, 'rgba(255,255,255,0)')
+    g.addColorStop(1, 'rgba(255,255,255,0.35)')
+    ctx.fillStyle = g
+    ctx.fillRect(x - W * 0.25, y, W * 0.25, 3 * s)
+  }
+  ctx.restore()
+  logoPill(ctx, env, cx, cy, (portrait ? 74 : 66) * s, win(t, 0.4, 0.9))
+  // lower third with the headline
+  const lt = ease.outCubic(win(t, 1.2, 1.7))
+  const bh = (portrait ? 330 : 230) * s
+  const by = H * (portrait ? 0.62 : 0.68)
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(0, by, W * lt, bh)
+  ctx.clip()
+  ctx.fillStyle = 'rgba(255,255,255,0.97)'
+  ctx.fillRect(0, by, W, bh)
+  ctx.fillStyle = NIL.amber
+  ctx.fillRect(0, by, 18 * s, bh)
+  ctx.restore()
+  const label = (env.kicker.trim() || 'সংবাদ') + (env.dateText ? '  •  ' + env.dateText : '')
+  ctx.save()
+  ctx.globalAlpha = win(t, 1.5, 1.9)
+  ctx.font = bodyFont(700, 30 * s)
+  ctx.fillStyle = NIL.royal
+  ctx.textBaseline = 'top'
+  ctx.fillText(label, 50 * s, by + 22 * s)
+  const title = env.introTitle.trim() || 'মিহা নিউজ'
+  const fit = fitText(ctx, title, (px) => bodyFont(700, px), W - 100 * s, portrait ? 4 : 2, (portrait ? 62 : 58) * s, 34 * s, 1.22)
+  ctx.font = bodyFont(700, fit.size)
+  ctx.fillStyle = NIL.navy
+  fit.lines.forEach((l, i) => ctx.fillText(l, 50 * s, by + 70 * s + i * fit.lineHeight))
+  ctx.restore()
+  blackFade(ctx, W, H, 1 - win(t, 0, 0.15))
+  blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.3, dur)))
+}
+
+/** Investigation: dark case-file grid, a spotlight sweeps, "অনুসন্ধান" types itself, then the headline. */
+function sceneInvestigation(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const { W, H } = env.L
+  const s = Math.min(W, H) / 1080
+  const portrait = tall(env)
+  ctx.fillStyle = '#05070D'
+  ctx.fillRect(0, 0, W, H)
+  ctx.strokeStyle = 'rgba(255,194,14,0.06)'
+  ctx.lineWidth = 2 * s
+  for (let x = 0; x < W; x += 60 * s) {
+    ctx.beginPath()
+    ctx.moveTo(x, 0)
+    ctx.lineTo(x, H)
+    ctx.stroke()
+  }
+  for (let y = 0; y < H; y += 60 * s) {
+    ctx.beginPath()
+    ctx.moveTo(0, y)
+    ctx.lineTo(W, y)
+    ctx.stroke()
+  }
+  const sx = W * (0.15 + 0.7 * (0.5 + 0.5 * Math.sin(t * 1.3 - 1.2)))
+  const g = ctx.createRadialGradient(sx, H * 0.45, 0, sx, H * 0.45, Math.max(W, H) * 0.45)
+  g.addColorStop(0, 'rgba(255,230,160,0.22)')
+  g.addColorStop(1, 'rgba(255,230,160,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, W, H)
+  const word = 'অনুসন্ধান'
+  const chars = [...word]
+  const n = Math.floor(chars.length * win(t, 0.3, 1.2))
+  ctx.save()
+  ctx.font = dispFont(800, (portrait ? 120 : 110) * s)
+  ctx.fillStyle = NIL.amber
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(chars.slice(0, n).join('') + (n < chars.length && Math.floor(t * 4) % 2 ? '|' : ''), W / 2, H * (portrait ? 0.3 : 0.28))
+  ctx.restore()
+  const bar = ease.outCubic(win(t, 1.2, 1.6))
+  ctx.fillStyle = NIL.amber
+  ctx.fillRect(W / 2 - 160 * s * bar, H * (portrait ? 0.3 : 0.28) + 80 * s, 320 * s * bar, 6 * s)
+  centredTitle(ctx, env, t, 1.5, H * (portrait ? 0.56 : 0.6), W * 0.82, '#FFFFFF', s, portrait ? 5 : 3, portrait ? 84 : 76)
+  ctx.save()
+  ctx.globalAlpha = win(t, 2, 2.4) * 0.8
+  ctx.font = bodyFont(500, 28 * s)
+  ctx.fillStyle = '#B8C3DA'
+  ctx.textAlign = 'center'
+  ctx.fillText('মিহা নিউজ অনুসন্ধানী প্রতিবেদন', W / 2, H * (portrait ? 0.88 : 0.9))
+  ctx.restore()
+  blackFade(ctx, W, H, 1 - win(t, 0, 0.2))
+  blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.3, dur)))
+}
+
+/** Sport: green/blue stripes race across, the title slams in. */
+function sceneSports(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const { W, H } = env.L
+  const s = Math.min(W, H) / 1080
+  const portrait = tall(env)
+  ctx.fillStyle = linear(ctx, full(env), [
+    [0, '#064E3B'],
+    [1, '#065F46'],
+  ], 0.4)
+  ctx.fillRect(0, 0, W, H)
+  stripes(ctx, full(env), t, s, 'rgba(163,230,53,0.12)', 140, 46, 260)
+  for (let i = 0; i < 3; i++) {
+    const p = ease.inOutCubic(win(t, 0.05 + i * 0.1, 0.6 + i * 0.1))
+    const y = H * (0.2 + i * 0.25)
+    ctx.fillStyle = [NIL.royal, '#A3E635', NIL.amber][i]
+    ctx.beginPath()
+    ctx.moveTo(-W + p * W * 2, y)
+    ctx.lineTo(p * W * 2, y)
+    ctx.lineTo(p * W * 2 - 60 * s, y + 26 * s)
+    ctx.lineTo(-W + p * W * 2 - 60 * s, y + 26 * s)
+    ctx.closePath()
+    ctx.fill()
+  }
+  const slam = win(t, 0.6, 0.85)
+  ctx.save()
+  ctx.translate(W / 2, H * (portrait ? 0.3 : 0.27))
+  const k = slam < 1 ? 2.2 - 1.2 * ease.outCubic(slam) : 1
+  ctx.scale(k, k)
+  ctx.globalAlpha = slam
+  ctx.font = dispFont(800, 120 * s)
+  ctx.fillStyle = '#FFFFFF'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(env.kicker.trim() || 'খেলা', 0, 0)
+  ctx.restore()
+  centredTitle(ctx, env, t, 1.0, H * (portrait ? 0.58 : 0.62), W * 0.84, '#FFFFFF', s, portrait ? 5 : 3, portrait ? 88 : 80)
+  blackFade(ctx, W, H, 1 - win(t, 0, 0.12))
+  blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.3, dur)))
+}
+
+/** Entertainment: pink–violet, sparkles, the title pops. */
+function sceneShowbiz(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const { W, H } = env.L
+  const s = Math.min(W, H) / 1080
+  const portrait = tall(env)
+  ctx.fillStyle = linear(ctx, full(env), [
+    [0, '#4C1D95'],
+    [0.6, '#BE185D'],
+    [1, '#F472B6'],
+  ], 0.6)
+  ctx.fillRect(0, 0, W, H)
+  bokeh(ctx, W, H, t, s, 22, '255,220,240')
+  for (let i = 0; i < 14; i++) {
+    const tw = 0.5 + 0.5 * Math.sin(t * (3 + rnd(i) * 4) + i)
+    const x = W * rnd(i + 30)
+    const y = H * rnd(i + 60)
+    const r = (6 + rnd(i) * 12) * s * tw
+    ctx.fillStyle = `rgba(253,224,71,${0.4 + 0.6 * tw})`
+    ctx.beginPath()
+    for (let k = 0; k < 8; k++) {
+      const a = (k * Math.PI) / 4
+      const rr = k % 2 ? r * 0.3 : r
+      ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr)
+    }
+    ctx.closePath()
+    ctx.fill()
+  }
+  const pop = ease.outBack(win(t, 0.3, 0.8))
+  ctx.save()
+  ctx.translate(W / 2, H * (portrait ? 0.3 : 0.27))
+  ctx.scale(pop, pop)
+  ctx.font = dispFont(800, 110 * s)
+  ctx.fillStyle = '#FDE047'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.shadowColor = 'rgba(0,0,0,0.3)'
+  ctx.shadowBlur = 20 * s
+  ctx.fillText(env.kicker.trim() || 'বিনোদন', 0, 0)
+  ctx.restore()
+  centredTitle(ctx, env, t, 0.9, H * (portrait ? 0.58 : 0.62), W * 0.84, '#FFFFFF', s, portrait ? 5 : 3, portrait ? 86 : 78)
+  blackFade(ctx, W, H, 1 - win(t, 0, 0.15))
+  blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.3, dur)))
+}
+
+/** NIL end card: the logo, "আরও খবর পেতে ফলো করুন", social icons and the website. */
+function sceneNilEnd(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const { W, H } = env.L
+  const s = Math.min(W, H) / 1080
+  const portrait = tall(env)
+  nilBg(ctx, env, t)
+  sweep(ctx, full(env), t, 3, 0.1)
+  logoPill(ctx, env, W / 2, H * (portrait ? 0.3 : 0.27), (portrait ? 84 : 72) * s, win(t, 0.1, 0.6))
+  ctx.save()
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.globalAlpha = win(t, 0.5, 0.9)
+  ctx.font = dispFont(800, (portrait ? 74 : 66) * s)
+  ctx.fillStyle = '#FFFFFF'
+  ctx.fillText('আরও খবর পেতে ফলো করুন', W / 2, H * (portrait ? 0.46 : 0.47), W * 0.9)
+  ctx.restore()
+  const nets = env.house?.nets.length ? env.house.nets.slice(0, 5) : ['facebook', 'youtube']
+  const ir = 46 * s
+  nets.forEach((n, i) => {
+    const k = ease.outBack(win(t, 0.8 + i * 0.15, 1.2 + i * 0.15))
+    const x = W / 2 + (i - (nets.length - 1) / 2) * ir * 2.6
+    ctx.save()
+    ctx.translate(x, H * (portrait ? 0.6 : 0.63))
+    ctx.scale(k, k)
+    ctx.fillStyle = '#FFFFFF'
+    ctx.beginPath()
+    ctx.arc(0, 0, ir * 1.14, 0, Math.PI * 2)
+    ctx.fill()
+    netIcon(ctx, n, 0, 0, ir)
+    ctx.restore()
+  })
+  const pill = ease.outBack(win(t, 1.5, 2))
+  if (pill > 0.01) {
+    const text = env.house?.handle || env.website || 'meeha.news'
+    ctx.save()
+    ctx.font = bodyFont(700, 40 * s)
+    const w = ctx.measureText(text).width + 70 * s
+    ctx.translate(W / 2, H * (portrait ? 0.74 : 0.8))
+    ctx.scale(pill, pill)
+    fillRoundRect(ctx, -w / 2, -40 * s, w, 80 * s, 40 * s, NIL.amber)
+    ctx.fillStyle = '#1B1400'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, 0, 3 * s)
+    ctx.restore()
+  }
+  blackFade(ctx, W, H, 1 - win(t, 0, 0.2))
+  blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.4, dur)))
+}
+
+/**
+ * YouTube end screen: room for YouTube's own end-screen elements (two video
+ * boxes and the round subscribe button) on a branded background. The boxes
+ * are only guides; YouTube places its clickable elements over them.
+ */
+function sceneEndScreen(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const { W, H } = env.L
+  const s = Math.min(W, H) / 1080
+  const portrait = tall(env)
+  nilBg(ctx, env, t, '#06143A', NIL.navy)
+  ctx.save()
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.globalAlpha = win(t, 0.2, 0.6)
+  ctx.font = dispFont(800, 64 * s)
+  ctx.fillStyle = '#FFFFFF'
+  ctx.fillText('আরও দেখুন', W / 2, H * 0.14)
+  ctx.restore()
+  const boxW = portrait ? W * 0.8 : W * 0.34
+  const boxH = boxW * 9 / 16
+  const boxes = portrait
+    ? [
+        { x: W / 2 - boxW / 2, y: H * 0.22 },
+        { x: W / 2 - boxW / 2, y: H * 0.22 + boxH + 40 * s },
+      ]
+    : [
+        { x: W * 0.08, y: H * 0.3 },
+        { x: W * 0.08 + boxW + W * 0.04, y: H * 0.3 },
+      ]
+  boxes.forEach((b, i) => {
+    const k = ease.outCubic(win(t, 0.3 + i * 0.15, 0.8 + i * 0.15))
+    ctx.save()
+    ctx.globalAlpha = k
+    fillRoundRect(ctx, b.x, b.y, boxW, boxH, 16 * s, 'rgba(255,255,255,0.08)')
+    ctx.setLineDash([16 * s, 12 * s])
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)'
+    ctx.lineWidth = 3 * s
+    ctx.beginPath()
+    ctx.roundRect(b.x, b.y, boxW, boxH, 16 * s)
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.font = bodyFont(700, 30 * s)
+    ctx.fillStyle = 'rgba(255,255,255,0.7)'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(i ? 'আরেকটি ভিডিও' : 'পরের ভিডিও', b.x + boxW / 2, b.y + boxH / 2)
+    ctx.restore()
+  })
+  // round subscribe spot with the logo inside
+  const rr = (portrait ? 110 : 120) * s
+  const sx = portrait ? W / 2 : W * 0.86
+  const sy = portrait ? H * 0.22 + boxH * 2 + 40 * s + rr + 70 * s : H * 0.3 + boxH / 2
+  const k = ease.outBack(win(t, 0.7, 1.2))
+  ctx.save()
+  ctx.translate(sx, sy)
+  ctx.scale(k, k)
+  ctx.fillStyle = '#FFFFFF'
+  ctx.beginPath()
+  ctx.arc(0, 0, rr, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.strokeStyle = NIL.amber
+  ctx.lineWidth = 8 * s
+  ctx.beginPath()
+  ctx.arc(0, 0, rr + 10 * s, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * win(t, 1, 2.2))
+  ctx.stroke()
+  const markH = rr * 1.1
+  const mw = env.logo.markW / env.logo.h * markH
+  ctx.drawImage(env.logo.color, 0, 0, env.logo.markW, env.logo.h, -mw / 2, -markH / 2, mw, markH)
+  ctx.restore()
+  ctx.save()
+  ctx.globalAlpha = win(t, 1.1, 1.5)
+  ctx.font = bodyFont(700, 32 * s)
+  ctx.fillStyle = NIL.amber
+  ctx.textAlign = 'center'
+  ctx.fillText('সাবস্ক্রাইব করুন', sx, sy + rr + 52 * s)
+  ctx.restore()
+  blackFade(ctx, W, H, 1 - win(t, 0, 0.2))
+  blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.4, dur)))
+}
+
+/** Credits: who reported, the desk, the date, then the logo. */
+function sceneCredits(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const { W, H } = env.L
+  const s = Math.min(W, H) / 1080
+  const portrait = tall(env)
+  nilBg(ctx, env, t, '#05102E', NIL.navy)
+  const rows: [string, string][] = [
+    ['প্রতিবেদন', env.reporter?.trim() || 'মিহা নিউজ প্রতিবেদক'],
+    ['ভিডিও সম্পাদনা', 'মিহা নিউজ ডেস্ক'],
+    ['প্রকাশ', env.dateText || ''],
+  ].filter((r) => r[1]) as [string, string][]
+  const top = H * (portrait ? 0.3 : 0.26)
+  const gap = (portrait ? 150 : 130) * s
+  rows.forEach(([a, b], i) => {
+    const k = ease.outCubic(win(t, 0.3 + i * 0.35, 0.8 + i * 0.35))
+    ctx.save()
+    ctx.globalAlpha = k
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = bodyFont(600, 32 * s)
+    ctx.fillStyle = NIL.amber
+    ctx.fillText(a, W / 2, top + i * gap + (1 - k) * 20 * s)
+    ctx.font = bodyFont(700, 52 * s)
+    ctx.fillStyle = '#FFFFFF'
+    ctx.fillText(b, W / 2, top + i * gap + 50 * s + (1 - k) * 20 * s, W * 0.9)
+    ctx.restore()
+  })
+  logoPill(ctx, env, W / 2, H * (portrait ? 0.8 : 0.82), 60 * s, win(t, 1.6, 2.1))
+  blackFade(ctx, W, H, 1 - win(t, 0, 0.2))
+  blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.4, dur)))
+}
+
 export function drawScene(ctx: Ctx, env: DrawEnv, id: SceneId, t: number, dur: number) {
   if (id.startsWith('house-')) return drawHouseAd(ctx, id.slice(6) as HouseAdId, env.L.W, env.L.H, t, dur, env.house ?? EMPTY_HOUSE, env.logo, env.website || 'meeha.news')
   switch (id) {
@@ -2360,6 +3049,22 @@ export function drawScene(ctx: Ctx, env: DrawEnv, id: SceneId, t: number, dur: n
       return sceneAdCard(ctx, env, t, dur, true)
     case 'ad-out':
       return sceneAdCard(ctx, env, t, dur, false)
+    case 'nil-reveal':
+      return sceneNilReveal(ctx, env, t, dur)
+    case 'tv-open':
+      return sceneTvOpen(ctx, env, t, dur)
+    case 'investigation':
+      return sceneInvestigation(ctx, env, t, dur)
+    case 'sports':
+      return sceneSports(ctx, env, t, dur)
+    case 'showbiz':
+      return sceneShowbiz(ctx, env, t, dur)
+    case 'nil-end':
+      return sceneNilEnd(ctx, env, t, dur)
+    case 'endscreen':
+      return sceneEndScreen(ctx, env, t, dur)
+    case 'credits':
+      return sceneCredits(ctx, env, t, dur)
   }
 }
 
@@ -2645,6 +3350,11 @@ export function sfxCues(tl: Timeline, cfg: EditConfig): { t: number; kind: SfxKi
     else if (s.scene === 'countdown') cues.push({ t: s.t0 + 0.1, kind: 'hit', gain: 0.55 }, { t: s.t0 + 0.9, kind: 'hit', gain: 0.55 }, { t: s.t0 + 1.7, kind: 'hit', gain: 0.55 }, { t: s.t0 + 2.5, kind: 'whoosh', gain: 0.7 }, { t: s.t0 + 2.6, kind: 'chime', gain: 0.5 })
     else if (s.scene === 'follow') cues.push({ t: s.t0 + 0.4, kind: 'chime', gain: 0.45 }, { t: s.t0 + 1.3, kind: 'soft', gain: 0.6 }, { t: s.t0 + 2.05, kind: 'soft', gain: 0.6 }, { t: s.t0 + 2.8, kind: 'soft', gain: 0.6 })
     else if (s.scene === 'ad-in' || s.scene === 'ad-out') cues.push({ t: s.t0, kind: 'soft', gain: 0.5 })
+    else if (s.scene === 'nil-reveal' || s.scene === 'tv-open') cues.push({ t: s.t0 + 0.1, kind: 'whoosh', gain: 0.6 }, { t: s.t0 + 0.5, kind: 'ident', gain: 0.7 })
+    else if (s.scene === 'investigation') cues.push({ t: s.t0 + 0.1, kind: 'heartbeat', gain: 0.6 }, { t: s.t0 + 0.35, kind: 'typing', gain: 0.35 }, { t: s.t0 + 1.4, kind: 'hit', gain: 0.5 })
+    else if (s.scene === 'sports') cues.push({ t: s.t0, kind: 'whoosh', gain: 0.7 }, { t: s.t0 + 0.6, kind: 'impact', gain: 0.6 })
+    else if (s.scene === 'showbiz') cues.push({ t: s.t0 + 0.2, kind: 'riser', gain: 0.4 }, { t: s.t0 + 0.35, kind: 'pop', gain: 0.6 }, { t: s.t0 + 0.6, kind: 'chime', gain: 0.5 })
+    else if (s.scene === 'nil-end' || s.scene === 'endscreen' || s.scene === 'credits') cues.push({ t: s.t0 + 0.15, kind: 'ident', gain: 0.55 })
     else if (s.scene?.startsWith('house-')) cues.push({ t: s.t0 + 0.1, kind: 'whoosh', gain: 0.5 }, { t: s.t0 + 1.3, kind: 'pop', gain: 0.6 }, { t: s.t0 + 0.5, kind: 'chime', gain: 0.4 })
   }
   if (cfg.frame.id !== 'none') cues.push({ t: tl.mainStart, kind: 'whoosh', gain: 0.35 })

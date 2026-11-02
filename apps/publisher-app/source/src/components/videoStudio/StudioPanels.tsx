@@ -10,6 +10,7 @@ import {
   CAPTION_STYLES,
   FOOTERS,
   FORMATS,
+  DESIGN_GROUPS,
   FRAMES,
   FRAME_SIZES,
   INTROS,
@@ -18,8 +19,8 @@ import {
   OUTROS,
   type Caption,
   type Corner,
+  type DesignGroup,
   type EditConfig,
-  type FrameId,
   type IntroId,
   type MediaRef,
   type OutroId,
@@ -69,23 +70,33 @@ export function FramePanel({
 }) {
   const f = cfg.frame
   const setF = (patch: Partial<EditConfig['frame']>) => set((c) => ({ ...c, frame: { ...c.frame, ...patch } }))
-  const options: { id: FrameId; name: string; hint: string }[] = [{ id: 'none', name: 'ফ্রেম নেই', hint: 'শুধু ভিডিও' }, ...FRAMES]
+  const frameGroups = useGroups('nil', FRAMES.find((o) => o.id === f.id)?.group)
   return (
     <div>
-      <Section title="এনিমেটেড ফ্রেম" hint="ক্লিক করলে পুরো ভিডিওর উপরে ও নিচে ফ্রেমের অংশ যোগ হবে।">
-        <div className="grid grid-cols-2 gap-2.5">
-          {options.map((o) => {
-            const paint = o.id === 'none' ? null : thumb('frame', o.id)
+      <Section title="এনিমেটেড ফ্রেম" hint="ক্লিক করলে পুরো ভিডিওর উপরে ও নিচে ফ্রেমের অংশ যোগ হবে। নকশাগুলো ভাগ করে সাজানো — শিরোনামে চাপ দিলে খোলে।">
+        <div className="mb-2.5">
+          <ChoiceCard active={f.id === 'none'} onClick={() => setF({ id: 'none' })} title="ফ্রেম নেই" hint="শুধু ভিডিও" testId="frame-none" />
+        </div>
+        <div className="space-y-2">
+          {DESIGN_GROUPS.filter((g) => FRAMES.some((o) => o.group === g.id)).map((g) => {
+            const items = FRAMES.filter((o) => o.group === g.id)
             return (
-              <ChoiceCard
-                key={o.id}
-                active={f.id === o.id}
-                onClick={() => setF({ id: o.id })}
-                title={o.name}
-                hint={o.hint}
-                testId={`frame-${o.id}`}
-                preview={paint ? <Thumb paint={paint} ratio={thumbRatio} deps={[thumbKey, o.id]} /> : <div className="bg-neutral-100" style={{ aspectRatio: String(thumbRatio) }} />}
-              />
+              <Group key={g.id} title={g.name} hint={g.hint} count={items.length} open={frameGroups.isOpen(g.id)} onToggle={() => frameGroups.toggle(g.id)} hasSelected={items.some((o) => o.id === f.id)} testId={`frame-group-${g.id}`}>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {items.map((o) => (
+                    <ChoiceCard
+                      key={o.id}
+                      active={f.id === o.id}
+                      onClick={() => setF({ id: o.id })}
+                      title={o.name}
+                      hint={o.hint}
+                      badge={o.isNew ? 'নতুন' : undefined}
+                      testId={`frame-${o.id}`}
+                      preview={<Thumb paint={thumb('frame', o.id) ?? (() => {})} ratio={thumbRatio} deps={[thumbKey, o.id]} />}
+                    />
+                  ))}
+                </div>
+              </Group>
             )
           })}
         </div>
@@ -236,9 +247,49 @@ export function IntroOutroPanel({
 }) {
   const intro = cfg.intro
   const outro = cfg.outro
-  const introOpts = [{ id: 'none' as IntroId, name: 'ইন্ট্রো নেই', hint: '' }, ...INTROS]
-  const outroOpts = [{ id: 'none' as OutroId, name: 'আউট্রো নেই', hint: '' }, ...OUTROS]
-  const textIntro = ['breaking', 'headline', 'special', 'swipe', 'live', 'countdown'].includes(intro.id)
+  const introGroups = useGroups('nil', INTROS.find((o) => o.id === intro.id)?.group)
+  const outroGroups = useGroups('nil', OUTROS.find((o) => o.id === outro.id)?.group)
+  const textIntro = ['breaking', 'headline', 'special', 'swipe', 'live', 'countdown', 'nil-reveal', 'tv-open', 'investigation', 'sports', 'showbiz'].includes(intro.id)
+  const pickIntro = (id: IntroId) => {
+    set((c) => ({ ...c, intro: { ...c.intro, id, clip: id === 'custom' ? c.intro.clip ?? kit?.intro ?? null : c.intro.clip } }))
+    if (id === 'custom' && !intro.clip && !kit?.intro) onPick('intro')
+  }
+  const pickOutro = (id: OutroId) => {
+    set((c) => ({ ...c, outro: { ...c.outro, id, clip: id === 'custom' ? c.outro.clip ?? kit?.outro ?? null : c.outro.clip } }))
+    if (id === 'custom' && !outro.clip && !kit?.outro) onPick('outro')
+  }
+  const grouped = <T extends { id: string; name: string; hint: string; group: DesignGroup; isNew?: boolean }>(
+    kind: 'intro' | 'outro',
+    list: T[],
+    current: string,
+    groups: ReturnType<typeof useGroups>,
+    pick: (id: T['id']) => void,
+  ) => (
+    <div className="space-y-2">
+      <ChoiceCard active={current === 'none'} onClick={() => pick('none' as T['id'])} title={kind === 'intro' ? 'ইন্ট্রো নেই' : 'আউট্রো নেই'} testId={`${kind}-none`} />
+      {DESIGN_GROUPS.filter((g) => list.some((o) => o.group === g.id)).map((g) => {
+        const items = list.filter((o) => o.group === g.id)
+        return (
+          <Group key={g.id} title={g.name} hint={g.hint} count={items.length} open={groups.isOpen(g.id)} onToggle={() => groups.toggle(g.id)} hasSelected={items.some((o) => o.id === current)} testId={`${kind}-group-${g.id}`}>
+            <div className="grid grid-cols-2 gap-2.5">
+              {items.map((o) => (
+                <ChoiceCard
+                  key={o.id}
+                  active={current === o.id}
+                  testId={`${kind}-${o.id}`}
+                  onClick={() => pick(o.id)}
+                  title={o.name}
+                  hint={o.hint}
+                  badge={o.isNew ? 'নতুন' : undefined}
+                  preview={preview(kind, o.id)}
+                />
+              ))}
+            </div>
+          </Group>
+        )
+      })}
+    </div>
+  )
   const preview = (kind: 'intro' | 'outro', id: string): ReactNode => {
     const p = id === 'none' ? null : thumb(kind, id)
     return p ? <Thumb paint={p} ratio={thumbRatio} deps={[thumbKey, id]} /> : <div className="bg-neutral-100" style={{ aspectRatio: String(thumbRatio) }} />
@@ -246,22 +297,7 @@ export function IntroOutroPanel({
   return (
     <div>
       <Section title="ইন্ট্রো" hint="ক্লিক করলে ভিডিওর শুরুতে যোগ হবে।">
-        <div className="grid grid-cols-2 gap-2.5">
-          {introOpts.map((o) => (
-            <ChoiceCard
-              key={o.id}
-              active={intro.id === o.id}
-              testId={`intro-${o.id}`}
-              onClick={() => {
-                set((c) => ({ ...c, intro: { ...c.intro, id: o.id, clip: o.id === 'custom' ? c.intro.clip ?? kit?.intro ?? null : c.intro.clip } }))
-                if (o.id === 'custom' && !intro.clip && !kit?.intro) onPick('intro')
-              }}
-              title={o.name}
-              hint={o.hint}
-              preview={preview('intro', o.id)}
-            />
-          ))}
-        </div>
+        {grouped('intro', INTROS, intro.id, introGroups, pickIntro)}
         {intro.id === 'custom' && <ClipChooser clip={intro.clip} label="ইন্ট্রো ভিডিও বেছে নিন" onPick={() => onPick('intro')} />}
         {textIntro && (
           <div className="mt-3">
@@ -270,22 +306,7 @@ export function IntroOutroPanel({
         )}
       </Section>
       <Section title="আউট্রো" hint="ক্লিক করলে ভিডিওর শেষে যোগ হবে।">
-        <div className="grid grid-cols-2 gap-2.5">
-          {outroOpts.map((o) => (
-            <ChoiceCard
-              key={o.id}
-              active={outro.id === o.id}
-              testId={`outro-${o.id}`}
-              onClick={() => {
-                set((c) => ({ ...c, outro: { ...c.outro, id: o.id, clip: o.id === 'custom' ? c.outro.clip ?? kit?.outro ?? null : c.outro.clip } }))
-                if (o.id === 'custom' && !outro.clip && !kit?.outro) onPick('outro')
-              }}
-              title={o.name}
-              hint={o.hint}
-              preview={preview('outro', o.id)}
-            />
-          ))}
-        </div>
+        {grouped('outro', OUTROS, outro.id, outroGroups, pickOutro)}
         {outro.id === 'custom' && <ClipChooser clip={outro.clip} label="আউট্রো ভিডিও বেছে নিন" onPick={() => onPick('outro')} />}
       </Section>
     </div>
