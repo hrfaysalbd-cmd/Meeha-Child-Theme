@@ -22,6 +22,8 @@ import PromptLibrary from './pages/PromptLibrary'
 import Videos from './pages/Videos'
 import VideoEditor from './pages/VideoEditor'
 import Quotes from './pages/Quotes'
+import Live from './pages/Live'
+import LiveConsole from './pages/LiveConsole'
 
 // Round 21 — the video editor pulls in the encoder (mediabunny): its own chunk.
 const VideoStudio = lazy(() => import('./pages/VideoStudio'))
@@ -107,6 +109,8 @@ export default function App() {
           }
         />
         <Route path="quotes" element={<Quotes />} />
+        <Route path="live" element={<Live />} />
+        <Route path="live/:id" element={<LiveConsole />} />
         <Route
           path="photocard"
           element={

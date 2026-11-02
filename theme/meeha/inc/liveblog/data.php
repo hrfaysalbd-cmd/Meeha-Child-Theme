@@ -562,11 +562,12 @@ function meeha_lb_insert_entry( $post_id, $raw, $author_id ) {
 		'post_status'  => $status,
 		'post_author'  => (int) $author_id,
 	);
-	if ( ! empty( $raw['time'] ) && (int) $raw['time'] > 0 && (int) $raw['time'] <= time() + 60 ) {
-		$data['post_date_gmt'] = gmdate( 'Y-m-d H:i:s', (int) $raw['time'] );
-		$data['post_date']     = get_date_from_gmt( $data['post_date_gmt'] );
-	}
-	$id = wp_insert_post( wp_slash( $data ), true );
+	// Always an explicit date: WordPress leaves post_date_gmt empty on pending posts otherwise.
+	$when                  = ( ! empty( $raw['time'] ) && (int) $raw['time'] > 0 && (int) $raw['time'] <= time() + 60 ) ? (int) $raw['time'] : time();
+	$when                  = min( $when, time() ); // never in the future (it would become a scheduled post).
+	$data['post_date_gmt'] = gmdate( 'Y-m-d H:i:s', $when );
+	$data['post_date']     = get_date_from_gmt( $data['post_date_gmt'] );
+	$id                    = wp_insert_post( wp_slash( $data ), true );
 	if ( is_wp_error( $id ) ) {
 		return $id;
 	}
@@ -614,7 +615,7 @@ function meeha_lb_update_entry( $entry_id, $raw ) {
 		}
 	}
 	if ( ! empty( $raw['time'] ) && (int) $raw['time'] > 0 && (int) $raw['time'] <= time() + 60 ) {
-		$data['post_date_gmt'] = gmdate( 'Y-m-d H:i:s', (int) $raw['time'] );
+		$data['post_date_gmt'] = gmdate( 'Y-m-d H:i:s', min( (int) $raw['time'], time() ) );
 		$data['post_date']     = get_date_from_gmt( $data['post_date_gmt'] );
 		$data['edit_date']     = true;
 	}

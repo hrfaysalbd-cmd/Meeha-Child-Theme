@@ -2033,3 +2033,101 @@ export const PhotocardApi = {
   markAd: (id: number, isAd: boolean) => request<CardAdItem>(`/admin/photocard/ads/${id}`, { method: 'POST', body: { is_ad: isAd } }),
   deleteFrame: (id: string) => request<{ deleted: true }>(`/admin/photocard/frames/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 }
+
+// ---- 1.10.0: live posts (লাইভ ইভেন্ট / অপরাধ তদন্ত লাইভ) ----
+
+export type LiveType = 'event' | 'investigation'
+export type LiveStatus = 'live' | 'paused' | 'ended'
+export type LiveKind = 'update' | 'key' | 'breaking' | 'statement' | 'score' | 'document' | 'evidence' | 'milestone'
+export interface LiveFact { label: string; value: string }
+export interface LivePerson { name: string; role: string; status: string; share: number; note: string; photo: number }
+export interface LiveVictim { name: string; age: string; detail: string; photo: number }
+export interface LivePoint { text: string; weight: number }
+export interface LiveConfig {
+  type: LiveType
+  status: LiveStatus
+  started: number
+  ended: number
+  reporters: number[]
+  moderate: boolean
+  facts: LiveFact[]
+  board: { on: boolean; a_name: string; a_score: string; b_name: string; b_score: string; note: string }
+  case: {
+    state: 'open' | 'stalled' | 'closed'
+    stage: 'filed' | 'investigating' | 'arrests' | 'chargesheet' | 'trial' | 'verdict'
+    case_no: string
+    filed: string
+    incident: string
+    place: string
+    summary: string
+    victims: LiveVictim[]
+    people: LivePerson[]
+    show_share: boolean
+    strengths: LivePoint[]
+    weaknesses: LivePoint[]
+    disclaimer: string
+  }
+}
+export interface LivePostRow {
+  id: number
+  title: string
+  link: string
+  post_status: string
+  type: LiveType
+  status: LiveStatus
+  started: number
+  last: number
+  count: number
+  pending: number
+  thumb: string
+  reporters: number
+}
+export interface LiveEntry {
+  id: number
+  title: string
+  content: string
+  kind: LiveKind
+  pinned: boolean
+  source: string
+  status: 'publish' | 'pending'
+  time: number
+  modified: number
+  author: { id: number; name: string }
+  can_edit: boolean
+}
+export interface LiveDetail {
+  post: LivePostRow
+  config: LiveConfig
+  entries: LiveEntry[]
+  reporters: { id: number; name: string }[]
+  photos: Record<string, string>
+  can_manage: boolean
+  me: number
+  kinds: { id: LiveKind; label: string; for: 'both' | 'event' | 'investigation' }[]
+  default_disclaimer: string
+}
+export interface LiveEntryInput {
+  title?: string
+  content?: string
+  kind?: LiveKind
+  pinned?: boolean
+  source?: string
+  status?: 'publish' | 'pending'
+  time?: number
+}
+export interface LiveCandidate { id: number; title: string; status: string; date: number; thumb: string; is_live: boolean }
+
+export const LiveApi = {
+  list: () => request<{ items: LivePostRow[] }>('/live'),
+  get: (id: number) => request<LiveDetail>(`/live/${id}`),
+  addEntry: (id: number, data: LiveEntryInput) =>
+    request<LiveEntry>(`/live/${id}/entries`, { method: 'POST', body: data as Record<string, unknown> }),
+  editEntry: (id: number, eid: number, data: LiveEntryInput) =>
+    request<LiveEntry>(`/live/${id}/entries/${eid}`, { method: 'PATCH', body: data as Record<string, unknown> }),
+  removeEntry: (id: number, eid: number) => request<{ ok: true }>(`/live/${id}/entries/${eid}`, { method: 'DELETE' }),
+  save: (id: number, data: Partial<LiveConfig>) =>
+    request<LiveDetail>(`/admin/live/${id}`, { method: 'POST', body: data as unknown as Record<string, unknown> }),
+  disable: (id: number) => request<{ ok: true }>(`/admin/live/${id}`, { method: 'DELETE' }),
+  candidates: (search = '') =>
+    request<{ items: LiveCandidate[] }>(`/admin/live-candidates?search=${encodeURIComponent(search)}`),
+}
