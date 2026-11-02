@@ -774,6 +774,43 @@ export default function PhotocardStudio() {
     if (shown.includes(key)) setGalleryKeys((g) => g.filter((k) => k !== key))
     else addToCollage(key)
   }
+  /** Empty one collage tile (0 = the main photo; the next tile's photo moves up into it). */
+  function removeTile(i: number) {
+    const key = tileKeys[i]
+    if (!key) return
+    if (i === 0) {
+      const next = tileKeys[1] || null
+      setPhotoSel((s) => ({ ...s, [type]: next }))
+      setGalleryKeys((g) => g.filter((k) => k !== key && k !== next))
+    } else {
+      setGalleryKeys((g) => g.filter((k) => k !== key))
+    }
+    setStatus({ kind: 'ok', text: 'ছবিটি কোলাজ থেকে সরানো হয়েছে। খালি ঘরে ক্লিক করে নতুন ছবি দিতে পারেন।' })
+  }
+  /** Take a photo added from the gallery or the device out of the studio altogether. */
+  function removePhoto(key: string) {
+    const p = photos.find((x) => x.key === key)
+    if (!p || p.fromPost) return
+    const i = tileKeys.indexOf(key)
+    if (i === 0) {
+      const next = tileKeys[1] || null
+      setGalleryKeys((g) => g.filter((k) => k !== next))
+      setPhotoSel((s) => {
+        const out: typeof s = { ...s, [type]: next }
+        for (const t of Object.keys(out) as CardType[]) if (t !== type && out[t] === key) out[t] = null
+        return out
+      })
+    } else {
+      setPhotoSel((s) => {
+        const out: typeof s = { ...s }
+        for (const t of Object.keys(out) as CardType[]) if (out[t] === key) out[t] = null
+        return out
+      })
+    }
+    setGalleryKeys((g) => g.filter((k) => k !== key))
+    setPhotos((prev) => prev.filter((x) => x.key !== key))
+    setStatus({ kind: 'ok', text: 'ছবিটি সরানো হয়েছে।' })
+  }
 
   // ---------------------------------------------------------------- frames
   async function uploadFrame(file: File) {
@@ -1162,7 +1199,11 @@ export default function PhotocardStudio() {
                 collage={collage}
                 collageSlots={collageNeed || 4}
                 galleryKeys={tileKeys.slice(1)}
+                tileKeys={tileKeys}
                 onToggleGallery={toggleGallery}
+                onRemoveTile={removeTile}
+                onRemovePhoto={removePhoto}
+                onAddTile={() => setEmptyPick(true)}
                 focusSync={focusSync}
                 onFocusSync={setFocusSync}
                 canSync={!!kit?.focus_sync}

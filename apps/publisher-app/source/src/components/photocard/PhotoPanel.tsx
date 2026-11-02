@@ -50,7 +50,11 @@ export default function PhotoPanel({
   collage,
   collageSlots = 4,
   galleryKeys,
+  tileKeys = [],
   onToggleGallery,
+  onRemoveTile,
+  onRemovePhoto,
+  onAddTile,
   focusSync,
   onFocusSync,
   canSync,
@@ -69,7 +73,15 @@ export default function PhotoPanel({
   /** Round 25: how many photos the chosen collage holds (2–4). */
   collageSlots?: number
   galleryKeys: string[]
+  /** Round 26: every collage tile in order (0 = main photo). */
+  tileKeys?: string[]
   onToggleGallery: (key: string) => void
+  /** Round 26: empty one collage tile. */
+  onRemoveTile?: (i: number) => void
+  /** Round 26: drop a gallery/device photo from the studio. */
+  onRemovePhoto?: (key: string) => void
+  /** Round 26: open the "add a photo to the next empty tile" picker. */
+  onAddTile?: () => void
   focusSync: boolean
   onFocusSync: (v: boolean) => void
   canSync: boolean
@@ -99,6 +111,17 @@ export default function PhotoPanel({
               >
                 <img src={p.thumb} alt={p.label} className="w-full h-full object-cover bg-neutral-100" />
               </button>
+              {!p.fromPost && onRemovePhoto && (
+                <button
+                  type="button"
+                  onClick={() => onRemovePhoto(p.key)}
+                  title="ছবিটি সরিয়ে দিন"
+                  aria-label={`ছবিটি সরিয়ে দিন: ${p.label}`}
+                  className="absolute right-1 top-1 w-5 h-5 rounded-full bg-neutral-900/75 text-white flex items-center justify-center shadow hover:bg-red-600"
+                >
+                  <IconX className="w-3 h-3" />
+                </button>
+              )}
               {p.featured && (
                 <span className="absolute left-1 top-1 text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-brand-600 text-white">ফিচার</span>
               )}
@@ -150,8 +173,49 @@ export default function PhotoPanel({
       {collage && (
         <p className="text-[12px] text-brand-700 bg-brand-50 rounded-lg px-2.5 py-1.5 mt-1.5">
           কোলাজ ({bnNumber(collageSlots)}টি ঘর): প্রথম ঘরে বাছাই করা ছবি, বাকি {bnNumber(collageSlots - 1)}টি ঘরে <b>+</b> চাপা ছবি
-          {galleryKeys.length < collageSlots - 1 ? ` — আরও ${bnNumber(collageSlots - 1 - galleryKeys.length)}টি বাছুন` : ' ✓'}। নতুন ছবি “গ্যালারি” বা “ডিভাইস” থেকে আনলে নিজেই পরের ঘরে বসে। প্রিভিউতে যেকোনো ঘরের ছবি আলাদা করে টেনে সরানো ও জুম করা যায়।
+          {galleryKeys.length < collageSlots - 1 ? ` — আরও ${bnNumber(collageSlots - 1 - galleryKeys.length)}টি বাছুন` : ' ✓'}। নতুন ছবি “গ্যালারি” বা “ডিভাইস” থেকে আনলে নিজেই পরের ঘরে বসে; নিচের ঘরগুলোর × চেপে যেকোনো ছবি সরানো যায়। প্রিভিউতে যেকোনো ঘরের ছবি আলাদা করে টেনে সরানো ও জুম করা যায়।
         </p>
+      )}
+
+      {collage && (
+        <div className="mt-2" aria-label="কোলাজের ঘর">
+          <p className="text-[12px] font-semibold text-neutral-700 mb-1">কোলাজের ঘর</p>
+          <div className="flex gap-2 flex-wrap">
+            {Array.from({ length: Math.max(1, collageSlots) }, (_, i) => {
+              const k = tileKeys[i]
+              const p = k ? photos.find((x) => x.key === k) : undefined
+              return p ? (
+                <div key={`t${i}`} className="relative w-[58px] h-[58px] rounded-lg overflow-hidden border border-neutral-200 bg-neutral-100">
+                  <img src={p.thumb} alt={p.label} className="w-full h-full object-cover" />
+                  <span className="absolute left-0.5 bottom-0.5 text-[10px] font-bold px-1 rounded bg-white/90 text-neutral-700">{bnNumber(i + 1)}</span>
+                  {onRemoveTile && (
+                    <button
+                      type="button"
+                      onClick={() => onRemoveTile(i)}
+                      title={`${bnNumber(i + 1)} নম্বর ঘর খালি করুন`}
+                      aria-label={`${bnNumber(i + 1)} নম্বর ঘর খালি করুন`}
+                      className="absolute right-0.5 top-0.5 w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center shadow"
+                    >
+                      <IconX className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button
+                  key={`t${i}`}
+                  type="button"
+                  onClick={() => onAddTile?.()}
+                  disabled={!onAddTile}
+                  title="এই ঘরে ছবি দিন"
+                  className="w-[58px] h-[58px] rounded-lg border-2 border-dashed border-neutral-300 text-neutral-400 hover:border-brand-400 hover:text-brand-600 flex flex-col items-center justify-center text-[10px]"
+                >
+                  <span className="text-[16px] leading-none">+</span>
+                  {bnNumber(i + 1)}
+                </button>
+              )
+            })}
+          </div>
+        </div>
       )}
 
       {!selected && <p className="text-[12.5px] text-neutral-500 mt-2">{optional || 'ছবি বাছাই করা হয়নি।'}</p>}
