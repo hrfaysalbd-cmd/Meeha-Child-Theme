@@ -2033,3 +2033,61 @@ export const PhotocardApi = {
   markAd: (id: number, isAd: boolean) => request<CardAdItem>(`/admin/photocard/ads/${id}`, { method: 'POST', body: { is_ad: isAd } }),
   deleteFrame: (id: string) => request<{ deleted: true }>(`/admin/photocard/frames/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 }
+
+// ---- দেশচিত্র (theme 2.4.6 + plugin 1.10.0): the national daily-figures sheet ----
+// GET/POST/DELETE /admin/deshchitro — the theme stores and validates; the plugin only proxies (staff only).
+export type DcTone = 'bad' | 'warn' | 'good' | 'info'
+export interface DcIndicator { key: string; label: string; short: string; icon: string; tone: DcTone; on: number }
+export interface DcEconomy { key: string; label: string; group: string; unit: string; dec: number; good: '' | 'up' | 'down'; code: string; on: number }
+export interface DcHighlight { t: string; u: string; d: string }
+export interface DcData {
+  inc: Record<string, Record<string, number>>
+  unk: Record<string, number>
+  notes: Record<string, string>
+  eco: Record<string, number>
+  hl: DcHighlight[]
+  summary: string
+  sources: string
+}
+export interface DcNews { id: number; title: string; url: string; d: string; tags: string[]; time: string }
+export interface DcSheet {
+  day: string
+  today: string
+  label: string
+  exists: boolean
+  status: 'draft' | 'publish'
+  data: DcData
+  updatedAt: string
+  updatedBy: string
+  prevEco: Record<string, number>
+  prevDay: string
+  month: Record<string, 'draft' | 'publish'>
+  indicators: DcIndicator[]
+  economy: DcEconomy[]
+  ecoGroups: Record<string, string>
+  geo: { districts: Record<string, [string, string]>; divisions: Record<string, string> }
+  news: DcNews[]
+  pageUrl: string
+}
+
+const dcObj = <T,>(v: unknown): T => (v && typeof v === 'object' && !Array.isArray(v) ? v : {}) as T
+/** PHP sends empty maps as [] — turn them into objects so keys survive JSON. */
+function dcNormalize(s: DcSheet): DcSheet {
+  const d = s.data
+  d.inc = dcObj(d.inc)
+  Object.keys(d.inc).forEach((k) => { d.inc[k] = dcObj(d.inc[k]) })
+  d.unk = dcObj(d.unk)
+  d.notes = dcObj(d.notes)
+  d.eco = dcObj(d.eco)
+  d.hl = Array.isArray(d.hl) ? d.hl : []
+  s.prevEco = dcObj(s.prevEco)
+  s.month = dcObj(s.month)
+  return s
+}
+
+export const DeshchitroApi = {
+  get: (date?: string) => request<DcSheet>(`/admin/deshchitro${date ? `?date=${encodeURIComponent(date)}` : ''}`).then(dcNormalize),
+  save: (date: string, status: 'draft' | 'publish', data: DcData) =>
+    request<DcSheet>('/admin/deshchitro', { method: 'POST', body: { date, status, data } as unknown as Record<string, unknown> }).then(dcNormalize),
+  remove: (date: string) => request<DcSheet>(`/admin/deshchitro?date=${encodeURIComponent(date)}`, { method: 'DELETE' }).then(dcNormalize),
+}
