@@ -24,7 +24,7 @@
  * headings, lists); new: <blockquote class="wp-block-quote …">, <mark class="m-mark">, <hr>.
  * The same component lives in correspondent-app — keep the two aligned.
  */
-import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
+import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
@@ -38,6 +38,7 @@ import {
   BlockEscape,
   HighlightBox,
   MeehaMark,
+  MeehaTable,
   cleanPastedHtml,
   insertBlockAtom,
   toBnDigits,
@@ -61,6 +62,7 @@ import {
   IconQuote,
   IconRedo,
   IconSeparator,
+  IconTable,
   IconUndo,
   IconUnlink,
   IconX,
@@ -139,6 +141,16 @@ function ToolButton({
   )
 }
 
+/** Is the first row of the table at the caret a header row? */
+function isFirstRowHeader(e: Editor) {
+  const { $from } = e.state.selection
+  for (let d = $from.depth; d > 0; d--) {
+    const n = $from.node(d)
+    if (n.type.name === 'table') return n.firstChild?.firstChild?.type.name === 'tableHeader'
+  }
+  return false
+}
+
 interface InsertItem {
   key: string
   label: string
@@ -170,6 +182,11 @@ export default function RichEditor({
   const [linkValue, setLinkValue] = useState('')
   const [focused, setFocused] = useState(false)
   const [plusTop, setPlusTop] = useState<number | null>(null)
+  const [tablePickOpen, setTablePickOpen] = useState(false)
+  const [pickSize, setPickSize] = useState<[number, number]>([3, 3])
+  const [pickLeft, setPickLeft] = useState(8)
+  const topRef = useRef<HTMLDivElement>(null)
+  const tableBtnRef = useRef<HTMLSpanElement>(null)
   const compact = useCompact()
   const kbInset = useKeyboardInset(compact && focused)
   const uploadRef = useRef<(files: File[]) => void>(() => {})
@@ -194,6 +211,7 @@ export default function RichEditor({
       FigureImage,
       HighlightBox,
       MeehaMark,
+      ...MeehaTable,
       BlockEscape,
       CharacterCount,
       Placeholder.configure({ placeholder }),
@@ -266,6 +284,10 @@ export default function RichEditor({
         h3: e.isActive('heading', { level: 3 }),
         ul: e.isActive('bulletList'),
         ol: e.isActive('orderedList'),
+        table: e.isActive('table'),
+        headerRow: e.isActive('table') && isFirstRowHeader(e),
+        canMerge: e.can().mergeCells(),
+        canSplit: e.can().splitCell(),
         canUndo: e.can().undo(),
         canRedo: e.can().redo(),
         words: e.storage.characterCount.words() as number,
@@ -379,9 +401,71 @@ export default function RichEditor({
     return () => window.removeEventListener('keydown', onKey)
   }, [insertOpen, editor])
 
+  // Table size picker: placed under its toolbar button; Escape / outside click close it.
+  useLayoutEffect(() => {
+    if (!tablePickOpen) return
+    const btn = tableBtnRef.current?.firstElementChild as HTMLElement | null
+    const top = topRef.current
+    if (btn && top) {
+      const b = btn.getBoundingClientRect()
+      const t = top.getBoundingClientRect()
+      setPickLeft(Math.max(8, Math.min(b.left - t.left - 8, t.width - 260)))
+    }
+    setPickSize([3, 3])
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTablePickOpen(false)
+    }
+    const onDown = (e: PointerEvent) => {
+      if (!topRef.current?.contains(e.target as globalThis.Node)) setTablePickOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('pointerdown', onDown)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('pointerdown', onDown)
+    }
+  }, [tablePickOpen])
+
   if (!editor || !st) return null
 
   const chain = () => editor.chain().focus()
+
+  /**
+   * A table at the caret: replaces an empty line, otherwise goes after the
+   * current block (after the whole list / quote / highlight box when the
+   * caret is inside one). The caret lands in the first header cell.
+   */
+  function insertTable(rows: number, cols: number) {
+    if (!editor) return
+    setTablePickOpen(false)
+    if (editor.isActive('table')) return
+    const { $from } = editor.state.selection
+    const cell = (type: string) => ({ type, content: [{ type: 'paragraph' }] })
+    const json = {
+      type: 'table',
+      content: Array.from({ length: rows }, (_, r) => ({
+        type: 'tableRow',
+        content: Array.from({ length: cols }, () => cell(r === 0 ? 'tableHeader' : 'tableCell')),
+      })),
+    }
+    let from: number
+    let to: number
+    if ($from.depth === 1 && $from.parent.isTextblock && $from.parent.content.size === 0) {
+      from = $from.before(1)
+      to = $from.after(1)
+    } else if ($from.depth >= 1) {
+      from = to = $from.depth === 1 && $from.parentOffset === 0 ? $from.before(1) : $from.after(1)
+    } else {
+      from = to = $from.pos
+    }
+    editor
+      .chain()
+      .focus()
+      .insertContentAt({ from, to }, json, { updateSelection: false })
+      .setTextSelection(from + 4)
+      .scrollIntoView()
+      .run()
+  }
 
   function openLink() {
     if (!editor) return
@@ -419,6 +503,7 @@ export default function RichEditor({
       },
     },
     { key: 'box', label: 'হাইলাইট বক্স', icon: <IconHighlightBox className="w-5 h-5" />, run: () => chain().toggleHighlightBox().run() },
+    { key: 'table', label: 'টেবিল', icon: <IconTable className="w-5 h-5" />, run: () => insertTable(3, 3) },
     { key: 'quote', label: 'উদ্ধৃতি', icon: <IconQuote className="w-5 h-5" />, run: () => chain().toggleBlockquote().run() },
     { key: 'h2', label: 'শিরোনাম ২', icon: <IconH2 className="w-5 h-5" />, run: () => chain().toggleHeading({ level: 2 }).run() },
     { key: 'h3', label: 'শিরোনাম ৩', icon: <IconH3 className="w-5 h-5" />, run: () => chain().toggleHeading({ level: 3 }).run() },
@@ -524,6 +609,68 @@ export default function RichEditor({
     </>
   )
 
+  const tableActions: { key: string; label: string; run: () => void; on?: boolean; disabled?: boolean; danger?: boolean }[] = [
+    { key: 'row-below', label: '+ সারি নিচে', run: () => chain().addRowAfter().run() },
+    { key: 'row-above', label: '+ সারি উপরে', run: () => chain().addRowBefore().run() },
+    { key: 'col-right', label: '+ কলাম ডানে', run: () => chain().addColumnAfter().run() },
+    { key: 'col-left', label: '+ কলাম বামে', run: () => chain().addColumnBefore().run() },
+    { key: 'header', label: 'হেডার সারি', run: () => chain().toggleHeaderRow().run(), on: st.headerRow },
+    { key: 'merge', label: 'সেল মার্জ', run: () => chain().mergeCells().run(), disabled: !st.canMerge },
+    { key: 'split', label: 'সেল আলাদা', run: () => chain().splitCell().run(), disabled: !st.canSplit },
+    { key: 'del-row', label: '− সারি', run: () => chain().deleteRow().run(), danger: true },
+    { key: 'del-col', label: '− কলাম', run: () => chain().deleteColumn().run(), danger: true },
+    { key: 'del-table', label: 'টেবিল মুছুন', run: () => chain().deleteTable().run(), danger: true },
+  ]
+  const tableBar = (
+    <div className="re-tablebar" role="toolbar" aria-label="টেবিল" data-testid="table-bar">
+      <span className="re-tablebar-title">
+        <IconTable className="w-4 h-4" /> টেবিল
+      </span>
+      {tableActions.map((a) => (
+        <button
+          key={a.key}
+          type="button"
+          onMouseDown={keepFocus}
+          onClick={a.run}
+          disabled={a.disabled}
+          aria-pressed={a.on}
+          className={`re-tchip ${a.on ? 're-tchip-on' : ''} ${a.danger ? 're-tchip-danger' : ''}`}
+          data-testid={`table-${a.key}`}
+        >
+          {a.label}
+        </button>
+      ))}
+    </div>
+  )
+
+  const tablePicker = (
+    <div className="re-tpick" role="dialog" aria-label="টেবিলের আকার বেছে নিন" data-testid="table-picker" onMouseLeave={() => setPickSize([3, 3])}>
+      <div className="re-tpick-grid">
+        {Array.from({ length: 8 * 8 }, (_, i) => {
+          const r = Math.floor(i / 8) + 1
+          const c = (i % 8) + 1
+          const on = r <= pickSize[0] && c <= pickSize[1]
+          return (
+            <button
+              key={i}
+              type="button"
+              aria-label={`${toBnDigits(r)} সারি × ${toBnDigits(c)} কলাম`}
+              className={`re-tpick-cell ${on ? 're-tpick-on' : ''}`}
+              onMouseDown={keepFocus}
+              onMouseEnter={() => setPickSize([r, c])}
+              onFocus={() => setPickSize([r, c])}
+              onClick={() => insertTable(r, c)}
+              data-testid={`tpick-${r}-${c}`}
+            />
+          )
+        })}
+      </div>
+      <p className="re-tpick-label">
+        {toBnDigits(pickSize[0])} সারি × {toBnDigits(pickSize[1])} কলাম <span>· প্রথম সারি হেডার</span>
+      </p>
+    </div>
+  )
+
   const showKeyboardBar = compact && focused
   const linkPanel = linkOpen && (
     <div className="re-link" role="dialog" aria-label="লিংক যোগ করুন" data-testid="link-panel">
@@ -577,17 +724,30 @@ export default function RichEditor({
   return (
     <div ref={wrapRef} className="rich-editor" data-compact={compact ? '1' : '0'} data-focused={focused ? '1' : '0'}>
       {/* Sticky top toolbar (static while the phone keyboard toolbar is showing). */}
-      <div className={`re-toolbar ${showKeyboardBar ? 're-toolbar-static' : ''}`} role="toolbar" aria-label="লেখার টুলবার" data-testid="editor-toolbar">
-        {mainButtons}
-        <span className="re-sep" />
-        {blockButtons}
-        <span className="re-sep" />
-        {imageButtons}
-        <ToolButton label="বিভাজক" onClick={() => chain().setHorizontalRule().run()}>
-          <IconSeparator className="w-[18px] h-[18px]" />
-        </ToolButton>
-        <span className="re-sep" />
-        {historyButtons}
+      <div className={`re-top ${showKeyboardBar ? 're-toolbar-static' : ''}`} ref={topRef}>
+        <div className="re-toolbar" role="toolbar" aria-label="লেখার টুলবার" data-testid="editor-toolbar">
+          {mainButtons}
+          <span className="re-sep" />
+          {blockButtons}
+          <span className="re-sep" />
+          {imageButtons}
+          <span ref={tableBtnRef} className="contents">
+            <ToolButton label="টেবিল যোগ করুন" active={st.table || tablePickOpen} onClick={() => setTablePickOpen((v) => !v)} testId="tb-table">
+              <IconTable className="w-[18px] h-[18px]" />
+            </ToolButton>
+          </span>
+          <ToolButton label="বিভাজক" onClick={() => chain().setHorizontalRule().run()}>
+            <IconSeparator className="w-[18px] h-[18px]" />
+          </ToolButton>
+          <span className="re-sep" />
+          {historyButtons}
+        </div>
+        {st.table && !showKeyboardBar && tableBar}
+        {tablePickOpen && (
+          <div className="re-tpick-pop" style={{ left: pickLeft }}>
+            {tablePicker}
+          </div>
+        )}
       </div>
       {linkOpen && !showKeyboardBar && <div className="re-link-wrap">{linkPanel}</div>}
 
@@ -680,6 +840,7 @@ export default function RichEditor({
           >
             {insertOpen && <div className="re-kbsheet">{insertMenu}</div>}
             {linkOpen && <div className="re-kbsheet">{linkPanel}</div>}
+            {st.table && !insertOpen && !linkOpen && <div className="re-kbsheet re-kbsheet-table">{tableBar}</div>}
             <div className="re-kbrow">
               <ToolButton label="ব্লক যোগ করুন" active={insertOpen} onClick={() => setInsertOpen((v) => !v)} testId="kb-plus">
                 <IconPlus className="w-5 h-5" />

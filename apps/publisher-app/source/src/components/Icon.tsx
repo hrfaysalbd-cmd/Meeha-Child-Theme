@@ -202,6 +202,9 @@ export const IconQuote = (p: Props) => (
 export const IconHighlightBox = (p: Props) => (
   <svg {...base} {...p}><path d="M4 4h16v16h-16z" /><path d="M4 4v16" strokeWidth={4} /><path d="M9 9h7" /><path d="M9 13h7" /><path d="M9 17h4" /></svg>
 )
+export const IconTable = (p: Props) => (
+  <svg {...base} {...p}><path d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" /><path d="M3 10h18" /><path d="M10 3v18" /></svg>
+)
 export const IconSeparator = (p: Props) => (
   <svg {...base} {...p}><path d="M3 12l18 0" /><path d="M8 8l4 -4l4 4" /><path d="M16 16l-4 4l-4 -4" /></svg>
 )
