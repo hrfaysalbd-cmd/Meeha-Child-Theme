@@ -1,5 +1,5 @@
 {
-    "generated": "2026-11-02T17:49:05+00:00",
+    "generated": "2026-11-02T17:50:55+00:00",
     "bundles": {
         "core": {
             "css": [
@@ -357,8 +357,8 @@
             "css_ver": "73dc6a949b",
             "css_bytes": 21799,
             "js_file": "deshchitro.min.js",
-            "js_ver": "f17fafed2c",
-            "js_bytes": 99165
+            "js_ver": "86b116a6bf",
+            "js_bytes": 99475
         }
     },
     "critical": {

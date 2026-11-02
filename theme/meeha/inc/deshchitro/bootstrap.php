@@ -1,6 +1,6 @@
 <?php
 /**
- * দেশচিত্র (2.5.0) — the national daily-figures page.
+ * দেশচিত্র (2.4.7) — the national daily-figures page.
  *
  * Every night after 12 a.m. the desk enters the previous day's figures (murders, road deaths and injuries, rape and
  * abuse, theft/robbery, suicide, drowning, fire, arrests, successes — configurable) for each of the 64 districts,

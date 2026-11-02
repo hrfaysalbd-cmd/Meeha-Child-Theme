@@ -2034,7 +2034,7 @@ export const PhotocardApi = {
   deleteFrame: (id: string) => request<{ deleted: true }>(`/admin/photocard/frames/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 }
 
-// ---- দেশচিত্র (theme 2.4.6 + plugin 1.10.0): the national daily-figures sheet ----
+// ---- দেশচিত্র (theme 2.4.7 + plugin 1.10.0): the national daily-figures sheet ----
 // GET/POST/DELETE /admin/deshchitro — the theme stores and validates; the plugin only proxies (staff only).
 export type DcTone = 'bad' | 'warn' | 'good' | 'info'
 export interface DcIndicator { key: string; label: string; short: string; icon: string; tone: DcTone; on: number }

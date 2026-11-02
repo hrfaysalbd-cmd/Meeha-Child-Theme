@@ -2,7 +2,7 @@
 /**
  * দেশচিত্র input for the publisher app (1.10.0).
  *
- * The data, rules and storage live in the Meeha theme (inc/deshchitro, theme 2.4.6+); this class only exposes the
+ * The data, rules and storage live in the Meeha theme (inc/deshchitro, theme 2.4.7+); this class only exposes the
  * theme's input sheet to the app's JWT login:
  *
  *   GET    /admin/deshchitro?date=Y-m-d     sheet for one day (config, geography, saved values, the day's news)
@@ -57,7 +57,7 @@ class NROS_Deshchitro {
 		if ( function_exists( 'meeha_dc_sheet' ) && function_exists( 'meeha_dc_save_day' ) ) {
 			return true;
 		}
-		return new WP_Error( 'nros_deshchitro_theme', 'দেশচিত্রের জন্য মিহা থিম ২.৪.৬ বা নতুন সংস্করণ চালু থাকতে হবে।', array( 'status' => 501 ) );
+		return new WP_Error( 'nros_deshchitro_theme', 'দেশচিত্রের জন্য মিহা থিম ২.৪.৭ বা নতুন সংস্করণ চালু থাকতে হবে।', array( 'status' => 501 ) );
 	}
 
 	/**
