@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light dark;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #f7f7f8;
+  font-family: "Noto Sans Bengali", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#root {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100svh;
+  background: #ffffff;
+  box-shadow: 0 0 24px rgba(0,0,0,0.06);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 480px) {
+  body {
+    background: #e9e9ec;
+  }
+}
+
+input, textarea, select, button {
+  font-family: inherit;
+}
+
+/* hide number input spinners for a cleaner mobile look */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+::-webkit-scrollbar { width: 0px; height: 0px; }
+
+/* Tiptap rich-text body styling — kept hand-written rather than pulling in
+   the Tailwind typography plugin, since only a handful of tags are allowed
+   (matches the backend's wp_kses_post allowlist: p, strong/em, h2/h3,
+   ul/ol/li, img, a, blockquote, mark, hr). */
+.prose-editor p { margin: 0 0 0.75em; }
+.prose-editor p:last-child { margin-bottom: 0; }
+.prose-editor h2 { font-size: 19px; font-weight: 700; margin: 1em 0 0.5em; color: #171717; }
+.prose-editor h3 { font-size: 16.5px; font-weight: 700; margin: 1em 0 0.4em; color: #171717; }
+.prose-editor ul, .prose-editor ol { margin: 0 0 0.75em; padding-left: 1.4em; }
+.prose-editor li { margin-bottom: 0.3em; }
+.prose-editor a { color: #b91c1c; text-decoration: underline; }
+.prose-editor img { border-radius: 10px; max-width: 100%; height: auto; }
+/* Round 12 — same look as the live site (theme .m-prose rules). */
+.prose-editor { overflow-wrap: anywhere; word-break: normal; }
+.prose-editor blockquote { margin: 1em 0; padding: 0.2em 0 0.2em 1em; border-left: 3px solid #d4d4d4; color: #404040; font-style: italic; }
+.prose-editor blockquote.is-style-meeha-highlight {
+  margin: 1.2em 0; padding: 14px 16px 14px 18px; border: 1px solid #D6E6F7; border-left: 5px solid #025AB2;
+  border-radius: 0 8px 8px 0; background: #EEF4FB; color: #142030; font-style: normal;
+  font-weight: 700; font-size: 1.15em; line-height: 1.65;
+}
+.prose-editor blockquote.is-style-meeha-highlight p { margin: 0; }
+.prose-editor blockquote.is-style-meeha-highlight p + p { margin-top: .7em; }
+.prose-editor mark, .prose-editor .m-mark { background: #FFF1B8; color: inherit; padding: 0 .15em; border-radius: 2px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.prose-editor hr { border: 0; border-top: 2px solid #e5e5e5; margin: 1.4em 0; }
+.prose-editor hr.ProseMirror-selectednode { border-top-color: #025AB2; }
+.prose-editor figure { margin: 0.9em 0; }
+.prose-editor .ProseMirror-selectednode > img, .prose-editor img.ProseMirror-selectednode { outline: 3px solid #025AB2; outline-offset: 2px; }
+.prose-editor .ProseMirror-gapcursor:after { border-top-color: #025AB2; }
+.prose-editor:focus-visible { outline: none; }
+.prose-editor p.is-empty:not(:first-child)::before { content: none; }
+.prose-editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #a3a3a3;
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* WordPress's own wp_text_diff() markup, re-styled here since the admin
+   stylesheet it normally relies on isn't loaded in this decoupled app —
+   kept close to WP's native red/green diff look for familiarity. */
+.wp-diff table.diff { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.wp-diff table.diff col.content { width: 48%; }
+.wp-diff table.diff td { padding: 3px 6px; vertical-align: top; word-break: break-word; border: none; }
+.wp-diff table.diff td.diff-deletedline { background: #fbe9e9; }
+.wp-diff table.diff td.diff-addedline { background: #e6f4ea; }
+.wp-diff table.diff td.diff-context { background: #f7f7f3; color: #6b6a65; }
+.wp-diff table.diff del { background: #f6c6c6; text-decoration: none; color: #7a1f1f; }
+.wp-diff table.diff ins { background: #a9dfae; text-decoration: none; color: #1a5c2a; }
+.wp-diff table.diff p { margin: 0; }
+
+/* Round 18: notification toasts slide in from above. */
+@keyframes nros-toast-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}

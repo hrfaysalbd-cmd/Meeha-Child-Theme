@@ -1,19 +1,20 @@
 {
-    "generated": "2026-11-02T17:50:55+00:00",
+    "generated": "2026-11-02T22:22:34+00:00",
     "bundles": {
         "core": {
             "css": [
                 "assets/css/tokens.css",
                 "assets/css/base.css",
                 "assets/css/header.css",
-                "assets/css/components.css"
+                "assets/css/components.css",
+                "assets/css/live-badge.css"
             ],
             "js": [],
             "critical": [],
             "deps": [],
             "css_file": "core.min.css",
-            "css_ver": "85c7e7f39f",
-            "css_bytes": 43443
+            "css_ver": "4b38c7b42d",
+            "css_bytes": 44463
         },
         "base": {
             "css": [
@@ -359,6 +360,22 @@
             "js_file": "deshchitro.min.js",
             "js_ver": "86b116a6bf",
             "js_bytes": 99475
+        },
+        "liveblog": {
+            "css": [
+                "assets/css/liveblog.css"
+            ],
+            "js": [
+                "assets/js/liveblog.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "liveblog.min.css",
+            "css_ver": "8e80666a91",
+            "css_bytes": 20715,
+            "js_file": "liveblog.min.js",
+            "js_ver": "9a730b646c",
+            "js_bytes": 6866
         }
     },
     "critical": {
@@ -368,10 +385,11 @@
                 "assets/css/tokens.css",
                 "assets/css/base.css",
                 "assets/css/header.css",
-                "assets/css/components.css"
+                "assets/css/components.css",
+                "assets/css/live-badge.css"
             ],
-            "bytes": 43443,
-            "gzip": 9255
+            "bytes": 44463,
+            "gzip": 9483
         },
         "page": {
             "file": "critical-page.min.css",
@@ -380,10 +398,11 @@
                 "assets/css/base.css",
                 "assets/css/header.css",
                 "assets/css/components.css",
+                "assets/css/live-badge.css",
                 "assets/css/page.css"
             ],
-            "bytes": 47374,
-            "gzip": 9997
+            "bytes": 48394,
+            "gzip": 10230
         },
         "404": {
             "file": "critical-404.min.css",
@@ -392,10 +411,11 @@
                 "assets/css/base.css",
                 "assets/css/header.css",
                 "assets/css/components.css",
+                "assets/css/live-badge.css",
                 "assets/css/page.css"
             ],
-            "bytes": 47374,
-            "gzip": 9997
+            "bytes": 48394,
+            "gzip": 10230
         },
         "account": {
             "file": "critical-account.min.css",
@@ -404,10 +424,11 @@
                 "assets/css/base.css",
                 "assets/css/header.css",
                 "assets/css/components.css",
+                "assets/css/live-badge.css",
                 "assets/css/page.css"
             ],
-            "bytes": 47374,
-            "gzip": 9997
+            "bytes": 48394,
+            "gzip": 10230
         },
         "home": {
             "file": "critical-home.min.css",
@@ -416,10 +437,11 @@
                 "assets/css/base.css",
                 "assets/css/header.css",
                 "assets/css/components.css",
+                "assets/css/live-badge.css",
                 "assets/css/home.css"
             ],
-            "bytes": 51617,
-            "gzip": 10469
+            "bytes": 52637,
+            "gzip": 10699
         },
         "archive": {
             "file": "critical-archive.min.css",
@@ -428,10 +450,11 @@
                 "assets/css/base.css",
                 "assets/css/header.css",
                 "assets/css/components.css",
+                "assets/css/live-badge.css",
                 "assets/css/archive.css"
             ],
-            "bytes": 52995,
-            "gzip": 10745
+            "bytes": 54015,
+            "gzip": 10951
         },
         "search": {
             "file": "critical-search.min.css",
@@ -440,10 +463,11 @@
                 "assets/css/base.css",
                 "assets/css/header.css",
                 "assets/css/components.css",
+                "assets/css/live-badge.css",
                 "assets/css/archive.css"
             ],
-            "bytes": 52995,
-            "gzip": 10745
+            "bytes": 54015,
+            "gzip": 10951
         },
         "single": {
             "file": "critical-single.min.css",
@@ -452,10 +476,11 @@
                 "assets/css/base.css",
                 "assets/css/header.css",
                 "assets/css/components.css",
+                "assets/css/live-badge.css",
                 "assets/css/single.css"
             ],
-            "bytes": 60875,
-            "gzip": 12400
+            "bytes": 61895,
+            "gzip": 12586
         },
         "literature": {
             "file": "critical-literature.min.css",
@@ -464,11 +489,12 @@
                 "assets/css/base.css",
                 "assets/css/header.css",
                 "assets/css/components.css",
+                "assets/css/live-badge.css",
                 "assets/css/literary-font.css",
                 "assets/css/literature.css"
             ],
-            "bytes": 57611,
-            "gzip": 11712
+            "bytes": 58631,
+            "gzip": 11957
         },
         "quotes": {
             "file": "critical-quotes.min.css",
@@ -477,10 +503,11 @@
                 "assets/css/base.css",
                 "assets/css/header.css",
                 "assets/css/components.css",
+                "assets/css/live-badge.css",
                 "assets/css/quotes.css"
             ],
-            "bytes": 57700,
-            "gzip": 12940
+            "bytes": 58720,
+            "gzip": 13170
         },
         "campus": {
             "file": "critical-campus.min.css",
@@ -489,10 +516,11 @@
                 "assets/css/base.css",
                 "assets/css/header.css",
                 "assets/css/components.css",
+                "assets/css/live-badge.css",
                 "assets/css/campus.css"
             ],
-            "bytes": 88319,
-            "gzip": 17445
+            "bytes": 89339,
+            "gzip": 17652
         }
     }
 }

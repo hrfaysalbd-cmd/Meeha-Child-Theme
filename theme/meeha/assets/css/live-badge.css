@@ -1,0 +1,13 @@
+/* =====================================================================
+   Live badge (2.4.8) — "● লাইভ" on live posts: story cards, article labels, the live page itself.
+   Tiny, so it rides in the core CSS (cards appear everywhere).
+   ===================================================================== */
+.m-lb-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 8px; border-radius: var(--m-r-pill); background: #CC2A1F; color: #fff; font: 700 var(--m-fs-xs)/1.4 var(--m-font-body); letter-spacing: .01em; white-space: nowrap; vertical-align: middle; }
+.m-lb-badge__dot { position: relative; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.m-lb-badge--live .m-lb-badge__dot::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid currentColor; opacity: 0; animation: m-lb-ping 1.6s var(--m-ease) infinite; }
+.m-lb-badge--paused { background: #FFC20E; color: #0B2A6B; }
+.m-lb-badge--ended { background: var(--m-surface-2); color: var(--m-muted); }
+.m-lb-badge--card { margin-inline-end: 6px; padding: 1px 7px 1px 6px; font-size: .75rem; position: relative; top: -2px; }
+.m-lb-badge--card .m-lb-badge__dot { width: 6px; height: 6px; }
+@keyframes m-lb-ping { 0% { transform: scale(.6); opacity: .9; } 80%, 100% { transform: scale(1.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .m-lb-badge__dot::after { animation: none !important; } }

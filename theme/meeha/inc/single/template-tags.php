@@ -881,7 +881,7 @@ function meeha_single_dek_html( $text, $post_id ) {
  * @param string  $variant Variant.
  */
 function meeha_single_labels( $post, $variant ) {
-	$out = '';
+	$out = function_exists( 'meeha_lb_card_badge' ) ? meeha_lb_card_badge( $post ) : '';
 	if ( 'investigative' === $variant ) {
 		$out .= '<span class="m-label m-label--inv">মিহা অনুসন্ধান</span>';
 	}
