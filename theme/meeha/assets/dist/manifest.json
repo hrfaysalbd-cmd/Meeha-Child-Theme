@@ -1,5 +1,5 @@
 {
-    "generated": "2026-11-02T22:22:34+00:00",
+    "generated": "2026-11-03T03:34:20+00:00",
     "bundles": {
         "core": {
             "css": [
@@ -350,16 +350,17 @@
             "js": [
                 "assets/js/deshchitro-icons.js",
                 "assets/js/deshchitro-map.js",
-                "assets/js/deshchitro.js"
+                "assets/js/deshchitro.js",
+                "assets/js/deshchitro-live.js"
             ],
             "critical": [],
             "deps": [],
             "css_file": "deshchitro.min.css",
-            "css_ver": "73dc6a949b",
-            "css_bytes": 21799,
+            "css_ver": "5b740065b5",
+            "css_bytes": 32298,
             "js_file": "deshchitro.min.js",
-            "js_ver": "86b116a6bf",
-            "js_bytes": 99475
+            "js_ver": "417982d33c",
+            "js_bytes": 111814
         },
         "liveblog": {
             "css": [

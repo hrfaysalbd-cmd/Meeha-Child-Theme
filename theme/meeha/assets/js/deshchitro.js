@@ -114,6 +114,7 @@
     html += notices();
     if (!P.covered) {
       html += emptyState();
+      html += highlightsSection();
       body.innerHTML = html;
       bindEmpty();
       return;
@@ -436,13 +437,32 @@
 
   /* -------------------------------------------------------------- highlights */
   function highlightsSection() {
-    if (!P.highlights.length) return '';
-    return '<section class="dc-sec" aria-labelledby="dc-hl-h"><div class="dc-sec__head"><h3 class="dc-h" id="dc-hl-h">উল্লেখযোগ্য ঘটনা</h3></div><ol class="dc-hl">' + P.highlights.map(function (h) {
-      var dist = h.d && GEO.districts[h.d] ? '<span class="dc-hl__d">' + esc(GEO.districts[h.d][0]) + '</span>' : '';
-      var day = P.span > 1 ? '<span class="dc-hl__day">' + esc(shortDate(h.day)) + '</span>' : '';
-      var t = esc(h.t);
-      return '<li>' + day + dist + (h.u ? '<a href="' + esc(h.u) + '">' + t + ' <span aria-hidden="true">→</span></a>' : '<span>' + t + '</span>') + '</li>';
-    }).join('') + '</ol></section>';
+    var own = P.meeha || [];
+    if (!P.highlights.length && !own.length) return '';
+    var im = indMap();
+    var html = '<section class="dc-sec" aria-labelledby="dc-hl-h"><div class="dc-sec__head"><h3 class="dc-h" id="dc-hl-h">উল্লেখযোগ্য ঘটনা</h3>' +
+      (own.length ? '<span class="dc-sec__note">মিহা নিউজের প্রতিবেদন থেকে</span>' : '') + '</div>';
+    if (own.length) {
+      html += '<ol class="dc-own">' + own.map(function (p) {
+        var chips = Object.keys(p.c).filter(function (k) { return im[k]; }).map(function (k) {
+          var i = im[k];
+          return '<span class="dc-pc dc-t-' + esc(i.tone) + '">' + ICON(i.icon) + esc(i.short) + ' <b>' + fmt(p.c[k]) + '</b></span>';
+        }).join('');
+        var meta = [P.span > 1 ? shortDate(p.day) : '', p.dn, p.up].filter(Boolean).map(esc).join(' · ');
+        return '<li class="dc-own__i"><a class="dc-own__a" href="' + esc(p.url) + '">' +
+          (p.img ? '<img class="dc-own__img" src="' + esc(p.img) + '" alt="" loading="lazy" width="72" height="72">' : '<span class="dc-own__img dc-own__img--ph" aria-hidden="true">' + ICON('alert') + '</span>') +
+          '<span class="dc-own__b"><span class="dc-own__m">' + meta + '</span><span class="dc-own__t">' + esc(p.title) + '</span><span class="dc-pcs">' + chips + '</span></span></a></li>';
+      }).join('') + '</ol>';
+    }
+    if (P.highlights.length) {
+      html += (own.length ? '<h4 class="dc-h4">ডেস্কের বাছাই</h4>' : '') + '<ol class="dc-hl">' + P.highlights.map(function (h) {
+        var dist = h.d && GEO.districts[h.d] ? '<span class="dc-hl__d">' + esc(GEO.districts[h.d][0]) + '</span>' : '';
+        var day = P.span > 1 ? '<span class="dc-hl__day">' + esc(shortDate(h.day)) + '</span>' : '';
+        var t = esc(h.t);
+        return '<li>' + day + dist + (h.u ? '<a href="' + esc(h.u) + '">' + t + ' <span aria-hidden="true">→</span></a>' : '<span>' + t + '</span>') + '</li>';
+      }).join('') + '</ol>';
+    }
+    return html + '</section>';
   }
 
   /* -------------------------------------------------------------- table */

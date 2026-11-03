@@ -8,6 +8,8 @@
  *   GET    /admin/deshchitro?date=Y-m-d     sheet for one day (config, geography, saved values, the day's news)
  *   POST   /admin/deshchitro {date, status, data}
  *   DELETE /admin/deshchitro?date=Y-m-d
+ *   GET    /admin/deshchitro/fields         (1.12.0) the per-post input under the news editor: active indicators +
+ *                                           title keywords. Posts carry their counts as `dc` (see NROS_Editorial).
  *
  * Staff only (edit_others_posts). Without the theme module every call answers 501 with a clear message.
  *
@@ -45,6 +47,47 @@ class NROS_Deshchitro {
 					'permission_callback' => array( 'NROS_Core', 'require_staff' ),
 				),
 			)
+		);
+		register_rest_route(
+			NROS_API_NS,
+			'/admin/deshchitro/fields',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'fields' ),
+				'permission_callback' => array( 'NROS_Core', 'require_staff' ),
+			)
+		);
+	}
+
+	/**
+	 * GET fields: what the post editor's দেশচিত্র box shows. Never an error — an older theme just says unavailable.
+	 *
+	 * @return array
+	 */
+	public static function fields() {
+		if ( ! function_exists( 'meeha_dc_sanitize_post_counts' ) ) {
+			return array(
+				'available'  => false,
+				'indicators' => array(),
+				'keywords'   => new stdClass(),
+			);
+		}
+		$inds = array();
+		foreach ( meeha_dc_active( 'indicators' ) as $r ) {
+			$inds[] = array(
+				'key'   => $r['key'],
+				'label' => $r['label'],
+				'short' => $r['short'],
+				'icon'  => $r['icon'],
+				'tone'  => $r['tone'],
+			);
+		}
+		return array(
+			'available'  => true,
+			'indicators' => $inds,
+			'keywords'   => (object) meeha_dc_keywords(),
+			'live'       => function_exists( 'meeha_dc_live_on' ) && meeha_dc_live_on(),
+			'pageUrl'    => meeha_dc_page_url(),
 		);
 	}
 

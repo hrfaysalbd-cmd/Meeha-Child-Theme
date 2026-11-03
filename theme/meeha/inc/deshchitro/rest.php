@@ -85,6 +85,7 @@ function meeha_dc_day_news( $day ) {
 			'd'     => isset( $by_name[ $dn ] ) ? $by_name[ $dn ] : '',
 			'tags'  => $tags,
 			'time'  => get_the_time( 'H:i', $id ),
+			'c'     => (object) meeha_dc_post_counts( $id ),
 		);
 	}
 	// Tagged first.
@@ -141,6 +142,8 @@ function meeha_dc_sheet( $day ) {
 		'ecoGroups'  => meeha_dc_economy_groups(),
 		'geo'        => meeha_dc_geo(),
 		'news'       => meeha_dc_day_news( $day ),
+		// 2.4.9: the day's own Meeha posts with counts (prefill + "already recorded" list for the AI prompt).
+		'meeha'      => meeha_dc_posts_day( $day ),
 		'pageUrl'    => meeha_dc_page_url(),
 	);
 }

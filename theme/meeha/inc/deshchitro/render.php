@@ -58,9 +58,15 @@ function meeha_dc_shortcode( $atts = array() ) {
 	$t    = $p['text'];
 	$rest = esc_url_raw( rest_url( 'meeha/v1/deshchitro' ) );
 	$sum  = meeha_dc_summary_text( $p );
+	$live = meeha_dc_live_on() ? meeha_dc_live_payload() : null;
 	ob_start();
 	?>
 	<section class="dc" id="meeha-dc" data-rest="<?php echo esc_attr( $rest ); ?>" aria-labelledby="dc-title">
+		<?php
+		if ( $live ) {
+			meeha_dc_live_ssr( $live, $p['indicators'] );
+		}
+		?>
 		<header class="dc-hero">
 			<div class="dc-hero__in">
 				<div class="dc-hero__text">
@@ -107,8 +113,9 @@ function meeha_dc_shortcode( $atts = array() ) {
 		meeha_dc_json_script(
 			'meeha-dc-data',
 			array(
-				'p'   => $p,
-				'geo' => meeha_dc_geo(),
+				'p'    => $p,
+				'geo'  => meeha_dc_geo(),
+				'live' => $live,
 			)
 		);
 		?>
@@ -117,6 +124,34 @@ function meeha_dc_shortcode( $atts = array() ) {
 	return (string) ob_get_clean();
 }
 add_shortcode( 'meeha_deshchitro', 'meeha_dc_shortcode' );
+
+/**
+ * LIVE band (server-rendered fallback; assets/js/deshchitro-live.js redraws it and keeps it current).
+ *
+ * @param array   $live From meeha_dc_live_payload().
+ * @param array[] $inds Active indicators.
+ */
+function meeha_dc_live_ssr( $live, $inds ) {
+	?>
+	<section class="dcl" data-dc-live data-live-rest="<?php echo esc_attr( esc_url_raw( rest_url( 'meeha/v1/deshchitro/live' ) ) ); ?>" aria-labelledby="dcl-h" aria-live="off">
+		<div class="dcl-in" data-live-in>
+			<div class="dcl-bar"><span class="dcl-onair"><i aria-hidden="true"></i>লাইভ</span><h2 class="dcl-h" id="dcl-h">আজ সরাসরি <span>দেশচিত্র</span></h2><span class="dcl-date"><?php echo esc_html( $live['label'] ); ?></span></div>
+			<ul class="dcl-kpis">
+				<?php foreach ( $inds as $i ) : ?>
+					<li class="dcl-kpi dcl-t-<?php echo esc_attr( $i['tone'] ); ?>"><span class="dcl-kpi__l"><?php echo esc_html( $i['short'] ); ?></span><strong class="dcl-kpi__v"><?php echo esc_html( meeha_bn_digits( (string) ( isset( $live['tot'][ $i['key'] ] ) ? $live['tot'][ $i['key'] ] : 0 ) ) ); ?></strong></li>
+				<?php endforeach; ?>
+			</ul>
+			<?php if ( $live['posts'] ) : ?>
+				<ol class="dcl-list">
+					<?php foreach ( array_slice( $live['posts'], 0, 6 ) as $post ) : ?>
+						<li class="dcl-item"><a href="<?php echo esc_url( $post['url'] ); ?>"><span class="dcl-item__t"><?php echo esc_html( $post['title'] ); ?></span></a></li>
+					<?php endforeach; ?>
+				</ol>
+			<?php endif; ?>
+		</div>
+	</section>
+	<?php
+}
 
 /**
  * Print a JSON payload in a non-executable script tag.
@@ -139,6 +174,7 @@ function meeha_dc_enqueue() {
 	wp_enqueue_style( 'meeha-deshchitro', MEEHA_URI . '/assets/css/deshchitro.css', array(), MEEHA_VERSION );
 	wp_enqueue_script( 'meeha-deshchitro-map', MEEHA_URI . '/assets/js/deshchitro-map.js', array(), MEEHA_VERSION, true );
 	wp_enqueue_script( 'meeha-deshchitro', MEEHA_URI . '/assets/js/deshchitro.js', array( 'meeha-deshchitro-map' ), MEEHA_VERSION, true );
+	wp_enqueue_script( 'meeha-deshchitro-live', MEEHA_URI . '/assets/js/deshchitro-live.js', array( 'meeha-deshchitro-map' ), MEEHA_VERSION, true );
 }
 
 /** Enqueue early on the configured page (styles in <head>, no flash). */

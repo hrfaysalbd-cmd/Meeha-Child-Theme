@@ -207,6 +207,8 @@ class NROS_Editorial {
 			// Genre the theme actually uses (explicit pick, else from the category); '' when not literature.
 			'lit_genre_effective' => function_exists( 'meeha_lit_genre_of' ) ? (string) meeha_lit_genre_of( $post ) : '',
 			'is_literature'       => self::is_literature( $post ),
+			// 1.12.0 — দেশচিত্র counts of this news (theme 2.4.9+); {} when none / older theme.
+			'dc'                  => (object) ( function_exists( 'meeha_dc_post_counts' ) ? meeha_dc_post_counts( $post->ID ) : array() ),
 		);
 	}
 
@@ -347,7 +349,7 @@ class NROS_Editorial {
 		$post_id = $post ? (int) $post->ID : 0;
 
 		if ( ! $staff ) {
-			foreach ( array( 'flags', 'glance_text', 'lit', 'breaking', 'trending', 'investigation', 'glance' ) as $forbidden ) {
+			foreach ( array( 'flags', 'glance_text', 'lit', 'dc', 'breaking', 'trending', 'investigation', 'glance' ) as $forbidden ) {
 				if ( null !== $request->get_param( $forbidden ) ) {
 					return new WP_Error( 'nros_forbidden_field', 'ব্রেকিং/ট্রেন্ডিং/একনজরে/সাহিত্য তথ্য শুধু সম্পাদক বা পাবলিশার ঠিক করতে পারেন।', array( 'status' => 403 ) );
 				}
@@ -424,6 +426,15 @@ class NROS_Editorial {
 				return new WP_Error( 'nros_too_long', 'একনজরে বাক্য সর্বোচ্চ ' . NROS_Core::bn_digits( self::GLANCE_MAX ) . ' অক্ষরের হতে পারে।', array( 'status' => 400 ) );
 			}
 			$plan['glance_text'] = $glance;
+		}
+
+		// দেশচিত্র counts (1.12.0, desk only — same rule as the theme's meta box).
+		$dc = $request->get_param( 'dc' );
+		if ( null !== $dc && function_exists( 'meeha_dc_sanitize_post_counts' ) ) {
+			if ( ! is_array( $dc ) ) {
+				return new WP_Error( 'nros_bad_dc', 'দেশচিত্রের হিসাব সঠিক নয়।', array( 'status' => 400 ) );
+			}
+			$plan['dc'] = meeha_dc_sanitize_post_counts( $dc );
 		}
 
 		// Literature.
@@ -541,6 +552,10 @@ class NROS_Editorial {
 			} else {
 				update_post_meta( $post_id, '_meeha_glance_text', $plan['glance_text'] );
 			}
+		}
+
+		if ( isset( $plan['dc'] ) && function_exists( 'meeha_dc_set_post_counts' ) ) {
+			meeha_dc_set_post_counts( $post_id, $plan['dc'] );
 		}
 
 		if ( isset( $plan['lit'] ) ) {

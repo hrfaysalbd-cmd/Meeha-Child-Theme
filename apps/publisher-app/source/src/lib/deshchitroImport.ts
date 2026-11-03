@@ -6,7 +6,34 @@
  * indicator, drops what fails the rules (wrong date, no source link, low confidence — each a choice in the
  * preview) and reports what it skipped, so the desk can check before saving.
  */
-import type { DcData, DcSheet } from './api'
+import type { DcData, DcMeeha, DcSheet } from './api'
+
+/**
+ * r26.6 — Meeha-first: the counts typed on the day's own Meeha News posts, laid into a sheet. Per cell the larger
+ * number wins, so running it twice (or after the desk already typed a cell) never double counts.
+ */
+export function dcWithMeeha(base: DcData, meeha?: DcMeeha | null): DcData {
+  const data: DcData = JSON.parse(JSON.stringify(base))
+  if (!meeha || !meeha.n) return data
+  Object.entries(meeha.inc).forEach(([dk, vals]) => {
+    data.inc[dk] = data.inc[dk] || {}
+    Object.entries(vals).forEach(([k, n]) => { data.inc[dk][k] = Math.max(data.inc[dk][k] || 0, n) })
+  })
+  Object.entries(meeha.unk).forEach(([k, n]) => { data.unk[k] = Math.max(data.unk[k] || 0, n) })
+  return data
+}
+
+/** How many cells of `data` are below the Meeha counts (what "মিহার হিসাব বসান" would change). */
+export function dcMeehaMissing(data: DcData, meeha?: DcMeeha | null): number {
+  if (!meeha || !meeha.n) return 0
+  let n = 0
+  Object.entries(meeha.inc).forEach(([dk, vals]) => Object.entries(vals).forEach(([k, v]) => { if (((data.inc[dk] || {})[k] || 0) < v) n++ }))
+  Object.entries(meeha.unk).forEach(([k, v]) => { if ((data.unk[k] || 0) < v) n++ })
+  return n
+}
+
+const safeDecode = (u: string) => { try { return decodeURI(u) } catch { return u } }
+const normUrl = (u: string) => safeDecode(u.trim()).replace(/^https?:\/\/(www\.)?/i, '').replace(/[?#].*$/, '').replace(/\/+$/, '').toLowerCase()
 
 export const DC_FORMAT = 'meeha-deshchitro'
 export const DC_FORMAT_VERSION = 1
@@ -154,9 +181,11 @@ export function buildImport(f: DcImportFile, sheet: DcSheet, base: DcData, opt: 
   const warnings: string[] = []
   const data: DcData = JSON.parse(JSON.stringify(base))
   if (opt.mode === 'replace') {
-    data.inc = {}
-    data.unk = {}
+    // Meeha-first: "replace" clears the desk's hand-typed numbers but always keeps Meeha's own counts.
+    data.inc = JSON.parse(JSON.stringify(sheet.meeha?.inc || {}))
+    data.unk = JSON.parse(JSON.stringify(sheet.meeha?.unk || {}))
   }
+  const meehaUrls = new Set((sheet.meeha?.posts || []).map((p) => normUrl(p.url)))
   const rows: DcImportRow[] = []
   const add = (dk: string, k: string, n: number) => {
     if (dk) {
@@ -181,6 +210,7 @@ export function buildImport(f: DcImportFile, sheet: DcSheet, base: DcData, opt: 
     else if (opt.requireSource && !sources.some((s) => isUrl(s.url))) skip = 'উৎসের লিংক নেই'
     else if (opt.strictDate && occurred && occurred !== date) skip = `অন্য দিনের ঘটনা (${occurred})`
     else if (!opt.includeLow && conf === 'low') skip = 'কম নিশ্চিত'
+    else if (meehaUrls.size && sources.some((s) => isUrl(s.url) && meehaUrls.has(normUrl(String(s.url))))) skip = 'মিহা নিউজে আগেই গোনা'
     if (!skip && dRaw && !dk) warnings.push(`"${dRaw}" জেলা চেনা যায়নি — ঘটনাটি "জেলা অজানা"-তে গেছে।`)
     if (!skip) add(dk, k, n)
     rows.push({ i, district: dk, districtRaw: dRaw, indicator: k, indicatorRaw: iRaw, count: Number.isFinite(n) ? n : 0, summary: String(x.summary || ''), sources, confidence: conf, occurred, skip })
@@ -292,11 +322,29 @@ export function buildPrompt(sheet: DcSheet, date: string): string {
   const indLines = inds.map((i) => `- "${i.key}" — ${i.label}: count the ${COUNT_RULES[i.key] || 'number of incidents reported for this date.'}`).join('\n')
   const ecoLines = ecos.map((e) => `- "${e.key}" — ${e.label}${e.code ? ` (${e.code})` : ''} [${groups[e.group] || e.group}; unit: ${e.unit || 'number'}]`).join('\n')
   const prev = (() => { const [y, m, d] = date.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10) })()
+  // r26.6 Meeha-first: what Meeha News' own reports already counted for this date (sheet.meeha is that day's list).
+  const own = sheet.day === date && sheet.meeha && sheet.meeha.n ? sheet.meeha.posts : []
+  const indShort = (k: string) => inds.find((i) => i.key === k)?.key || k
+  const ownLines = own.map((p, i) => `[M${i + 1}] district=${p.d || 'null'}${p.dn ? ` (${p.dn}${p.up ? `, ${p.up}` : ''})` : ''} | ${Object.entries(p.c).map(([k, n]) => `${indShort(k)}=${n}`).join(', ')} | ${p.time} | "${p.title.replace(/"/g, "'")}" | ${safeDecode(p.url)}`).join('\n')
+  const ownTot = own.length ? inds.filter((i) => sheet.meeha!.tot[i.key]).map((i) => `${i.key}=${sheet.meeha!.tot[i.key]}`).join(', ') : ''
+  const meehaBlock = own.length
+    ? `
+
+MEEHA-FIRST: ALREADY RECORDED BY MEEHA NEWS (${own.length} reports; totals: ${ownTot})
+Meeha News' own reporters already published these reports for ${date} and their counts are ALREADY in the sheet:
+${ownLines}
+Rules for this list:
+- Your job is to find what is MISSING from it: other events, other districts, other indicators.
+- Do NOT return any incident that is the same real-world event as an [M#] item (same district/area, same type, same victims or place), even when other outlets reported it too. Never cite a Meeha News URL as a source.
+- If another credible outlet gives a DIFFERENT figure for an [M#] event (e.g. the death toll rose later), do not add an incident; write it in "coverage_gaps" as "UPDATE [M#]: <indicator> <new number> — <outlet> <url>" so the editor can correct it.
+- "highlights": list only events that are NOT in this list (Meeha's own reports are shown on the page automatically).`
+    : ''
   return `ROLE
 You are the night data desk of Meeha News (মিহা নিউজ), a Bangladeshi news portal. You research, verify and structure facts. You never invent, estimate or "fill in" numbers.
 
 TASK
-Build the "দৈনিক দেশচিত্র" (daily national picture) for ${date} — the full calendar day 00:00–23:59 Bangladesh time (UTC+6). Search the public web for incidents that HAPPENED on ${date} in Bangladesh, plus the economy figures valid on ${date}. Reports published on ${date} or ${prev} usually describe ${date}; check the event date in each report.
+Build the "দৈনিক দেশচিত্র" (daily national picture) for ${date} — the full calendar day 00:00–23:59 Bangladesh time (UTC+6). Search the public web for incidents that HAPPENED on ${date} in Bangladesh, plus the economy figures valid on ${date}. Reports published on ${date} or ${prev} usually describe ${date}; check the event date in each report.${own.length ? `
+Meeha News has already recorded part of this day from its own reports (see MEEHA-FIRST below). Collect ONLY the incidents that are missing from that list; economy figures are still needed in full.` : ''}${meehaBlock}
 
 WHERE TO LOOK (only publicly published material)
 1. National and local news portals and newspapers, Bangla and English (national dailies, online portals, district/local portals, TV channel websites).

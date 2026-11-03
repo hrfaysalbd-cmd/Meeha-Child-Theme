@@ -834,6 +834,8 @@ export interface AdminPost {
   is_literature?: boolean
   // Unix seconds — the theme shows a trending pin for 24 h after trending_at.
   flag_times?: { breaking_at: number | null; trending_at: number | null }
+  // Plugin 1.12.0 — দেশচিত্র counts typed on this news ({} = none).
+  dc?: Record<string, number>
 }
 
 // ---- Round 12: editorial fields ----
@@ -1530,6 +1532,8 @@ export interface AdminPostInput {
   flags?: Partial<PostFlags>
   glance_text?: string
   lit?: Record<string, string>
+  // Plugin 1.12.0 — দেশচিত্র counts ({} clears them).
+  dc?: Record<string, number>
   // Round 10 — PATCH only, and only when profile.can allows it.
   date?: string // 'YYYY-MM-DD HH:MM:SS', site time; future → scheduled
   author_id?: number
@@ -2147,7 +2151,24 @@ export interface DcData {
   summary: string
   sources: string
 }
-export interface DcNews { id: number; title: string; url: string; d: string; tags: string[]; time: string }
+export interface DcNews { id: number; title: string; url: string; d: string; tags: string[]; time: string; c?: Record<string, number> }
+// Theme 2.4.9: Meeha's own posts that carry দেশচিত্র counts for the day (district from the post's area).
+export interface DcMeehaPost { id: number; title: string; url: string; day: string; time: string; d: string; dn: string; up: string; c: Record<string, number>; img: string }
+export interface DcMeeha {
+  inc: Record<string, Record<string, number>>
+  unk: Record<string, number>
+  tot: Record<string, number>
+  n: number
+  posts: DcMeehaPost[]
+}
+/** GET /admin/deshchitro/fields (plugin 1.12.0) — the দেশচিত্র box under the news editor. */
+export interface DcFields {
+  available: boolean
+  indicators: Pick<DcIndicator, 'key' | 'label' | 'short' | 'icon' | 'tone'>[]
+  keywords: Record<string, string>
+  live?: boolean
+  pageUrl?: string
+}
 export interface DcSheet {
   day: string
   today: string
@@ -2166,6 +2187,7 @@ export interface DcSheet {
   geo: { districts: Record<string, [string, string]>; divisions: Record<string, string> }
   news: DcNews[]
   pageUrl: string
+  meeha?: DcMeeha
 }
 
 const dcObj = <T,>(v: unknown): T => (v && typeof v === 'object' && !Array.isArray(v) ? v : {}) as T
@@ -2180,12 +2202,36 @@ function dcNormalize(s: DcSheet): DcSheet {
   d.hl = Array.isArray(d.hl) ? d.hl : []
   s.prevEco = dcObj(s.prevEco)
   s.month = dcObj(s.month)
+  if (s.meeha) {
+    const m = s.meeha
+    m.inc = dcObj(m.inc)
+    Object.keys(m.inc).forEach((k) => { m.inc[k] = dcObj(m.inc[k]) })
+    m.unk = dcObj(m.unk)
+    m.tot = dcObj(m.tot)
+    m.posts = (Array.isArray(m.posts) ? m.posts : []).map((p) => ({ ...p, c: dcObj(p.c) }))
+  }
+  s.news = (Array.isArray(s.news) ? s.news : []).map((n) => ({ ...n, c: dcObj(n.c) }))
   return s
 }
+
+let dcFieldsCache: Promise<DcFields> | null = null
 
 export const DeshchitroApi = {
   get: (date?: string) => request<DcSheet>(`/admin/deshchitro${date ? `?date=${encodeURIComponent(date)}` : ''}`).then(dcNormalize),
   save: (date: string, status: 'draft' | 'publish', data: DcData) =>
     request<DcSheet>('/admin/deshchitro', { method: 'POST', body: { date, status, data } as unknown as Record<string, unknown> }).then(dcNormalize),
   remove: (date: string) => request<DcSheet>(`/admin/deshchitro?date=${encodeURIComponent(date)}`, { method: 'DELETE' }).then(dcNormalize),
+  /** Cached per session; an older plugin (404) degrades to "not available" so the editor still works. */
+  fields: (): Promise<DcFields> => {
+    const p: Promise<DcFields> =
+      dcFieldsCache ??
+      request<DcFields>('/admin/deshchitro/fields')
+        .then((f): DcFields => ({ ...f, available: !!f.available, indicators: Array.isArray(f.indicators) ? f.indicators : [], keywords: dcObj<Record<string, string>>(f.keywords) }))
+        .catch((): DcFields => {
+          dcFieldsCache = null
+          return { available: false, indicators: [], keywords: {} }
+        })
+    dcFieldsCache = p
+    return p
+  },
 }

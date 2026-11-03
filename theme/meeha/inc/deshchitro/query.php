@@ -118,7 +118,7 @@ function meeha_dc_sum( $rows, $ik ) {
  */
 function meeha_dc_payload( $args ) {
 	$a   = meeha_dc_args( $args );
-	$key = 'meeha_dc_' . md5( wp_json_encode( array( $a, (int) get_option( 'meeha_dc_gen', 0 ), meeha_dc_today(), MEEHA_DC_DB_VERSION ) ) );
+	$key = 'meeha_dc_' . md5( wp_json_encode( array( $a, (int) get_option( 'meeha_dc_gen', 0 ), meeha_dc_today(), MEEHA_DC_DB_VERSION, meeha_dc_posts_gen() ) ) );
 	$hit = get_transient( $key );
 	if ( is_array( $hit ) ) {
 		return $hit;
@@ -257,6 +257,8 @@ function meeha_dc_build_payload( $a ) {
 		'unknown'   => $now['unk'],
 		'notes'     => $notes,
 		'highlights' => $hl,
+		// 2.4.9: notable events from Meeha's own posts (posts that carry দেশচিত্র counts).
+		'meeha'     => meeha_dc_posts_notable( $from, $to, 12 ),
 		'summary'   => $summary,
 		'series'    => $series,
 		'text'      => $c['text'],

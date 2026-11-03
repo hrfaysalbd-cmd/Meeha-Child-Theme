@@ -244,7 +244,7 @@ function meeha_dc_text_defaults() {
 /**
  * Saved configuration merged with defaults.
  *
- * @return array{indicators: array, economy: array, text: array, page_id: int}
+ * @return array{indicators: array, economy: array, text: array, page_id: int, live: int}
  */
 function meeha_dc_config() {
 	static $cache = null;
@@ -258,6 +258,7 @@ function meeha_dc_config() {
 		'economy'    => ! empty( $saved['economy'] ) && is_array( $saved['economy'] ) ? $saved['economy'] : meeha_dc_default_economy(),
 		'text'       => array_merge( meeha_dc_text_defaults(), isset( $saved['text'] ) && is_array( $saved['text'] ) ? array_filter( $saved['text'], 'strlen' ) : array() ),
 		'page_id'    => isset( $saved['page_id'] ) ? (int) $saved['page_id'] : 0,
+		'live'       => isset( $saved['live'] ) ? (int) $saved['live'] : 1,
 	);
 	return $cache;
 }
@@ -294,6 +295,7 @@ function meeha_dc_sanitize_config( $in ) {
 		'economy'    => array(),
 		'text'       => array(),
 		'page_id'    => isset( $in['page_id'] ) ? absint( $in['page_id'] ) : 0,
+		'live'       => empty( $in['live'] ) ? 0 : 1,
 	);
 	$seen  = array();
 	foreach ( (array) ( isset( $in['indicators'] ) ? $in['indicators'] : array() ) as $r ) {

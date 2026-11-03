@@ -12,6 +12,7 @@ import { DeshchitroApi, describeError, type DcData, type DcSheet } from '../lib/
 import { Badge, Banner, Button, Card, PageHeader, Spinner, inputClass } from '../components/ui'
 import { IconChevronDown, IconExternalLink, IconPlus, IconSparkles, IconUpload, IconX } from '../components/Icon'
 import { ImportDialog, PromptDialog } from '../components/DeshchitroImport'
+import { dcMeehaMissing, dcWithMeeha } from '../lib/deshchitroImport'
 
 const BN = '০১২৩৪৫৬৭৮৯'
 const bn = (v: number | string) => String(v).replace(/[0-9]/g, (d) => BN[Number(d)])
@@ -46,8 +47,14 @@ export default function Deshchitro() {
     try {
       const s = await DeshchitroApi.get(date)
       setSheet(s)
-      setData(JSON.parse(JSON.stringify(s.data)))
-      setDirty(false)
+      // r26.6 Meeha-first: a new day starts from the counts typed on that day's own Meeha News posts.
+      const pre = !s.exists && !!s.meeha?.n
+      setData(pre ? dcWithMeeha(s.data, s.meeha) : JSON.parse(JSON.stringify(s.data)))
+      setDirty(pre)
+      if (pre) {
+        setNotice(`মিহা নিউজের ${bn(s.meeha!.n)}টি খবরের হিসাব শিটে বসেছে। বাকিটা দিন বা এআই দিয়ে আনুন, তারপর সংরক্ষণ করুন।`)
+        setTimeout(() => setNotice(''), 7000)
+      }
     } catch (e) {
       setError(describeError(e).message)
     } finally {
@@ -158,6 +165,27 @@ export default function Deshchitro() {
         <Button variant="secondary" size="sm" onClick={() => setDialog('prompt')}><IconSparkles className="w-4 h-4" /> এআই প্রম্পট</Button>
         <Button size="sm" onClick={() => setDialog('import')}><IconUpload className="w-4 h-4" /> ইমপোর্ট</Button>
       </div>
+      {(() => {
+        const m = sheet.meeha
+        const missing = dcMeehaMissing(data, m)
+        const totals = m && m.n ? inds.filter((i) => m.tot[i.key]).map((i) => `${i.short} ${bn(m.tot[i.key])}`).join(' · ') : ''
+        return (
+          <div data-testid="dc-meeha-row" className={`mb-3 rounded-2xl border p-3 flex flex-wrap items-center gap-2 ${m && m.n ? 'border-emerald-200 bg-emerald-50' : 'border-neutral-200 bg-white'}`}>
+            <span className="text-[13px] mr-auto min-w-0">
+              {m && m.n ? (
+                <><b className="text-emerald-900">মিহা নিউজ আগে:</b> এই দিনের {bn(m.n)}টি খবরে হিসাব আছে ({totals})। এআই প্রম্পট শুধু বাকি ঘটনা খুঁজবে।</>
+              ) : (
+                <span className="text-neutral-600">এই দিনের কোনো মিহা নিউজের খবরে দেশচিত্রের হিসাব দেওয়া নেই। এআই প্রম্পট আগের নিয়মে সব ঘটনা খুঁজবে।</span>
+              )}
+            </span>
+            {m && m.n > 0 && (missing > 0 ? (
+              <Button size="sm" variant="secondary" onClick={() => edit((d) => { const x = dcWithMeeha(d, m); d.inc = x.inc; d.unk = x.unk })}>মিহা নিউজের হিসাব বসান ({bn(missing)}টি ঘর)</Button>
+            ) : (
+              <Badge tone="emerald">শিটে বসানো আছে</Badge>
+            ))}
+          </div>
+        )
+      })()}
       {dialog === 'prompt' && <PromptDialog sheet={sheet} onClose={() => setDialog('')} />}
       {dialog === 'import' && (
         <ImportDialog
@@ -413,7 +441,7 @@ export default function Deshchitro() {
 
       {tab === 'news' && (
         <Card className="divide-y divide-neutral-100">
-          <p className="px-4 py-2 text-[12.5px] text-neutral-500">এই দিনে প্রকাশিত খবর; শিরোনামের শব্দ দেখে সম্ভাব্য সূচক দেখানো হয়েছে — সংখ্যা নিজে যাচাই করুন।</p>
+          <p className="px-4 py-2 text-[12.5px] text-neutral-500">এই দিনে প্রকাশিত খবর। সবুজ লেখা = খবরের সাথে দেওয়া দেশচিত্রের হিসাব (শিটে আগেই যোগ হয়)। বাকিগুলোতে শিরোনামের শব্দ দেখে সম্ভাব্য সূচক দেখানো হয়েছে।</p>
           {!sheet.news.length && <p className="px-4 py-6 text-center text-neutral-400 text-[13px]">এই দিনে কোনো খবর নেই।</p>}
           {sheet.news.map((n) => {
             const used = data.hl.some((h) => h.u === n.url)
@@ -422,7 +450,9 @@ export default function Deshchitro() {
                 <span className="text-[11.5px] text-neutral-400 w-10">{bn(n.time)}</span>
                 <a href={n.url} target="_blank" rel="noopener" className="flex-1 min-w-[12rem] text-[13.5px] font-medium text-neutral-900">{n.title}</a>
                 {n.d && <Badge>{geo.districts[n.d]?.[0]}</Badge>}
-                {n.tags.map((t) => { const i = sheet.indicators.find((x) => x.key === t); return i ? <Badge key={t} tone={i.tone === 'good' ? 'emerald' : i.tone === 'info' ? 'blue' : i.tone === 'warn' ? 'amber' : 'red'}>{i.short}</Badge> : null })}
+                {n.c && Object.keys(n.c).length > 0
+                  ? <span className="text-[12px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">দেশচিত্র: {Object.entries(n.c).map(([k, v]) => `${sheet.indicators.find((x) => x.key === k)?.short || k} ${bn(v)}`).join(', ')}</span>
+                  : n.tags.map((t) => { const i = sheet.indicators.find((x) => x.key === t); return i ? <Badge key={t} tone={i.tone === 'good' ? 'emerald' : i.tone === 'info' ? 'blue' : i.tone === 'warn' ? 'amber' : 'red'}>{i.short}</Badge> : null })}
                 <Button size="sm" variant="secondary" disabled={used || data.hl.length >= 15} onClick={() => edit((d) => { d.hl.push({ t: n.title, u: n.url, d: n.d }) })}>{used ? 'যোগ হয়েছে' : 'ঘটনায় যোগ'}</Button>
               </div>
             )

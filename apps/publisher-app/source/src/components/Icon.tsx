@@ -68,6 +68,9 @@ export const IconMessage = (p: Props) => (
 export const IconShare = (p: Props) => (
   <svg {...base} {...p}><path d="M6 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M18 6m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M18 18m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M8.7 10.7l6.6 -3.4" /><path d="M8.7 13.3l6.6 3.4" /></svg>
 )
+export const IconMinus = (p: Props) => (
+  <svg {...base} {...p}><path d="M5 12h14" /></svg>
+)
 export const IconPlus = (p: Props) => (
   <svg {...base} {...p}><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
 )

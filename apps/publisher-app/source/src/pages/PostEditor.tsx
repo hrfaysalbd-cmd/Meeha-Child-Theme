@@ -27,6 +27,7 @@ import { useAuth } from '../lib/AuthContext'
 import { Banner, Button, Card, Field, inputClass, Modal, PageHeader, Spinner, bnNumber } from '../components/ui'
 import { IconHistory, IconLibraryPhoto, IconPhoto, IconPhotoPlus } from '../components/Icon'
 import MediaGallery from '../components/MediaGallery'
+import DeshchitroPostBox from '../components/DeshchitroPostBox'
 import RichEditor from '../components/RichEditor'
 import CategoryPicker from '../components/CategoryPicker'
 import { rememberCategory } from '../lib/categoryTree'
@@ -93,6 +94,9 @@ export default function PostEditor() {
   const [lit, setLit] = useState<Record<string, string>>({})
   const [litTouched, setLitTouched] = useState(false)
   const [litSchema, setLitSchema] = useState<LitSchema | null>(null)
+  // r26.6 — দেশচিত্র counts of this news (sent only when edited, so a wp-admin edit is never overwritten).
+  const [dc, setDc] = useState<Record<string, number>>({})
+  const [dcTouched, setDcTouched] = useState(false)
   // Sections start open on a desktop, folded on a phone (one long stack).
   const [wide] = useState(() => typeof window === 'undefined' || window.matchMedia('(min-width: 1024px)').matches)
 
@@ -184,6 +188,8 @@ export default function PostEditor() {
     setGlanceText(p.glance_text ?? '')
     setLit(p.lit && typeof p.lit === 'object' ? { ...p.lit } : {})
     setLitTouched(false)
+    setDc(p.dc && typeof p.dc === 'object' && !Array.isArray(p.dc) ? { ...p.dc } : {})
+    setDcTouched(false)
   }
 
   function syncPublishInfo(p: AdminPost) {
@@ -237,6 +243,7 @@ export default function PostEditor() {
       glance_text: glanceText.trim(),
       // Literature meta only for literature posts (or when it was edited).
       ...(showLiterature || litTouched ? { lit } : {}),
+      ...(dcTouched ? { dc } : {}),
       content,
       category_id: categoryId || undefined,
       slug: slug || undefined,
@@ -526,6 +533,20 @@ export default function PostEditor() {
               বিস্তারিত <span className="text-brand-600">*</span>
             </span>
             <RichEditor content={content} onChange={setContent} />
+          </div>
+
+          {/* r26.6: দেশচিত্র counts sit right under the body, like categories; the district comes from এলাকা. */}
+          <div className="mt-4">
+            <DeshchitroPostBox
+              value={dc}
+              onChange={(v) => {
+                setDc(v)
+                setDcTouched(true)
+              }}
+              district={area.district}
+              title={title}
+              defaultOpen={wide || Object.keys(dc).length > 0}
+            />
           </div>
 
           {/* Round 18: literature details follow the body they describe. */}

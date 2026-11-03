@@ -8,6 +8,9 @@
  * events. The `[meeha_deshchitro]` page shows them as KPI tiles, an interactive district map of Bangladesh,
  * division bars, trends, an economy board and a full table, with a date / period filter.
  *
+ * 2.4.9: news posts carry their own counts (inc/deshchitro/posts.php) — a LIVE section for today, Meeha-first
+ * midnight sheets and notable events from Meeha's own posts.
+ *
  * Input: wp-admin "দেশচিত্র" menu (editors and above) or the publisher app (newsroom-os 1.10.0+).
  *
  * @package meeha
@@ -15,7 +18,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-foreach ( array( 'config', 'store', 'query', 'rest', 'render', 'admin' ) as $meeha_dc_file ) {
+foreach ( array( 'config', 'store', 'query', 'posts', 'rest', 'render', 'admin' ) as $meeha_dc_file ) {
 	require_once __DIR__ . '/' . $meeha_dc_file . '.php';
 }
 unset( $meeha_dc_file );

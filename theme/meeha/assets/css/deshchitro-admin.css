@@ -72,3 +72,6 @@
 .dca-card { background: #fff; border: 1px solid var(--dca-line); border-radius: 10px; padding: 4px 16px 12px; margin: 14px 0; }
 .dca-cfg td, .dca-cfg th { vertical-align: middle; }
 @media (max-width: 782px) { .dca-bar { top: 46px; } .dca-hl { grid-template-columns: 2em 1fr 2em; } .dca-hl select, .dca-hl__u { grid-column: 2 / 3; } }
+/* 2.4.9 Meeha-first row */
+.dca-meeha { margin: 8px 0 12px; padding: 8px 12px; border-radius: 8px; background: #f6f7f7; border: 1px solid #dcdcde; color: #50575e; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dca-meeha.is-on { background: #edfaef; border-color: #a7dfb4; color: #1d2327; }

@@ -34,6 +34,8 @@
     mount.classList.add('is-busy');
     api('GET', { date: date }).then(function (s) {
       S = norm(s); dirty = false; mount.classList.remove('is-busy');
+      // 2.4.9 Meeha-first: a new day starts from the counts typed on that day's own Meeha News posts.
+      if (!S.exists && S.meeha && S.meeha.n) { meehaFill(); dirty = true; mount.classList.add('is-dirty'); setTimeout(function () { toast('মিহা নিউজের ' + bn(S.meeha.n) + 'টি খবরের হিসাব শিটে বসেছে। বাকিটা দিয়ে সংরক্ষণ করুন।'); }, 50); }
       try { var u = new URL(window.location.href); u.searchParams.set('date', s.day); window.history.replaceState(null, '', u.toString()); } catch (e) { /* ignore */ }
       render();
     }).catch(function (e) { mount.classList.remove('is-busy'); toast('লোড করা যায়নি: ' + e.message, true); });
@@ -46,7 +48,36 @@
     Object.keys(s.data.inc).forEach(function (dk) { s.data.inc[dk] = obj(s.data.inc[dk]); });
     s.data.hl = Array.isArray(s.data.hl) ? s.data.hl : [];
     s.prevEco = obj(s.prevEco); s.month = obj(s.month);
+    if (s.meeha) {
+      s.meeha.inc = obj(s.meeha.inc); Object.keys(s.meeha.inc).forEach(function (dk) { s.meeha.inc[dk] = obj(s.meeha.inc[dk]); });
+      s.meeha.unk = obj(s.meeha.unk); s.meeha.tot = obj(s.meeha.tot);
+      s.meeha.posts = Array.isArray(s.meeha.posts) ? s.meeha.posts : [];
+    }
+    (s.news || []).forEach(function (n) { n.c = obj(n.c); });
     return s;
+  }
+  /* Lay Meeha's own counts into the sheet: per cell the larger number wins (never double counts). Returns cells changed. */
+  function meehaFill(dryRun) {
+    var m = S.meeha, n = 0;
+    if (!m || !m.n) return 0;
+    Object.keys(m.inc).forEach(function (dk) {
+      Object.keys(m.inc[dk]).forEach(function (k) {
+        var cur = (S.data.inc[dk] || {})[k] || 0;
+        if (cur < m.inc[dk][k]) { n++; if (!dryRun) { S.data.inc[dk] = S.data.inc[dk] || {}; S.data.inc[dk][k] = m.inc[dk][k]; } }
+      });
+    });
+    Object.keys(m.unk).forEach(function (k) {
+      if ((S.data.unk[k] || 0) < m.unk[k]) { n++; if (!dryRun) S.data.unk[k] = m.unk[k]; }
+    });
+    return n;
+  }
+  function meehaRow() {
+    var m = S.meeha;
+    if (!m || !m.n) return '<p class="dca-meeha">এই দিনের কোনো মিহা নিউজের খবরে দেশচিত্রের হিসাব দেওয়া নেই।</p>';
+    var tot = inds().filter(function (i) { return m.tot[i.key]; }).map(function (i) { return esc(i.short) + ' ' + bn(m.tot[i.key]); }).join(' · ');
+    var miss = meehaFill(true);
+    return '<p class="dca-meeha is-on"><b>মিহা নিউজ আগে:</b> এই দিনের ' + bn(m.n) + 'টি খবরে হিসাব আছে (' + tot + ')। ' +
+      (miss ? '<button type="button" class="button button-small" data-meeha>মিহা নিউজের হিসাব বসান (' + bn(miss) + 'টি ঘর)</button>' : '<span class="dca-chip dca-t-good">শিটে বসানো আছে</span>') + '</p>';
   }
   function inds() { return S.indicators.filter(function (i) { return +i.on; }); }
   function ecos() { return S.economy.filter(function (e) { return +e.on; }); }
@@ -70,6 +101,7 @@
       '<button type="button" class="button button-primary" data-save="publish">' + (pub ? 'হালনাগাদ করুন' : S.day >= S.today ? 'প্রকাশ (রাত ১২টায়)' : 'প্রকাশ করুন') + '</button>' +
       '</div>';
     html += monthStrip();
+    html += meehaRow();
     if (S.day >= S.today) html += '<p class="dca-warn">আজকের দিন এখনো শেষ হয়নি। এখন যা দেবেন তা খসড়া হিসেবে রাখুন বা "প্রকাশ" দিন — রাত ১২টার পর পাঠক দেখবেন।</p>';
     var tabs = [['grid', 'জেলার ঘটনা'], ['eco', 'অর্থনীতি ও বাজার'], ['hl', 'সারকথা ও উল্লেখযোগ্য ঘটনা'], ['news', 'সেদিনের খবর (' + bn(S.news.length) + ')']];
     html += '<div class="dca-tabs" role="tablist">' + tabs.map(function (t) { return '<button type="button" role="tab" aria-selected="' + (tab === t[0]) + '" data-tab="' + t[0] + '">' + esc(t[1]) + '</button>'; }).join('') + '</div>';
@@ -201,7 +233,9 @@
       var used = S.data.hl.some(function (h) { return h.u === n.url; });
       return '<li><span class="dca-news__t">' + esc(bn(n.time)) + '</span><a href="' + esc(n.url) + '" target="_blank" rel="noopener">' + esc(n.title) + '</a>' +
         (n.d ? '<span class="dca-chip">' + esc(S.geo.districts[n.d][0]) + '</span>' : '') +
-        n.tags.map(function (t) { return im[t] ? '<span class="dca-chip dca-t-' + esc(im[t].tone) + '">' + ico(im[t].icon) + esc(im[t].short) + '</span>' : ''; }).join('') +
+        (Object.keys(n.c || {}).length
+          ? '<span class="dca-chip dca-t-good">দেশচিত্র: ' + Object.keys(n.c).map(function (k) { return esc(im[k] ? im[k].short : k) + ' ' + bn(n.c[k]); }).join(', ') + '</span>'
+          : n.tags.map(function (t) { return im[t] ? '<span class="dca-chip dca-t-' + esc(im[t].tone) + '">' + ico(im[t].icon) + esc(im[t].short) + '</span>' : ''; }).join('')) +
         '<button type="button" class="button button-small" data-newsadd="' + i + '"' + (used || S.data.hl.length >= 15 ? ' disabled' : '') + '>' + (used ? 'যোগ হয়েছে' : 'উল্লেখযোগ্যে যোগ') + '</button></li>';
     }).join('') + '</ul>';
   }
@@ -241,6 +275,7 @@
     else if (b.hasAttribute('data-tab')) { tab = b.getAttribute('data-tab'); renderPanel(); }
     else if (b.hasAttribute('data-toggle')) { var dv = b.getAttribute('data-toggle'); collapsed[dv] = !collapsed[dv]; b.setAttribute('aria-expanded', !collapsed[dv]); b.textContent = (collapsed[dv] ? '▸ ' : '▾ ') + S.geo.divisions[dv] + ' বিভাগ'; applyFilter(); }
     else if (b.hasAttribute('data-collapse')) { var all = b.getAttribute('data-collapse') === 'all'; Object.keys(S.geo.divisions).forEach(function (d) { collapsed[d] = all; }); renderPanel(); }
+    else if (b.hasAttribute('data-meeha')) { var c = meehaFill(); if (c) markDirty(); render(); toast(bn(c) + 'টি ঘরে মিহা নিউজের হিসাব বসেছে।'); }
     else if (b.hasAttribute('data-copyeco')) {
       var n = 0;
       ecos().forEach(function (x) { if ((S.data.eco[x.key] === undefined || S.data.eco[x.key] === null) && S.prevEco[x.key] !== undefined) { S.data.eco[x.key] = S.prevEco[x.key]; n++; } });

@@ -1,12 +1,12 @@
 /**
- * দেশচিত্র — "এআই প্রম্পট" and "ইমপোর্ট" dialogs (publisher r26.5).
+ * দেশচিত্র — "এআই প্রম্পট" and "ইমপোর্ট" dialogs (publisher r26.5; r26.6 Meeha-first).
  * The prompt is built from the live configuration (indicator keys, economy keys, districts, date), so it always
  * matches what the importer accepts. The import dialog previews every incident with its sources before anything
  * reaches the sheet; nothing is published from here — at most a draft is saved.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DeshchitroApi, describeError, type DcData, type DcSheet } from '../lib/api'
-import { buildImport, buildPrompt, importTemplate, readImportText, type DcImportFile, type DcImportOptions } from '../lib/deshchitroImport'
+import { buildImport, buildPrompt, dcWithMeeha, importTemplate, readImportText, type DcImportFile, type DcImportOptions } from '../lib/deshchitroImport'
 import { Badge, Banner, Button, inputClass } from './ui'
 import { IconClipboard, IconDownload, IconExternalLink, IconUpload, IconX } from './Icon'
 
@@ -48,7 +48,17 @@ function download(name: string, text: string, type: string) {
 export function PromptDialog({ sheet, onClose }: { sheet: DcSheet; onClose: () => void }) {
   const [date, setDate] = useState(sheet.day)
   const [copied, setCopied] = useState(false)
-  const prompt = useMemo(() => buildPrompt(sheet, date), [sheet, date])
+  // Another date needs that day's own Meeha list (Meeha-first), so its sheet is fetched.
+  const [other, setOther] = useState<DcSheet | null>(null)
+  useEffect(() => {
+    if (date === sheet.day) { setOther(null); return }
+    let alive = true
+    DeshchitroApi.get(date).then((s) => { if (alive) setOther(s) }).catch(() => { if (alive) setOther(null) })
+    return () => { alive = false }
+  }, [date, sheet.day])
+  const src = date === sheet.day ? sheet : other && other.day === date ? other : null
+  const prompt = useMemo(() => (src ? buildPrompt(src, date) : ''), [src, date])
+  const ownN = src?.meeha?.n || 0
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(prompt)
@@ -70,7 +80,7 @@ export function PromptDialog({ sheet, onClose }: { sheet: DcSheet; onClose: () =
       footer={<>
         <Button variant="secondary" onClick={() => download(`meeha-deshchitro-template-${date}.json`, JSON.stringify(importTemplate(sheet, date), null, 2), 'application/json')}><IconDownload className="w-4 h-4" /> খালি টেমপ্লেট</Button>
         <Button variant="secondary" onClick={() => download(`meeha-deshchitro-prompt-${date}.txt`, prompt, 'text/plain;charset=utf-8')}><IconDownload className="w-4 h-4" /> .txt</Button>
-        <Button onClick={copy}><IconClipboard className="w-4 h-4" /> {copied ? 'কপি হয়েছে' : 'প্রম্পট কপি করুন'}</Button>
+        <Button onClick={copy} disabled={!prompt}><IconClipboard className="w-4 h-4" /> {copied ? 'কপি হয়েছে' : 'প্রম্পট কপি করুন'}</Button>
       </>}
     >
       <ol className="text-[13px] text-neutral-700 space-y-1 mb-3 list-decimal pl-5">
@@ -79,10 +89,15 @@ export function PromptDialog({ sheet, onClose }: { sheet: DcSheet; onClose: () =
         <li>উত্তরে যে JSON আসবে সেটা ফাইল হিসেবে রাখুন বা পুরো উত্তর কপি করুন, তারপর এখানে "ইমপোর্ট" চাপুন।</li>
       </ol>
       <Banner kind="info">প্রম্পটে আপনার সাইটের সব সূচক, অর্থনীতির ঘর আর ৬৪ জেলার কী নিজে বসে যায়। সেটিংসে সূচক বদলালে প্রম্পটও বদলায়। এআই সব জেলার সব ঘটনা খুঁজে পাবে না, তাই সংখ্যাগুলো ডেস্কের যাচাইয়ের জন্য খসড়া।</Banner>
+      {src && (ownN ? (
+        <Banner kind="success">মিহা নিউজে এই দিনের {bn(ownN)}টি খবরে দেশচিত্রের হিসাব আছে। প্রম্পটে সেগুলোর তালিকা দেওয়া আছে, তাই এআই শুধু বাকি (মিসিং) ঘটনা খুঁজবে।</Banner>
+      ) : (
+        <p className="text-[12.5px] text-neutral-500 mb-3">এই দিনের কোনো মিহা নিউজের খবরে দেশচিত্রের হিসাব দেওয়া নেই, তাই এআই সব ঘটনা খুঁজবে (আগের নিয়মে)।</p>
+      ))}
       <label className="flex items-center gap-2 mb-3 text-[13px] font-semibold">তারিখ
         <input type="date" className={`${inputClass} !w-auto`} value={date} max={sheet.today} onChange={(e) => e.target.value && setDate(e.target.value)} />
       </label>
-      <textarea readOnly className={`${inputClass} font-mono text-[11.5px] leading-relaxed`} rows={16} value={prompt} onFocus={(e) => e.currentTarget.select()} />
+      <textarea readOnly className={`${inputClass} font-mono text-[11.5px] leading-relaxed`} rows={16} value={prompt || 'লোড হচ্ছে…'} onFocus={(e) => e.currentTarget.select()} />
     </Shell>
   )
 }
@@ -120,6 +135,8 @@ export function ImportDialog({
       setBusy(true)
       const t = day === sheet.day ? sheet : await DeshchitroApi.get(day)
       setTarget(t)
+      // Meeha-first: with Meeha's own counts in the sheet, the file only adds what is missing.
+      setOpt((o) => ({ ...o, mode: t.meeha?.n ? 'add' : 'replace' }))
       setFile(f)
     } catch (e) {
       setError(e instanceof Error ? e.message : describeError(e).message)
@@ -134,7 +151,11 @@ export function ImportDialog({
     r.readAsText(f, 'utf-8')
   }
 
-  const base = target && target.day === sheet.day ? data : target?.data
+  const base = useMemo(
+    () => (target && target.day === sheet.day ? data : target ? (target.exists ? target.data : dcWithMeeha(target.data, target.meeha)) : undefined),
+    [target, sheet.day, data],
+  )
+  const hasOwn = !!target?.meeha?.n
   const res = useMemo(() => (file && target && base ? buildImport(file, target, base, opt) : null), [file, target, base, opt])
   const indName = (k: string) => target?.indicators.find((i) => i.key === k)?.short || k
   const distName = (k: string) => (k && target ? target.geo.districts[k]?.[0] : '') || 'জেলা অজানা'
@@ -182,11 +203,16 @@ export function ImportDialog({
             {res.eco.length > 0 && <Badge tone="blue">অর্থনীতি {bn(res.eco.length)}টি মান</Badge>}
           </div>
 
+          {hasOwn && (
+            <p className="text-[12.5px] rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2">
+              মিহা নিউজের {bn(target.meeha!.n)}টি খবরের হিসাব আগে থেকেই শিটে আছে। ফাইলের ঘটনা তার সাথে যোগ হবে; মিহার কোনো খবরের লিংক উৎস হিসেবে এলে সেই ঘটনা বাদ পড়বে, যাতে দুবার না গোনা হয়।
+            </p>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[13px]">
             <label className="flex items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2">
               <span className="font-semibold">জেলার আগের সংখ্যা</span>
               <select className="ml-auto border rounded px-2 py-1" value={opt.mode} onChange={(e) => setOpt({ ...opt, mode: e.target.value as 'replace' | 'add' })}>
-                <option value="replace">বদলে ফাইলেরটা বসান</option>
+                <option value="replace">{hasOwn ? 'মিহার হিসাব রেখে বাকিটা ফাইল থেকে' : 'বদলে ফাইলেরটা বসান'}</option>
                 <option value="add">রেখে যোগ করুন</option>
               </select>
             </label>
@@ -205,7 +231,15 @@ export function ImportDialog({
           </div>
 
           {res.warnings.length > 0 && <Banner kind="info"><ul className="list-disc pl-4">{res.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul></Banner>}
-          {res.gaps.length > 0 && <div className="rounded-xl bg-amber-50 border border-amber-100 px-3.5 py-2.5 text-[12.5px] text-amber-800"><b>এআই যা খুঁজে পায়নি:</b> {res.gaps.join(' • ')}</div>}
+          {(() => {
+            // r26.6: "UPDATE [M#]" lines = another outlet gives a different figure for one of Meeha's own reports.
+            const upd = res.gaps.filter((g) => /^\s*UPDATE\s*\[M\d+\]/i.test(g))
+            const gaps = res.gaps.filter((g) => !upd.includes(g))
+            return <>
+              {upd.length > 0 && <div className="rounded-xl bg-red-50 border border-red-200 px-3.5 py-2.5 text-[12.5px] text-red-900"><b>মিহার খবরের সংখ্যা মিলিয়ে দেখুন</b> (অন্য মাধ্যমে ভিন্ন সংখ্যা; M১ = প্রম্পটের তালিকার প্রথম খবর): <ul className="list-disc pl-4 mt-1">{upd.map((g, i) => <li key={i}>{g}</li>)}</ul></div>}
+              {gaps.length > 0 && <div className="rounded-xl bg-amber-50 border border-amber-100 px-3.5 py-2.5 text-[12.5px] text-amber-800"><b>এআই যা খুঁজে পায়নি:</b> {gaps.join(' • ')}</div>}
+            </>
+          })()}
 
           <div>
             <div className="flex items-center justify-between mb-1.5">

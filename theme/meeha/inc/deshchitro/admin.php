@@ -107,6 +107,7 @@ function meeha_dc_admin_save_settings() {
 			'economy'    => meeha_dc_default_economy(),
 			'text'       => array(),
 			'page_id'    => $keep['page_id'],
+			'live'       => 1,
 		);
 		$msg             = 'reset';
 	}
@@ -152,6 +153,12 @@ function meeha_dc_admin_settings_page() {
 						&nbsp; <button type="submit" name="dc_create_page" value="1" class="button">"দৈনিক দেশচিত্র" পাতা নিজে তৈরি করুন</button>
 					<?php endif; ?>
 				</p>
+			</div>
+
+			<div class="dca-card">
+				<h2>লাইভ</h2>
+				<p><label><input type="checkbox" name="dc[live]" value="1" <?php checked( ! empty( $c['live'] ) ); ?>> পাতার ওপরে "আজ সরাসরি" লাইভ অংশ দেখান</label></p>
+				<p class="description">লাইভ অংশে শুধু আজ মিহা নিউজে প্রকাশিত খবরের "দেশচিত্র" ঘরের সংখ্যা যোগ হয়ে দেখায়, প্রতি মিনিটে নিজে হালনাগাদ হয়। ডেস্কের রাত ১২টার হিসাব আগের মতোই আলাদা থাকে।</p>
 			</div>
 
 			<div class="dca-card">
