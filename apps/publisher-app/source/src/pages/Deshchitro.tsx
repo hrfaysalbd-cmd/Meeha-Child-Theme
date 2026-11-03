@@ -10,7 +10,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DeshchitroApi, describeError, type DcData, type DcSheet } from '../lib/api'
 import { Badge, Banner, Button, Card, PageHeader, Spinner, inputClass } from '../components/ui'
-import { IconChevronDown, IconExternalLink, IconPlus, IconX } from '../components/Icon'
+import { IconChevronDown, IconExternalLink, IconPlus, IconSparkles, IconUpload, IconX } from '../components/Icon'
+import { ImportDialog, PromptDialog } from '../components/DeshchitroImport'
 
 const BN = '০১২৩৪৫৬৭৮৯'
 const bn = (v: number | string) => String(v).replace(/[0-9]/g, (d) => BN[Number(d)])
@@ -37,6 +38,7 @@ export default function Deshchitro() {
   const [tab, setTab] = useState<Tab>(() => (typeof window !== 'undefined' && window.innerWidth >= 1024 ? 'grid' : 'district'))
   const [open, setOpen] = useState<string>('')
   const [q, setQ] = useState('')
+  const [dialog, setDialog] = useState<'' | 'prompt' | 'import'>('')
 
   const load = useCallback(async (date?: string) => {
     setBusy(true)
@@ -150,6 +152,36 @@ export default function Deshchitro() {
           </a>
         ) : undefined}
       />
+
+      <div className="mb-3 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-amber-50 p-3 flex flex-wrap items-center gap-2">
+        <span className="text-[13px] font-semibold text-blue-950 mr-auto">এআই দিয়ে দিনের তথ্য সংগ্রহ: প্রম্পট কপি করে এআই-তে দিন, তারপর তার ফাইল এক ক্লিকে ইমপোর্ট করুন।</span>
+        <Button variant="secondary" size="sm" onClick={() => setDialog('prompt')}><IconSparkles className="w-4 h-4" /> এআই প্রম্পট</Button>
+        <Button size="sm" onClick={() => setDialog('import')}><IconUpload className="w-4 h-4" /> ইমপোর্ট</Button>
+      </div>
+      {dialog === 'prompt' && <PromptDialog sheet={sheet} onClose={() => setDialog('')} />}
+      {dialog === 'import' && (
+        <ImportDialog
+          sheet={sheet}
+          data={data}
+          onClose={() => setDialog('')}
+          onApply={async (target, next, saveDraft) => {
+            if (dirty && target.day !== sheet.day && !window.confirm('এই দিনের সংরক্ষণ না করা পরিবর্তন হারাবে। চালিয়ে যাবেন?')) return
+            if (saveDraft) {
+              const s = await DeshchitroApi.save(target.day, 'draft', next)
+              setSheet(s)
+              setData(JSON.parse(JSON.stringify(s.data)))
+              setDirty(false)
+              setNotice('ইমপোর্ট হয়ে খসড়া সংরক্ষণ হয়েছে। যাচাই করে প্রকাশ করুন।')
+            } else {
+              setSheet(target)
+              setData(next)
+              setDirty(true)
+              setNotice('ইমপোর্ট শিটে বসেছে, এখনো সংরক্ষণ হয়নি।')
+            }
+            setTimeout(() => setNotice(''), 6000)
+          }}
+        />
+      )}
 
       <Card className="p-3 mb-3 flex flex-wrap items-center gap-2">
         <Button variant="secondary" size="sm" onClick={() => go(shift(sheet.day, -1))} disabled={busy}>‹ আগের দিন</Button>
