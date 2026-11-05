@@ -207,6 +207,7 @@ interface RequestOpts {
   body?: Record<string, unknown> | FormData
   auth?: boolean // defaults true
   retry?: boolean // allow automatic retries for a non-GET that is safe to repeat (e.g. logout)
+  timeoutMs?: number // overrides the default timeout (a slow server-side step)
 }
 
 async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
@@ -235,7 +236,7 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
   // Only reads are retried automatically — repeating a POST/PATCH/DELETE
   // whose reply was lost could apply it twice.
   const idempotent = method === 'GET' || retry
-  const timeoutMs = body instanceof FormData ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS
+  const timeoutMs = opts.timeoutMs ?? (body instanceof FormData ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS)
   const attempts = idempotent ? RETRY_DELAYS_MS.length + 1 : 1
 
   const doFetch = async (): Promise<Response> => {
@@ -2300,34 +2301,56 @@ function retryable(err: unknown) {
   return err.status === 0 || err.status >= 500 || err.status === 429 || err.status === 408 || err.kind === 'network' || err.kind === 'timeout' || err.kind === 'offline'
 }
 
+/**
+ * Errors that will not go away by trying again: cancelled, logged out,
+ * no permission for this upload, a file the server refuses. Anything else
+ * (connection, timeouts, 5xx, a hosting firewall's odd 4xx) is retried.
+ */
+function fatalUpload(err: unknown) {
+  if (!(err instanceof ApiError)) return false
+  if (err.code === UPLOAD_ABORTED_CODE || err.kind === 'session') return true
+  return ['nros_bad_file_type', 'nros_forbidden', 'nros_file_too_large', 'nros_upload_session_missing', 'nros_suspended', 'nros_video_daily_upload_cap'].includes(err.code ?? '')
+}
+
 async function uploadResumable(file: File, o: ResumableOpts): Promise<UploadedFile> {
   const { signal, onStatus, onProgress } = o
   const kind = o.kind ?? 'video'
   const report = (loaded: number) => onProgress?.({ loaded, total: file.size, percent: Math.min(100, Math.floor((loaded / file.size) * 100)) })
-  const MAX_FAILS = 60
+  // connection trouble is retried for as long as the page stays open;
+  // only odd 4xx replies (a refusal, not the network) count toward a limit
+  const MAX_ODD = 12
   let fails = 0
+  let odd = 0
+  const backoff = () => Math.min(30, 2 * Math.pow(1.6, Math.min(fails, 8)))
+  const bump = (err: unknown) => {
+    if (fatalUpload(err)) throw err
+    if (!retryable(err) && ++odd > MAX_ODD) throw err
+    fails++
+  }
   /** Runs `fn`, retrying network trouble with growing waits. */
   async function withRetry<T>(fn: () => Promise<T>, what: string): Promise<T> {
     for (;;) {
       if (signal?.aborted) throw new ApiError('আপলোড বাতিল করা হয়েছে।', 0, UPLOAD_ABORTED_CODE, 'client')
       await waitOnline(signal, onStatus)
       try {
-        const r = await fn()
-        return r
+        return await fn()
       } catch (err) {
-        if (!retryable(err) || ++fails > MAX_FAILS) throw err
-        const wait = Math.min(30, 2 * Math.pow(1.6, Math.min(fails, 8)))
+        if (err instanceof ApiError && err.status === 404) throw err
+        bump(err)
+        const wait = backoff()
         onStatus?.(`নেটওয়ার্ক দুর্বল — ${what} ${bnSeconds(Math.round(wait))} পরে আবার চেষ্টা হবে (আগের অংশ হারায়নি)…`)
         await pause(wait * 1000, signal)
       }
     }
   }
+  type Status = { received: number; size: number; done: boolean; processing?: boolean }
+  const status = (sid: string) => withRetry(() => request<Status>(`/media/upload-session/${sid}`), 'সংযোগ')
 
   // 1 — the session (a fresh one, or the earlier one of this file)
   let session: { id: string; chunk: number } | null = null
   if (o.session) {
     try {
-      const st = await withRetry(() => request<{ received: number; size: number; done: boolean }>(`/media/upload-session/${o.session!.id}`), 'সংযোগ')
+      const st = await status(o.session.id)
       if (st.size === file.size) session = { id: o.session.id, chunk: 4 * 1048576 }
     } catch (err) {
       if (!(err instanceof ApiError) || err.status !== 404) throw err
@@ -2343,7 +2366,7 @@ async function uploadResumable(file: File, o: ResumableOpts): Promise<UploadedFi
     } catch (err) {
       // an older plugin without resumable uploads: one request, as before
       if (err instanceof ApiError && err.status === 404 && kind === 'video') {
-        onStatus?.(null)
+        onStatus?.('সার্ভারের প্লাগইন পুরোনো — এই আপলোড ব্যর্থ হলে শুরু থেকে হবে। newsroom-os আপডেট করুন।')
         const form = new FormData()
         form.append('nros_video', file)
         return uploadWithProgress<UploadedFile>('/media/video', form, { onProgress, signal })
@@ -2355,11 +2378,13 @@ async function uploadResumable(file: File, o: ResumableOpts): Promise<UploadedFi
   const id = session.id
   // smaller pieces on a shaky line lose less on each failure
   let chunk = Math.min(session.chunk, 4 * 1048576)
-  let received = (await withRetry(() => request<{ received: number }>(`/media/upload-session/${id}`), 'সংযোগ')).received
+  let ceiling = session.chunk
+  let st = await status(id)
+  let received = st.received
   report(received)
 
-  // 2 — the pieces
-  while (received < file.size) {
+  // 2 — the pieces (skipped when the server already has them all)
+  while (!st.done && !st.processing && received < file.size) {
     const end = Math.min(file.size, received + chunk)
     const piece = file.slice(received, end)
     const from = received
@@ -2373,27 +2398,60 @@ async function uploadResumable(file: File, o: ResumableOpts): Promise<UploadedFi
       onStatus?.(null)
       fails = Math.max(0, fails - 1)
       // a good run: grow the piece back up
-      if (chunk < session.chunk) chunk = Math.min(session.chunk, chunk * 2)
+      if (chunk < ceiling) chunk = Math.min(ceiling, chunk * 2)
     } catch (err) {
-      if (!retryable(err) && !(err instanceof ApiError && err.status === 409)) throw err
-      if (!(err instanceof ApiError && err.status === 409)) {
-        if (++fails > MAX_FAILS) throw err
+      if (err instanceof ApiError && err.status === 413) {
+        // the host refuses bodies this big: use smaller pieces from now on
+        ceiling = chunk = Math.max(262144, Math.floor(chunk / 2))
+        onStatus?.('সার্ভার বড় অংশ নিচ্ছে না — ছোট অংশে পাঠানো হচ্ছে…')
+      } else if (!(err instanceof ApiError && err.status === 409)) {
+        bump(err)
         chunk = Math.max(262144, Math.floor(chunk / 2))
-        const wait = Math.min(30, 2 * Math.pow(1.6, Math.min(fails, 8)))
+        const wait = backoff()
         onStatus?.(`নেটওয়ার্ক দুর্বল — ${bnSeconds(Math.round(wait))} পরে যেখানে থেমেছে সেখান থেকে আবার চলবে…`)
         await pause(wait * 1000, signal)
       }
       // ask the server what it really has (the piece may have arrived)
-      received = (await withRetry(() => request<{ received: number }>(`/media/upload-session/${id}`), 'সংযোগ')).received
+      st = await status(id)
+      received = st.received
       report(received)
     }
   }
 
-  // 3 — done: the server checks the file and puts it in the library
-  onStatus?.('সার্ভারে ফাইল যাচাই হচ্ছে…')
-  const res = await withRetry(() => request<UploadedFile>(`/media/upload-session/${id}/finish`, { method: 'POST', body: {} }), 'শেষ ধাপ')
-  onStatus?.(null)
-  return res
+  // 3 — done: the server checks the file and puts it in the library. For a
+  // big file that can take longer than one reply waits; a second "finish"
+  // while the first still runs must not be taken as a failure, so on any
+  // trouble we watch the status until the server says the file is in.
+  report(file.size)
+  for (let round = 0; ; round++) {
+    onStatus?.(round === 0 ? 'সার্ভারে ফাইল যাচাই ও সংরক্ষণ হচ্ছে…' : 'সার্ভার এখনও ফাইলটি সংরক্ষণ করছে — অপেক্ষা করুন…')
+    if (signal?.aborted) throw new ApiError('আপলোড বাতিল করা হয়েছে।', 0, UPLOAD_ABORTED_CODE, 'client')
+    if (st.done || !st.processing) {
+      try {
+        await waitOnline(signal, onStatus)
+        const res = await request<UploadedFile & { processing?: boolean }>(`/media/upload-session/${id}/finish`, { method: 'POST', body: {}, timeoutMs: 330_000 })
+        if (!res.processing && res.id) {
+          onStatus?.(null)
+          return res
+        }
+      } catch (err) {
+        if (fatalUpload(err)) throw err
+        if (err instanceof ApiError && err.status === 409) {
+          // the pieces were moved into the library by a finish still running
+          // (older plugin), or a piece really is missing: the status says which
+        } else bump(err)
+      }
+    }
+    await pause(round < 6 ? 5000 : 10000, signal)
+    st = await status(id)
+    // a piece is truly missing (not just being saved): send the rest
+    if (!st.done && !st.processing && st.received > 0 && st.received < file.size) {
+      onStatus?.(null)
+      return uploadResumable(file, { ...o, session: { id } })
+    }
+    // an older plugin reports 0 bytes while it saves; give it time
+    if (round > 70) throw new ApiError('সার্ভার ফাইলটি সংরক্ষণ শেষ করেনি — একটু পরে “আবার চালু করুন” চাপুন।', 0, 'nros_finish_slow', 'timeout')
+  }
 }
 
 const bnSeconds = (n: number) => `${String(n).replace(/[0-9]/g, (d) => '০১২৩৪৫৬৭৮৯'[Number(d)])} সেকেন্ড`

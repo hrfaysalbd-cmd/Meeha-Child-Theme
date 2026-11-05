@@ -40,6 +40,9 @@ class NROS_Upload_Sessions {
 	/** Sessions (and their temp files) older than this are removed. */
 	const TTL = DAY_IN_SECONDS;
 
+	/** Seconds a running finish keeps others waiting (then it is taken as dead). */
+	const FINISH_LOCK = 600;
+
 	const AUDIO_MIMES = array(
 		'audio/mpeg'  => 'mp3',
 		'audio/mp4'   => 'm4a',
@@ -181,6 +184,18 @@ class NROS_Upload_Sessions {
 	}
 
 	/**
+	 * Whether a "finish" for this session is running right now (saving a
+	 * big file into the library can outlast the client's wait).
+	 *
+	 * @param string $id Session id.
+	 * @return bool
+	 */
+	protected static function finishing( $id ) {
+		$started = (int) get_option( 'nros_upfin_' . $id, 0 );
+		return $started > 0 && $started > time() - self::FINISH_LOCK;
+	}
+
+	/**
 	 * Bytes on disk for a session.
 	 *
 	 * @param string $id Session id.
@@ -269,11 +284,14 @@ class NROS_Upload_Sessions {
 		if ( is_wp_error( $s ) ) {
 			return $s;
 		}
+		$done       = is_array( $s['result'] );
+		$processing = ! $done && self::finishing( $s['id'] );
 		return new WP_REST_Response(
 			array(
-				'received' => is_array( $s['result'] ) ? (int) $s['size'] : self::received( $s['id'] ),
-				'size'     => (int) $s['size'],
-				'done'     => is_array( $s['result'] ),
+				'received'   => $done || $processing ? (int) $s['size'] : self::received( $s['id'] ),
+				'size'       => (int) $s['size'],
+				'done'       => $done,
+				'processing' => $processing,
 			),
 			200
 		);
@@ -363,6 +381,33 @@ class NROS_Upload_Sessions {
 		if ( is_array( $s['result'] ) ) {
 			return new WP_REST_Response( $s['result'], 200 );
 		}
+		// one finish at a time: a second call (the client's retry after a
+		// timeout) waits for the first instead of saving the file twice
+		$lock = 'nros_upfin_' . $s['id'];
+		if ( self::finishing( $s['id'] ) ) {
+			return new WP_REST_Response( array( 'processing' => true ), 202 );
+		}
+		delete_option( $lock );
+		if ( ! add_option( $lock, time(), '', 'no' ) ) {
+			return new WP_REST_Response( array( 'processing' => true ), 202 );
+		}
+		$out = self::finish_locked( $request, $s );
+		delete_option( $lock );
+		return $out;
+	}
+
+	/**
+	 * The work of finish(), run while holding its lock.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @param array           $s       Session state (with id).
+	 * @return WP_REST_Response|WP_Error
+	 */
+	protected static function finish_locked( $request, $s ) {
+		$fresh = get_transient( 'nros_upsess_' . $s['id'] );
+		if ( is_array( $fresh ) && is_array( $fresh['result'] ) ) {
+			return new WP_REST_Response( $fresh['result'], 200 );
+		}
 		$path = self::part_path( $s['id'] );
 		$have = self::received( $s['id'] );
 		if ( $have !== (int) $s['size'] ) {
@@ -399,7 +444,7 @@ class NROS_Upload_Sessions {
 		require_once ABSPATH . 'wp-admin/includes/media.php';
 
 		if ( function_exists( 'set_time_limit' ) ) {
-			@set_time_limit( 300 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+			@set_time_limit( 600 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		}
 		// WordPress decides the stored type from the extension; m4a/webm audio must be allowed.
 		// WordPress only needs the major type (audio/video) to match what the file really is.

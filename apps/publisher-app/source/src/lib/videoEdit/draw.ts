@@ -1903,6 +1903,163 @@ function shineOver(ctx: Ctx, env: DrawEnv, img: CanvasImageSource, x: number, y:
 }
 
 /**
+ * Round 28 — the Meeha News watermark. A soft white logo (with the site
+ * address under it) that never sits still long enough to become wallpaper:
+ *
+ * hop:     rests in one place for `every` s, drifting a little and breathing,
+ *          then melts away and blooms up somewhere else (never twice in a
+ *          row in the same place, never over the captions or the corner logo).
+ * glide:   travels very slowly over the picture on a looping path.
+ * corners: the four corners in turn, like a TV channel's mark.
+ *
+ * Each appearance carries one golden light sweep across the logo.
+ * `t` = seconds of main content shown.
+ */
+const WM_SPOTS: [number, number][] = [
+  [0.14, 0.14],
+  [0.86, 0.14],
+  [0.5, 0.1],
+  [0.12, 0.46],
+  [0.88, 0.46],
+  [0.2, 0.72],
+  [0.8, 0.72],
+  [0.36, 0.3],
+  [0.64, 0.3],
+]
+const WM_CORNERS: [number, number][] = [
+  [0, 0],
+  [1, 0],
+  [1, 1],
+  [0, 1],
+]
+
+export function drawWatermark(ctx: Ctx, env: DrawEnv, t: number) {
+  const wm = env.cfg.watermark
+  if (!wm.on) return
+  const t0 = 1.5
+  if (t < t0) return
+  const lt = t - t0
+  const v = env.L.video
+  const short = Math.min(v.w, v.h)
+  const h = (wm.size / 100) * short
+  const lw = (env.logo.w / env.logo.h) * h
+  const site = wm.site && env.website ? env.website.replace(/^https?:\/\//, '').replace(/\/$/, '') : ''
+  const siteH = site ? h * 0.36 : 0
+  const boxW = lw
+  const boxH = h + (site ? siteH * 1.45 : 0)
+  const m = short * 0.045
+  // where its centre may go: inside the picture, above the caption zone
+  const x0 = v.x + m + boxW / 2
+  const x1 = v.x + v.w - m - boxW / 2
+  const y0 = v.y + m + boxH / 2
+  const y1 = Math.max(y0, v.y + v.h * 0.76 - boxH / 2)
+  const yFull = Math.max(y0, v.y + v.h - m - boxH / 2)
+  if (x1 <= x0) return
+  const lg = env.cfg.logo
+  const busyCorner = (nx: number, ny: number) => {
+    if (!lg.on) return false
+    const right = lg.corner === 'tr' || lg.corner === 'br'
+    const bottom = lg.corner === 'br' || lg.corner === 'bl'
+    return (right ? nx > 0.6 : nx < 0.4) && (bottom ? ny > 0.6 : ny < 0.4)
+  }
+
+  let cx: number
+  let cy: number
+  let alpha: number
+  let grow = 1
+  let sweep = -1
+  const P = wm.every
+  if (wm.style === 'glide') {
+    // a slow looping (Lissajous) path; one lap = 6 × every
+    const a = (lt / (P * 6)) * Math.PI * 2
+    const nx = 0.5 + 0.5 * Math.sin(a * 2 + 0.6)
+    const ny = 0.5 + 0.5 * Math.sin(a * 3)
+    cx = lerp(x0, x1, nx)
+    cy = lerp(y0, y1, ny)
+    alpha = win(lt, 0, 1.2) * (0.78 + 0.22 * Math.sin(lt * 0.7))
+    sweep = ((lt % P) / P) * 3 - 1 // one light sweep every `every` s
+  } else {
+    const n = Math.floor(lt / P)
+    const local = lt - n * P
+    const fade = Math.min(1.1, P * 0.18)
+    let nx: number
+    let ny: number
+    if (wm.style === 'corners') {
+      const free = WM_CORNERS.filter(([a, b]) => !busyCorner(a, b))
+      ;[nx, ny] = free[n % free.length]
+      cx = lerp(x0, x1, nx)
+      cy = lerp(y0, yFull, ny)
+    } else {
+      // a fixed shuffle: the same video always looks the same, and no place repeats back to back
+      const free = WM_SPOTS.filter(([a, b]) => !busyCorner(a, b))
+      const pick = (i: number) => Math.floor(rnd(i * 7.31 + 3.7) * free.length) % free.length
+      let k = pick(n)
+      if (n > 0 && k === pick(n - 1)) k = (k + 1 + Math.floor(rnd(n * 1.9) * (free.length - 1))) % free.length
+      ;[nx, ny] = free[k]
+      // a gentle drift away from the centre of the picture while it rests
+      const dir = Math.atan2(ny - 0.45, nx - 0.5) + (rnd(n * 3.3) - 0.5) * 1.2
+      const drift = short * 0.035 * (local / P - 0.5)
+      cx = lerp(x0, x1, nx) + Math.cos(dir) * drift
+      cy = lerp(y0, y1, ny) + Math.sin(dir) * drift
+    }
+    const inP = ease.outCubic(win(local, 0, fade))
+    const outP = win(local, P - fade, P)
+    alpha = inP * (1 - ease.inOutCubic(outP))
+    // blooms up from a little smaller, and shrinks a touch as it melts away
+    grow = 0.86 + 0.14 * inP - 0.06 * outP + 0.015 * Math.sin(local * 1.6)
+    sweep = win(local, fade + 0.3, fade + 1.6)
+  }
+  cx = clamp(cx, x0, x1)
+  cy = clamp(cy, y0, yFull)
+  alpha *= wm.opacity
+  if (alpha <= 0.005) return
+
+  ctx.save()
+  ctx.translate(cx, cy)
+  ctx.scale(grow, grow)
+  ctx.globalAlpha = alpha
+  ctx.shadowColor = 'rgba(0,0,0,0.45)'
+  ctx.shadowBlur = h * 0.28
+  ctx.shadowOffsetY = h * 0.04
+  const lx = -lw / 2
+  const ly = -boxH / 2
+  ctx.drawImage(env.logo.white, lx, ly, lw, h)
+  if (site) {
+    ctx.font = bodyFont(600, siteH)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'top'
+    ctx.fillStyle = '#FFFFFF'
+    ctx.fillText(site, 0, ly + h + siteH * 0.35, lw * 1.2)
+  }
+  ctx.shadowColor = 'transparent'
+  // the golden light sweep, clipped to the logo's own shapes
+  if (sweep > 0 && sweep < 1) {
+    const c = env.scratch.shine
+    const cw = Math.max(2, Math.ceil(lw))
+    const ch = Math.max(2, Math.ceil(h))
+    if (c.width !== cw || c.height !== ch) {
+      c.width = cw
+      c.height = ch
+    }
+    const g = c.getContext('2d') as Ctx
+    g.globalCompositeOperation = 'source-over'
+    g.clearRect(0, 0, cw, ch)
+    g.drawImage(env.logo.white, 0, 0, cw, ch)
+    g.globalCompositeOperation = 'source-in'
+    const sx = lerp(-cw * 0.3, cw * 1.3, ease.inOutCubic(sweep))
+    const gr = g.createLinearGradient(sx - ch * 0.9, 0, sx + ch * 0.9, ch)
+    gr.addColorStop(0, 'rgba(255,194,14,0)')
+    gr.addColorStop(0.5, 'rgba(255,214,90,1)')
+    gr.addColorStop(1, 'rgba(255,194,14,0)')
+    g.fillStyle = gr
+    g.fillRect(0, 0, cw, ch)
+    ctx.globalAlpha = Math.min(1, alpha * 1.9)
+    ctx.drawImage(c as CanvasImageSource, lx, ly, lw, h)
+  }
+  ctx.restore()
+}
+
+/**
  * The corner logo over the video. `t` = seconds of main content shown.
  *
  * reveal: the round "M" stays; every `every` s the pill opens and the full
@@ -4235,6 +4392,7 @@ function drawMain(ctx: Ctx, env: DrawEnv, seg: Segment, local: number, pic: Pict
   }
 
   drawLogoBug(ctx, env, mainT)
+  drawWatermark(ctx, env, mainT)
   const srcEnd = env.tl.segments.reduce((m, x) => (x.kind === 'main' ? Math.max(m, segSourceEnd(x)) : m), 0)
   const stacks: Record<string, number> = {}
   for (const c of cfg.captions) {

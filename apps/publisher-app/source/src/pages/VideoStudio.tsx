@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   AdminVideosApi,
+  ApiError,
   MediaApi,
   PhotocardApi,
   VideoKitApi,
@@ -36,6 +37,7 @@ import { musicBuffer } from '../lib/videoEdit/music'
 import { AnalysisCancelled, reframeTrack, waveformPeaks, type Waveform } from '../lib/videoEdit/analyse'
 import { grabFrame, thumbnailJpeg, thumbSource } from '../lib/videoEdit/thumb'
 import { shrinkVideo, ShrinkCancelled } from '../lib/videoEdit/compress'
+import { dropKept, keepRender, keptRender, updateKept } from '../lib/videoEdit/keep'
 import { FILE_SIZES, type FileSize } from '../lib/videoEdit/config'
 import { buildTimeline, clipsUsed, computeLayout, outputToSource, sourceToOutput, trimRange, type ClipKey, type SceneId } from '../lib/videoEdit/timeline'
 import { bnFileSize, bnDuration } from '../lib/postMeta'
@@ -133,10 +135,15 @@ type Job =
   | { stage: 'options' }
   | { stage: 'download'; ratio: number; label: string }
   | { stage: 'render'; p: RenderProgress; part?: string }
-  | { stage: 'upload'; percent: number; part?: string; note?: string | null; loaded?: number; total?: number }
+  | { stage: 'upload'; percent: number; part?: string; note?: string | null; loaded?: number; total?: number; speed?: number | null; eta?: number | null }
   | { stage: 'shrink'; ratio: number; from: number; to: number }
   | { stage: 'saving' }
-  | { stage: 'done'; url: string; size: number; attached: boolean; filename: string; tooLarge: boolean; extras: Extra[] }
+  /**
+   * Round 28: the render is ready. `canAttach`: it can still go into the post
+   * (the পোস্টে বসান button); `note` says why an upload stopped; `restored`:
+   * kept in the browser from an earlier visit.
+   */
+  | { stage: 'done'; url: string; size: number; attached: boolean; filename: string; tooLarge: boolean; extras: Extra[]; canAttach?: boolean; note?: string | null; restored?: number | null; mime?: string }
   /** `resume`: the render is kept, only the upload is tried again. */
   | { stage: 'error'; message: string; resume?: boolean }
 
@@ -156,6 +163,17 @@ interface Pending {
   /** Resumable upload sessions by blob (so a retry continues where it stopped). */
   sessions: Map<Blob, { id: string }>
   videoAttachment: { id: number } | null
+  /** Round 28: already shrunk to fit the server. */
+  shrunk?: boolean
+}
+
+/** Round 28: an upload stop that is not worth retrying by itself; `final`: পোস্টে বসান cannot help either. */
+class UploadStop extends Error {
+  final: boolean
+  constructor(message: string, final = false) {
+    super(message)
+    this.final = final
+  }
 }
 
 interface Loaded {
@@ -192,7 +210,8 @@ export default function VideoStudio() {
   const [extraFormats, setExtraFormats] = useState<FormatId[]>([])
   const analysisRef = useRef<{ wave: AbortController | null; reframe: AbortController | null }>({ wave: null, reframe: null })
   const [job, setJob] = useState<Job | null>(null)
-  const [attach, setAttach] = useState(true)
+  // round 28: upload only on পোস্টে বসান, unless this is ticked
+  const [attach, setAttach] = useState(false)
   const [setThumb, setSetThumb] = useState(true)
   const [notice, setNotice] = useState('')
   const [presetMenu, setPresetMenu] = useState(false)
@@ -500,7 +519,7 @@ export default function VideoStudio() {
       if (!env || !loaded) return null
       return (canvas: HTMLCanvasElement) => {
         let c2 = cfg
-        if (kind === 'frame') c2 = { ...cfg, frame: { ...cfg.frame, id: id as EditConfig['frame']['id'] }, logo: { ...cfg.logo, on: false }, captions: [] }
+        if (kind === 'frame') c2 = { ...cfg, frame: { ...cfg.frame, id: id as EditConfig['frame']['id'] }, logo: { ...cfg.logo, on: false }, watermark: { ...cfg.watermark, on: false }, captions: [] }
         const L2 = computeLayout(c2, loaded.main.width, loaded.main.height)
         const tl2 = buildTimeline({ ...c2, intro: { ...c2.intro, id: 'none' }, outro: { ...c2.outro, id: 'none' }, ads: [] }, { main: loaded.main.duration })
         const w = 360
@@ -847,7 +866,7 @@ export default function VideoStudio() {
         env: { ...env, scratch: makeScratch() },
         clips,
         voices,
-        maxBytes: attach ? loaded.maxBytes : null,
+        maxBytes: loaded.maxBytes,
         posterAt: tl.mainStart + Math.min(2.5, tl.mainDuration / 3),
         signal,
         onProgress: (p) => setJob({ stage: 'render', p, part: others.length ? `${bnNumber(L.W)}×${bnNumber(L.H)} (১/${bnNumber(others.length + 1)})` : undefined }),
@@ -872,7 +891,7 @@ export default function VideoStudio() {
           env: { ...env, cfg: c2, L: L2, tl: tl2, scratch: makeScratch() },
           clips,
           voices,
-          maxBytes: attach ? loaded.maxBytes : null,
+          maxBytes: loaded.maxBytes,
           posterAt: tl2.mainStart + Math.min(2.5, tl2.mainDuration / 3),
           signal,
           onProgress: (p) => setJob({ stage: 'render', p, part: `${f.name} (${bnNumber(n + 2)}/${bnNumber(others.length + 1)})` }),
@@ -895,26 +914,11 @@ export default function VideoStudio() {
         }
       }
 
-      let main = { blob: result.blob, mime: result.mime, ext: result.ext }
-      // round 27: too big for the server? shrink it here instead of refusing
-      if (attach && tooLarge && loaded.maxBytes) {
-        const target = Math.floor(loaded.maxBytes * 0.92)
-        setJob({ stage: 'shrink', ratio: 0, from: result.blob.size, to: target })
-        const small = await shrinkVideo(result.blob, target, { signal, onProgress: (r) => setJob({ stage: 'shrink', ratio: r, from: result.blob.size, to: target }) })
-        main = { blob: small.blob, mime: small.mime, ext: small.ext }
-        if (resultUrl.current) URL.revokeObjectURL(resultUrl.current)
-        resultUrl.current = URL.createObjectURL(small.blob)
-      }
-      const stillTooLarge = !!loaded.maxBytes && main.blob.size > loaded.maxBytes
-      if (!attach || stillTooLarge) {
-        setJob({ stage: 'done', url: resultUrl.current, size: main.blob.size, attached: false, filename, tooLarge: stillTooLarge, extras: extras() })
-        return
-      }
       pendingRef.current = {
-        blob: main.blob,
-        mime: main.mime,
-        ext: main.ext,
-        filename: `${slug}-edit.${main.ext}`,
+        blob: result.blob,
+        mime: result.mime,
+        ext: result.ext,
+        filename,
         slug,
         duration: result.duration,
         width: result.width,
@@ -925,7 +929,25 @@ export default function VideoStudio() {
         sessions: new Map(),
         videoAttachment: null,
       }
-      await publishPending(signal)
+      // round 28: kept in the browser too, so a reload never means rendering again
+      void keepRender({
+        videoId,
+        blob: result.blob,
+        mime: result.mime,
+        ext: result.ext,
+        filename,
+        slug,
+        duration: result.duration,
+        width: result.width,
+        height: result.height,
+        poster,
+        cfg,
+        session: null,
+        attachmentId: null,
+        savedAt: Date.now(),
+      })
+      setJob({ stage: 'done', url: resultUrl.current, size: result.blob.size, attached: false, filename, tooLarge, extras: extras(), canAttach: true, mime: result.mime })
+      if (attach) void attachNow()
     } catch (err) {
       if (signal.aborted && pendingRef.current) {
         setJob({ stage: 'error', message: 'আপলোড থামানো হয়েছে। রেন্ডার করা ভিডিও রাখা আছে — আবার চালু করলে যেখানে থেমেছিল সেখান থেকে চলবে।', resume: true })
@@ -950,18 +972,44 @@ export default function VideoStudio() {
   async function publishPending(signal: AbortSignal) {
     const pend = pendingRef.current
     if (!pend || !loaded) return
-    const send = (blob: Blob, filename: string, mime: string, part?: string) =>
+    // round 28: speed + time left, from the last ~8 seconds of progress
+    const samples: { t: number; b: number }[] = []
+    const rate = (loadedBytes: number, total: number) => {
+      const now = performance.now()
+      samples.push({ t: now, b: loadedBytes })
+      while (samples.length > 2 && now - samples[0].t > 8000) samples.shift()
+      const first = samples[0]
+      const dt = (now - first.t) / 1000
+      if (dt < 1.5 || loadedBytes <= first.b) return { speed: null, eta: null }
+      const speed = (loadedBytes - first.b) / dt
+      return { speed, eta: (total - loadedBytes) / speed }
+    }
+    const send = (blob: Blob, filename: string, mime: string, part?: string, main = false) =>
       MediaApi.uploadResumable(new File([blob], filename, { type: mime }), {
         signal,
         session: pend.sessions.get(blob) ?? null,
-        onSession: (sess) => pend.sessions.set(blob, sess),
-        onProgress: (p) => setJob((j) => ({ stage: 'upload', percent: p.percent, part, loaded: p.loaded, total: p.total, note: j?.stage === 'upload' ? j.note : null })),
+        onSession: (sess) => {
+          pend.sessions.set(blob, sess)
+          if (main) void updateKept(videoId, { session: sess })
+        },
+        onProgress: (p) =>
+          setJob((j) => ({ stage: 'upload', percent: p.percent, part, loaded: p.loaded, total: p.total, note: j?.stage === 'upload' ? j.note : null, ...rate(p.loaded, p.total) })),
         onStatus: (note) => setJob((j) => (j?.stage === 'upload' ? { ...j, note } : { stage: 'upload', percent: 0, part, note })),
       })
+    // too big for the server: a smaller copy goes up, the full one stays for download
+    if (!pend.videoAttachment && loaded.maxBytes && pend.blob.size > loaded.maxBytes && !pend.shrunk) {
+      const target = Math.floor(loaded.maxBytes * 0.92)
+      const from = pend.blob.size
+      setJob({ stage: 'shrink', ratio: 0, from, to: target })
+      const small = await shrinkVideo(pend.blob, target, { signal, onProgress: (r) => setJob({ stage: 'shrink', ratio: r, from, to: target }) })
+      if (small.blob.size > loaded.maxBytes) throw new UploadStop('ফাইলটি ছোট করার পরও সার্ভারের সীমার চেয়ে বড় — ভিডিও ছোট (ট্রিম) করুন বা “ছোট — দ্রুত আপলোড” বেছে আবার রেন্ডার করুন। ডাউনলোড করে নেওয়া যাবে।', true)
+      Object.assign(pend, { blob: small.blob, mime: small.mime, ext: small.ext, filename: `${pend.slug}-edit.${small.ext}`, shrunk: true })
+    }
     if (!pend.videoAttachment) {
       setJob({ stage: 'upload', percent: 0 })
-      const up = await send(pend.blob, pend.filename, pend.mime)
+      const up = await send(pend.blob, pend.filename, pend.mime, undefined, true)
       pend.videoAttachment = { id: up.id }
+      void updateKept(videoId, { attachmentId: up.id })
     }
     setJob({ stage: 'saving' })
     let thumbId: number | undefined
@@ -995,25 +1043,139 @@ export default function VideoStudio() {
       }
     }
     pendingRef.current = null
-    setJob({ stage: 'done', url: resultUrl.current ?? '', size: pend.blob.size, attached: true, filename: pend.filename, tooLarge: false, extras: pend.extras.map((x) => x.info) })
+    void dropKept(videoId)
+    setJob({ stage: 'done', url: resultUrl.current ?? '', size: pend.blob.size, attached: true, filename: pend.filename, tooLarge: false, extras: pend.extras.map((x) => x.info), mime: pend.mime })
   }
 
-  async function resumeUpload() {
-    if (!pendingRef.current) return
+  /** Back to the ready screen (download + পোস্টে বসান), saying why the upload stopped. */
+  function readyAgain(note: string | null, canAttach = true) {
+    const pend = pendingRef.current
+    if (!pend) return
+    setJob({
+      stage: 'done',
+      url: resultUrl.current ?? '',
+      size: pend.blob.size,
+      attached: false,
+      filename: pend.filename,
+      tooLarge: !canAttach,
+      extras: pend.extras.map((x) => x.info),
+      canAttach,
+      note,
+      mime: pend.mime,
+    })
+  }
+
+  /**
+   * Round 28 — পোস্টে বসান. Keeps trying by itself: a failed step waits and
+   * runs again from where it stopped (the upload from the server's byte
+   * count), so a weak line needs no button presses. Only a cancel, a logout
+   * or a refused file stops it.
+   */
+  async function attachNow() {
+    if (!pendingRef.current || abortRef.current) return
     const ctrl = new AbortController()
     abortRef.current = ctrl
     try {
-      await publishPending(ctrl.signal)
-    } catch (err) {
-      if (ctrl.signal.aborted) {
-        setJob({ stage: 'error', message: 'আপলোড থামানো হয়েছে। রেন্ডার করা ভিডিও রাখা আছে।', resume: true })
-        return
+      for (let attempt = 1; ; attempt++) {
+        try {
+          await publishPending(ctrl.signal)
+          return
+        } catch (err) {
+          if (ctrl.signal.aborted || err instanceof ShrinkCancelled) {
+            readyAgain('আপলোড থামানো হয়েছে। “পোস্টে বসান” চাপলে যেখানে থেমেছিল সেখান থেকে চলবে।')
+            return
+          }
+          if (err instanceof UploadStop) {
+            readyAgain(err.message, !err.final)
+            return
+          }
+          const stop = err instanceof ApiError && (err.kind === 'session' || ['nros_bad_file_type', 'nros_forbidden', 'nros_file_too_large', 'nros_suspended', 'nros_video_daily_upload_cap'].includes(err.code ?? ''))
+          const msg = err instanceof Error && !('status' in err) ? err.message : describeError(err).message
+          if (stop || attempt >= 8) {
+            readyAgain(`${msg} — “পোস্টে বসান” চাপলে যেখানে থেমেছিল সেখান থেকে চলবে।`)
+            return
+          }
+          // wait, then go on by itself
+          const wait = Math.min(60, 5 * attempt)
+          for (let left = wait; left > 0; left--) {
+            setJob((j) => ({ ...(j?.stage === 'upload' ? j : { stage: 'upload' as const, percent: 0 }), note: `${msg} ${bnNumber(left)} সেকেন্ড পরে নিজে থেকেই আবার চলবে (যতটুকু গেছে তা হারায়নি)…` }))
+            await new Promise((r) => setTimeout(r, 1000))
+            if (ctrl.signal.aborted) {
+              readyAgain('আপলোড থামানো হয়েছে। “পোস্টে বসান” চাপলে যেখানে থেমেছিল সেখান থেকে চলবে।')
+              return
+            }
+          }
+        }
       }
-      setJob({ stage: 'error', message: err instanceof Error && !('status' in err) ? err.message : describeError(err).message, resume: true })
     } finally {
       if (abortRef.current === ctrl) abortRef.current = null
     }
   }
+
+  /** Round 28 — throws away the render kept from an earlier visit. */
+  function discardKept() {
+    pendingRef.current = null
+    void dropKept(videoId)
+    setJob(null)
+  }
+
+  // round 28: a render kept from an earlier visit (reload, closed tab) comes back ready
+  const keptChecked = useRef(false)
+  useEffect(() => {
+    if (!loaded || keptChecked.current) return
+    keptChecked.current = true
+    void keptRender(videoId).then((k) => {
+      if (!k || pendingRef.current) return
+      if (resultUrl.current) URL.revokeObjectURL(resultUrl.current)
+      resultUrl.current = URL.createObjectURL(k.blob)
+      const sessions = new Map<Blob, { id: string }>()
+      if (k.session) sessions.set(k.blob, k.session)
+      pendingRef.current = {
+        blob: k.blob,
+        mime: k.mime,
+        ext: k.ext,
+        filename: k.filename,
+        slug: k.slug,
+        duration: k.duration,
+        width: k.width,
+        height: k.height,
+        poster: k.poster,
+        cfg: normalizeConfig(k.cfg),
+        extras: [],
+        sessions,
+        videoAttachment: k.attachmentId ? { id: k.attachmentId } : null,
+      }
+      setJob((j) =>
+        j
+          ? j
+          : {
+              stage: 'done',
+              url: resultUrl.current ?? '',
+              size: k.blob.size,
+              attached: false,
+              filename: k.filename,
+              tooLarge: false,
+              extras: [],
+              canAttach: true,
+              restored: k.savedAt,
+              mime: k.mime,
+              note: k.session ? 'আগের আপলোড অসম্পূর্ণ ছিল — “পোস্টে বসান” চাপলে যেখানে থেমেছিল সেখান থেকে চলবে।' : null,
+            },
+      )
+    })
+  }, [loaded, videoId])
+
+  // round 28: leaving mid-render or mid-upload asks first
+  const busyNow = !!job && (job.stage === 'render' || job.stage === 'upload' || job.stage === 'saving' || job.stage === 'shrink' || job.stage === 'download')
+  useEffect(() => {
+    if (!busyNow) return
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [busyNow])
 
   // ---- presets ----
   async function savePreset() {
@@ -1082,6 +1244,15 @@ export default function VideoStudio() {
 
   const edited = hasEdits(cfg, loaded.main.duration)
   const chips: { label: string; on: boolean; onClick: () => void; testId: string }[] = [
+    {
+      label: 'ওয়াটারমার্ক',
+      on: cfg.watermark.on,
+      testId: 'chip-watermark',
+      onClick: () => {
+        set((c) => ({ ...c, watermark: { ...c.watermark, on: !c.watermark.on } }))
+        setTab('logo')
+      },
+    },
     {
       label: 'লোগো',
       on: cfg.logo.on,
@@ -1495,12 +1666,14 @@ export default function VideoStudio() {
           setExtra={setExtraFormats}
           designedThumb={cfg.thumb.on}
           onStart={startRender}
-          onResume={resumeUpload}
+          onResume={attachNow}
+          onDiscard={discardKept}
           fileSize={cfg.fileSize}
           onFileSize={(v) => set((c) => ({ ...c, fileSize: v }))}
-          estimate={(size) => Math.round(((pickBitrate(L.W, L.H, tl.duration, attach ? loaded.maxBytes : null, size) + 160_000) * tl.duration) / 8)}
+          estimate={(size) => Math.round(((pickBitrate(L.W, L.H, tl.duration, loaded.maxBytes, size) + 160_000) * tl.duration) / 8)}
           maxBytes={loaded.maxBytes}
           keptUrl={pendingRef.current ? resultUrl.current : null}
+          keptName={pendingRef.current?.filename ?? null}
           onCancel={() => abortRef.current?.abort()}
           onClose={() => setJob(null)}
           onBack={() => navigate(`/app/videos/${videoId}`, { state: { notice: 'এডিট করা ভিডিও পোস্টে বসানো হয়েছে।' } })}
@@ -1510,7 +1683,25 @@ export default function VideoStudio() {
   )
 }
 
-const attachLabel = (attach: boolean) => (attach ? 'মূলটি পোস্টে বসবে, বাকিগুলো মিডিয়া লাইব্রেরিতে যাবে ও ডাউনলোড করা যাবে।' : 'সবগুলো ডাউনলোড করা যাবে।')
+const attachLabel = () => 'সবগুলো ডাউনলোড করা যাবে; পোস্টে বসালে মূলটি পোস্টে বসবে, বাকিগুলো মিডিয়া লাইব্রেরিতে যাবে।'
+
+/** Round 28: "2.4 MB/s" style speed. */
+const bnSpeed = (bps: number) => `${bnFileSize(Math.max(1, Math.round(bps)))}/সে.`
+
+/** Round 28: the phone's share sheet (Facebook, WhatsApp, YouTube…) with the file itself, where the browser can. */
+function canShareFile(url: string) {
+  try {
+    return typeof navigator !== 'undefined' && typeof navigator.share === 'function' && typeof navigator.canShare === 'function' && !!url
+  } catch {
+    return false
+  }
+}
+async function shareFile(url: string, filename: string, mime: string) {
+  const blob = await (await fetch(url)).blob()
+  const file = new File([blob], filename, { type: mime || blob.type })
+  if (!navigator.canShare({ files: [file] })) throw new Error('এই ব্রাউজার ফাইল শেয়ার করতে পারে না — ডাউনলোড করে নিন।')
+  await navigator.share({ files: [file], title: filename })
+}
 
 function BackLink({ id }: { id: number }) {
   return (
@@ -1538,6 +1729,8 @@ function RenderDialog({
   onClose,
   onBack,
   onResume,
+  onDiscard,
+  keptName,
   fileSize,
   onFileSize,
   estimate,
@@ -1545,6 +1738,8 @@ function RenderDialog({
   keptUrl,
 }: {
   onResume: () => void
+  onDiscard: () => void
+  keptName: string | null
   fileSize: FileSize
   onFileSize: (v: FileSize) => void
   estimate: (size: FileSize) => number
@@ -1590,23 +1785,21 @@ function RenderDialog({
               {size} · দৈর্ঘ্য {bnClock(duration)} — ভিডিও আপনার ব্রাউজারেই তৈরি হবে (সার্ভারে চাপ পড়বে না)। সাধারণত ভিডিওর দৈর্ঘ্যের চেয়ে কম সময় লাগে।
             </p>
             <label className="flex items-start gap-2.5 py-2">
-              <input type="checkbox" checked={attach} onChange={(e) => setAttach(e.target.checked)} className="mt-1 accent-[#b91c1c]" />
+              <input type="checkbox" checked={attach} onChange={(e) => setAttach(e.target.checked)} className="mt-1 accent-[#b91c1c]" data-testid="auto-attach" />
               <span>
-                <span className="block text-[13.5px] text-neutral-800">ভিডিও পোস্টে বসিয়ে দিন</span>
-                <span className="block text-[11.5px] text-neutral-400">মূল ভিডিও মুছবে না — পরে আবার এডিট বা মূলটিতে ফেরা যাবে।</span>
+                <span className="block text-[13.5px] text-neutral-800">রেন্ডার শেষে নিজে থেকেই পোস্টে বসান</span>
+                <span className="block text-[11.5px] text-neutral-400">না দিলে রেন্ডার শেষে “ডাউনলোড” ও “পোস্টে বসান” বাটন আসবে। মূল ভিডিও মুছবে না।</span>
               </span>
             </label>
-            {attach && (
-              <label className="flex items-start gap-2.5 py-2">
-                <input type="checkbox" checked={setThumb} onChange={(e) => onSetThumb(e.target.checked)} className="mt-1 accent-[#b91c1c]" />
-                <span>
-                  <span className="block text-[13.5px] text-neutral-800">থাম্বনেইলও নতুন করুন</span>
-                  <span className="block text-[11.5px] text-neutral-400">
-                    {designedThumb ? '“থাম্বনেইল” ট্যাবের ডিজাইন করা থাম্বনেইল বসবে।' : 'ফ্রেমসহ সংবাদের একটি দৃশ্য থাম্বনেইল হবে।'}
-                  </span>
+            <label className="flex items-start gap-2.5 py-2">
+              <input type="checkbox" checked={setThumb} onChange={(e) => onSetThumb(e.target.checked)} className="mt-1 accent-[#b91c1c]" />
+              <span>
+                <span className="block text-[13.5px] text-neutral-800">পোস্টে বসালে থাম্বনেইলও নতুন করুন</span>
+                <span className="block text-[11.5px] text-neutral-400">
+                  {designedThumb ? '“থাম্বনেইল” ট্যাবের ডিজাইন করা থাম্বনেইল বসবে।' : 'ফ্রেমসহ সংবাদের একটি দৃশ্য থাম্বনেইল হবে।'}
                 </span>
-              </label>
-            )}
+              </span>
+            </label>
             <div className="mt-2 rounded-xl border border-neutral-200 p-3" data-testid="file-size">
               <p className="text-[13px] font-medium text-neutral-800 mb-1.5">ফাইলের আকার</p>
               {FILE_SIZES.map((f) => (
@@ -1620,7 +1813,7 @@ function RenderDialog({
                   </span>
                 </label>
               ))}
-              {attach && maxBytes && (
+              {maxBytes && (
                 <p className="text-[11px] text-neutral-400 mt-1">সার্ভারের সীমা {bnFileSize(maxBytes)} — বড় হলে নিজে থেকেই ছোট করে আপলোড হবে। আপলোড টুকরো টুকরো যায়, নেট কাটলে যেখানে থেমেছে সেখান থেকে আবার চলে।</p>
               )}
             </div>
@@ -1628,7 +1821,7 @@ function RenderDialog({
               <div className="mt-2 rounded-xl border border-neutral-200 p-3" data-testid="multi-format">
                 <p className="text-[13px] font-medium text-neutral-800">একসাথে আরও মাপে তৈরি করুন</p>
                 <p className="text-[11.5px] text-neutral-400 mb-1.5">
-                  একই এডিট অন্য মাপে — {attachLabel(attach)} প্রতিটি মাপে আলাদা সময় লাগবে।
+                  একই এডিট অন্য মাপে — {attachLabel()} প্রতিটি মাপে আলাদা সময় লাগবে।
                 </p>
                 {multi.map((f) => (
                   <label key={f.id} className="flex items-center gap-2.5 py-1">
@@ -1646,7 +1839,7 @@ function RenderDialog({
             )}
             <div className="flex gap-2 mt-4">
               <Button className="flex-1" onClick={onStart}>
-                {attach ? 'রেন্ডার করে পোস্টে বসান' : 'রেন্ডার করে ডাউনলোড'}
+                {attach ? 'রেন্ডার করে পোস্টে বসান' : 'রেন্ডার শুরু করুন'}
               </Button>
               <Button variant="secondary" onClick={onClose}>
                 বাতিল
@@ -1691,65 +1884,33 @@ function RenderDialog({
               {job.percent >= 100 ? 'সার্ভারে প্রসেস হচ্ছে…' : 'আপলোড হচ্ছে…'}
             </p>
             {bar(job.percent / 100)}
-            <p className="text-[11.5px] text-neutral-400 mt-1.5">
+            <p className="text-[11.5px] text-neutral-400 mt-1.5" data-testid="upload-stats">
               {bnNumber(job.percent)}%{job.total ? ` · ${bnFileSize(job.loaded ?? 0)} / ${bnFileSize(job.total)}` : ''}
+              {job.speed && job.percent < 100 ? ` · ${bnSpeed(job.speed)}` : ''}
+              {job.eta != null && job.percent < 100 && isFinite(job.eta) ? ` · আর প্রায় ${bnClock(Math.max(1, job.eta))}` : ''}
             </p>
             {job.note && <p className="text-[12px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-2" data-testid="upload-note">{job.note}</p>}
+            {keptUrl && (
+              <p className="text-[11.5px] text-neutral-500 mt-2">
+                আপলোড চলার মধ্যেই{' '}
+                <a href={keptUrl} download={keptName ?? true} className="font-semibold text-brand-700 underline">
+                  ডাউনলোড
+                </a>{' '}
+                করে সোশ্যাল মিডিয়ায় দিতে পারেন।
+              </p>
+            )}
           </>
         )}
         {job.stage === 'saving' && <p className="text-[13px] text-neutral-700">পোস্টে বসানো হচ্ছে…</p>}
         {busy && (
           <div className="mt-4">
             <Button variant="secondary" onClick={onCancel}>
-              বাতিল করুন
+              {job.stage === 'upload' || job.stage === 'saving' || (job.stage === 'shrink' && keptUrl) ? 'আপলোড থামান' : 'বাতিল করুন'}
             </Button>
           </div>
         )}
 
-        {job.stage === 'done' && (
-          <>
-            <video src={job.url} controls playsInline className="w-full max-h-[45vh] rounded-xl bg-black mb-3" data-testid="render-result" />
-            {job.attached ? (
-              <p className="text-[13px] text-emerald-700 mb-3">এডিট করা ভিডিও পোস্টে বসানো হয়েছে ({bnFileSize(job.size)})। মূল ভিডিও সংরক্ষিত আছে।</p>
-            ) : job.tooLarge ? (
-              <p className="text-[13px] text-amber-800 mb-3">ফাইলটি ({bnFileSize(job.size)}) ছোট করার পরও সার্ভারের আপলোড সীমার চেয়ে বড় — ভিডিও ছোট (ট্রিম) করুন বা “ছোট — দ্রুত আপলোড” বেছে আবার রেন্ডার করুন, অথবা ডাউনলোড করে নিন।</p>
-            ) : (
-              <p className="text-[13px] text-neutral-700 mb-3">ভিডিও তৈরি হয়েছে ({bnFileSize(job.size)})।</p>
-            )}
-            {job.extras.length > 0 && (
-              <div className="mb-3 rounded-xl border border-neutral-200 divide-y divide-neutral-100" data-testid="extra-results">
-                {job.extras.map((x) => (
-                  <div key={x.format} className="flex items-center justify-between gap-2 px-3 py-2">
-                    <span className="min-w-0">
-                      <span className="block text-[13px] text-neutral-800">{x.name}</span>
-                      <span className="block text-[11px] text-neutral-400">
-                        {bnFileSize(x.size)}
-                        {x.uploaded ? ' · মিডিয়া লাইব্রেরিতে রাখা হয়েছে' : ''}
-                      </span>
-                    </span>
-                    <a href={x.url} download={x.filename} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-brand-700 shrink-0">
-                      <IconDownload className="w-4 h-4" />
-                      ডাউনলোড
-                    </a>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex gap-2 flex-wrap">
-              <a href={job.url} download={job.filename} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-neutral-100 text-neutral-800 text-[13.5px] font-semibold hover:bg-neutral-200">
-                <IconDownload className="w-4 h-4" />
-                ডাউনলোড
-              </a>
-              {job.attached ? (
-                <Button onClick={onBack}>ভিডিও পোস্টে ফিরুন</Button>
-              ) : (
-                <Button variant="secondary" onClick={onClose}>
-                  এডিটরে ফিরুন
-                </Button>
-              )}
-            </div>
-          </>
-        )}
+        {job.stage === 'done' && <DoneView job={job} onResume={onResume} onDiscard={onDiscard} onClose={onClose} onBack={onBack} />}
         {job.stage === 'error' && (
           <>
             <p className="text-[13px] text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3">{job.message}</p>
@@ -1781,5 +1942,101 @@ function RenderDialog({
         )}
       </div>
     </div>
+  )
+}
+
+/** Round 28 — the ready screen: watch, download, share, পোস্টে বসান. */
+function DoneView({ job, onResume, onDiscard, onClose, onBack }: { job: Extract<Job, { stage: 'done' }>; onResume: () => void; onDiscard: () => void; onClose: () => void; onBack: () => void }) {
+  const [shareErr, setShareErr] = useState('')
+  const share = canShareFile(job.url)
+  return (
+    <>
+      <video src={job.url} controls playsInline className="w-full max-h-[42vh] rounded-xl bg-black mb-3" data-testid="render-result" />
+      {job.attached ? (
+        <p className="text-[13px] text-emerald-700 mb-3">এডিট করা ভিডিও পোস্টে বসানো হয়েছে ({bnFileSize(job.size)})। মূল ভিডিও সংরক্ষিত আছে।</p>
+      ) : job.restored ? (
+        <p className="text-[13px] text-neutral-700 mb-3" data-testid="kept-render">
+          আগে রেন্ডার করা ভিডিও এই ব্রাউজারে রাখা আছে ({bnFileSize(job.size)} · {bnDate(new Date(job.restored))}) — আবার রেন্ডার লাগবে না।
+        </p>
+      ) : (
+        <p className="text-[13px] text-neutral-700 mb-3">ভিডিও তৈরি হয়েছে ({bnFileSize(job.size)})। এখনই ডাউনলোড করে সোশ্যাল মিডিয়ায় দিতে পারেন।</p>
+      )}
+      {job.note && (
+        <p className="text-[12px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-3" data-testid="upload-note">
+          {job.note}
+        </p>
+      )}
+      <div className="grid grid-cols-2 gap-2" data-testid="done-actions">
+        <a
+          href={job.url}
+          download={job.filename}
+          className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl bg-neutral-900 text-white text-[14px] font-semibold hover:bg-neutral-800"
+          data-testid="download-main"
+        >
+          <IconDownload className="w-5 h-5" />
+          ডাউনলোড
+        </a>
+        {job.attached ? (
+          <Button className="!py-3 !rounded-xl" onClick={onBack}>
+            ভিডিও পোস্টে ফিরুন
+          </Button>
+        ) : job.canAttach ? (
+          <Button className="!py-3 !rounded-xl" onClick={onResume} data-testid="attach-now">
+            {job.note ? 'আবার চালু করুন' : 'পোস্টে বসান'}
+          </Button>
+        ) : (
+          <Button variant="secondary" className="!py-3 !rounded-xl" onClick={onClose}>
+            এডিটরে ফিরুন
+          </Button>
+        )}
+      </div>
+      {share && (
+        <button
+          type="button"
+          onClick={() => {
+            setShareErr('')
+            shareFile(job.url, job.filename, job.mime ?? '').catch((e: unknown) => {
+              if (e instanceof Error && e.name !== 'AbortError') setShareErr(e.message)
+            })
+          }}
+          className="w-full mt-2 px-4 py-2 rounded-xl border border-neutral-200 text-[13px] font-semibold text-neutral-700 hover:bg-neutral-50"
+          data-testid="share-main"
+        >
+          ফোন থেকে সরাসরি শেয়ার (Facebook, WhatsApp…)
+        </button>
+      )}
+      {shareErr && <p className="text-[11.5px] text-red-600 mt-1">{shareErr}</p>}
+      {job.extras.length > 0 && (
+        <div className="mt-3 rounded-xl border border-neutral-200 divide-y divide-neutral-100" data-testid="extra-results">
+          {job.extras.map((x) => (
+            <div key={x.format} className="flex items-center justify-between gap-2 px-3 py-2">
+              <span className="min-w-0">
+                <span className="block text-[13px] text-neutral-800">{x.name}</span>
+                <span className="block text-[11px] text-neutral-400">
+                  {bnFileSize(x.size)}
+                  {x.uploaded ? ' · মিডিয়া লাইব্রেরিতে রাখা হয়েছে' : ''}
+                </span>
+              </span>
+              <a href={x.url} download={x.filename} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-brand-700 shrink-0">
+                <IconDownload className="w-4 h-4" />
+                ডাউনলোড
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex justify-between gap-2 mt-3">
+        {!job.attached && (
+          <button type="button" onClick={onClose} className="text-[12.5px] text-neutral-500 hover:text-neutral-800">
+            এডিটরে ফিরুন
+          </button>
+        )}
+        {job.restored && !job.attached && (
+          <button type="button" onClick={onDiscard} className="text-[12.5px] text-red-600 hover:text-red-700" data-testid="discard-kept">
+            রাখা ভিডিও মুছে ফেলুন
+          </button>
+        )}
+      </div>
+    </>
   )
 }

@@ -16,6 +16,7 @@ import {
   INTROS,
   LIMITS,
   LOGO_STYLES,
+  WATERMARK_STYLES,
   OUTROS,
   type Caption,
   type Corner,
@@ -179,8 +180,40 @@ export function LogoPanel({ cfg, set, customLogo }: { cfg: EditConfig; set: Sett
     { id: 'bl', name: 'নিচে বামে' },
     { id: 'br', name: 'নিচে ডানে' },
   ]
+  const w = cfg.watermark
+  const setW = (patch: Partial<EditConfig['watermark']>) => set((c) => ({ ...c, watermark: { ...c.watermark, ...patch } }))
   return (
     <div>
+      <SwitchRow
+        label="মিহা নিউজ ওয়াটারমার্ক"
+        hint="হালকা সাদা লোগো ভিডিওর এখানে-সেখানে ফুটে ওঠে, ধীরে ভেসে মিলিয়ে যায় — কেউ ভিডিও নিয়ে গেলেও মিহা নিউজের নাম থাকে।"
+        checked={w.on}
+        onChange={(v) => setW({ on: v })}
+        testId="watermark-on"
+      />
+      {w.on && (
+        <div className="mt-3 mb-4" data-testid="watermark-settings">
+          <Section title="চলাফেরা">
+            <div className="grid grid-cols-3 gap-2">
+              {WATERMARK_STYLES.map((x) => (
+                <ChoiceCard key={x.id} active={w.style === x.id} onClick={() => setW({ style: x.id })} title={x.name} hint={x.hint} />
+              ))}
+            </div>
+          </Section>
+          <Slider label="আকার" value={w.size} min={3} max={10} step={0.5} onChange={(v) => setW({ size: v })} format={(v) => `${bnNumber(v)}%`} />
+          <Slider
+            label={w.style === 'glide' ? 'গতি (এক চক্করের সময়)' : 'এক জায়গায় কত সেকেন্ড'}
+            value={w.every}
+            min={5}
+            max={30}
+            onChange={(v) => setW({ every: v })}
+            format={(v) => `${bnNumber(v)} সে.`}
+          />
+          <Slider label="দৃশ্যমানতা" value={Math.round(w.opacity * 100)} min={15} max={80} step={5} onChange={(v) => setW({ opacity: v / 100 })} format={(v) => `${bnNumber(v)}%`} />
+          <SwitchRow label="নিচে ওয়েবসাইটের ঠিকানা" hint="লোগোর নিচে ছোট করে সাইটের ঠিকানা" checked={w.site} onChange={(v) => setW({ site: v })} />
+        </div>
+      )}
+      <div className="border-t border-neutral-100 pt-3" />
       <SwitchRow
         label="এনিমেটেড লোগো"
         hint={`পুরো ভিডিও জুড়ে কোণে থাকবে, নির্দিষ্ট সময় পরপর এনিমেশন হবে।${customLogo ? ' (সেটিংসে দেওয়া লোগো)' : ''}`}

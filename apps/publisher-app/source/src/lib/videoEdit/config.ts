@@ -362,6 +362,18 @@ export interface EditConfig {
     /** Round 27: 'lively' adds a light sweep and accent motion; 'calm' is the old look. */
     motion: FrameMotion
   }
+  /** Round 28: the Meeha News watermark that fades from place to place over the news. */
+  watermark: {
+    on: boolean
+    style: WatermarkStyle
+    /** Height as % of the video's shorter side. */
+    size: number
+    /** Seconds it stays in one place (hop) / one lap (glide). */
+    every: number
+    opacity: number
+    /** Show the site address under the logo. */
+    site: boolean
+  }
   logo: {
     on: boolean
     style: LogoStyle
@@ -403,6 +415,7 @@ export const DEFAULT_CONFIG: EditConfig = {
   fileSize: 'balanced',
   frame: { id: 'none', title: '', kicker: '', date: true, footer: 'ticker', ticker: '', adText: '', adImage: null, size: 'auto', top: 1, bottom: 1, motion: 'lively' },
   logo: { on: false, style: 'reveal', corner: 'tr', size: 6, every: 12, plate: true, opacity: 1 },
+  watermark: { on: true, style: 'hop', size: 6, every: 9, opacity: 0.42, site: true },
   intro: { id: 'none', text: '', clip: null },
   outro: { id: 'none', clip: null },
   ads: [],
@@ -535,6 +548,13 @@ export const OUTROS: SceneInfo<OutroId>[] = [
   { id: 'thanks', name: 'ধন্যবাদ কার্ড', hint: 'লোগো, “দেখার জন্য ধন্যবাদ” ও ওয়েবসাইট', duration: 4, group: 'news' },
   { id: 'follow', name: 'ফলো করুন', hint: 'লাইক · শেয়ার · ফলো বোতামে ট্যাপের এনিমেশন', duration: 4.5, group: 'news' },
   { id: 'custom', name: 'গ্যালারি থেকে', hint: 'নিজের আউট্রো ভিডিও', group: 'clip' },
+]
+
+export type WatermarkStyle = 'hop' | 'glide' | 'corners'
+export const WATERMARK_STYLES: { id: WatermarkStyle; name: string; hint: string }[] = [
+  { id: 'hop', name: 'জায়গা বদল', hint: 'এক জায়গায় ধীরে ভেসে মিলিয়ে যায়, অন্য জায়গায় ফুটে ওঠে' },
+  { id: 'glide', name: 'ভেসে চলা', hint: 'পুরো ভিডিওর ওপর খুব ধীরে ঘুরে বেড়ায়' },
+  { id: 'corners', name: 'কোণে কোণে', hint: 'চার কোণে পালা করে, টিভির মতো' },
 ]
 
 export const LOGO_STYLES: { id: LogoStyle; name: string; hint: string }[] = [
@@ -773,6 +793,14 @@ export function normalizeConfig(raw: unknown): EditConfig {
       top: num(frame.top, 1, 1, 2),
       bottom: num(frame.bottom, 1, 1, 2),
       motion: oneOf(frame.motion, ['lively', 'calm'] as const, d.frame.motion),
+    },
+    watermark: {
+      on: bool(o.watermark?.on, d.watermark.on),
+      style: oneOf(o.watermark?.style, WATERMARK_STYLES.map((x) => x.id), d.watermark.style),
+      size: num(o.watermark?.size, d.watermark.size, 3, 10),
+      every: num(o.watermark?.every, d.watermark.every, 5, 30),
+      opacity: num(o.watermark?.opacity, d.watermark.opacity, 0.15, 0.8),
+      site: bool(o.watermark?.site, d.watermark.site),
     },
     logo: {
       on: bool(logo.on, d.logo.on),
@@ -1042,6 +1070,7 @@ export function hasEdits(cfg: EditConfig, srcDuration: number | null): boolean {
   return (
     cfg.frame.id !== 'none' ||
     cfg.logo.on ||
+    cfg.watermark.on ||
     cfg.intro.id !== 'none' ||
     cfg.outro.id !== 'none' ||
     cfg.ads.length > 0 ||

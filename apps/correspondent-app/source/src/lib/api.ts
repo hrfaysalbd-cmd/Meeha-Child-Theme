@@ -227,6 +227,7 @@ interface RequestOpts {
   body?: Record<string, unknown> | FormData
   auth?: boolean // defaults true
   retry?: boolean // allow automatic retries for a non-GET that is safe to repeat (e.g. logout)
+  timeoutMs?: number // overrides the default timeout (a slow server-side step)
 }
 
 async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
@@ -255,7 +256,7 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
   // Only reads are retried automatically — repeating a POST/PATCH/DELETE
   // whose reply was lost could apply it twice.
   const idempotent = method === 'GET' || retry
-  const timeoutMs = body instanceof FormData ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS
+  const timeoutMs = opts.timeoutMs ?? (body instanceof FormData ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS)
   const attempts = idempotent ? RETRY_DELAYS_MS.length + 1 : 1
 
   const doFetch = async (): Promise<Response> => {
@@ -1228,7 +1229,10 @@ async function uploadVideoInPieces(file: File, chunkMax: number, onProgress?: (p
       if (chunk < full) chunk = Math.min(full, chunk * 2)
     } catch (err) {
       const conflict = err instanceof ApiError && err.status === 409
-      if (!conflict) {
+      if (err instanceof ApiError && err.status === 413) {
+        // the host refuses bodies this big: smaller pieces from now on
+        chunk = Math.max(262144, Math.floor(chunk / 2))
+      } else if (!conflict) {
         if (!worthRetrying(err) || ++fails > 60) throw err
         chunk = Math.max(262144, Math.floor(chunk / 2))
         await pauseFor(Math.min(30_000, 2000 * Math.pow(1.6, Math.min(fails, 8))), signal)
@@ -1237,5 +1241,21 @@ async function uploadVideoInPieces(file: File, chunkMax: number, onProgress?: (p
       report(received)
     }
   }
-  return retry(() => request<VideoUploadResult>(`/media/upload-session/${s.id}/finish`, { method: 'POST', body: {} }))
+  // Saving a big file into the library can outlast one reply: a timeout or a
+  // 409 from a second "finish" while the first still runs is not a failure —
+  // watch the status until the server says the file is in.
+  report(file.size)
+  for (let round = 0; round < 80; round++) {
+    try {
+      const res = await request<VideoUploadResult & { processing?: boolean }>(`/media/upload-session/${s.id}/finish`, { method: 'POST', body: {}, timeoutMs: 330_000 })
+      if (!res.processing && res.id) return res
+    } catch (err) {
+      const conflict = err instanceof ApiError && err.status === 409
+      if (!conflict && (!worthRetrying(err) || ++fails > 60)) throw err
+    }
+    await pauseFor(round < 6 ? 5000 : 10000, signal)
+    const st = await retry(() => request<{ received: number; size: number; done: boolean; processing?: boolean }>(`/media/upload-session/${s.id}`))
+    if (!st.done && !st.processing && st.received > 0 && st.received < file.size) throw new ApiError('ভিডিওর একটি অংশ সার্ভারে পৌঁছায়নি — আবার আপলোড করুন।', 409, 'nros_upload_incomplete', 'server', `/media/upload-session/${s.id}`)
+  }
+  throw new ApiError('সার্ভার ভিডিওটি সংরক্ষণ শেষ করেনি — একটু পরে আবার চেষ্টা করুন।', 0, 'nros_finish_slow', 'timeout', `/media/upload-session/${s.id}`)
 }
