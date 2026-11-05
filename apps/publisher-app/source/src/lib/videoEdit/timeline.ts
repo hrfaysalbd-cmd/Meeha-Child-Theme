@@ -11,7 +11,7 @@ import { houseAdDur, type HouseAdId } from './houseads'
 import { AD_IN_CARD, AD_OUT_CARD, FRAME_SIZES, INTROS, OUTROS, keptRanges, type EditConfig } from './config'
 
 export type ClipKey = 'main' | 'intro' | 'outro' | 'pip' | `ad${number}`
-export type SceneId = 'breaking' | 'headline' | 'special' | 'swipe' | 'live' | 'countdown' | 'thanks' | 'follow' | 'ad-in' | 'ad-out' | 'nil-reveal' | 'tv-open' | 'investigation' | 'sports' | 'showbiz' | 'nil-end' | 'endscreen' | 'credits' | `house-${HouseAdId}`
+export type SceneId = 'breaking' | 'headline' | 'special' | 'swipe' | 'live' | 'countdown' | 'thanks' | 'follow' | 'ad-in' | 'ad-out' | 'nil-reveal' | 'tv-open' | 'investigation' | 'sports' | 'showbiz' | 'nil-end' | 'endscreen' | 'credits' | 'shatter' | 'globe' | 'kinetic' | 'split' | 'subscribe' | 'staytuned' | 'thanks-burst' | `house-${HouseAdId}`
 
 export interface Segment {
   kind: 'intro' | 'outro' | 'main' | 'ad' | 'card'
@@ -115,8 +115,8 @@ export function computeLayout(cfg: EditConfig, srcW0: number, srcH0: number): La
     // judge "tall" by the finished picture, bands included
     const k = frameScale(cfg, vw, vh + (hasHeader ? HEADER_UNITS : 0) * (Math.min(vw, vh) / 1080))
     const s = (Math.min(vw, vh) / 1080) * k
-    const hh = hasHeader ? even(HEADER_UNITS * s) : 0
-    const fh = hasFooter ? even(FOOTER_UNITS * s) : 0
+    const hh = hasHeader ? even(HEADER_UNITS * s * cfg.frame.top) : 0
+    const fh = hasFooter ? even(FOOTER_UNITS * s * cfg.frame.bottom) : 0
     return {
       W: vw,
       H: vh + hh + fh,
@@ -134,8 +134,19 @@ export function computeLayout(cfg: EditConfig, srcW0: number, srcH0: number): La
   const H = even(fh0 * q)
   const k = frameScale(cfg, W, H)
   const s = (Math.min(W, H) / 1080) * k
-  const hh = hasHeader ? even(HEADER_UNITS * s) : 0
-  const fh = hasFooter ? even(FOOTER_UNITS * s) : 0
+  // round 27: taller bands on request, but the picture keeps at least 40% of the height
+  let hh = hasHeader ? HEADER_UNITS * s * cfg.frame.top : 0
+  let fh = hasFooter ? FOOTER_UNITS * s * cfg.frame.bottom : 0
+  const room = H * 0.6
+  if (hh + fh > room) {
+    const base = (hasHeader ? HEADER_UNITS * s : 0) + (hasFooter ? FOOTER_UNITS * s : 0)
+    const extra = Math.max(0, hh + fh - base)
+    const k2 = extra > 0 ? Math.max(0, room - base) / extra : 1
+    if (hasHeader) hh = HEADER_UNITS * s + (hh - HEADER_UNITS * s) * k2
+    if (hasFooter) fh = FOOTER_UNITS * s + (fh - FOOTER_UNITS * s) * k2
+  }
+  hh = hasHeader ? even(hh) : 0
+  fh = hasFooter ? even(fh) : 0
   return {
     W,
     H,

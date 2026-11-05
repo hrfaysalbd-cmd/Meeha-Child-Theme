@@ -10,6 +10,8 @@ import type { MusicGroup } from './config'
 
 export type BaseSfx = 'whoosh' | 'hit' | 'chime' | 'soft'
 export type LibSfx = 'ident' | 'breaking' | 'riser' | 'impact' | 'ticking' | 'typing' | 'camera' | 'notify' | 'heartbeat' | 'reverse' | 'glitch' | 'pop' | 'cash' | 'drumroll'
+  // round 27
+  | 'sting' | 'transition' | 'swipeup' | 'siren' | 'thunder' | 'rain' | 'applause' | 'success' | 'buzzer' | 'sparkle'
 export type SfxId = BaseSfx | LibSfx
 
 export type SfxGroup = 'brand' | 'move' | 'news' | 'fx'
@@ -21,25 +23,35 @@ export const SFX_GROUPS: { id: SfxGroup; name: string; hint: string }[] = [
   { id: 'fx', name: 'ইফেক্ট', hint: 'ইমপ্যাক্ট, হার্টবিট, গ্লিচ, পপ' },
 ]
 
-export const SFX: { id: SfxId; name: string; hint: string; group: SfxGroup; len: number }[] = [
+export const SFX: { id: SfxId; name: string; hint: string; group: SfxGroup; len: number; isNew?: boolean }[] = [
   { id: 'ident', name: 'মিহা সাউন্ড লোগো', hint: 'চার-নোটের মিহা সুর, ঘণ্টা ও আঘাত — শুরু বা শেষে', group: 'brand', len: 2.8 },
   { id: 'breaking', name: 'ব্রেকিং অ্যালার্ট', hint: 'জরুরি বিপ-বিপ ও আঘাত', group: 'brand', len: 2.2 },
   { id: 'chime', name: 'চাইম', hint: 'নরম ঘণ্টা — শিরোনাম আসার সময়', group: 'brand', len: 1.7 },
+  { id: 'sting', name: 'নিউজ স্টিং', hint: 'ব্রাসের মতো জোরালো কর্ড ও আঘাত — শিরোনামের ঝটকা', group: 'brand', len: 1.8, isNew: true },
   { id: 'whoosh', name: 'হুশ', hint: 'দ্রুত বাতাস — দৃশ্য বদলাতে', group: 'move', len: 0.8 },
   { id: 'soft', name: 'নরম হুশ', hint: 'হালকা বাতাস — লেখা আসতে', group: 'move', len: 0.6 },
   { id: 'riser', name: 'রাইজার', hint: 'উত্তেজনা বাড়ে — বড় তথ্যের আগে', group: 'move', len: 2.2 },
   { id: 'reverse', name: 'উল্টো সুইপ', hint: 'ধীরে ফুলে উঠে থামে — কাটের আগে', group: 'move', len: 1.4 },
+  { id: 'transition', name: 'সিনেমাটিক ট্রানজিশন', hint: 'রাইজার, হুশ আর গম্ভীর বুম একসাথে', group: 'move', len: 2.4, isNew: true },
+  { id: 'swipeup', name: 'সোয়াইপ আপ', hint: 'দ্রুত ওপরে ওঠা ঝিলিক — লেখা বা ছবি আসতে', group: 'move', len: 0.5, isNew: true },
   { id: 'ticking', name: 'ঘড়ির টিকটিক', hint: 'সময় গোনা, ডেডলাইন', group: 'news', len: 2.1 },
   { id: 'typing', name: 'টাইপিং', hint: 'কিবোর্ডে লেখা — নথি, বিবৃতি', group: 'news', len: 1.8 },
   { id: 'camera', name: 'ক্যামেরা ক্লিক', hint: 'ছবি তোলার শাটার', group: 'news', len: 0.5 },
   { id: 'notify', name: 'নোটিফিকেশন', hint: 'দুই সুরের টুং — নতুন তথ্য', group: 'news', len: 1.2 },
   { id: 'cash', name: 'টাকা-পয়সা', hint: 'কয়েনের টুংটাং — অর্থনীতি, দাম', group: 'news', len: 1.3 },
+  { id: 'siren', name: 'সাইরেন', hint: 'ওঠানামা করা সাইরেন — দুর্ঘটনা, অপরাধ, উদ্ধার', group: 'news', len: 2.6, isNew: true },
+  { id: 'thunder', name: 'বজ্রপাত', hint: 'কড়কড় শব্দ আর গুমগুম — ঝড়, আবহাওয়া', group: 'news', len: 3, isNew: true },
+  { id: 'rain', name: 'বৃষ্টি', hint: 'ঝিরঝির বৃষ্টি — বর্ষা, বন্যা, আবহাওয়া', group: 'news', len: 3, isNew: true },
+  { id: 'applause', name: 'হাততালি', hint: 'ছোট দলের হাততালি — পুরস্কার, সাফল্য', group: 'news', len: 2.6, isNew: true },
   { id: 'hit', name: 'আঘাত', hint: 'গভীর ধাক্কা — চমকে দেওয়া তথ্য', group: 'fx', len: 1 },
   { id: 'impact', name: 'বড় ইমপ্যাক্ট', hint: 'সিনেমার মতো গম্ভীর বুম', group: 'fx', len: 2.6 },
   { id: 'heartbeat', name: 'হার্টবিট', hint: 'দুটি হৃৎস্পন্দন — উত্তেজনা, অপরাধ', group: 'fx', len: 1.6 },
   { id: 'drumroll', name: 'ড্রামরোল', hint: 'ঘোষণার আগে স্নেয়ার রোল', group: 'fx', len: 2.3 },
   { id: 'glitch', name: 'গ্লিচ', hint: 'ডিজিটাল ঝিলিক — প্রযুক্তি, সাইবার', group: 'fx', len: 0.7 },
   { id: 'pop', name: 'পপ', hint: 'ছোট্ট টুপ — স্টিকার বা লেখা ফুটে উঠতে', group: 'fx', len: 0.35 },
+  { id: 'success', name: 'সঠিক / টিক', hint: 'দুই সুরে ওঠা টুং — সত্য, সঠিক তথ্য', group: 'fx', len: 1, isNew: true },
+  { id: 'buzzer', name: 'ভুল / বাজার', hint: 'নিচু ব্যাঁ — গুজব, ভুল তথ্য', group: 'fx', len: 0.8, isNew: true },
+  { id: 'sparkle', name: 'ঝিকমিক', hint: 'উঁচু ছোট ঘণ্টার ঝিকমিক — বিনোদন, উৎসব', group: 'fx', len: 1.6, isNew: true },
 ]
 
 export const SFX_IDS = SFX.map((s) => s.id)
@@ -253,6 +265,126 @@ export function synthLib(ctx: BaseAudioContext, out: AudioNode, kind: SfxId, whe
     case 'pop': {
       tone(ctx, g, 500, when, 0.25, 0.002, 0.12, 'sine', 1400)
       burst(ctx, g, when, 0.03, 'bandpass', 3000, 1, 0.08, 0.001, 99)
+      return true
+    }
+    // ---- round 27 ----
+    case 'sting': {
+      // a brass-like D minor stab (saws through a closing low-pass), doubled an octave down, on a hit
+      const notes = [62, 65, 69, 74]
+      const lp = ctx.createBiquadFilter()
+      lp.type = 'lowpass'
+      lp.frequency.setValueAtTime(4200, when)
+      lp.frequency.exponentialRampToValueAtTime(600, when + 1.2)
+      const sg = ctx.createGain()
+      sg.gain.setValueAtTime(0.0001, when)
+      sg.gain.linearRampToValueAtTime(0.09, when + 0.02)
+      sg.gain.exponentialRampToValueAtTime(0.0001, when + 1.5)
+      lp.connect(sg).connect(g)
+      for (const n of [...notes, notes[0] - 12]) {
+        for (const det of [-8, 8]) {
+          const o = ctx.createOscillator()
+          o.type = 'sawtooth'
+          o.frequency.value = hz(n)
+          o.detune.value = det
+          o.connect(lp)
+          o.start(when)
+          o.stop(when + 1.6)
+        }
+      }
+      boom(ctx, g, when, 0.6, 140, 40, 0.9)
+      burst(ctx, g, when, 0.5, 'highpass', 6000, 0.6, 0.08, 0.002, 101)
+      return true
+    }
+    case 'transition': {
+      burst(ctx, g, when, 1.4, 'bandpass', 600, 0.9, 0.16, 1.3, 111, 7000)
+      tone(ctx, g, 160, when, 0.06, 1.3, 0.2, 'sawtooth', 900)
+      burst(ctx, g, when + 1.4, 0.5, 'bandpass', 3000, 0.7, 0.2, 0.01, 112, 400)
+      boom(ctx, g, when + 1.42, 0.8, 100, 30, 1)
+      return true
+    }
+    case 'swipeup': {
+      tone(ctx, g, 400, when, 0.24, 0.01, 0.2, 'triangle', 2400)
+      burst(ctx, g, when, 0.25, 'bandpass', 1500, 1.2, 0.24, 0.03, 121, 8000)
+      return true
+    }
+    case 'siren': {
+      const o = ctx.createOscillator()
+      o.type = 'triangle'
+      const f = o.frequency
+      f.setValueAtTime(700, when)
+      for (let i = 0; i < 4; i++) {
+        f.linearRampToValueAtTime(1300, when + i * 0.6 + 0.3)
+        f.linearRampToValueAtTime(700, when + i * 0.6 + 0.6)
+      }
+      const og = ctx.createGain()
+      og.gain.setValueAtTime(0.0001, when)
+      og.gain.linearRampToValueAtTime(0.12, when + 0.1)
+      og.gain.setValueAtTime(0.12, when + 2.2)
+      og.gain.linearRampToValueAtTime(0.0001, when + 2.5)
+      o.connect(og).connect(g)
+      o.start(when)
+      o.stop(when + 2.55)
+      return true
+    }
+    case 'thunder': {
+      burst(ctx, g, when, 0.25, 'highpass', 2500, 0.5, 0.35, 0.002, 131)
+      burst(ctx, g, when + 0.08, 0.35, 'bandpass', 1200, 0.6, 0.3, 0.002, 132)
+      burst(ctx, g, when + 0.15, 2.6, 'lowpass', 300, 0.7, 0.5, 0.15, 133, 60)
+      boom(ctx, g, when + 0.2, 0.5, 70, 28, 2.4)
+      return true
+    }
+    case 'rain': {
+      const src = ctx.createBufferSource()
+      src.buffer = noise(ctx, 3.1, 141)
+      const bp = ctx.createBiquadFilter()
+      bp.type = 'bandpass'
+      bp.frequency.value = 4500
+      bp.Q.value = 0.4
+      const rg = ctx.createGain()
+      rg.gain.setValueAtTime(0.0001, when)
+      rg.gain.linearRampToValueAtTime(0.16, when + 0.6)
+      rg.gain.setValueAtTime(0.16, when + 2.3)
+      rg.gain.linearRampToValueAtTime(0.0001, when + 3)
+      src.connect(bp).connect(rg).connect(g)
+      src.start(when)
+      let seed = 7
+      const r = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff)
+      for (let i = 0; i < 40; i++) {
+        const t = when + 0.2 + r() * 2.6
+        tone(ctx, g, 1800 + r() * 2200, t, 0.03 + r() * 0.03, 0.001, 0.03, 'sine', 900)
+      }
+      return true
+    }
+    case 'applause': {
+      let seed = 11
+      const r = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff)
+      for (let i = 0; i < 90; i++) {
+        const t = when + r() * 2.3
+        const fade = t - when > 1.7 ? 1 - (t - when - 1.7) / 0.6 : Math.min(1, (t - when) / 0.3 + 0.3)
+        burst(ctx, g, t, 0.025, 'bandpass', 1100 + r() * 1600, 1.4, (0.27 + r() * 0.2) * Math.max(0, fade), 0.001, 150 + i)
+      }
+      return true
+    }
+    case 'success': {
+      tone(ctx, g, hz(84), when, 0.13, 0.004, 0.35)
+      tone(ctx, g, hz(91), when + 0.12, 0.14, 0.004, 0.8)
+      tone(ctx, g, hz(96), when + 0.12, 0.04, 0.004, 0.6)
+      return true
+    }
+    case 'buzzer': {
+      for (const f of [150, 155]) tone(ctx, g, f, when, 0.08, 0.01, 0.65, 'square', 110)
+      return true
+    }
+    case 'sparkle': {
+      let seed = 3
+      const r = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff)
+      for (let i = 0; i < 12; i++) {
+        const t = when + i * 0.08 + r() * 0.04
+        const n = 88 + Math.floor(r() * 12)
+        tone(ctx, g, hz(n), t, 0.1, 0.002, 0.4)
+        tone(ctx, g, hz(n) * 2.01, t, 0.03, 0.002, 0.25)
+      }
+      burst(ctx, g, when, 1.2, 'highpass', 9000, 0.5, 0.03, 0.2, 161)
       return true
     }
     default:

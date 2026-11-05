@@ -13,7 +13,7 @@
  */
 import type { DrawEnv, Picture } from './draw'
 import { drawOutputFrame, sfxCues } from './draw'
-import { playSfx } from './audio'
+import { playSfx, voiceChain, type VoiceTrack } from './audio'
 import { musicBuffer } from './music'
 import type { MusicChoice } from './config'
 import { pipActive, pipClipTime, segSource, segmentAt, type ClipKey, type Segment } from './timeline'
@@ -47,6 +47,8 @@ export class PreviewPlayer {
   private musicSrc: AudioBufferSourceNode | null = null
   private musicGain: GainNode | null = null
   private muted = false
+  private voices: VoiceTrack[] = []
+  private voiceNodes: AudioScheduledSourceNode[] = []
 
   constructor(canvas: HTMLCanvasElement, onState: (s: PreviewState) => void) {
     this.canvas = canvas
@@ -152,6 +154,7 @@ export class PreviewPlayer {
     this.lastCueT = this.T - 0.001
     this.enter(this.T)
     this.startMusic()
+    this.startVoices()
     this.report(true)
   }
 
@@ -159,8 +162,13 @@ export class PreviewPlayer {
   setMuted(m: boolean) {
     this.muted = m
     for (const el of this.els.values()) el.muted = m
-    if (m) this.stopMusic()
-    else if (this.playing) this.startMusic()
+    if (m) {
+      this.stopMusic()
+      this.stopVoices()
+    } else if (this.playing) {
+      this.startMusic()
+      this.startVoices()
+    }
   }
 
   /** The shared AudioContext (created on first play). */
@@ -195,7 +203,7 @@ export class PreviewPlayer {
     if (a.musicOver === 'main' && this.seg.kind !== 'main') return 0
     const speech = this.seg.kind === 'main' ? a.main > 0 : a.clips > 0
     const fade = Math.min(1, Math.max(0, (env.tl.duration - this.T) / 2.5))
-    return a.musicVol * (a.duck && speech ? 0.5 : 1) * fade
+    return a.musicVol * (a.duck && speech ? 0.5 : 1) * fade * this.voiceDuck()
   }
 
   private startMusic() {
@@ -232,8 +240,55 @@ export class PreviewPlayer {
     if (this.musicGain && this.audio) this.musicGain.gain.setTargetAtTime(this.musicLevel(), this.audio.currentTime, 0.12)
   }
 
+  /** Round 27: recorded / uploaded voice-overs, played in sync with the preview. */
+  setVoices(tracks: VoiceTrack[]) {
+    this.voices = tracks
+    if (this.playing) this.startVoices()
+  }
+
+  private startVoices() {
+    this.stopVoices()
+    const ctx = this.audio
+    if (!ctx || this.muted || !this.playing) return
+    for (const v of this.voices) {
+      const len = v.buf.duration - v.offset
+      if (this.T >= v.start + len) continue
+      const wait = Math.max(0, v.start - this.T)
+      const skip = v.offset + Math.max(0, this.T - v.start)
+      const src = ctx.createBufferSource()
+      src.buffer = v.buf
+      const g = ctx.createGain()
+      g.gain.value = v.vol
+      src.connect(g)
+      if (v.clean) g.connect(voiceChain(ctx, 'clear', ctx.destination))
+      else g.connect(ctx.destination)
+      src.start(ctx.currentTime + wait, skip)
+      this.voiceNodes.push(src)
+    }
+  }
+
+  private stopVoices() {
+    for (const n of this.voiceNodes) {
+      try {
+        n.stop()
+      } catch {
+        // already stopped
+      }
+      n.disconnect()
+    }
+    this.voiceNodes = []
+  }
+
+  /** How loud the rest stays at T (the lowest duck of the voices speaking). */
+  private voiceDuck() {
+    let d = 1
+    for (const v of this.voices) if (this.T >= v.start && this.T < v.start + v.buf.duration - v.offset) d = Math.min(d, v.duck)
+    return d
+  }
+
   pause() {
     this.playing = false
+    this.stopVoices()
     this.stopMusic()
     this.els.get('pip')?.pause()
     for (const el of this.els.values()) el.pause()
@@ -254,6 +309,7 @@ export class PreviewPlayer {
       this.lastCueT = this.T
       this.enter(this.T)
       this.startMusic()
+      this.startVoices()
     } else if (seg.clip) {
       const el = this.els.get(seg.clip)
       if (el) el.currentTime = segSource(seg, this.T - seg.t0)
@@ -297,6 +353,7 @@ export class PreviewPlayer {
       }
       this.playCues(env)
       this.syncPip()
+      if (el && this.voices.length) el.volume = this.volumeFor(seg) * this.voiceDuck()
       this.updateMusicGain()
       this.draw()
       this.report()
@@ -360,6 +417,7 @@ export class PreviewPlayer {
     }
     this.els.clear()
     this.stopMusic()
+    this.stopVoices()
     this.audio?.close().catch(() => undefined)
   }
 }

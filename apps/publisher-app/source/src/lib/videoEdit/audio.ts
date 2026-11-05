@@ -15,7 +15,7 @@
 import type { EditConfig } from './config'
 import type { SfxKind } from './draw'
 import { sfxLength, synthLib } from './sfxlib'
-import { pipClipTime, segSourceEnd, type ClipKey, type Segment, type Timeline } from './timeline'
+import { outputAtOrAfter, pipClipTime, segSourceEnd, sourceToOutput, type ClipKey, type Segment, type Timeline } from './timeline'
 import { Denoiser, type DenoiseLevel } from './denoise'
 import { removeMusic, type MusicRemoveLevel } from './musicremove'
 
@@ -167,7 +167,7 @@ export function newMixState(music: AudioBuffer | null, gain = 1, normalised = fa
 }
 
 /** Voice clean-up: low cut, less boom, more presence, gentle compression. */
-function voiceChain(ctx: BaseAudioContext, mode: 'clear' | 'strong', out: AudioNode): AudioNode {
+export function voiceChain(ctx: BaseAudioContext, mode: 'clear' | 'strong', out: AudioNode): AudioNode {
   const strong = mode === 'strong'
   const hp = ctx.createBiquadFilter()
   hp.type = 'highpass'
@@ -212,13 +212,18 @@ export async function mixWindow(
   t0: number,
   t1: number,
   state: MixState,
+  voices: VoiceTrack[] = [],
 ): Promise<AudioBuffer> {
   const r0 = Math.max(0, t0 - PAD)
   const lead = Math.round((t0 - r0) * SAMPLE_RATE)
   const frames = Math.max(1, Math.round((t1 - t0) * SAMPLE_RATE))
   const ctx = new OfflineAudioContext(2, frames + lead, SAMPLE_RATE)
   const span = (frames + lead) / SAMPLE_RATE
-  const voiceIn = cfg.audio.voice !== 'off' ? voiceChain(ctx, cfg.audio.voice, ctx.destination) : null
+  // round 27: the clips' sound goes through a "bed" that dips while a voice-over speaks
+  const bed = ctx.createGain()
+  bed.connect(ctx.destination)
+  duckBed(bed.gain, voices, r0, span)
+  const voiceIn = cfg.audio.voice !== 'off' ? voiceChain(ctx, cfg.audio.voice, bed) : null
 
   for (const seg of tl.segments) {
     if (!seg.clip) continue
@@ -235,7 +240,7 @@ export async function mixWindow(
     const rate = seg.rate
 
     const g = ctx.createGain()
-    g.connect(seg.kind === 'main' && voiceIn ? voiceIn : ctx.destination)
+    g.connect(seg.kind === 'main' && voiceIn ? voiceIn : bed)
     // fades at the segment's own edges (relative to this window)
     const sIn = seg.t0 - r0
     const sOut = segEnd - r0
@@ -300,7 +305,7 @@ export async function mixWindow(
       g.gain.linearRampToValueAtTime(vol, Math.max(0, a - r0) + FADE * 4)
       g.gain.setValueAtTime(vol, Math.max(0, b - r0 - FADE * 4))
       g.gain.linearRampToValueAtTime(0, Math.max(0, b - r0))
-      g.connect(ctx.destination)
+      g.connect(bed)
       for await (const chunk of pr.buffers(ca, cb)) {
         const when = a - r0 + (chunk.timestamp - ca)
         const offset = Math.max(0, a - r0 - when)
@@ -324,6 +329,24 @@ export async function mixWindow(
     src.connect(g).connect(ctx.destination)
     const when = c.t - r0
     src.start(Math.max(0, when), Math.max(0, -when))
+  }
+
+  // round 27: voice-overs, on top of the dipped bed
+  for (const v of voices) {
+    const when = v.start - r0
+    const len = v.buf.duration - v.offset
+    if (len <= 0 || when >= span || when + len <= 0) continue
+    const g = ctx.createGain()
+    const vEnd = when + len
+    g.gain.setValueAtTime(0, Math.max(0, when))
+    g.gain.linearRampToValueAtTime(v.vol, Math.max(0, when) + 0.04)
+    g.gain.setValueAtTime(v.vol, Math.max(0, vEnd - 0.06))
+    g.gain.linearRampToValueAtTime(0, Math.max(0, vEnd))
+    g.connect(v.clean ? voiceChain(ctx, 'clear', ctx.destination) : ctx.destination)
+    const src = ctx.createBufferSource()
+    src.buffer = v.buf
+    src.connect(g)
+    src.start(Math.max(0, when), v.offset + Math.max(0, -when))
   }
 
   const mixed = await ctx.startRendering()
@@ -472,4 +495,83 @@ export function musicRemovedReader(base: AudioReader, level: Exclude<MusicRemove
       yield { buffer: toBuffer(removeMusic(g.data, g.sr, level), g.sr), timestamp: g.start }
     },
   }
+}
+
+// ---- Round 27: voice-overs ----
+
+/** A decoded voice-over placed on the output timeline. */
+export interface VoiceTrack {
+  buf: AudioBuffer
+  /** Output second where it starts. */
+  start: number
+  offset: number
+  vol: number
+  duck: number
+  clean: boolean
+}
+
+const voiceCache = new WeakMap<Blob, Promise<AudioBuffer>>()
+
+/** Decodes a recorded / uploaded voice (any format the browser plays) at the mix rate. */
+export function decodeVoice(blob: Blob): Promise<AudioBuffer> {
+  let p = voiceCache.get(blob)
+  if (!p) {
+    p = blob.arrayBuffer().then((ab) => new OfflineAudioContext(2, 1, SAMPLE_RATE).decodeAudioData(ab))
+    voiceCache.set(blob, p)
+    p.catch(() => voiceCache.delete(blob))
+  }
+  return p
+}
+
+/** The config's voice-overs as tracks (`blobs` in the same order as cfg.voices; missing ones are skipped). */
+export async function prepareVoices(cfg: EditConfig, tl: Timeline, blobs: (Blob | null | undefined)[]): Promise<VoiceTrack[]> {
+  const out: VoiceTrack[] = []
+  for (const [i, v] of cfg.voices.entries()) {
+    const blob = blobs[i]
+    if (!blob) continue
+    const start = sourceToOutput(tl, v.at) ?? outputAtOrAfter(tl, v.at)
+    if (start === null) continue
+    try {
+      const buf = await decodeVoice(blob)
+      out.push({ buf, start, offset: Math.min(v.offset, Math.max(0, buf.duration - 0.1)), vol: v.vol, duck: v.duck, clean: v.clean })
+    } catch {
+      // a file the browser cannot read: left out rather than failing the render
+    }
+  }
+  return out
+}
+
+/** Dips `gain` (times relative to the window start r0) while any voice speaks. */
+function duckBed(gain: AudioParam, voices: VoiceTrack[], r0: number, span: number) {
+  gain.setValueAtTime(1, 0)
+  const spans = voices
+    .map((v) => ({ a: v.start - r0, b: v.start - r0 + (v.buf.duration - v.offset), d: v.duck }))
+    .filter((x) => x.d < 0.999 && x.b > -0.5 && x.a < span + 0.5)
+    .sort((x, y) => x.a - y.a)
+  if (!spans.length) return
+  // merge overlaps (the deeper dip wins)
+  const merged: { a: number; b: number; d: number }[] = []
+  for (const x of spans) {
+    const last = merged[merged.length - 1]
+    if (last && x.a <= last.b + 0.3) {
+      last.b = Math.max(last.b, x.b)
+      last.d = Math.min(last.d, x.d)
+    } else merged.push({ ...x })
+  }
+  // the level at time t: 0.25 s down before a voice, 0.4 s back up after
+  const level = (t: number) => {
+    let g = 1
+    for (const m of merged) {
+      let k = 0
+      if (t >= m.a && t <= m.b) k = 1
+      else if (t < m.a && t > m.a - 0.25) k = 1 - (m.a - t) / 0.25
+      else if (t > m.b && t < m.b + 0.4) k = 1 - (t - m.b) / 0.4
+      g = Math.min(g, 1 - k * (1 - m.d))
+    }
+    return g
+  }
+  // sampled every 50 ms on absolute time, so neighbouring windows join seamlessly
+  const first = Math.ceil(r0 / 0.05) * 0.05 - r0
+  gain.setValueAtTime(level(0), 0)
+  for (let t = first; t <= span + 0.001; t += 0.05) gain.linearRampToValueAtTime(level(t), t)
 }

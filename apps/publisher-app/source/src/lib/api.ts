@@ -393,7 +393,7 @@ export function isAbortError(err: unknown) {
 
 function xhrOnce(
   path: string,
-  form: FormData,
+  form: FormData | Blob,
   onProgress?: (p: UploadProgress) => void,
   signal?: AbortSignal,
 ): Promise<{ status: number; text: string }> {
@@ -422,6 +422,7 @@ function xhrOnce(
     xhr.withCredentials = true
     xhr.setRequestHeader('Cache-Control', 'no-cache')
     if (accessToken) xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`)
+    if (form instanceof Blob) xhr.setRequestHeader('Content-Type', 'application/octet-stream')
 
     xhr.upload.onprogress = (e) => {
       armStall()
@@ -454,7 +455,7 @@ function xhrOnce(
 
 export async function uploadWithProgress<T>(
   path: string,
-  form: FormData,
+  form: FormData | Blob,
   opts: { onProgress?: (p: UploadProgress) => void; signal?: AbortSignal } = {},
 ): Promise<T> {
   let reply = await xhrOnce(path, form, opts.onProgress, opts.signal)
@@ -1496,7 +1497,14 @@ export const MediaApi = {
       signal,
     })
   },
-  videoLimits: () => request<{ max_bytes: number; allowed_mimes?: string[] }>('/media/video-limits'),
+  videoLimits: () => request<{ max_bytes: number; allowed_mimes?: string[]; resumable?: { max_bytes: number; chunk_size: number } }>('/media/video-limits'),
+  /**
+   * Round 27 — resumable upload in pieces (newsroom-os 1.13.0+). A failed
+   * piece is retried (after asking the server what it has) instead of the
+   * whole file, and it waits for the connection to come back. Falls back to
+   * the single-request upload on an older plugin.
+   */
+  uploadResumable: (file: File, opts: ResumableOpts = {}) => uploadResumable(file, opts),
 }
 
 export interface LibraryImage {
@@ -2235,3 +2243,157 @@ export const DeshchitroApi = {
     return p
   },
 }
+
+
+// ---- Round 27: resumable uploads ----
+
+export interface ResumableOpts {
+  kind?: 'video' | 'audio'
+  onProgress?: (p: UploadProgress) => void
+  /** A line for the user while waiting/retrying ("নেটওয়ার্ক দুর্বল…"), null when going again. */
+  onStatus?: (msg: string | null) => void
+  signal?: AbortSignal
+  /** An earlier session of this same file (resume after an error). */
+  session?: { id: string } | null
+  /** Called with the session as soon as it exists, so a later retry can resume it. */
+  onSession?: (s: { id: string }) => void
+}
+
+interface UploadedFile {
+  id: number
+  url: string
+  mime: string
+  size: number
+}
+
+const pause = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    const t = setTimeout(done, ms)
+    const onOnline = () => done()
+    function done() {
+      clearTimeout(t)
+      window.removeEventListener('online', onOnline)
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }
+    function onAbort() {
+      clearTimeout(t)
+      window.removeEventListener('online', onOnline)
+      reject(new ApiError('আপলোড বাতিল করা হয়েছে।', 0, UPLOAD_ABORTED_CODE, 'client'))
+    }
+    // coming back online ends the wait early
+    window.addEventListener('online', onOnline)
+    signal?.addEventListener('abort', onAbort)
+  })
+
+async function waitOnline(signal: AbortSignal | undefined, onStatus?: (m: string | null) => void) {
+  while (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    onStatus?.('ইন্টারনেট সংযোগ নেই — সংযোগ ফিরলে আপলোড নিজে থেকেই আবার চলবে…')
+    await pause(15000, signal)
+  }
+}
+
+/** Errors worth retrying: no connection, timeouts, server hiccups (5xx, 429). */
+function retryable(err: unknown) {
+  if (!(err instanceof ApiError)) return true
+  if (err.code === UPLOAD_ABORTED_CODE) return false
+  return err.status === 0 || err.status >= 500 || err.status === 429 || err.status === 408 || err.kind === 'network' || err.kind === 'timeout' || err.kind === 'offline'
+}
+
+async function uploadResumable(file: File, o: ResumableOpts): Promise<UploadedFile> {
+  const { signal, onStatus, onProgress } = o
+  const kind = o.kind ?? 'video'
+  const report = (loaded: number) => onProgress?.({ loaded, total: file.size, percent: Math.min(100, Math.floor((loaded / file.size) * 100)) })
+  const MAX_FAILS = 60
+  let fails = 0
+  /** Runs `fn`, retrying network trouble with growing waits. */
+  async function withRetry<T>(fn: () => Promise<T>, what: string): Promise<T> {
+    for (;;) {
+      if (signal?.aborted) throw new ApiError('আপলোড বাতিল করা হয়েছে।', 0, UPLOAD_ABORTED_CODE, 'client')
+      await waitOnline(signal, onStatus)
+      try {
+        const r = await fn()
+        return r
+      } catch (err) {
+        if (!retryable(err) || ++fails > MAX_FAILS) throw err
+        const wait = Math.min(30, 2 * Math.pow(1.6, Math.min(fails, 8)))
+        onStatus?.(`নেটওয়ার্ক দুর্বল — ${what} ${bnSeconds(Math.round(wait))} পরে আবার চেষ্টা হবে (আগের অংশ হারায়নি)…`)
+        await pause(wait * 1000, signal)
+      }
+    }
+  }
+
+  // 1 — the session (a fresh one, or the earlier one of this file)
+  let session: { id: string; chunk: number } | null = null
+  if (o.session) {
+    try {
+      const st = await withRetry(() => request<{ received: number; size: number; done: boolean }>(`/media/upload-session/${o.session!.id}`), 'সংযোগ')
+      if (st.size === file.size) session = { id: o.session.id, chunk: 4 * 1048576 }
+    } catch (err) {
+      if (!(err instanceof ApiError) || err.status !== 404) throw err
+    }
+  }
+  if (!session) {
+    try {
+      const s = await withRetry(
+        () => request<{ id: string; chunk_size: number; received: number }>('/media/upload-session', { method: 'POST', body: { kind, name: file.name, size: file.size } }),
+        'সংযোগ',
+      )
+      session = { id: s.id, chunk: Math.max(262144, Math.min(s.chunk_size || 4194304, 8 * 1048576)) }
+    } catch (err) {
+      // an older plugin without resumable uploads: one request, as before
+      if (err instanceof ApiError && err.status === 404 && kind === 'video') {
+        onStatus?.(null)
+        const form = new FormData()
+        form.append('nros_video', file)
+        return uploadWithProgress<UploadedFile>('/media/video', form, { onProgress, signal })
+      }
+      throw err
+    }
+    o.onSession?.({ id: session.id })
+  }
+  const id = session.id
+  // smaller pieces on a shaky line lose less on each failure
+  let chunk = Math.min(session.chunk, 4 * 1048576)
+  let received = (await withRetry(() => request<{ received: number }>(`/media/upload-session/${id}`), 'সংযোগ')).received
+  report(received)
+
+  // 2 — the pieces
+  while (received < file.size) {
+    const end = Math.min(file.size, received + chunk)
+    const piece = file.slice(received, end)
+    const from = received
+    try {
+      await waitOnline(signal, onStatus)
+      const r = await uploadWithProgress<{ received: number }>(`/media/upload-session/${id}/chunk?offset=${from}`, piece, {
+        onProgress: (p) => report(from + p.loaded),
+        signal,
+      })
+      received = r.received
+      onStatus?.(null)
+      fails = Math.max(0, fails - 1)
+      // a good run: grow the piece back up
+      if (chunk < session.chunk) chunk = Math.min(session.chunk, chunk * 2)
+    } catch (err) {
+      if (!retryable(err) && !(err instanceof ApiError && err.status === 409)) throw err
+      if (!(err instanceof ApiError && err.status === 409)) {
+        if (++fails > MAX_FAILS) throw err
+        chunk = Math.max(262144, Math.floor(chunk / 2))
+        const wait = Math.min(30, 2 * Math.pow(1.6, Math.min(fails, 8)))
+        onStatus?.(`নেটওয়ার্ক দুর্বল — ${bnSeconds(Math.round(wait))} পরে যেখানে থেমেছে সেখান থেকে আবার চলবে…`)
+        await pause(wait * 1000, signal)
+      }
+      // ask the server what it really has (the piece may have arrived)
+      received = (await withRetry(() => request<{ received: number }>(`/media/upload-session/${id}`), 'সংযোগ')).received
+      report(received)
+    }
+  }
+
+  // 3 — done: the server checks the file and puts it in the library
+  onStatus?.('সার্ভারে ফাইল যাচাই হচ্ছে…')
+  const res = await withRetry(() => request<UploadedFile>(`/media/upload-session/${id}/finish`, { method: 'POST', body: {} }), 'শেষ ধাপ')
+  onStatus?.(null)
+  return res
+}
+
+const bnSeconds = (n: number) => `${String(n).replace(/[0-9]/g, (d) => '০১২৩৪৫৬৭৮৯'[Number(d)])} সেকেন্ড`

@@ -106,6 +106,24 @@ export function FramePanel({
         <>
           <Section title="ফ্রেমের আকার" hint="স্বয়ংক্রিয়: রিল (৯:১৬) ভিডিওতে ফ্রেম ও লেখা বড় হয়, কারণ ফোনে পুরো স্ক্রিনে দেখা হয়।">
             <Segmented value={f.size} options={FRAME_SIZES} onChange={(v) => setF({ size: v })} size="sm" />
+            <div className="mt-2">
+              <Slider label="উপরের অংশের উচ্চতা" value={Math.round(f.top * 100)} min={100} max={200} step={10} onChange={(v) => setF({ top: v / 100 })} format={(v) => (v === 100 ? 'স্বাভাবিক' : `${bnNumber(v)}%`)} />
+              {f.footer !== 'none' && (
+                <Slider label="নিচের অংশের উচ্চতা" value={Math.round(f.bottom * 100)} min={100} max={200} step={10} onChange={(v) => setF({ bottom: v / 100 })} format={(v) => (v === 100 ? 'স্বাভাবিক' : `${bnNumber(v)}%`)} />
+              )}
+              <p className="text-[11px] text-neutral-400">বড় করলে শিরোনাম ও স্ক্রলের লেখাও বড় হয়। ১৬:৯ / ৯:১৬ মাপে ছবির জায়গা একটু কমে।</p>
+            </div>
+            <p className="text-[11.5px] text-neutral-500 mt-3 mb-1">অ্যানিমেশন</p>
+            <Segmented
+              value={f.motion}
+              options={[
+                { id: 'lively', name: 'প্রাণবন্ত (নতুন)' },
+                { id: 'calm', name: 'শান্ত' },
+              ]}
+              onChange={(v) => setF({ motion: v })}
+              size="sm"
+            />
+            <p className="text-[11px] text-neutral-400 mt-1">প্রাণবন্ত: শিরোনামে রঙের বার টেনে লেখা আসে, ফ্রেমের উপর মাঝে মাঝে আলোর ঝলক যায়।</p>
           </Section>
           <Section title="উপরের অংশ">
             <TextInput label="শিরোনাম / নিজের লেখা" value={f.title} onChange={(v) => setF({ title: v })} max={LIMITS.title} placeholder={postTitle || 'ভিডিওর শিরোনাম'} testId="frame-title" />

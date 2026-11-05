@@ -288,6 +288,16 @@ class NROS_Media {
 	 * @param WP_User $user Uploading user.
 	 * @return true|WP_Error
 	 */
+	/**
+	 * 1.13.0 — the same check for the resumable uploads (NROS_Upload_Sessions).
+	 *
+	 * @param WP_User $user User.
+	 * @return true|WP_Error
+	 */
+	public static function check_video_upload_allowed( $user ) {
+		return self::video_upload_allowed( $user );
+	}
+
 	protected static function video_upload_allowed( $user ) {
 		if ( ! in_array( 'correspondent', (array) $user->roles, true ) ) {
 			return true;
@@ -322,6 +332,11 @@ class NROS_Media {
 			array(
 				'max_bytes'     => self::video_max_bytes(),
 				'allowed_mimes' => array_keys( self::VIDEO_MIMES ),
+				// 1.13.0: resumable uploads in pieces — not bound by PHP's upload limit
+				'resumable'     => array(
+					'max_bytes'  => NROS_Upload_Sessions::max_bytes( 'video' ),
+					'chunk_size' => NROS_Upload_Sessions::chunk_size(),
+				),
 			),
 			200
 		);

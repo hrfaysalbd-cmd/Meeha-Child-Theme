@@ -29,9 +29,9 @@ import {
   type InputVideoTrack,
   type WrappedCanvas,
 } from 'mediabunny'
-import type { EditConfig } from './config'
+import type { EditConfig, FileSize } from './config'
 import { drawOutputFrame, sfxCues, type DrawEnv, type Picture } from './draw'
-import { denoisedReader, musicRemovedReader, mixWindow, newMixState, SAMPLE_RATE, type AudioReader } from './audio'
+import { denoisedReader, musicRemovedReader, mixWindow, newMixState, prepareVoices, SAMPLE_RATE, type AudioReader } from './audio'
 import { musicBuffer } from './music'
 import { LoudnessMeter, normalizeGain } from './loudness'
 import { clipsUsed, pipActive, pipClipTime, segSource, type ClipKey, type Timeline } from './timeline'
@@ -83,10 +83,13 @@ export function exportCapability(): Capability {
   return { ok: true }
 }
 
-/** Target video bitrate: ~0.11 bit/pixel/frame, never so high the file busts `maxBytes`. */
-export function pickBitrate(W: number, H: number, duration: number, maxBytes: number | null) {
+/** Bits per pixel per frame for each file-size choice (round 27). */
+const BPP: Record<FileSize, number> = { small: 0.045, balanced: 0.075, high: 0.11 }
+
+/** Target video bitrate (by the file-size choice), never so high the file busts `maxBytes`. */
+export function pickBitrate(W: number, H: number, duration: number, maxBytes: number | null, size: FileSize = 'high') {
   // Encoders take whole bits per second only ("bitrate must be a positive integer").
-  const ideal = Math.round(Math.min(10_000_000, Math.max(1_500_000, W * H * FPS * 0.11)))
+  const ideal = Math.round(Math.min(10_000_000, Math.max(size === 'small' ? 900_000 : 1_500_000, W * H * FPS * BPP[size])))
   if (!maxBytes || !(duration > 0)) return ideal
   const budget = (maxBytes * 0.88 * 8) / duration - 160_000
   return Math.round(Math.max(600_000, Math.min(ideal, Number.isFinite(budget) ? budget : ideal)))
@@ -140,6 +143,8 @@ export interface RenderJob {
   env: Omit<DrawEnv, 'scratch'> & { scratch: DrawEnv['scratch'] }
   /** Files for every clip the timeline uses. */
   clips: Partial<Record<ClipKey, Blob>>
+  /** Files for cfg.voices, by index (null when missing). */
+  voices?: (Blob | null)[]
   maxBytes: number | null
   posterAt: number
   onProgress?: (p: RenderProgress) => void
@@ -158,7 +163,7 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
   // --- codecs ---
   let container: 'mp4' | 'webm' = 'mp4'
   let vcodec: 'avc' | 'vp9' = 'avc'
-  const bitrate = pickBitrate(W, H, total, job.maxBytes)
+  const bitrate = pickBitrate(W, H, total, job.maxBytes, cfg.fileSize)
   if (!(await canEncodeVideo('avc', { width: W, height: H, bitrate }))) {
     if (await canEncodeVideo('vp9', { width: W, height: H, bitrate })) {
       container = 'webm'
@@ -217,6 +222,7 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
 
     const cues = sfxCues(tl, cfg)
     const music = cfg.audio.music !== 'none' ? await musicBuffer(cfg.audio.music) : null
+    const voices = await prepareVoices(cfg, tl, job.voices ?? [])
     let gain = 1
     if (cfg.audio.loudness !== 'off') {
       // first pass: measure the finished mix, then play it again at the target
@@ -225,7 +231,7 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
       const pre = audioReaders(io, used, cfg)
       for (let a = 0; a < total - 1e-6; a += 2) {
         check()
-        const buf = await mixWindow(tl, cfg, pre, cues, a, Math.min(total, a + 2), probe)
+        const buf = await mixWindow(tl, cfg, pre, cues, a, Math.min(total, a + 2), probe, voices)
         meter.feed(buf.getChannelData(0), buf.getChannelData(1))
         job.onProgress?.({ stage: 'loudness', ratio: Math.min(1, (a + 2) / total), done: a, total, eta: null })
       }
@@ -244,7 +250,7 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
     const pumpAudio = async (until: number) => {
       while (audioDone < Math.min(until, total) - 1e-6) {
         const t1 = Math.min(total, audioDone + AUDIO_WIN)
-        const buf = await mixWindow(tl, cfg, readers, cues, audioDone, t1, mix)
+        const buf = await mixWindow(tl, cfg, readers, cues, audioDone, t1, mix, voices)
         await asrc.add(buf)
         audioDone = t1
       }
@@ -367,7 +373,7 @@ export async function probeClip(blob: Blob): Promise<{ duration: number; width: 
  * exactly as the export makes it (voice clean-up, noise reduction, music,
  * ducking), so the editor can play it before rendering the whole video.
  */
-export async function renderAudioPreview(cfg: EditConfig, tl: Timeline, clips: Partial<Record<ClipKey, Blob>>, from: number, seconds: number, signal?: AbortSignal): Promise<AudioBuffer> {
+export async function renderAudioPreview(cfg: EditConfig, tl: Timeline, clips: Partial<Record<ClipKey, Blob>>, from: number, seconds: number, signal?: AbortSignal, voiceBlobs: (Blob | null)[] = []): Promise<AudioBuffer> {
   const t0 = Math.max(0, Math.min(from, tl.duration - 0.5))
   const t1 = Math.min(tl.duration, t0 + seconds)
   const used = new Set(tl.segments.filter((s) => s.clip && s.t0 < t1 && s.t0 + s.dur > t0).map((s) => s.clip as ClipKey))
@@ -388,6 +394,7 @@ export async function renderAudioPreview(cfg: EditConfig, tl: Timeline, clips: P
     }
     const cues = sfxCues(tl, cfg)
     const music = cfg.audio.music !== 'none' ? await musicBuffer(cfg.audio.music) : null
+    const voices = await prepareVoices(cfg, tl, voiceBlobs)
     const frames = Math.max(1, Math.round((t1 - t0) * SAMPLE_RATE))
     const pass = async (mix: ReturnType<typeof newMixState>, meter: LoudnessMeter | null) => {
       const readers = audioReaders(io, used, cfg)
@@ -397,7 +404,7 @@ export async function renderAudioPreview(cfg: EditConfig, tl: Timeline, clips: P
       while (at < t1 - 1e-6) {
         if (signal?.aborted) throw new RenderCancelled()
         const b = Math.min(t1, at + 2)
-        const buf = await mixWindow(tl, cfg, readers, cues, at, b, mix)
+        const buf = await mixWindow(tl, cfg, readers, cues, at, b, mix, voices)
         meter?.feed(buf.getChannelData(0), buf.getChannelData(1))
         const n = Math.min(buf.length, frames - pos)
         for (let c = 0; c < 2; c++) out.copyToChannel(buf.getChannelData(c).subarray(0, n), c, pos)

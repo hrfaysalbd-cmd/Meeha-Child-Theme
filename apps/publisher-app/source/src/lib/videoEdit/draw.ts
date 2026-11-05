@@ -1168,6 +1168,317 @@ const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
     accent: '#F42A41',
     edge: '#F42A41',
   },
+  // ---- round 27 ----
+  weather: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#0C4A8F'],
+        [1, '#38A3E8'],
+      ], Math.PI / 2)
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(r.x, r.y, r.w, r.h)
+      ctx.clip()
+      // a sun behind slow clouds at the right
+      const sx = r.x + r.w - r.h * 0.9
+      const sy = r.y + r.h * 0.45
+      ctx.fillStyle = 'rgba(255,214,90,0.9)'
+      ctx.beginPath()
+      ctx.arc(sx, sy, r.h * 0.26, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = 'rgba(255,255,255,0.75)'
+      const zone = Math.min(r.w * 0.3, r.h * 2.2)
+      for (let i = 0; i < 3; i++) {
+        const cx = r.x + r.w - zone + ((zone * (0.1 + i * 0.3) + t * (10 + i * 5) * s) % (zone * 0.85))
+        const cy = r.y + r.h * (0.35 + (i % 2) * 0.3)
+        const cr = Math.min(r.h * (0.1 + (i % 3) * 0.025), zone * 0.07)
+        ctx.beginPath()
+        ctx.arc(cx, cy, cr, 0, Math.PI * 2)
+        ctx.arc(cx + cr * 1.1, cy - cr * 0.3, cr * 1.2, 0, Math.PI * 2)
+        ctx.arc(cx + cr * 2.2, cy, cr * 0.9, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.restore()
+      sweep(ctx, r, t, 8, 0.1)
+    },
+    footerBg: (ctx, r, _t, s) => {
+      ctx.fillStyle = '#F0F9FF'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.fillStyle = '#38A3E8'
+      ctx.fillRect(r.x, r.y, r.w, 5 * s)
+    },
+    title: '#FFFFFF',
+    date: '#E0F2FE',
+    kickerBg: '#FFD65A',
+    kickerFg: '#3B2A00',
+    badge: { text: 'আবহাওয়া', bg: '#FFFFFF', fg: '#0C4A8F', kind: 'tape' },
+    labelBg: '#0C4A8F',
+    labelFg: '#FFFFFF',
+    tickerFg: '#0C3A6B',
+    accent: '#FFD65A',
+    edge: '#FFD65A',
+  },
+  crime: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#0A0A0A'],
+        [1, '#1C1917'],
+      ], 0)
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(r.x, r.y, r.w, r.h)
+      ctx.clip()
+      // red and blue lights taking turns at the right, like a patrol car
+      const on = Math.floor(t * 2.5) % 2
+      for (const [i, c] of [
+        [0, 'rgba(239,68,68,'],
+        [1, 'rgba(59,130,246,'],
+      ] as const) {
+        const a = on === i ? 0.55 : 0.12
+        const gx = r.x + r.w - r.h * (i ? 0.6 : 1.5)
+        const g = ctx.createRadialGradient(gx, r.y + r.h / 2, 0, gx, r.y + r.h / 2, r.h)
+        g.addColorStop(0, `${c}${a})`)
+        g.addColorStop(1, `${c}0)`)
+        ctx.fillStyle = g
+        ctx.fillRect(r.x, r.y, r.w, r.h)
+      }
+      // a strip of crime-scene tape along the bottom edge
+      const th = 16 * s
+      ctx.fillStyle = '#FACC15'
+      ctx.fillRect(r.x, r.y + r.h - th, r.w, th)
+      ctx.fillStyle = '#0A0A0A'
+      const step = 40 * s
+      for (let x = r.x - step + ((t * 50 * s) % step); x < r.x + r.w; x += step) {
+        ctx.beginPath()
+        ctx.moveTo(x, r.y + r.h)
+        ctx.lineTo(x + th, r.y + r.h - th)
+        ctx.lineTo(x + th + step * 0.35, r.y + r.h - th)
+        ctx.lineTo(x + step * 0.35, r.y + r.h)
+        ctx.fill()
+      }
+      ctx.restore()
+    },
+    footerBg: (ctx, r) => {
+      ctx.fillStyle = '#FACC15'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+    },
+    title: '#FFFFFF',
+    date: '#FDE68A',
+    kickerBg: '#DC2626',
+    kickerFg: '#FFFFFF',
+    badge: { text: 'অপরাধ', bg: '#DC2626', fg: '#FFFFFF', kind: 'live' },
+    labelBg: '#0A0A0A',
+    labelFg: '#FACC15',
+    tickerFg: '#0A0A0A',
+    accent: '#DC2626',
+    edge: '#FACC15',
+  },
+  health: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#065F5B'],
+        [1, '#0EA5A0'],
+      ], -0.3)
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(r.x, r.y, r.w, r.h)
+      ctx.clip()
+      // a heartbeat line running across the right half
+      const w = Math.max(0, Math.min(r.w * 0.3, r.h * 3.3) - r.h * 0.9)
+      const x0 = r.x + r.w - w - r.h * 0.9
+      const cy = r.y + r.h * 0.55
+      const head = (t * 0.35) % 1
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)'
+      ctx.lineWidth = 4 * s
+      ctx.lineJoin = 'round'
+      ctx.beginPath()
+      const n = 60
+      for (let i = 0; i <= n; i++) {
+        const u = i / n
+        const ph = (u * 3) % 1
+        let y = 0
+        if (ph > 0.4 && ph < 0.45) y = -0.3
+        else if (ph >= 0.45 && ph < 0.5) y = 0.45
+        else if (ph >= 0.5 && ph < 0.55) y = -0.15
+        const x = x0 + u * w
+        const fade = u <= head ? 1 : 0.25
+        if (i === 0) ctx.moveTo(x, cy + y * r.h)
+        else ctx.lineTo(x, cy + y * r.h * fade)
+      }
+      ctx.stroke()
+      // the white cross
+      const cx = r.x + r.w - r.h * 0.45
+      const k = r.h * 0.11
+      ctx.fillStyle = 'rgba(255,255,255,0.9)'
+      ctx.fillRect(cx - k, r.y + r.h * 0.18, k * 2, k * 6)
+      ctx.fillRect(cx - k * 3, r.y + r.h * 0.18 + k * 2, k * 6, k * 2)
+      ctx.restore()
+    },
+    footerBg: (ctx, r, _t, s) => {
+      ctx.fillStyle = '#FFFFFF'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.fillStyle = '#E11D48'
+      ctx.fillRect(r.x, r.y, r.w, 5 * s)
+    },
+    title: '#FFFFFF',
+    date: '#CCFBF1',
+    kickerBg: '#E11D48',
+    kickerFg: '#FFFFFF',
+    badge: { text: 'স্বাস্থ্য', bg: '#FFFFFF', fg: '#065F5B', kind: 'tape' },
+    labelBg: '#E11D48',
+    labelFg: '#FFFFFF',
+    tickerFg: '#064E4B',
+    accent: '#E11D48',
+    edge: '#FFFFFF',
+  },
+  tech: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#020617'],
+        [1, '#0B1E4A'],
+      ], 0)
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(r.x, r.y, r.w, r.h)
+      ctx.clip()
+      // circuit traces with pulses of light running along them
+      ctx.strokeStyle = 'rgba(34,211,238,0.22)'
+      ctx.lineWidth = 2 * s
+      for (let i = 0; i < 7; i++) {
+        const y = r.y + r.h * (0.12 + i * 0.13)
+        const x0 = r.x + r.w * (0.68 + rnd(i) * 0.08)
+        const bend = r.x + r.w * (0.8 + rnd(i + 9) * 0.1)
+        ctx.beginPath()
+        ctx.moveTo(x0, y)
+        ctx.lineTo(bend, y)
+        ctx.lineTo(bend + 20 * s, y + 20 * s * (i % 2 ? 1 : -1))
+        ctx.lineTo(r.x + r.w, y + 20 * s * (i % 2 ? 1 : -1))
+        ctx.stroke()
+        const p = (t * (0.25 + rnd(i + 3) * 0.2) + rnd(i + 5)) % 1
+        const px = x0 + (r.x + r.w - x0) * p
+        const py = px < bend ? y : y + 20 * s * (i % 2 ? 1 : -1)
+        ctx.fillStyle = 'rgba(34,211,238,0.9)'
+        ctx.beginPath()
+        ctx.arc(px, py, 4 * s, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.restore()
+      sweep(ctx, r, t, 6, 0.08)
+    },
+    footerBg: (ctx, r, _t, s) => {
+      ctx.fillStyle = '#020617'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.fillStyle = '#22D3EE'
+      ctx.fillRect(r.x, r.y, r.w, 3 * s)
+    },
+    title: '#FFFFFF',
+    date: '#A5F3FC',
+    kickerBg: '#22D3EE',
+    kickerFg: '#042F3A',
+    badge: { text: 'প্রযুক্তি', bg: '#22D3EE', fg: '#042F3A', kind: 'pulse' },
+    labelBg: '#22D3EE',
+    labelFg: '#042F3A',
+    tickerFg: '#E0F2FE',
+    accent: '#22D3EE',
+    edge: '#22D3EE',
+  },
+  world: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#071A44'],
+        [1, NIL.royal],
+      ], -0.2)
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(r.x, r.y, r.w, r.h)
+      ctx.clip()
+      // a turning wire globe at the right
+      const R = r.h * 0.62
+      const cx = r.x + r.w - R * 0.9
+      const cy = r.y + r.h * 0.6
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)'
+      ctx.lineWidth = 2 * s
+      ctx.beginPath()
+      ctx.arc(cx, cy, R, 0, Math.PI * 2)
+      ctx.stroke()
+      for (let i = 0; i < 5; i++) {
+        const ph = ((i / 5) * Math.PI + t * 0.5) % Math.PI
+        ctx.beginPath()
+        ctx.ellipse(cx, cy, Math.max(0.5, Math.abs(Math.cos(ph)) * R), R, 0, 0, Math.PI * 2)
+        ctx.stroke()
+      }
+      for (let i = -2; i <= 2; i++) {
+        const y = cy + (R * i) / 3
+        const rw = Math.sqrt(Math.max(0, R * R - (y - cy) * (y - cy)))
+        ctx.beginPath()
+        ctx.ellipse(cx, y, rw, rw * 0.1, 0, 0, Math.PI * 2)
+        ctx.stroke()
+      }
+      ctx.restore()
+      sweep(ctx, r, t, 7, 0.1)
+    },
+    footerBg: (ctx, r, _t, s) => {
+      ctx.fillStyle = '#FFFFFF'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.fillStyle = NIL.amber
+      ctx.fillRect(r.x, r.y, r.w, 4 * s)
+    },
+    title: '#FFFFFF',
+    date: '#C7D6F5',
+    kickerBg: NIL.amber,
+    kickerFg: '#1B1400',
+    badge: { text: 'আন্তর্জাতিক', bg: '#FFFFFF', fg: NIL.royal, kind: 'tape' },
+    labelBg: NIL.royal,
+    labelFg: '#FFFFFF',
+    tickerFg: NIL.navy,
+    accent: NIL.amber,
+    edge: NIL.amber,
+  },
+  gold: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = '#0B0905'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(r.x, r.y, r.w, r.h)
+      ctx.clip()
+      // fine gold lines and a slow shimmer
+      const g = ctx.createLinearGradient(r.x, 0, r.x + r.w, 0)
+      g.addColorStop(0, '#7A5A14')
+      g.addColorStop(0.5, '#F5D27A')
+      g.addColorStop(1, '#7A5A14')
+      ctx.fillStyle = g
+      ctx.fillRect(r.x, r.y + 10 * s, r.w, 3 * s)
+      ctx.fillRect(r.x, r.y + r.h - 13 * s, r.w, 3 * s)
+      ctx.restore()
+      sweep(ctx, r, t, 5, 0.18)
+    },
+    footerBg: (ctx, r, _t, s) => {
+      ctx.fillStyle = '#0B0905'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      const g = ctx.createLinearGradient(r.x, 0, r.x + r.w, 0)
+      g.addColorStop(0, '#7A5A14')
+      g.addColorStop(0.5, '#F5D27A')
+      g.addColorStop(1, '#7A5A14')
+      ctx.fillStyle = g
+      ctx.fillRect(r.x, r.y, r.w, 3 * s)
+    },
+    title: '#F8E7B5',
+    date: '#D6B45E',
+    kickerBg: '#D6B45E',
+    kickerFg: '#1A1405',
+    badge: { text: 'বিশেষ', bg: '#D6B45E', fg: '#F5D27A', kind: 'gold' },
+    labelBg: '#D6B45E',
+    labelFg: '#1A1405',
+    tickerFg: '#F8E7B5',
+    accent: '#D6B45E',
+    edge: '#D6B45E',
+  },
 }
 
 export function themeOf(id: FrameId): Theme | null {
@@ -1266,6 +1577,26 @@ function drawChip(ctx: Ctx, text: string, x: number, cy: number, h: number, bg: 
   return w
 }
 
+/** Round 27 ("lively" frames): a soft band of light that crosses `r` once every `every` s. */
+function lightSweep(ctx: Ctx, r: Rect, t: number, every: number, delay: number, alpha = 0.22) {
+  if (t < delay) return
+  const p = ((t - delay) % every) / 1.1
+  if (p >= 1) return
+  const w = Math.max(r.h * 1.2, r.w * 0.16)
+  const x = lerp(r.x - w * 1.5, r.x + r.w + w * 0.5, ease.inOutCubic(p))
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(r.x, r.y, r.w, r.h)
+  ctx.clip()
+  const g = ctx.createLinearGradient(x, r.y, x + w, r.y + r.h * 0.6)
+  g.addColorStop(0, 'rgba(255,255,255,0)')
+  g.addColorStop(0.5, `rgba(255,255,255,${alpha})`)
+  g.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(r.x, r.y, r.w, r.h)
+  ctx.restore()
+}
+
 function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t: number) {
   const s = env.L.s
   const enter = win(t, 0, 0.5)
@@ -1280,6 +1611,10 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t: number) {
     ctx.fillStyle = '#000'
     ctx.fillRect(r.x + r.w * ease.outCubic(enter), r.y, r.w * (1 - ease.outCubic(enter)), r.h)
   }
+  const lively = env.cfg.frame.motion === 'lively'
+  // round 27: a taller band (frame.top) gets a bigger title, not just empty space
+  const hk = clamp(r.h / (210 * s), 1, 2)
+  if (lively) lightSweep(ctx, r, t, 9, 2.2)
 
   const padX = 44 * s
   const rowCy = r.y + 50 * s
@@ -1287,7 +1622,17 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t: number) {
   let x = r.x + padX
   const minimal = env.cfg.frame.id === 'minimal'
   // room kept free for the campus frame's ribbons
-  const extraR = env.cfg.frame.id === 'campus' ? 170 * s : env.cfg.frame.id === 'national' ? r.h * 0.9 : 0
+  const fid = env.cfg.frame.id
+  const extraR =
+    fid === 'campus'
+      ? 170 * s
+      : fid === 'national'
+        ? Math.min(r.h * 0.9, 190 * s)
+        : fid === 'weather' || fid === 'health' || fid === 'tech'
+          ? Math.min(r.w * 0.3, r.h * 2.4 + (fid === 'health' ? r.h * 0.9 : 0))
+          : fid === 'world'
+            ? r.h * 1.5
+            : 0
   if (minimal) {
     // accent bar left of the text block
     const bh = (r.h - 44 * s) * ease.outCubic(win(t, 0.15, 0.6))
@@ -1327,9 +1672,9 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t: number) {
   const bottom = r.y + r.h - 20 * s
   const avail = bottom - top
   const font = (px: number) => bodyFont(700, px)
-  let fit = fitText(ctx, title, font, maxW, 1, Math.min(56 * s, avail * 0.82), 40 * s)
+  let fit = fitText(ctx, title, font, maxW, 1, Math.min(56 * s * hk, avail * 0.82), 40 * s)
   if (fit.lines.length === 1 && ctx.measureText(fit.lines[0]).width > maxW) fit = fitText(ctx, title, font, maxW, 2, avail / 2.5, 28 * s)
-  else if (fit.lines.length === 0 || fit.lines[0].endsWith('…')) fit = fitText(ctx, title, font, maxW, 2, Math.min(46 * s, avail / 2.45), 28 * s)
+  else if (fit.lines.length === 0 || fit.lines[0].endsWith('…')) fit = fitText(ctx, title, font, maxW, 2, Math.min(46 * s * hk, avail / 2.45), 28 * s)
   const blockH = fit.lines.length * fit.lineHeight
   const y0 = top + (avail - blockH) / 2
   ctx.save()
@@ -1339,10 +1684,38 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t: number) {
   ctx.font = font(fit.size)
   ctx.fillStyle = theme.title
   ctx.textBaseline = 'middle'
+  if (!lively) {
+    fit.lines.forEach((line, i) => {
+      const p = ease.outCubic(win(t, 0.35 + i * 0.1, 0.8 + i * 0.1))
+      ctx.globalAlpha = p
+      ctx.fillText(line, left, y0 + fit.lineHeight * (i + 0.5) + (1 - p) * fit.lineHeight * 0.8)
+    })
+    ctx.restore()
+    return
+  }
+  // lively: a TV-style colour bar wipes across each line and leaves the text behind it
   fit.lines.forEach((line, i) => {
-    const p = ease.outCubic(win(t, 0.35 + i * 0.1, 0.8 + i * 0.1))
-    ctx.globalAlpha = p
-    ctx.fillText(line, left, y0 + fit.lineHeight * (i + 0.5) + (1 - p) * fit.lineHeight * 0.8)
+    const lw = Math.min(maxW, ctx.measureText(line).width)
+    const cy = y0 + fit.lineHeight * (i + 0.5)
+    const a = 0.35 + i * 0.12
+    const grow = ease.outCubic(win(t, a, a + 0.32))
+    const leave = ease.inOutCubic(win(t, a + 0.32, a + 0.62))
+    const textIn = win(t, a + 0.3, a + 0.34)
+    ctx.save()
+    if (textIn > 0) {
+      ctx.globalAlpha = textIn
+      ctx.beginPath()
+      ctx.rect(left - 4 * s, cy - fit.lineHeight, (lw + 8 * s) * Math.max(leave, textIn >= 1 ? 1 : 0), fit.lineHeight * 2)
+      if (leave < 1) ctx.clip()
+      ctx.fillStyle = theme.title
+      ctx.fillText(line, left, cy)
+    }
+    ctx.restore()
+    if (grow > 0 && leave < 1) {
+      const x0 = left - 6 * s + (lw + 12 * s) * leave
+      const x1 = left - 6 * s + (lw + 12 * s) * grow
+      fillRoundRect(ctx, x0, cy - fit.lineHeight * 0.46, Math.max(0, x1 - x0), fit.lineHeight * 0.92, 4 * s, theme.accent)
+    }
   })
   ctx.restore()
 }
@@ -1351,9 +1724,9 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t: number) {
 // Footer band
 // ---------------------------------------------------------------------------
 
-function drawLabel(ctx: Ctx, text: string, r: Rect, bg: string, fg: string, s: number, appear: number) {
+function drawLabel(ctx: Ctx, text: string, r: Rect, bg: string, fg: string, s: number, appear: number, k = 1) {
   ctx.save()
-  ctx.font = dispFont(800, Math.min(34 * s, r.h * 0.42))
+  ctx.font = dispFont(800, Math.min(34 * s * k, r.h * 0.42))
   const w = ctx.measureText(text).width + 52 * s
   const shown = w * ease.outCubic(appear)
   ctx.beginPath()
@@ -1408,6 +1781,9 @@ function drawFooter(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t: number) {
   }
   const fade = win(t, 0.4, 0.8)
   const info = FRAMES.find((x) => x.id === f.id)
+  // round 27: a taller footer (frame.bottom) gets bigger text
+  const fk = clamp(r.h / (118 * s), 1, 1.8)
+  const lively = f.motion === 'lively'
 
   if (f.footer === 'ad-image' && env.adImage) {
     ctx.save()
@@ -1434,12 +1810,12 @@ function drawFooter(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t: number) {
     ctx.drawImage(env.logo.color, plateX, r.y + (r.h - lh) / 2, lw, lh)
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'right'
-    ctx.font = bodyFont(700, 34 * s)
+    ctx.font = bodyFont(700, 34 * s * fk)
     ctx.fillStyle = theme.tickerFg
     const site = env.website || 'meeha.news'
     ctx.fillText(site, r.x + r.w - 34 * s, r.y + r.h / 2)
     const siteW = ctx.measureText(site).width
-    ctx.font = bodyFont(500, 26 * s)
+    ctx.font = bodyFont(500, 26 * s * fk)
     const msg = 'সর্বশেষ সংবাদ পেতে ভিজিট করুন'
     const room = r.w - (plateX + lw + 40 * s - r.x) - siteW - 70 * s
     if (ctx.measureText(msg).width < room) {
@@ -1447,25 +1823,28 @@ function drawFooter(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t: number) {
       ctx.fillText(msg, r.x + r.w - 34 * s - siteW - 24 * s, r.y + r.h / 2 + 2 * s)
     }
     ctx.restore()
+    if (lively) lightSweep(ctx, r, t, 11, 3, 0.16)
     return
   }
 
   const isAd = f.footer === 'ad-text'
   const label = isAd ? 'বিজ্ঞাপন' : info?.label ?? 'শিরোনাম'
-  const lw = drawLabel(ctx, label, r, theme.labelBg, theme.labelFg, s, win(t, 0.3, 0.7))
+  const lw = drawLabel(ctx, label, r, theme.labelBg, theme.labelFg, s, win(t, 0.3, 0.7), fk)
+  if (lively) lightSweep(ctx, { x: r.x, y: r.y, w: lw, h: r.h }, t, 6, 1.5, 0.35)
   const text = (isAd ? f.adText : env.ticker).trim()
   if (!text) return
   const area = { x: r.x + lw + 8 * s, y: r.y, w: r.w - lw - 8 * s, h: r.h }
+  const px = 36 * s * fk
   ctx.save()
   ctx.globalAlpha = fade
-  ctx.font = bodyFont(isAd ? 700 : 500, 36 * s)
+  ctx.font = bodyFont(isAd ? 700 : 500, px)
   if (isAd && ctx.measureText(text).width < area.w - 40 * s) {
     ctx.fillStyle = theme.tickerFg
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'center'
     ctx.fillText(text, area.x + area.w / 2, area.y + area.h / 2 + 2 * s)
   } else {
-    scroll(ctx, text, area, t, s, theme.tickerFg, 36 * s, isAd ? 700 : 500)
+    scroll(ctx, text, area, t, s, theme.tickerFg, px, isAd ? 700 : 500)
   }
   ctx.restore()
 }
@@ -3026,6 +3405,623 @@ function sceneCredits(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
   blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.4, dur)))
 }
 
+// ---------------------------------------------------------------------------
+// Round 27: more striking intros and outros
+// ---------------------------------------------------------------------------
+
+/** Breaking shock: a white flash, glass shards fly together into a red slab, "ব্রেকিং নিউজ" slams in and shakes. */
+function sceneShatter(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const { W, H } = env.L
+  const s = Math.min(W, H) / 1080
+  const portrait = tall(env)
+  const bg = ctx.createRadialGradient(W / 2, H * 0.4, 0, W / 2, H * 0.4, Math.max(W, H) * 0.75)
+  bg.addColorStop(0, '#5A0610')
+  bg.addColorStop(1, '#0A0103')
+  ctx.fillStyle = bg
+  ctx.fillRect(0, 0, W, H)
+  // moving warning stripes, top and bottom
+  const sh = 26 * s
+  for (const y of [0, H - sh]) {
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, y, W, sh)
+    ctx.clip()
+    ctx.fillStyle = '#C8102E'
+    ctx.fillRect(0, y, W, sh)
+    ctx.fillStyle = 'rgba(255,255,255,0.9)'
+    const step = 60 * s
+    const off = (t * 160 * s) % step
+    for (let x = -step + off; x < W + step; x += step) {
+      ctx.beginPath()
+      ctx.moveTo(x, y + sh)
+      ctx.lineTo(x + step * 0.4, y)
+      ctx.lineTo(x + step * 0.7, y)
+      ctx.lineTo(x + step * 0.3, y + sh)
+      ctx.fill()
+    }
+    ctx.restore()
+  }
+  // the slab, assembled from shards
+  const sw = W * (portrait ? 0.86 : 0.7)
+  const shH = (portrait ? 190 : 170) * s
+  const sx = (W - sw) / 2
+  const sy = H * (portrait ? 0.34 : 0.3) - shH / 2
+  const shake = win(t, 0.75, 0.8) * (1 - win(t, 0.8, 1.4))
+  const jx = Math.sin(t * 90) * 14 * s * shake
+  const jy = Math.cos(t * 77) * 9 * s * shake
+  ctx.save()
+  ctx.translate(jx, jy)
+  const cols = 5
+  const rows = 2
+  const p = ease.outCubic(win(t, 0.12, 0.75))
+  if (p < 1) {
+    for (let c = 0; c < cols; c++) {
+      for (let r = 0; r < rows; r++) {
+        const x0 = sx + (sw * c) / cols
+        const y0 = sy + (shH * r) / rows
+        const cw = sw / cols
+        const ch = shH / rows
+        const tris: [number, number][][] = [
+          [[x0, y0], [x0 + cw, y0], [x0, y0 + ch]],
+          [[x0 + cw, y0], [x0 + cw, y0 + ch], [x0, y0 + ch]],
+        ]
+        tris.forEach((tri, k) => {
+          const i = c * 4 + r * 2 + k
+          const cx = (tri[0][0] + tri[1][0] + tri[2][0]) / 3
+          const cy = (tri[0][1] + tri[1][1] + tri[2][1]) / 3
+          const ang = rnd(i + 3) * Math.PI * 2
+          const far = Math.max(W, H) * (0.6 + rnd(i + 9) * 0.5)
+          const px = cx + Math.cos(ang) * far * (1 - p)
+          const py = cy + Math.sin(ang) * far * (1 - p)
+          const rot = (rnd(i + 17) - 0.5) * 6 * (1 - p)
+          ctx.save()
+          ctx.translate(px, py)
+          ctx.rotate(rot)
+          ctx.beginPath()
+          ctx.moveTo(tri[0][0] - cx, tri[0][1] - cy)
+          ctx.lineTo(tri[1][0] - cx, tri[1][1] - cy)
+          ctx.lineTo(tri[2][0] - cx, tri[2][1] - cy)
+          ctx.closePath()
+          ctx.fillStyle = k ? '#B00D26' : '#D9142F'
+          ctx.fill()
+          ctx.strokeStyle = 'rgba(255,255,255,0.5)'
+          ctx.lineWidth = 2 * s
+          ctx.stroke()
+          ctx.restore()
+        })
+      }
+    }
+  } else {
+    ctx.shadowColor = 'rgba(255,40,60,0.6)'
+    ctx.shadowBlur = 40 * s
+    fillRoundRect(ctx, sx, sy, sw, shH, 10 * s, '#D9142F')
+    ctx.shadowColor = 'transparent'
+    ctx.fillStyle = 'rgba(255,255,255,0.12)'
+    ctx.fillRect(sx, sy, sw, shH * 0.45)
+  }
+  // the words slam in
+  const slam = win(t, 0.72, 0.9)
+  if (slam > 0) {
+    const k = 1 + (1 - ease.outCubic(slam)) * 1.4
+    ctx.save()
+    ctx.translate(W / 2, sy + shH / 2)
+    ctx.scale(k, k)
+    ctx.globalAlpha = slam
+    ctx.font = dispFont(900, (portrait ? 92 : 100) * s)
+    ctx.fillStyle = '#FFFFFF'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('ব্রেকিং নিউজ', 0, 4 * s, sw * 0.92)
+    ctx.restore()
+  }
+  ctx.restore()
+  sweep(ctx, { x: sx, y: sy, w: sw, h: shH }, Math.max(0, t - 1), 2.2, 0.3)
+  logoPill(ctx, env, W / 2, sy - (portrait ? 110 : 90) * s, (portrait ? 56 : 50) * s, win(t, 1.3, 1.7))
+  centredTitle(ctx, env, t, 1.25, H * (portrait ? 0.62 : 0.68), W * (portrait ? 0.86 : 0.8), '#FFFFFF', s, portrait ? 5 : 3, portrait ? 86 : 76)
+  // the flash
+  const flash = 1 - win(t, 0, 0.22)
+  if (flash > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${flash})`
+    ctx.fillRect(0, 0, W, H)
+  }
+  const flash2 = win(t, 0.74, 0.78) * (1 - win(t, 0.78, 0.95))
+  if (flash2 > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${flash2 * 0.7})`
+    ctx.fillRect(0, 0, W, H)
+  }
+  blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.3, dur)))
+}
+
+/** Globe: a turning wire globe with an orbiting ring, the logo at its heart, then the headline. */
+function sceneGlobe(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const { W, H } = env.L
+  const s = Math.min(W, H) / 1080
+  const portrait = tall(env)
+  nilBg(ctx, env, t, '#020820', '#0B2A6B')
+  const cx = W / 2
+  const cy = H * (portrait ? 0.34 : 0.38)
+  const R = Math.min(W, H) * (portrait ? 0.3 : 0.26) * ease.outBack(win(t, 0.05, 0.75))
+  if (R > 1) {
+    // glow
+    const glow = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 1.5)
+    glow.addColorStop(0, 'rgba(46,107,255,0.35)')
+    glow.addColorStop(1, 'rgba(46,107,255,0)')
+    ctx.fillStyle = glow
+    ctx.fillRect(cx - R * 1.6, cy - R * 1.6, R * 3.2, R * 3.2)
+    ctx.save()
+    ctx.beginPath()
+    ctx.arc(cx, cy, R, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(8,30,90,0.75)'
+    ctx.fill()
+    ctx.clip()
+    ctx.lineWidth = 2 * s
+    ctx.strokeStyle = 'rgba(140,180,255,0.45)'
+    // latitudes
+    for (let i = -3; i <= 3; i++) {
+      const y = cy + (R * i) / 4
+      const rw = Math.sqrt(Math.max(0, R * R - (y - cy) * (y - cy)))
+      ctx.beginPath()
+      ctx.ellipse(cx, y, rw, rw * 0.12, 0, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    // longitudes, turning
+    for (let i = 0; i < 6; i++) {
+      const ph = ((i / 6) * Math.PI + t * 0.6) % Math.PI
+      const rx = Math.abs(Math.cos(ph)) * R
+      ctx.beginPath()
+      ctx.ellipse(cx, cy, Math.max(0.5, rx), R, 0, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    // city lights on the front face
+    for (let i = 0; i < 26; i++) {
+      const lon = rnd(i + 5) * Math.PI * 2 + t * 0.6
+      const lat = (rnd(i + 41) - 0.5) * Math.PI * 0.8
+      const z = Math.cos(lat) * Math.cos(lon)
+      if (z < 0) continue
+      const x = cx + R * Math.cos(lat) * Math.sin(lon)
+      const y = cy + R * Math.sin(lat)
+      ctx.fillStyle = `rgba(255,194,14,${0.4 + z * 0.6})`
+      ctx.beginPath()
+      ctx.arc(x, y, (2 + z * 3) * s, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.restore()
+    ctx.strokeStyle = 'rgba(160,200,255,0.7)'
+    ctx.lineWidth = 3 * s
+    ctx.beginPath()
+    ctx.arc(cx, cy, R, 0, Math.PI * 2)
+    ctx.stroke()
+    // orbit
+    const o = ease.outCubic(win(t, 0.4, 1.1))
+    ctx.save()
+    ctx.translate(cx, cy)
+    ctx.rotate(-0.35)
+    ctx.strokeStyle = 'rgba(255,194,14,0.85)'
+    ctx.lineWidth = 4 * s
+    ctx.beginPath()
+    ctx.ellipse(0, 0, R * 1.45, R * 0.36, 0, Math.PI * (1 - o), Math.PI * (1 + o) + Math.PI * o)
+    ctx.stroke()
+    const a = t * 1.8
+    ctx.fillStyle = '#FFFFFF'
+    ctx.shadowColor = '#FFC20E'
+    ctx.shadowBlur = 20 * s
+    ctx.globalAlpha = o
+    ctx.beginPath()
+    ctx.arc(Math.cos(a) * R * 1.45, Math.sin(a) * R * 0.36, 8 * s, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
+  }
+  logoPill(ctx, env, cx, cy, (portrait ? 64 : 58) * s, win(t, 0.8, 1.2))
+  const kicker = env.kicker.trim() || 'বিশ্ব ও দেশ'
+  const chipH = 54 * s
+  ctx.font = bodyFont(700, chipH * 0.56)
+  const cw = ctx.measureText(kicker).width + chipH * 0.8
+  const ty = H * (portrait ? 0.62 : 0.7)
+  drawChip(ctx, kicker, W / 2 - cw / 2, ty - (portrait ? 130 : 110) * s, chipH, NIL.amber, '#1B1400', win(t, 1.2, 1.5))
+  centredTitle(ctx, env, t, 1.4, ty + (portrait ? 40 : 20) * s, W * (portrait ? 0.86 : 0.8), '#FFFFFF', s, portrait ? 4 : 2, portrait ? 84 : 74)
+  blackFade(ctx, W, H, 1 - win(t, 0, 0.2))
+  blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.3, dur)))
+}
+
+/** Kinetic type: the headline's words punch in one by one on changing colours, then the whole line settles. */
+function sceneKinetic(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const { W, H } = env.L
+  const s = Math.min(W, H) / 1080
+  const portrait = tall(env)
+  const title = env.introTitle.trim() || 'মিহা নিউজ'
+  const words = title.split(/\s+/).filter(Boolean).slice(0, 6)
+  const step = 1.7 / Math.max(1, words.length)
+  const phaseB = 0.15 + words.length * step
+  const colours: [string, string][] = [
+    [NIL.navy, '#FFFFFF'],
+    [NIL.amber, NIL.navy],
+    ['#C8102E', '#FFFFFF'],
+    ['#FFFFFF', NIL.navy],
+  ]
+  if (t < phaseB) {
+    const i = Math.min(words.length - 1, Math.max(0, Math.floor((t - 0.15) / step)))
+    const [bgc, fg] = colours[i % colours.length]
+    ctx.fillStyle = bgc
+    ctx.fillRect(0, 0, W, H)
+    // a diagonal band slides through each word
+    const lt = clamp((t - 0.15 - i * step) / step)
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'
+    ctx.save()
+    ctx.translate(lerp(-W * 0.5, W * 0.5, lt), 0)
+    ctx.beginPath()
+    ctx.moveTo(W * 0.3, 0)
+    ctx.lineTo(W * 0.6, 0)
+    ctx.lineTo(W * 0.4, H)
+    ctx.lineTo(W * 0.1, H)
+    ctx.fill()
+    ctx.restore()
+    const k = 1 + (1 - ease.outBack(clamp(lt * 2.2))) * 0.6
+    ctx.save()
+    ctx.translate(W / 2, H / 2)
+    ctx.scale(k, k)
+    const fit = fitText(ctx, words[i], (px) => dispFont(900, px), W * 0.86, 1, (portrait ? 200 : 220) * s, 60 * s, 1.1)
+    ctx.font = dispFont(900, fit.size)
+    ctx.fillStyle = fg
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(fit.lines[0] ?? words[i], 0, 8 * s)
+    ctx.restore()
+  } else {
+    nilBg(ctx, env, t)
+    sweep(ctx, full(env), t - phaseB, 3, 0.12)
+    logoPill(ctx, env, W / 2, H * (portrait ? 0.24 : 0.2), (portrait ? 60 : 54) * s, win(t, phaseB, phaseB + 0.4))
+    const box = centredTitle(ctx, env, t, phaseB + 0.05, H * (portrait ? 0.5 : 0.52), W * 0.84, '#FFFFFF', s, portrait ? 5 : 3, portrait ? 96 : 86)
+    const u = ease.outCubic(win(t, phaseB + 0.3, phaseB + 0.8))
+    ctx.fillStyle = NIL.amber
+    ctx.fillRect(W / 2 - W * 0.2 * u, box.bottom + 30 * s, W * 0.4 * u, 8 * s)
+    ctx.save()
+    ctx.globalAlpha = win(t, phaseB + 0.6, phaseB + 1)
+    ctx.font = bodyFont(500, 30 * s)
+    ctx.fillStyle = '#C7D6F5'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText([env.kicker.trim(), env.dateText].filter(Boolean).join('  •  '), W / 2, box.bottom + 90 * s)
+    ctx.restore()
+  }
+  blackFade(ctx, W, H, 1 - win(t, 0, 0.12))
+  blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.3, dur)))
+}
+
+/** Split reveal: navy and gold halves part along a diagonal, the logo sits in the light, the headline follows. */
+function sceneSplit(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const { W, H } = env.L
+  const s = Math.min(W, H) / 1080
+  const portrait = tall(env)
+  ctx.fillStyle = '#F7F9FF'
+  ctx.fillRect(0, 0, W, H)
+  // fine pattern on the light ground
+  ctx.fillStyle = 'rgba(21,70,184,0.06)'
+  for (let y = 0; y < H; y += 40 * s) for (let x = (y / (40 * s)) % 2 ? 20 * s : 0; x < W; x += 40 * s) ctx.fillRect(x, y, 4 * s, 4 * s)
+  const open = ease.inOutCubic(win(t, 0.35, 1.05))
+  const d = Math.hypot(W, H)
+  const nx = W / d
+  const ny = H / d
+  const push = open * d * 0.75
+  const half = (sign: number, colour: string) => {
+    ctx.save()
+    // move each half away from the diagonal, along its normal
+    ctx.translate(sign * push * ny, sign * push * nx)
+    ctx.beginPath()
+    if (sign < 0) {
+      ctx.moveTo(-W, -H)
+      ctx.lineTo(W * 2, -H)
+      ctx.lineTo(W, 0)
+      ctx.lineTo(0, H)
+      ctx.lineTo(-W, H * 2)
+    } else {
+      ctx.moveTo(W * 2, -H)
+      ctx.lineTo(W * 2, H * 2)
+      ctx.lineTo(-W, H * 2)
+      ctx.lineTo(0, H)
+      ctx.lineTo(W, 0)
+    }
+    ctx.closePath()
+    ctx.fillStyle = colour
+    ctx.fill()
+    ctx.restore()
+  }
+  half(-1, NIL.navy)
+  half(1, NIL.amber)
+  const lift = ease.inOutCubic(win(t, 1.3, 1.8))
+  const ly = lerp(H / 2, H * (portrait ? 0.26 : 0.24), lift)
+  logoPill(ctx, env, W / 2, ly, lerp(110, portrait ? 64 : 58, lift) * s, win(t, 0.75, 1.15))
+  if (t > 1.5) {
+    const box = centredTitle(ctx, env, t, 1.55, H * (portrait ? 0.52 : 0.55), W * 0.84, NIL.navy, s, portrait ? 5 : 3, portrait ? 92 : 80)
+    const u = ease.outCubic(win(t, 1.9, 2.3))
+    ctx.fillStyle = NIL.amber
+    ctx.fillRect(W / 2 - W * 0.16 * u, box.top - 36 * s, W * 0.32 * u, 8 * s)
+    ctx.save()
+    ctx.globalAlpha = win(t, 2.1, 2.5)
+    ctx.font = bodyFont(600, 30 * s)
+    ctx.fillStyle = NIL.royal
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText([env.kicker.trim(), env.dateText, env.website].filter(Boolean).join('  •  '), W / 2, H * (portrait ? 0.88 : 0.9), W * 0.9)
+    ctx.restore()
+  }
+  blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.3, dur)))
+}
+
+function cursorArrow(ctx: Ctx, x: number, y: number, size: number) {
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.beginPath()
+  ctx.moveTo(0, 0)
+  ctx.lineTo(0, size)
+  ctx.lineTo(size * 0.28, size * 0.74)
+  ctx.lineTo(size * 0.5, size * 1.12)
+  ctx.lineTo(size * 0.64, size * 1.04)
+  ctx.lineTo(size * 0.44, size * 0.68)
+  ctx.lineTo(size * 0.78, size * 0.68)
+  ctx.closePath()
+  ctx.fillStyle = '#FFFFFF'
+  ctx.fill()
+  ctx.lineWidth = size * 0.06
+  ctx.strokeStyle = '#111827'
+  ctx.stroke()
+  ctx.restore()
+}
+
+function bellIcon(ctx: Ctx, x: number, y: number, size: number, swing: number, colour: string) {
+  ctx.save()
+  ctx.translate(x, y - size * 0.45)
+  ctx.rotate(swing)
+  ctx.translate(0, size * 0.45)
+  ctx.fillStyle = colour
+  ctx.beginPath()
+  ctx.moveTo(-size * 0.42, size * 0.25)
+  ctx.quadraticCurveTo(-size * 0.36, -size * 0.45, 0, -size * 0.45)
+  ctx.quadraticCurveTo(size * 0.36, -size * 0.45, size * 0.42, size * 0.25)
+  ctx.lineTo(size * 0.5, size * 0.34)
+  ctx.lineTo(-size * 0.5, size * 0.34)
+  ctx.closePath()
+  ctx.fill()
+  ctx.beginPath()
+  ctx.arc(0, size * 0.42, size * 0.1, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.arc(0, -size * 0.5, size * 0.07, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+}
+
+/** Subscribe call: a big button, a pointer taps it, it turns to "সাবস্ক্রাইবড", the bell rings. */
+function sceneSubscribe(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const { W, H } = env.L
+  const s = Math.min(W, H) / 1080
+  const portrait = tall(env)
+  nilBg(ctx, env, t, '#06143A', NIL.navy)
+  sweep(ctx, full(env), t, 3.5, 0.08)
+  logoPill(ctx, env, W / 2, H * (portrait ? 0.2 : 0.17), (portrait ? 64 : 56) * s, win(t, 0.05, 0.5))
+  ctx.save()
+  ctx.globalAlpha = win(t, 0.25, 0.6)
+  ctx.font = dispFont(800, (portrait ? 64 : 58) * s)
+  ctx.fillStyle = '#FFFFFF'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('প্রতিদিনের খবর পেতে', W / 2, H * (portrait ? 0.34 : 0.33), W * 0.9)
+  ctx.restore()
+  const bx = W / 2 - 50 * s
+  const by = H * (portrait ? 0.5 : 0.52)
+  const bw = (portrait ? 520 : 480) * s
+  const bh = 120 * s
+  const tap = 1.75
+  const pressed = t >= tap
+  const press = win(t, tap - 0.05, tap) * (1 - win(t, tap, tap + 0.15))
+  const pop = ease.outBack(win(t, 0.5, 0.9))
+  if (pop > 0.01) {
+    ctx.save()
+    ctx.translate(bx, by)
+    ctx.scale(pop * (1 - press * 0.08), pop * (1 - press * 0.08))
+    fillRoundRect(ctx, -bw / 2, -bh / 2, bw, bh, 18 * s, pressed ? '#3F4A5E' : '#E11D2A')
+    ctx.font = bodyFont(800, 52 * s)
+    ctx.fillStyle = '#FFFFFF'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(pressed ? 'সাবস্ক্রাইবড ✓' : 'সাবস্ক্রাইব', 0, 4 * s, bw * 0.88)
+    ctx.restore()
+    // the ripple of the tap
+    const rp = win(t, tap, tap + 0.6)
+    if (rp > 0 && rp < 1) {
+      ctx.strokeStyle = `rgba(255,255,255,${1 - rp})`
+      ctx.lineWidth = 6 * s
+      ctx.beginPath()
+      ctx.arc(bx + bw * 0.12, by + bh * 0.1, 30 * s + rp * 140 * s, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+  }
+  // the bell beside it
+  const bellIn = ease.outBack(win(t, 2, 2.3))
+  if (bellIn > 0.01) {
+    const ring = win(t, 2.2, 3.4)
+    const swing = Math.sin(ring * Math.PI * 9) * 0.45 * (1 - ring)
+    const gx = bx + bw / 2 + 90 * s
+    ctx.save()
+    ctx.translate(gx, by)
+    ctx.scale(bellIn, bellIn)
+    ctx.fillStyle = '#FFFFFF'
+    ctx.beginPath()
+    ctx.arc(0, 0, 62 * s, 0, Math.PI * 2)
+    ctx.fill()
+    bellIcon(ctx, 0, 6 * s, 64 * s, swing, NIL.navy)
+    ctx.restore()
+  }
+  // the pointer
+  const mv = ease.inOutCubic(win(t, 0.9, tap - 0.05))
+  const leave = ease.inCubic(win(t, tap + 0.35, tap + 0.9))
+  if (mv > 0 && leave < 1) {
+    const x = lerp(W * 0.95, bx + bw * 0.12, mv) + leave * W * 0.3
+    const y = lerp(H * 0.95, by + bh * 0.1, mv) + leave * H * 0.3
+    cursorArrow(ctx, x, y, 70 * s * (1 - press * 0.15))
+  }
+  ctx.save()
+  ctx.globalAlpha = win(t, 2.4, 2.8)
+  ctx.font = bodyFont(500, 32 * s)
+  ctx.fillStyle = '#C7D6F5'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('বেল আইকনে চাপ দিলে নতুন ভিডিওর খবর পাবেন', W / 2, by + (portrait ? 150 : 130) * s, W * 0.9)
+  const text = env.house?.handle || env.website || 'meeha.news'
+  ctx.font = bodyFont(700, 38 * s)
+  ctx.fillStyle = NIL.amber
+  ctx.fillText(text, W / 2, H * (portrait ? 0.84 : 0.86))
+  ctx.restore()
+  blackFade(ctx, W, H, 1 - win(t, 0, 0.2))
+  blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.4, dur)))
+}
+
+/** Stay tuned: light rays turn behind the logo as it lands, "চোখ রাখুন মিহা নিউজে", embers drift up. */
+function sceneStayTuned(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const { W, H } = env.L
+  const s = Math.min(W, H) / 1080
+  const portrait = tall(env)
+  ctx.fillStyle = '#040A1F'
+  ctx.fillRect(0, 0, W, H)
+  const cx = W / 2
+  const cy = H * (portrait ? 0.38 : 0.4)
+  const rays = 14
+  const R = Math.max(W, H)
+  ctx.save()
+  ctx.translate(cx, cy)
+  ctx.rotate(t * 0.25)
+  ctx.globalAlpha = 0.5 * win(t, 0.1, 0.8)
+  for (let i = 0; i < rays; i++) {
+    const a0 = (i / rays) * Math.PI * 2
+    const a1 = a0 + (Math.PI / rays) * 0.6
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.7)
+    g.addColorStop(0, 'rgba(255,194,14,0.55)')
+    g.addColorStop(1, 'rgba(255,194,14,0)')
+    ctx.fillStyle = g
+    ctx.beginPath()
+    ctx.moveTo(0, 0)
+    ctx.arc(0, 0, R, a0, a1)
+    ctx.closePath()
+    ctx.fill()
+  }
+  ctx.restore()
+  const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(W, H) * 0.45)
+  halo.addColorStop(0, 'rgba(46,107,255,0.45)')
+  halo.addColorStop(1, 'rgba(46,107,255,0)')
+  ctx.fillStyle = halo
+  ctx.fillRect(0, 0, W, H)
+  // embers
+  for (let i = 0; i < 40; i++) {
+    const sp = 0.05 + rnd(i + 2) * 0.12
+    const y = H - (((t * sp + rnd(i + 30)) % 1) * H * 1.1)
+    const x = W * rnd(i + 60) + Math.sin(t * 1.5 + i) * 12 * s
+    ctx.fillStyle = `rgba(255,${180 + Math.round(rnd(i) * 60)},80,${0.25 + rnd(i + 90) * 0.5})`
+    ctx.beginPath()
+    ctx.arc(x, y, (1.5 + rnd(i + 7) * 3) * s, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  const land = ease.outCubic(win(t, 0, 0.8))
+  const lh = (portrait ? 80 : 72) * s * lerp(2.4, 1, land)
+  ctx.save()
+  ctx.globalAlpha = land
+  logoPill(ctx, env, cx, cy, lh, 1)
+  ctx.restore()
+  ctx.save()
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  const a = ease.outCubic(win(t, 0.8, 1.3))
+  ctx.globalAlpha = a
+  ctx.font = dispFont(800, (portrait ? 80 : 74) * s)
+  ctx.fillStyle = '#FFFFFF'
+  ctx.fillText('চোখ রাখুন মিহা নিউজে', W / 2, H * (portrait ? 0.58 : 0.64) + (1 - a) * 30 * s, W * 0.92)
+  ctx.globalAlpha = win(t, 1.3, 1.7)
+  ctx.font = bodyFont(500, 34 * s)
+  ctx.fillStyle = '#C7D6F5'
+  ctx.fillText('সত্য খবর, সবার আগে', W / 2, H * (portrait ? 0.65 : 0.73), W * 0.9)
+  ctx.globalAlpha = win(t, 1.6, 2)
+  ctx.font = bodyFont(700, 40 * s)
+  ctx.fillStyle = NIL.amber
+  ctx.fillText(env.website || 'meeha.news', W / 2, H * (portrait ? 0.82 : 0.86))
+  ctx.restore()
+  blackFade(ctx, W, H, 1 - win(t, 0, 0.2))
+  blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.4, dur)))
+}
+
+/** Colourful thanks: confetti bursts from the middle, "দেখার জন্য ধন্যবাদ", like · share · comment. */
+function sceneThanksBurst(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const { W, H } = env.L
+  const s = Math.min(W, H) / 1080
+  const portrait = tall(env)
+  ctx.fillStyle = '#FFFFFF'
+  ctx.fillRect(0, 0, W, H)
+  const ring = ctx.createRadialGradient(W / 2, H * 0.45, 0, W / 2, H * 0.45, Math.max(W, H) * 0.7)
+  ring.addColorStop(0, '#FFFFFF')
+  ring.addColorStop(1, '#E6EEFF')
+  ctx.fillStyle = ring
+  ctx.fillRect(0, 0, W, H)
+  const colours = [NIL.amber, NIL.royal, '#E11D2A', '#16A34A', '#9333EA', NIL.navy]
+  const bt = t - 0.3
+  if (bt > 0) {
+    for (let i = 0; i < 90; i++) {
+      const ang = rnd(i + 1) * Math.PI * 2
+      const v = (0.5 + rnd(i + 11) * 0.9) * Math.min(W, H)
+      const x = W / 2 + Math.cos(ang) * v * Math.min(bt, 1.2) * 0.9
+      const y = H * 0.45 + Math.sin(ang) * v * Math.min(bt, 1.2) * 0.9 + 0.5 * 900 * s * bt * bt * 0.6
+      if (y > H + 40 * s) continue
+      ctx.save()
+      ctx.translate(x, y)
+      ctx.rotate(bt * (4 + rnd(i + 3) * 8))
+      ctx.fillStyle = colours[i % colours.length]
+      ctx.globalAlpha = 1 - win(t, dur - 1, dur - 0.3)
+      if (i % 3 === 0) {
+        ctx.beginPath()
+        ctx.arc(0, 0, 7 * s, 0, Math.PI * 2)
+        ctx.fill()
+      } else ctx.fillRect(-9 * s, -4 * s, 18 * s, 8 * s)
+      ctx.restore()
+    }
+  }
+  logoPill(ctx, env, W / 2, H * (portrait ? 0.28 : 0.24), (portrait ? 64 : 58) * s, win(t, 0.05, 0.45))
+  const pop = ease.outBack(win(t, 0.3, 0.75))
+  ctx.save()
+  ctx.translate(W / 2, H * (portrait ? 0.46 : 0.47))
+  ctx.scale(pop, pop)
+  ctx.font = dispFont(900, (portrait ? 96 : 92) * s)
+  ctx.fillStyle = NIL.navy
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('দেখার জন্য ধন্যবাদ', 0, 0, W * 0.92)
+  ctx.restore()
+  const items = ['লাইক', 'শেয়ার', 'কমেন্ট']
+  items.forEach((label, i) => {
+    const k = ease.outBack(win(t, 1 + i * 0.18, 1.4 + i * 0.18))
+    if (k <= 0.01) return
+    ctx.save()
+    ctx.font = bodyFont(700, 38 * s)
+    const w = ctx.measureText(label).width + 60 * s
+    const total = (portrait ? 230 : 250) * s * 3
+    const x = W / 2 - total / 2 + (i + 0.5) * (total / 3)
+    const y = H * (portrait ? 0.62 : 0.66)
+    ctx.translate(x, y)
+    ctx.scale(k, k)
+    fillRoundRect(ctx, -w / 2, -36 * s, w, 72 * s, 36 * s, [NIL.royal, NIL.amber, '#E11D2A'][i])
+    ctx.fillStyle = i === 1 ? '#1B1400' : '#FFFFFF'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(label, 0, 3 * s)
+    ctx.restore()
+  })
+  ctx.save()
+  ctx.globalAlpha = win(t, 1.8, 2.2)
+  ctx.font = bodyFont(700, 38 * s)
+  ctx.fillStyle = NIL.royal
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(env.house?.handle || env.website || 'meeha.news', W / 2, H * (portrait ? 0.82 : 0.85))
+  ctx.restore()
+  blackFade(ctx, W, H, 1 - win(t, 0, 0.15))
+  blackFade(ctx, W, H, ease.inCubic(win(t, dur - 0.35, dur)))
+}
+
 export function drawScene(ctx: Ctx, env: DrawEnv, id: SceneId, t: number, dur: number) {
   if (id.startsWith('house-')) return drawHouseAd(ctx, id.slice(6) as HouseAdId, env.L.W, env.L.H, t, dur, env.house ?? EMPTY_HOUSE, env.logo, env.website || 'meeha.news')
   switch (id) {
@@ -3065,6 +4061,20 @@ export function drawScene(ctx: Ctx, env: DrawEnv, id: SceneId, t: number, dur: n
       return sceneEndScreen(ctx, env, t, dur)
     case 'credits':
       return sceneCredits(ctx, env, t, dur)
+    case 'shatter':
+      return sceneShatter(ctx, env, t, dur)
+    case 'globe':
+      return sceneGlobe(ctx, env, t, dur)
+    case 'kinetic':
+      return sceneKinetic(ctx, env, t, dur)
+    case 'split':
+      return sceneSplit(ctx, env, t, dur)
+    case 'subscribe':
+      return sceneSubscribe(ctx, env, t, dur)
+    case 'staytuned':
+      return sceneStayTuned(ctx, env, t, dur)
+    case 'thanks-burst':
+      return sceneThanksBurst(ctx, env, t, dur)
   }
 }
 
@@ -3355,6 +4365,14 @@ export function sfxCues(tl: Timeline, cfg: EditConfig): { t: number; kind: SfxKi
     else if (s.scene === 'sports') cues.push({ t: s.t0, kind: 'whoosh', gain: 0.7 }, { t: s.t0 + 0.6, kind: 'impact', gain: 0.6 })
     else if (s.scene === 'showbiz') cues.push({ t: s.t0 + 0.2, kind: 'riser', gain: 0.4 }, { t: s.t0 + 0.35, kind: 'pop', gain: 0.6 }, { t: s.t0 + 0.6, kind: 'chime', gain: 0.5 })
     else if (s.scene === 'nil-end' || s.scene === 'endscreen' || s.scene === 'credits') cues.push({ t: s.t0 + 0.15, kind: 'ident', gain: 0.55 })
+    else if (s.scene === 'shatter') cues.push({ t: s.t0, kind: 'breaking', gain: 0.55 }, { t: s.t0 + 0.72, kind: 'impact', gain: 0.7 }, { t: s.t0 + 1.25, kind: 'whoosh', gain: 0.4 })
+    else if (s.scene === 'globe') cues.push({ t: s.t0 + 0.05, kind: 'riser', gain: 0.35 }, { t: s.t0 + 0.8, kind: 'ident', gain: 0.6 })
+    // the words take 1.7 s whatever their number; the drum roll's last hit lands as the full line appears
+    else if (s.scene === 'kinetic') cues.push({ t: s.t0, kind: 'drumroll', gain: 0.6 }, { t: s.t0 + 1.85, kind: 'sting', gain: 0.45 })
+    else if (s.scene === 'split') cues.push({ t: s.t0 + 0.3, kind: 'transition', gain: 0.5 }, { t: s.t0 + 1.5, kind: 'chime', gain: 0.45 })
+    else if (s.scene === 'subscribe') cues.push({ t: s.t0 + 0.5, kind: 'pop', gain: 0.6 }, { t: s.t0 + 1.75, kind: 'camera', gain: 0.4 }, { t: s.t0 + 2.2, kind: 'notify', gain: 0.6 })
+    else if (s.scene === 'staytuned') cues.push({ t: s.t0 + 0.05, kind: 'reverse', gain: 0.45 }, { t: s.t0 + 0.7, kind: 'ident', gain: 0.6 })
+    else if (s.scene === 'thanks-burst') cues.push({ t: s.t0 + 0.3, kind: 'pop', gain: 0.6 }, { t: s.t0 + 0.32, kind: 'sparkle', gain: 0.5 }, { t: s.t0 + 0.6, kind: 'applause', gain: 0.35 })
     else if (s.scene?.startsWith('house-')) cues.push({ t: s.t0 + 0.1, kind: 'whoosh', gain: 0.5 }, { t: s.t0 + 1.3, kind: 'pop', gain: 0.6 }, { t: s.t0 + 0.5, kind: 'chime', gain: 0.4 })
   }
   if (cfg.frame.id !== 'none') cues.push({ t: tl.mainStart, kind: 'whoosh', gain: 0.35 })

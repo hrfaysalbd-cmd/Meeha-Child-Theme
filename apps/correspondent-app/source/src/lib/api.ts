@@ -560,6 +560,8 @@ export interface VideoUploadResult {
 
 export interface VideoLimits {
   max_bytes: number
+  /** newsroom-os 1.13.0+: resumable uploads in pieces (limit not bound by PHP). */
+  resumable?: { max_bytes: number; chunk_size: number }
 }
 
 export interface UploadProgress {
@@ -822,7 +824,7 @@ function cancelledError(path: string) {
 
 function xhrPost(
   path: string,
-  form: FormData,
+  form: FormData | Blob,
   onProgress: ((p: UploadProgress) => void) | undefined,
   signal: AbortSignal | undefined,
   timeoutMs: number = VIDEO_UPLOAD_TIMEOUT_MS,
@@ -841,6 +843,7 @@ function xhrPost(
     xhr.timeout = timeoutMs
     xhr.setRequestHeader('Cache-Control', 'no-cache')
     if (accessToken) xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`)
+    if (form instanceof Blob) xhr.setRequestHeader('Content-Type', 'application/octet-stream')
 
     xhr.upload.onprogress = (e) => {
       if (!onProgress || !e.lengthComputable || e.total <= 0) return
@@ -880,10 +883,13 @@ async function uploadVideoFile(
   // Ask the server for its real limit first — never waste the user's data
   // on a file that would be refused only after it has fully gone up. (This
   // request also goes through request()'s own 401 handling.)
-  const { max_bytes } = await MediaApi.videoLimits()
+  const limits = await MediaApi.videoLimits()
+  const max_bytes = limits.resumable?.max_bytes || limits.max_bytes
   if (max_bytes > 0 && file.size > max_bytes) {
     throw new ApiError(videoTooLargeMessage(file.size, max_bytes), 413, 'nros_video_too_large', 'client', path)
   }
+  // round 27: in pieces — a weak connection resumes instead of starting over
+  if (limits.resumable) return uploadVideoInPieces(file, limits.resumable.chunk_size, onProgress, signal)
 
   if (!accessToken || Date.now() - accessTokenSetAt > FRESH_TOKEN_FOR_UPLOAD_MS) {
     const outcome = await refreshOnce()
@@ -1153,4 +1159,83 @@ export const LiveApi = {
   editEntry: (id: number, eid: number, data: LiveEntryInput) =>
     request<LiveEntry>(`/live/${id}/entries/${eid}`, { method: 'PATCH', body: data as Record<string, unknown> }),
   removeEntry: (id: number, eid: number) => request<{ ok: true }>(`/live/${id}/entries/${eid}`, { method: 'DELETE' }),
+}
+
+
+// ---- Round 27: resumable video upload (newsroom-os 1.13.0+) ----
+
+const pauseFor = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    const t = setTimeout(finish, ms)
+    const onOnline = () => finish()
+    function finish() {
+      clearTimeout(t)
+      window.removeEventListener('online', onOnline)
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }
+    function onAbort() {
+      clearTimeout(t)
+      window.removeEventListener('online', onOnline)
+      reject(cancelledError('/media/upload-session'))
+    }
+    window.addEventListener('online', onOnline)
+    signal?.addEventListener('abort', onAbort)
+  })
+
+function worthRetrying(err: unknown) {
+  if (!(err instanceof ApiError)) return true
+  if (err.code === 'nros_upload_cancelled' || err.kind === 'client') return false
+  return err.status === 0 || err.status >= 500 || err.status === 429 || err.kind === 'network' || err.kind === 'timeout'
+}
+
+/** One piece (raw bytes) with a fresh token on 401. */
+async function sendPiece(path: string, piece: Blob, onProgress: (loaded: number) => void, signal?: AbortSignal) {
+  const go = () => xhrPost(path, piece, (p) => onProgress(p.loaded), signal, 5 * 60_000)
+  let res = await go()
+  if (res.status === 401) {
+    await renewAfterUnauthorized(path)
+    res = await go()
+  }
+  return parseApiResponse<{ received: number }>(res.status, res.text, path)
+}
+
+async function uploadVideoInPieces(file: File, chunkMax: number, onProgress?: (p: UploadProgress) => void, signal?: AbortSignal): Promise<VideoUploadResult> {
+  const report = (loaded: number) => onProgress?.({ loaded, total: file.size, percent: Math.min(100, Math.floor((loaded / file.size) * 100)) })
+  let fails = 0
+  const retry = async <T,>(fn: () => Promise<T>): Promise<T> => {
+    for (;;) {
+      if (signal?.aborted) throw cancelledError('/media/upload-session')
+      try {
+        return await fn()
+      } catch (err) {
+        if (!worthRetrying(err) || ++fails > 60) throw err
+        await pauseFor(Math.min(30_000, 2000 * Math.pow(1.6, Math.min(fails, 8))), signal)
+      }
+    }
+  }
+  const s = await retry(() => request<{ id: string; chunk_size: number }>('/media/upload-session', { method: 'POST', body: { kind: 'video', name: file.name, size: file.size } }))
+  const full = Math.max(262144, Math.min(s.chunk_size || chunkMax || 4194304, 4 * 1048576))
+  let chunk = full
+  let received = 0
+  report(0)
+  while (received < file.size) {
+    const from = received
+    const piece = file.slice(from, Math.min(file.size, from + chunk))
+    try {
+      const r = await sendPiece(`/media/upload-session/${s.id}/chunk?offset=${from}`, piece, (l) => report(from + l), signal)
+      received = r.received
+      if (chunk < full) chunk = Math.min(full, chunk * 2)
+    } catch (err) {
+      const conflict = err instanceof ApiError && err.status === 409
+      if (!conflict) {
+        if (!worthRetrying(err) || ++fails > 60) throw err
+        chunk = Math.max(262144, Math.floor(chunk / 2))
+        await pauseFor(Math.min(30_000, 2000 * Math.pow(1.6, Math.min(fails, 8))), signal)
+      }
+      received = (await retry(() => request<{ received: number }>(`/media/upload-session/${s.id}`))).received
+      report(received)
+    }
+  }
+  return retry(() => request<VideoUploadResult>(`/media/upload-session/${s.id}/finish`, { method: 'POST', body: {} }))
 }

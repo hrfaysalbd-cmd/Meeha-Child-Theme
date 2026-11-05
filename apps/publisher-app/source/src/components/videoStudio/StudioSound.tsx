@@ -184,7 +184,9 @@ export default function SoundPanel({
                   {list.map((x) => (
                     <div key={x.id} className="flex items-center gap-2 rounded-xl border border-neutral-200 px-3 py-2">
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-neutral-800">{x.name}</p>
+                        <p className="text-[13px] font-semibold text-neutral-800">{x.name}
+                          {x.isNew && <span className="ml-1.5 text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-amber-400 text-amber-950">নতুন</span>}
+                        </p>
                         <p className="text-[11.5px] text-neutral-500 truncate">{x.hint}</p>
                       </div>
                       {playBtn(`sfx:${x.id}`, x.name, `sfx-sample-${x.id}`)}

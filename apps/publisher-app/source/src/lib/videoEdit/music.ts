@@ -905,6 +905,156 @@ const PIECES: Record<MusicId, Piece> = {
       for (const [n, b] of motif(74, false)) bell(k, n + 12, at(4, b), 0.35, 0.3)
     },
   },
+  // ---- round 27 ----
+  // D minor, 70 BPM. Dm - Bb - F - C: wide low pads, timpani swells, distant bells — documentary, long reports.
+  cinematic: {
+    bpm: 70,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [50, 53, 57],
+        [46, 50, 53],
+        [53, 57, 60],
+        [48, 52, 55],
+      ]
+      const roots = [38, 34, 41, 36]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        pad(k, c, at(bar, 0), k.beat * 4, 0.95, 750)
+        pad(k, [c[0] + 12, c[2] + 12], at(bar, 0), k.beat * 4, 0.35, 1800)
+        bass(k, roots[bar % 4], at(bar, 0), k.beat * 3.8, 0.7)
+        if (bar % 2 === 0) timpani(k, roots[bar % 4], at(bar, 0), 0.75)
+        kick(k, at(bar, 0), 0.5)
+        if (bar % 2 === 1) kick(k, at(bar, 2.5), 0.35)
+        for (let e = 0; e < 4; e++) pulseNote(k, c[e % 3] + 12, at(bar, e + 0.5), k.beat * 0.4, 0.35, e % 2 ? 0.4 : -0.4)
+      }
+      for (const [n, b] of motif(74, true)) bell(k, n, at(0, b), 0.9, 0)
+      for (const [n, b] of motif(74, true)) bell(k, n + 12, at(4, b), 0.45, 0.3)
+      swell(k, at(3, 2), k.beat * 2, 0.7)
+      swell(k, at(7, 2), k.beat * 2, 1)
+    },
+  },
+  // E minor, 108 BPM. Em - C - G - D: marching snare, string stabs, timpani — elections, politics, parliament.
+  election: {
+    bpm: 108,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [52, 55, 59],
+        [48, 52, 55],
+        [55, 59, 62],
+        [50, 54, 57],
+      ]
+      const roots = [40, 36, 43, 38]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        const r = roots[bar % 4]
+        pad(k, c, at(bar, 0), k.beat * 4, 0.6, 1200)
+        for (let e = 0; e < 8; e++) bass(k, r, at(bar, e / 2), k.beat * 0.3, e % 2 ? 0.55 : 0.85)
+        for (const b of [0, 0.75, 1.5, 2.5, 3]) stab(k, c.map((n) => n + 12), at(bar, b), k.beat * 0.22, 0.45)
+        kick(k, at(bar, 0), 0.85)
+        kick(k, at(bar, 2), 0.75)
+        snare(k, at(bar, 1), 0.55)
+        snare(k, at(bar, 3), 0.55)
+        snare(k, at(bar, 3.75), 0.25)
+        for (let s = 0; s < 16; s++) tick(k, at(bar, s / 4), s % 4 === 0 ? 0.6 : 0.25, s % 2 ? 0.3 : -0.3)
+        if (bar % 4 === 0) timpani(k, 28, at(bar, 0), 0.9)
+      }
+      for (const [n, b] of motif(76, true)) bell(k, n, at(0, b), 0.9, 0)
+      for (const [n, b, l] of motif(76, true)) stab(k, [n, n + 7], at(4, b), k.beat * l * 0.8, 0.6)
+      for (let s = 0; s < 8; s++) snare(k, at(7, 2 + s / 4), 0.25 + s * 0.07)
+      swell(k, at(7, 2), k.beat * 2, 0.9)
+    },
+  },
+  // F major, 84 BPM. F - Dm - Bb - C: marimba drops, bamboo flute, soft shaker — weather, nature, environment.
+  weather: {
+    bpm: 84,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [53, 57, 60],
+        [50, 53, 57],
+        [46, 50, 53],
+        [48, 52, 55],
+      ]
+      const roots = [41, 38, 34, 36]
+      const drops = [0, 2, 1, 2, 0, 1, 2, 1]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        pad(k, c, at(bar, 0), k.beat * 4, 0.55, 1300)
+        bass(k, roots[bar % 4], at(bar, 0), k.beat * 3.6, 0.55)
+        for (let s = 0; s < 8; s++) {
+          if (bar === 0 && s < 5) continue
+          marimba(k, c[drops[s]] + 12 + (s === 7 ? 12 : 0), at(bar, s / 2), s % 2 ? 0.5 : 0.75, s % 2 ? 0.4 : -0.4, 0.35)
+        }
+        for (let s = 0; s < 8; s++) shaker(k, at(bar, s / 2 + 0.25), 0.3)
+        kick(k, at(bar, 0), 0.4)
+      }
+      for (const [n, b] of motif(72, false)) marimba(k, n, at(0, b), 1.1, 0, 0.35)
+      flute(k, 72, at(2, 0), k.beat * 2, 0.6, 69)
+      flute(k, 74, at(2, 2), k.beat * 2, 0.55)
+      flute(k, 76, at(6, 0), k.beat * 3, 0.6, 74)
+    },
+  },
+  // A minor, 80 BPM. Am7 - Dm7 - G7 - Cmaj7, swung: warm e-piano, soft kick and snare — features, explainers.
+  lofi: {
+    bpm: 80,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [57, 60, 64, 67],
+        [50, 53, 57, 60],
+        [55, 59, 62, 65],
+        [48, 52, 55, 59],
+      ]
+      const swing = (b: number) => b + (b % 1 === 0.5 ? 0.08 : 0)
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        for (const b of [0, 1.5, 2.5]) {
+          if (bar === 0 && b === 0) continue
+          c.forEach((n, i) => epiano(k, n, at(bar, swing(b)) + i * 0.015, k.beat * 0.9, b === 0 ? 0.6 : 0.45, i % 2 ? 0.2 : -0.2))
+        }
+        bass(k, c[0] - 12 - (c[0] >= 55 ? 12 : 0), at(bar, 0), k.beat * 1.6, 0.7)
+        bass(k, c[0] - 5 - (c[0] >= 55 ? 12 : 0), at(bar, 2.5), k.beat * 1.2, 0.55)
+        kick(k, at(bar, 0), 0.6)
+        kick(k, at(bar, swing(2.5)), 0.45)
+        snare(k, at(bar, 1), 0.35)
+        snare(k, at(bar, 3), 0.35)
+        for (let e = 0; e < 8; e++) hat(k, at(bar, swing(e / 2)), e % 2 ? 0.45 : 0.7)
+      }
+      for (const [n, b, l] of motif(69, true)) epiano(k, n + 12, at(0, b), k.beat * l, 0.9, 0)
+      for (const [n, b] of motif(69, true)) bell(k, n + 12, at(4, b), 0.3, 0.25)
+    },
+  },
+  // G, 100 BPM. Drone, plucked strings in a folk rhythm, tabla, flute — village, agriculture, folk culture.
+  village: {
+    bpm: 100,
+    bars: 8,
+    write(k, at) {
+      for (let bar = 0; bar < 8; bar++) {
+        drone(k, 43, at(bar, 0), 0.8, -0.3)
+        drone(k, 50, at(bar, 2), 0.7, 0.3)
+        const line = bar % 2 ? [67, 69, 71, 69, 67, 64, 62, 64] : [62, 64, 67, 69, 71, 69, 67, 64]
+        line.forEach((n, i) => {
+          if (bar === 0 && i < 4) return
+          pluck(k, n, at(bar, i / 2), i % 2 ? 0.55 : 0.8, i % 2 ? 0.3 : -0.2, 0.55)
+        })
+        tabla(k, 'dha', at(bar, 0), 0.9)
+        tabla(k, 'ge', at(bar, 0.75), 0.6)
+        tabla(k, 'na', at(bar, 1), 0.7)
+        tabla(k, 'ti', at(bar, 1.5), 0.5)
+        tabla(k, 'dha', at(bar, 2), 0.8)
+        tabla(k, 'dhi', at(bar, 2.75), 0.6)
+        tabla(k, 'na', at(bar, 3), 0.7)
+        tabla(k, 'ti', at(bar, 3.5), 0.5)
+      }
+      for (const [n, b] of motif(67, false)) pluck(k, n, at(0, b), 1.1, 0, 0.7)
+      flute(k, 74, at(4, 0), k.beat * 2, 0.6, 71)
+      flute(k, 71, at(4, 2), k.beat * 1, 0.5)
+      flute(k, 69, at(4, 3), k.beat * 1, 0.5)
+      flute(k, 67, at(5, 0), k.beat * 3, 0.55)
+    },
+  },
 }
 
 const cache = new Map<MusicId, Promise<AudioBuffer>>()

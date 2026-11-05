@@ -9,7 +9,7 @@
  *                     and area (division/upazila) lookups. Reuses the active theme's
  *                     existing data (engagement meta, area helpers, edit-request CPT,
  *                     submission safety-net) wherever possible instead of duplicating it.
- * Version:           1.12.0
+ * Version:           1.13.0
  * Author:             Meeha News
  * Text Domain:        newsroom-os
  *
@@ -24,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Core constants
 // ---------------------------------------------------------------------------
 
-define( 'NROS_VERSION', '1.12.0' );
+define( 'NROS_VERSION', '1.13.0' );
 // Bumped whenever create_tables()/register_roles() need to re-run on an
 // already-active install (see NROS_Core::maybe_upgrade()) — bump this any
 // time a future change adds/changes a table or role.
@@ -44,6 +44,7 @@ require_once NROS_DIR . 'includes/class-nros-auth.php';
 require_once NROS_DIR . 'includes/class-nros-applications.php';
 require_once NROS_DIR . 'includes/class-nros-submissions.php';
 require_once NROS_DIR . 'includes/class-nros-media.php';
+require_once NROS_DIR . 'includes/class-nros-upload-sessions.php';
 require_once NROS_DIR . 'includes/class-nros-ledger.php';
 require_once NROS_DIR . 'includes/class-nros-analytics.php';
 require_once NROS_DIR . 'includes/class-nros-areas.php';
@@ -91,6 +92,7 @@ add_action(
 		NROS_Applications::init();
 		NROS_Submissions::init();
 		NROS_Media::init();
+		NROS_Upload_Sessions::init();
 		NROS_Ledger::init();
 		NROS_Analytics::init();
 		NROS_Areas::init();

@@ -75,7 +75,8 @@ export default function VideoLibraryPicker({
     abortRef.current = ctrl
     setUpload({ percent: 0 })
     try {
-      const res = await MediaApi.uploadVideo(file, (p) => setUpload({ percent: p.percent }), ctrl.signal)
+      // round 27: resumable — a weak connection resumes instead of starting over
+      const res = await MediaApi.uploadResumable(file, { signal: ctrl.signal, onProgress: (p) => setUpload({ percent: p.percent }) })
       const name = file.name.replace(/\.[^.]+$/, '')
       const row = await VideoKitApi.updateVideo(res.id, { is_ad: tab === 'ads', title: name })
       setItems((prev) => [row, ...prev])

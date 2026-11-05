@@ -73,6 +73,8 @@ const AUTO_PAL: Partial<Record<ThumbTemplate, ThumbPaletteId>> = {
   sports: 'green',
   economy: 'green',
   showbiz: 'purple',
+  neon: 'purple',
+  urgent: 'red',
 }
 
 function palette(id: ThumbPaletteId, template: ThumbTemplate): Pal {
@@ -1356,6 +1358,306 @@ const DESIGNS: Record<ThumbTemplate, (c: TC) => void> = {
     drawRich(ctx, ft, disp, tx, top, { color: pal.dark, hi: pal.accent, marker: true, markerInk: pal.dark })
     smallText(c, c.sub, tx, top + ft.h + 12 * u, pal.mid, 30, 'left', 700)
     c.logo = { corner: c.wide ? 'bl' : 'tr', plate: true, inset: 0 }
+  },
+  // ---- round 27 ----
+  'nil-poster': (c) => {
+    const { ctx, W, H, u, pad, pal } = c
+    picture(c, FULL(c))
+    // a navy wedge rising from the bottom-left, edged in amber
+    const top = H * (c.wide ? 0.42 : c.tall ? 0.5 : 0.46)
+    ctx.fillStyle = hGrad(c, 0, W, rgba(pal.dark, 0.97), rgba(pal.mid, 0.93))
+    ctx.beginPath()
+    ctx.moveTo(0, top + 90 * u)
+    ctx.lineTo(W, top - 40 * u)
+    ctx.lineTo(W, H)
+    ctx.lineTo(0, H)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = pal.accent
+    ctx.beginPath()
+    ctx.moveTo(0, top + 90 * u)
+    ctx.lineTo(W, top - 40 * u)
+    ctx.lineTo(W, top - 24 * u)
+    ctx.lineTo(0, top + 106 * u)
+    ctx.closePath()
+    ctx.fill()
+    const y0 = top + 130 * u
+    const subH = c.sub ? 48 * u : 0
+    const ft = fitTitle(c, W - pad * 2, lines(c, 3, 4, 6), c.wide ? 84 : 92, 26, disp, 1.15, H - y0 - subH - pad * 0.8)
+    smallText(c, c.sub, pad, y0, pal.accent, 32, 'left', 700)
+    drawRich(ctx, ft, disp, pad, y0 + subH, { color: '#fff', hi: pal.accent, shadow: true })
+    if (c.badge) pill(c, c.badge, pad, pad, pal.hot)
+    c.logo = { corner: 'tr', plate: false, inset: 0 }
+  },
+  'nil-circle': (c) => {
+    const { ctx, W, H, u, pad, pal } = c
+    ctx.fillStyle = hGrad(c, 0, W, pal.dark, pal.mid)
+    ctx.fillRect(0, 0, W, H)
+    // soft rings behind the photo
+    ctx.strokeStyle = rgba('#FFFFFF', 0.08)
+    ctx.lineWidth = 3 * u
+    const cx = c.wide ? W * 0.72 : W / 2
+    const R = c.wide ? H * 0.36 : Math.min(W * 0.34, H * 0.22)
+    // below the logo (top-left) on the upright shapes
+    const cy = c.wide ? H / 2 : pad * 0.8 + 100 * u + R * 1.12
+    for (let i = 1; i <= 4; i++) {
+      ctx.beginPath()
+      ctx.arc(cx, cy, R * (1 + i * 0.22), 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    circle(c, c.face ?? c.pic, cx, cy, R)
+    if (c.wide) {
+      const maxW = W * 0.5 - pad
+      const subH = c.sub ? 46 * u : 0
+      const ft = fitTitle(c, maxW, 5, 70, 26)
+      const top = (H - ft.h - subH) / 2
+      smallText(c, c.sub, pad, top, pal.accent, 30, 'left', 700)
+      drawRich(ctx, ft, disp, pad, top + subH, { color: '#fff', hi: pal.accent })
+      if (c.badge) pill(c, c.badge, pad, top - 80 * u, pal.hot, 30)
+      c.logo = { corner: 'bl', plate: false, inset: 0 }
+      return
+    }
+    const y0 = cy + R * 1.25 + pad * 0.4
+    const subH = c.sub ? 46 * u : 0
+    const ft = fitTitle(c, W - pad * 2, lines(c, 3, 3, 5), 80, 26, disp, 1.15, H - y0 - subH - pad)
+    smallText(c, c.sub, W / 2, y0, pal.accent, 30, 'center', 700)
+    drawRich(ctx, ft, disp, W / 2, y0 + subH, { color: '#fff', hi: pal.accent, align: 'center' })
+    if (c.badge) pill(c, c.badge, W / 2, cy + R * 0.82, pal.hot, 30, 'center')
+    c.logo = { corner: 'tl', plate: false, inset: 0 }
+  },
+  urgent: (c) => {
+    const { ctx, W, H, u, pad } = c
+    picture(c, FULL(c))
+    const bandH = 110 * u
+    ctx.fillStyle = '#D90F1F'
+    ctx.fillRect(0, 0, W, bandH)
+    ctx.fillStyle = 'rgba(255,255,255,0.14)'
+    ctx.fillRect(0, 0, W, bandH * 0.45)
+    ctx.font = disp(64 * u)
+    ctx.fillStyle = '#FFFFFF'
+    ctx.textBaseline = 'middle'
+    ctx.textAlign = 'left'
+    const word = c.badge || 'জরুরি'
+    ctx.fillText(word, pad, bandH / 2 + 4 * u)
+    const ww = ctx.measureText(word).width
+    // three warning chevrons after the word
+    ctx.fillStyle = '#FFE14D'
+    for (let i = 0; i < 3; i++) {
+      const x = pad + ww + 40 * u + i * 46 * u
+      ctx.beginPath()
+      ctx.moveTo(x, bandH * 0.25)
+      ctx.lineTo(x + 26 * u, bandH / 2)
+      ctx.lineTo(x, bandH * 0.75)
+      ctx.lineTo(x + 14 * u, bandH * 0.75)
+      ctx.lineTo(x + 40 * u, bandH / 2)
+      ctx.lineTo(x + 14 * u, bandH * 0.25)
+      ctx.closePath()
+      ctx.fill()
+    }
+    const subH = c.sub ? 46 * u : 0
+    const ft = fitTitle(c, W - pad * 2, lines(c, 2, 3, 4), c.wide ? 76 : 84, 26)
+    const panelH = ft.h + subH + pad * 1.2
+    ctx.fillStyle = 'rgba(10,10,10,0.88)'
+    ctx.fillRect(0, H - panelH, W, panelH)
+    ctx.fillStyle = '#D90F1F'
+    ctx.fillRect(0, H - panelH, W, 8 * u)
+    smallText(c, c.sub, pad, H - panelH + pad * 0.5, '#FFE14D', 30, 'left', 700)
+    drawRich(ctx, ft, disp, pad, H - panelH + pad * 0.6 + subH, { color: '#fff', hi: '#FFE14D' })
+    c.logo = { corner: 'tr', plate: true, inset: bandH }
+  },
+  factcheck: (c) => {
+    const { ctx, W, H, u, pad, pal } = c
+    picture(c, FULL(c))
+    ctx.fillStyle = rgba(pal.dark, 0.55)
+    ctx.fillRect(0, 0, W, H)
+    // the stamp
+    const R = Math.min(W, H) * (c.wide ? 0.22 : 0.2)
+    const sx = c.wide ? W * 0.76 : W * 0.68
+    const sy = c.wide ? H * 0.36 : H * 0.24
+    ctx.save()
+    ctx.translate(sx, sy)
+    ctx.rotate(-0.18)
+    ctx.strokeStyle = '#FFFFFF'
+    ctx.lineWidth = 12 * u
+    ctx.beginPath()
+    ctx.arc(0, 0, R, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.lineWidth = 4 * u
+    ctx.beginPath()
+    ctx.arc(0, 0, R * 0.84, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.font = disp(R * 0.42)
+    ctx.fillStyle = '#FFFFFF'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(c.badge || 'ফ্যাক্টচেক', 0, 0, R * 1.5)
+    ctx.restore()
+    const subH = c.sub ? 48 * u : 0
+    const maxW = c.wide ? W * 0.55 : W - pad * 2
+    const ft = fitTitle(c, maxW, lines(c, 4, 4, 5), c.wide ? 74 : 82, 26)
+    const top = H - pad - ft.h - subH
+    // a check / cross row above the title
+    const iy = top - 70 * u
+    fillRoundRect(ctx, pad, iy - 30 * u, 60 * u, 60 * u, 30 * u, '#16A34A')
+    fillRoundRect(ctx, pad + 76 * u, iy - 30 * u, 60 * u, 60 * u, 30 * u, '#DC2626')
+    ctx.strokeStyle = '#FFFFFF'
+    ctx.lineWidth = 8 * u
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(pad + 16 * u, iy)
+    ctx.lineTo(pad + 27 * u, iy + 12 * u)
+    ctx.lineTo(pad + 46 * u, iy - 12 * u)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(pad + 94 * u, iy - 12 * u)
+    ctx.lineTo(pad + 118 * u, iy + 12 * u)
+    ctx.moveTo(pad + 118 * u, iy - 12 * u)
+    ctx.lineTo(pad + 94 * u, iy + 12 * u)
+    ctx.stroke()
+    smallText(c, c.sub, pad, top, pal.accent, 32, 'left', 700)
+    drawRich(ctx, ft, disp, pad, top + subH, { color: '#fff', hi: pal.accent, shadow: true })
+    c.logo = { corner: 'tl', plate: false, inset: 0 }
+  },
+  cinematic: (c) => {
+    const { ctx, W, H, u, pad, pal } = c
+    ctx.fillStyle = '#000'
+    ctx.fillRect(0, 0, W, H)
+    const bar = H * (c.wide ? 0.13 : c.tall ? 0.18 : 0.15)
+    const subH = c.sub ? 44 * u : 0
+    const ft = fitTitle(c, W - pad * 2, lines(c, 2, 3, 4), c.wide ? 60 : 70, 24, (px) => body(700, px), 1.25)
+    const lowH = Math.max(bar, ft.h + subH + pad)
+    picture(c, { x: 0, y: bar, w: W, h: H - bar - lowH })
+    shade(c, H - lowH - H * 0.18, H - lowH, '#000000', 0, 0.85)
+    ctx.fillStyle = pal.accent
+    ctx.fillRect(W / 2 - 40 * u, H - lowH + pad * 0.25, 80 * u, 5 * u)
+    smallText(c, c.sub, W / 2, H - lowH + pad * 0.45, pal.accent, 28, 'center', 600)
+    drawRich(ctx, ft, (px) => body(700, px), W / 2, H - lowH + pad * 0.5 + subH, { color: '#F5F5F5', hi: pal.accent, align: 'center' })
+    if (c.badge) {
+      ctx.font = body(600, 28 * u)
+      ctx.fillStyle = 'rgba(255,255,255,0.75)'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(c.badge, W / 2, bar / 2)
+      ctx.textAlign = 'left'
+    }
+    c.logo = { corner: 'tr', plate: false, inset: Math.max(0, bar - 70 * u) / 2 }
+  },
+  neon: (c) => {
+    const { ctx, W, H, u, pad } = c
+    picture(c, FULL(c))
+    ctx.fillStyle = 'rgba(6,4,24,0.6)'
+    ctx.fillRect(0, 0, W, H)
+    const glow = (colour: string, blur: number, draw: () => void) => {
+      ctx.save()
+      ctx.shadowColor = colour
+      ctx.shadowBlur = blur
+      draw()
+      ctx.restore()
+    }
+    const m = pad * 0.55
+    glow('#22D3EE', 30 * u, () => {
+      ctx.strokeStyle = '#67E8F9'
+      ctx.lineWidth = 6 * u
+      ctx.strokeRect(m, m, W - m * 2, H - m * 2)
+    })
+    glow('#F472B6', 24 * u, () => {
+      ctx.strokeStyle = '#F9A8D4'
+      ctx.lineWidth = 4 * u
+      ctx.strokeRect(m + 16 * u, m + 16 * u, W - m * 2 - 32 * u, H - m * 2 - 32 * u)
+    })
+    const subH = c.sub ? 48 * u : 0
+    const ft = fitTitle(c, W - pad * 2.4, lines(c, 3, 4, 5), c.wide ? 84 : 92, 26)
+    const top = c.wide ? (H - ft.h - subH) / 2 + 30 * u : H - pad * 1.4 - ft.h - subH
+    smallText(c, c.sub, W / 2, top, '#67E8F9', 32, 'center', 700)
+    glow('#F472B6', 26 * u, () => drawRich(ctx, ft, disp, W / 2, top + subH, { color: '#FFFFFF', hi: '#67E8F9', align: 'center' }))
+    if (c.badge) {
+      glow('#F472B6', 20 * u, () => pill(c, c.badge, W / 2, pad * 1.2, '#DB2777', 32, 'center'))
+    }
+    c.logo = { corner: 'tl', plate: false, inset: m }
+  },
+  weather: (c) => {
+    const { ctx, W, H, u, pad } = c
+    picture(c, FULL(c))
+    // a sky wash from the top
+    const g = ctx.createLinearGradient(0, 0, 0, H * 0.7)
+    g.addColorStop(0, 'rgba(12,74,143,0.92)')
+    g.addColorStop(1, 'rgba(56,163,232,0)')
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, W, H)
+    // sun and cloud
+    const sx = W - pad - 90 * u
+    const sy = pad + 90 * u
+    ctx.fillStyle = '#FFD65A'
+    ctx.beginPath()
+    ctx.arc(sx, sy, 62 * u, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = '#FFD65A'
+    ctx.lineWidth = 8 * u
+    ctx.lineCap = 'round'
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2
+      ctx.beginPath()
+      ctx.moveTo(sx + Math.cos(a) * 80 * u, sy + Math.sin(a) * 80 * u)
+      ctx.lineTo(sx + Math.cos(a) * 104 * u, sy + Math.sin(a) * 104 * u)
+      ctx.stroke()
+    }
+    ctx.fillStyle = '#FFFFFF'
+    const cx = sx - 70 * u
+    const cy = sy + 50 * u
+    ctx.beginPath()
+    ctx.arc(cx, cy, 44 * u, 0, Math.PI * 2)
+    ctx.arc(cx + 50 * u, cy - 20 * u, 54 * u, 0, Math.PI * 2)
+    ctx.arc(cx + 104 * u, cy, 40 * u, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillRect(cx, cy, 104 * u, 40 * u)
+    const maxW = W - pad * 2 - (c.wide ? 260 * u : 0)
+    const ft = fitTitle(c, maxW, lines(c, 3, 3, 4), c.wide ? 76 : 82, 26, disp, 1.15, H * 0.5)
+    // on the upright shapes the title starts under the sun
+    const y0 = (c.wide ? pad : sy + 120 * u) + (c.badge ? 80 * u : 0)
+    pill(c, c.badge || 'আবহাওয়া', pad, y0 - (c.badge ? 80 * u : 0), '#FFD65A', 30)
+    drawRich(ctx, ft, disp, pad, y0 + (c.badge ? 0 : 80 * u), { color: '#fff', hi: '#FFD65A', shadow: true })
+    smallText(c, c.sub, pad, y0 + (c.badge ? 0 : 80 * u) + ft.h + 16 * u, '#E0F2FE', 30, 'left', 700)
+    c.logo = { corner: 'br', plate: false, inset: 0 }
+  },
+  crime: (c) => {
+    const { ctx, W, H, u, pad } = c
+    picture(c, FULL(c))
+    const v = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.75)
+    v.addColorStop(0, 'rgba(0,0,0,0.1)')
+    v.addColorStop(1, 'rgba(0,0,0,0.75)')
+    ctx.fillStyle = v
+    ctx.fillRect(0, 0, W, H)
+    // crime-scene tape across the top corner
+    const tape = (y: number, rot: number, text: string) => {
+      ctx.save()
+      ctx.translate(W / 2, y)
+      ctx.rotate(rot)
+      const th = 64 * u
+      const len = Math.hypot(W, H) * 1.2
+      ctx.fillStyle = '#FACC15'
+      ctx.shadowColor = 'rgba(0,0,0,0.5)'
+      ctx.shadowBlur = 16 * u
+      ctx.fillRect(-len / 2, -th / 2, len, th)
+      ctx.shadowColor = 'transparent'
+      ctx.font = disp(34 * u)
+      ctx.fillStyle = '#0A0A0A'
+      ctx.textBaseline = 'middle'
+      ctx.textAlign = 'left'
+      const item = `${text}   ✕   `
+      const iw = ctx.measureText(item).width
+      for (let x = -len / 2; x < len / 2; x += iw) ctx.fillText(item, x, 3 * u)
+      ctx.restore()
+    }
+    const word = c.badge || 'অপরাধ'
+    tape(H * (c.tall ? 0.12 : 0.16), -0.12, word)
+    const subH = c.sub ? 46 * u : 0
+    const ft = fitTitle(c, W - pad * 2, lines(c, 2, 3, 5), c.wide ? 80 : 88, 26)
+    const top = H - pad - ft.h - subH
+    ctx.fillStyle = '#DC2626'
+    ctx.fillRect(pad, top - 26 * u, 120 * u, 10 * u)
+    smallText(c, c.sub, pad, top, '#FACC15', 30, 'left', 700)
+    drawRich(ctx, ft, disp, pad, top + subH, { color: '#fff', hi: '#FACC15', shadow: true })
+    c.logo = c.wide ? { corner: 'tr', plate: false, inset: 70 * u } : { corner: 'tl', plate: false, inset: 0 }
   },
 }
 

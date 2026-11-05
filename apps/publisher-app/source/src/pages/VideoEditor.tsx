@@ -11,6 +11,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   AdminVideosApi,
+  ApiError,
+  UPLOAD_ABORTED_CODE,
   CategoriesApi,
   MediaApi,
   describeError,
@@ -54,6 +56,7 @@ import { CharCount, RejectVideoModal, VideoStatusBadge } from '../components/Vid
 import PaymentPanel from '../components/PaymentPanel'
 import CategoryPicker from '../components/CategoryPicker'
 import { rememberCategory } from '../lib/categoryTree'
+import { planShrink, shrinkVideo } from '../lib/videoEdit/compress'
 
 /** Round 26: the same "recent" list as the post editor, so a desk's usual categories are one tap away for videos too. */
 const RECENT_CATEGORIES_KEY = 'nros_pub_recent_categories'
@@ -65,7 +68,7 @@ const META_DESC_MAX = 160
 
 type UploadState =
   | { status: 'idle' }
-  | { status: 'uploading'; percent: number; loaded: number; total: number }
+  | { status: 'uploading'; percent: number; loaded: number; total: number; phase?: 'shrink' | 'upload'; note?: string | null }
   | { status: 'error'; message: string }
 
 type FieldErrors = Partial<Record<'title' | 'excerpt' | 'video', string>>
@@ -97,6 +100,15 @@ export default function VideoEditor() {
   const previewVideo = useRef<HTMLVideoElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const pendingFile = useRef<File | null>(null)
+  /** Round 27: resumable upload sessions by picked file, so "আবার চেষ্টা" continues. */
+  const sessions = useRef(new Map<File, { id: string }>())
+  const [fastUpload, setFastUpload] = useState(() => {
+    try {
+      return localStorage.getItem('nros_pub_fast_upload') !== '0'
+    } catch {
+      return true
+    }
+  })
   const localUrlRef = useRef<string | null>(null)
   const justCreatedId = useRef<number | null>(null)
   const titleRef = useRef<HTMLInputElement>(null)
@@ -177,7 +189,8 @@ export default function VideoEditor() {
     CategoriesApi.list().then(setCategories).catch(() => setCategories([]))
     MediaApi.videoLimits()
       .then((r) => {
-        setMaxBytes(r.max_bytes > 0 ? r.max_bytes : null)
+        // round 27: resumable uploads (plugin 1.13.0) are limited only by the plugin's 200 MB
+        setMaxBytes(r.resumable?.max_bytes ? r.resumable.max_bytes : r.max_bytes > 0 ? r.max_bytes : null)
         if (r.allowed_mimes?.length) setAllowedMimes(r.allowed_mimes)
       })
       .catch(() => setMaxBytes(null))
@@ -270,13 +283,6 @@ export default function VideoEditor() {
       setUpload({ status: 'error', message: 'শুধু MP4, WebM বা MOV ভিডিও আপলোড করা যাবে।' })
       return
     }
-    if (maxBytes && file.size > maxBytes) {
-      setUpload({
-        status: 'error',
-        message: `ফাইলটি অনেক বড় (${bnFileSize(file.size)}) — সর্বোচ্চ ${bnFileSize(maxBytes)} পর্যন্ত আপলোড করা যাবে।`,
-      })
-      return
-    }
 
     abortRef.current?.abort()
     const ctrl = new AbortController()
@@ -300,13 +306,41 @@ export default function VideoEditor() {
     })
 
     try {
-      const res = await MediaApi.uploadVideo(
-        file,
-        (p) => {
-          if (!ctrl.signal.aborted) setUpload({ status: 'uploading', percent: p.percent, loaded: p.loaded, total: p.total || file.size })
+      // round 27: too big for the server, or big enough that a smaller copy uploads much faster → shrink in the browser first
+      let toSend: File = file
+      const shrinkTo = await shrinkTarget(file, maxBytes, fastUpload)
+      if (shrinkTo && !ctrl.signal.aborted) {
+        try {
+          setUpload({ status: 'uploading', phase: 'shrink', percent: 0, loaded: 0, total: file.size })
+          const small = await shrinkVideo(file, shrinkTo, {
+            signal: ctrl.signal,
+            onProgress: (r) => setUpload({ status: 'uploading', phase: 'shrink', percent: Math.round(r * 100), loaded: 0, total: file.size }),
+          })
+          if (small.blob.size < file.size) {
+            const base = file.name.replace(/\.[^.]+$/, '') || 'meeha-video'
+            toSend = new File([small.blob], `${base}.${small.ext}`, { type: small.mime })
+            setFileInfo({ name: file.name, size: toSend.size })
+          }
+        } catch (err) {
+          if (ctrl.signal.aborted) throw new ApiError('আপলোড বাতিল করা হয়েছে।', 0, UPLOAD_ABORTED_CODE, 'client')
+          // could not shrink here (browser): send the original if the server takes it
+          if (maxBytes && file.size > maxBytes) {
+            throw new Error(`ফাইলটি অনেক বড় (${bnFileSize(file.size)}) এবং এই ব্রাউজারে ছোট করা গেল না — কম্পিউটারে Chrome/Edge-এ চেষ্টা করুন, অথবা সর্বোচ্চ ${bnFileSize(maxBytes)} পর্যন্ত ফাইল দিন।`)
+          }
+        }
+      }
+      const res = await MediaApi.uploadResumable(toSend, {
+        signal: ctrl.signal,
+        session: sessions.current.get(file) ?? null,
+        onSession: (sess) => sessions.current.set(file, sess),
+        onProgress: (p) => {
+          if (!ctrl.signal.aborted) setUpload((u) => ({ status: 'uploading', phase: 'upload', percent: p.percent, loaded: p.loaded, total: p.total || toSend.size, note: u.status === 'uploading' ? u.note : null }))
         },
-        ctrl.signal,
-      )
+        onStatus: (note) => {
+          if (!ctrl.signal.aborted) setUpload((u) => (u.status === 'uploading' ? { ...u, note } : u))
+        },
+      })
+      sessions.current.delete(file)
       if (ctrl.signal.aborted) return
       setAttachmentId(res.id)
       setVideoUrl(res.url)
@@ -323,7 +357,7 @@ export default function VideoEditor() {
       setOrientation(previous.orientation)
       setOrientationAuto(previous.orientationAuto)
       setDuration(previous.duration)
-      setUpload(isAbortError(err) ? { status: 'idle' } : { status: 'error', message: describeError(err).message })
+      setUpload(isAbortError(err) ? { status: 'idle' } : { status: 'error', message: err instanceof Error && !('status' in err) ? err.message : describeError(err).message })
     } finally {
       if (abortRef.current === ctrl) abortRef.current = null
     }
@@ -663,19 +697,39 @@ export default function VideoEditor() {
                       </span>
                       <span className="text-[13.5px] font-medium text-neutral-800">ভিডিও ফাইল বেছে নিন বা এখানে টেনে আনুন</span>
                       <span className="text-[12px] text-neutral-500">
-                        MP4, WebM বা MOV{maxBytes ? ` · সর্বোচ্চ ${bnFileSize(maxBytes)}` : ''} · পোর্ট্রেট (৯:১৬) ভিডিও সবচেয়ে ভালো দেখায়
+                        MP4, WebM বা MOV{maxBytes ? ` · সর্বোচ্চ ${bnFileSize(maxBytes)} (বড় হলে নিজে থেকে ছোট হবে)` : ''} · পোর্ট্রেট (৯:১৬) ভিডিও সবচেয়ে ভালো দেখায়
                       </span>
                     </button>
+                  )}
+                  {upload.status !== 'uploading' && (
+                    <label className="mt-2 flex items-start gap-2 text-[12px] text-neutral-600" data-testid="fast-upload">
+                      <input
+                        type="checkbox"
+                        checked={fastUpload}
+                        onChange={(e) => {
+                          setFastUpload(e.target.checked)
+                          try {
+                            localStorage.setItem('nros_pub_fast_upload', e.target.checked ? '1' : '0')
+                          } catch {
+                            // private mode
+                          }
+                        }}
+                        className="mt-0.5 accent-[#b91c1c]"
+                      />
+                      <span>বড় ভিডিও ছোট করে দ্রুত আপলোড করুন (৬০ এমবির বেশি হলে, মান প্রায় একই থাকে)। আপলোড টুকরো টুকরো যায় — নেট কাটলে যেখানে থেমেছে সেখান থেকে চলে।</span>
+                    </label>
                   )}
 
                   {upload.status === 'uploading' && (
                     <div className="mt-3 rounded-xl border border-neutral-200 p-3" data-testid="upload-progress">
                       <div className="flex items-center justify-between gap-3 mb-2">
                         <p className="text-[12.5px] text-neutral-700 min-w-0 truncate">
-                          {upload.percent >= 100 ? 'সার্ভারে প্রসেস হচ্ছে…' : 'আপলোড হচ্ছে…'}{' '}
-                          <span className="text-neutral-400">
-                            {bnFileSize(upload.loaded)} / {bnFileSize(upload.total)}
-                          </span>
+                          {upload.phase === 'shrink' ? 'দ্রুত আপলোডের জন্য ছোট করা হচ্ছে…' : upload.percent >= 100 ? 'সার্ভারে প্রসেস হচ্ছে…' : 'আপলোড হচ্ছে…'}{' '}
+                          {upload.phase !== 'shrink' && (
+                            <span className="text-neutral-400">
+                              {bnFileSize(upload.loaded)} / {bnFileSize(upload.total)}
+                            </span>
+                          )}
                         </p>
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="text-[12.5px] font-semibold text-neutral-900 tabular-nums">{bnNumber(upload.percent)}%</span>
@@ -697,13 +751,14 @@ export default function VideoEditor() {
                           style={{ width: `${upload.percent}%` }}
                         />
                       </div>
+                      {upload.note && <p className="mt-2 text-[12px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5" data-testid="upload-note">{upload.note}</p>}
                     </div>
                   )}
 
                   {upload.status === 'error' && (
                     <div className="mt-3 rounded-xl bg-red-50 border border-red-100 px-3 py-2.5 flex items-center justify-between gap-3">
                       <p className="text-[12.5px] text-red-700">{upload.message}</p>
-                      {pendingFile.current && isAllowedVideo(pendingFile.current, allowedMimes) && (!maxBytes || pendingFile.current.size <= maxBytes) && (
+                      {pendingFile.current && isAllowedVideo(pendingFile.current, allowedMimes) && (
                         <Button size="sm" variant="secondary" onClick={() => pendingFile.current && startUpload(pendingFile.current)}>
                           আবার চেষ্টা
                         </Button>
@@ -1100,4 +1155,25 @@ export default function VideoEditor() {
       )}
     </div>
   )
+}
+
+/**
+ * Round 27 — how small to make a picked video before upload, or null to
+ * send it as it is: always when it is over the server limit; with "দ্রুত
+ * আপলোড" when it is over 60 MB and a ~3 Mbps copy would be much smaller.
+ */
+async function shrinkTarget(file: File, maxBytes: number | null, fast: boolean): Promise<number | null> {
+  const over = !!maxBytes && file.size > maxBytes
+  if (!over && (!fast || file.size < 60 * 1048576)) return null
+  try {
+    const plan = await planShrink(file, file.size)
+    if (!plan) return over ? Math.floor(maxBytes! * 0.92) : null
+    const fastBytes = Math.round((plan.duration * (3_000_000 + 128_000)) / 8)
+    const cap = over ? Math.floor(maxBytes! * 0.92) : Infinity
+    const target = Math.min(cap, fast ? fastBytes : cap)
+    if (!over && target > file.size * 0.75) return null
+    return target
+  } catch {
+    return over ? Math.floor(maxBytes! * 0.92) : null
+  }
 }

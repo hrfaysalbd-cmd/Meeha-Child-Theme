@@ -294,7 +294,7 @@ class NROS_Video_Kit {
 	public static function stream_file( $request ) {
 		$id   = (int) $request->get_param( 'id' );
 		$mime = (string) get_post_mime_type( $id );
-		if ( 'attachment' !== get_post_type( $id ) || ( 0 !== strpos( $mime, 'video/' ) && 0 !== strpos( $mime, 'image/' ) ) ) {
+		if ( 'attachment' !== get_post_type( $id ) || ( 0 !== strpos( $mime, 'video/' ) && 0 !== strpos( $mime, 'image/' ) && 0 !== strpos( $mime, 'audio/' ) ) ) {
 			return new WP_Error( 'nros_not_found', 'ফাইল পাওয়া যায়নি।', array( 'status' => 404 ) );
 		}
 		$path = get_attached_file( $id );

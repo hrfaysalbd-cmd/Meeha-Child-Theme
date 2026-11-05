@@ -21,18 +21,25 @@ export interface PlacedSound {
 }
 
 export type FormatId = 'source' | '16:9' | '9:16' | '1:1' | '4:5'
+export type FileSize = 'small' | 'balanced' | 'high'
+export const FILE_SIZES: { id: FileSize; name: string; hint: string }[] = [
+  { id: 'small', name: 'ছোট — দ্রুত আপলোড', hint: 'দুর্বল নেটে ভালো; সংবাদ ও কথার ভিডিওতে মান যথেষ্ট' },
+  { id: 'balanced', name: 'মাঝারি (প্রস্তাবিত)', hint: 'মান ও আকারের ভারসাম্য' },
+  { id: 'high', name: 'বড় — সর্বোচ্চ মান', hint: 'খেলা বা দ্রুত দৃশ্য; আপলোডে বেশি সময়' },
+]
 export type FitMode = 'blur' | 'cover' | 'black'
-export type FrameId = 'none' | 'breaking' | 'news' | 'live' | 'special' | 'wave' | 'minimal' | 'exclusive' | 'sports' | 'election' | 'alert' | 'glass' | 'campus' | 'showbiz' | 'cinema' | 'music' | 'nil' | 'tv' | 'ujjol' | 'investigation' | 'interview' | 'economy' | 'national'
+export type FrameId = 'none' | 'breaking' | 'news' | 'live' | 'special' | 'wave' | 'minimal' | 'exclusive' | 'sports' | 'election' | 'alert' | 'glass' | 'campus' | 'showbiz' | 'cinema' | 'music' | 'nil' | 'tv' | 'ujjol' | 'investigation' | 'interview' | 'economy' | 'national' | 'weather' | 'crime' | 'health' | 'tech' | 'world' | 'gold'
 /** How big the frame bands, their text and the captions are (auto = bigger for reels). */
 export type FrameSize = 'auto' | 's' | 'm' | 'l' | 'xl'
+export type FrameMotion = 'lively' | 'calm'
 export type FooterMode = 'none' | 'ticker' | 'ad-text' | 'ad-image' | 'brand'
-export type IntroId = 'none' | 'meeha-logo' | 'breaking' | 'headline' | 'special' | 'swipe' | 'live' | 'countdown' | 'nil-reveal' | 'tv-open' | 'investigation' | 'sports' | 'showbiz' | 'custom'
-export type OutroId = 'none' | 'meeha-social' | 'thanks' | 'follow' | 'nil-end' | 'endscreen' | 'credits' | 'custom'
+export type IntroId = 'none' | 'meeha-logo' | 'breaking' | 'headline' | 'special' | 'swipe' | 'live' | 'countdown' | 'nil-reveal' | 'tv-open' | 'investigation' | 'sports' | 'showbiz' | 'shatter' | 'globe' | 'kinetic' | 'split' | 'custom'
+export type OutroId = 'none' | 'meeha-social' | 'thanks' | 'follow' | 'nil-end' | 'endscreen' | 'credits' | 'subscribe' | 'staytuned' | 'thanks-burst' | 'custom'
 export type LogoStyle = 'reveal' | 'spin' | 'pulse' | 'static'
 export type Corner = 'tr' | 'tl' | 'br' | 'bl'
 export type Quality = '720' | '1080'
 /* brand music catalogue (the pieces themselves are in music.ts) */
-export type MusicId = 'signature' | 'pulse' | 'calm' | 'showbiz' | 'desi' | 'investigation' | 'sports' | 'tech' | 'sad' | 'anthem' | 'morning'
+export type MusicId = 'signature' | 'pulse' | 'calm' | 'showbiz' | 'desi' | 'investigation' | 'sports' | 'tech' | 'sad' | 'anthem' | 'morning' | 'cinematic' | 'election' | 'weather' | 'lofi' | 'village'
 
 /** Round 26: the music library is shown in collapsible groups. */
 export type MusicGroup = 'news' | 'human' | 'fun' | 'deep'
@@ -46,15 +53,20 @@ export const MUSIC_GROUPS: { id: MusicGroup; name: string; hint: string }[] = [
 export const MUSIC: { id: MusicId; name: string; hint: string; group: MusicGroup; isNew?: boolean }[] = [
   { id: 'signature', name: 'মীহা সিগনেচার', hint: 'সব খবরে মানানসই · উজ্জ্বল, স্থির ছন্দ', group: 'news' },
   { id: 'pulse', name: 'ব্রেকিং পালস', hint: 'জরুরি ও ব্রেকিং খবর · ঘড়ির টিকটিক', group: 'news' },
-  { id: 'tech', name: 'অর্থনীতি ও প্রযুক্তি', hint: 'বাজার, ব্যবসা, প্রযুক্তি · মারিম্বা ও প্রতিধ্বনি', group: 'news', isNew: true },
-  { id: 'investigation', name: 'অনুসন্ধান', hint: 'তদন্ত, অপরাধ, রহস্য · নিচু স্পন্দন ও হার্টবিট', group: 'deep', isNew: true },
-  { id: 'sports', name: 'খেলার মাঠ', hint: 'খেলা ও হাইলাইটস · জোরালো বিট ও ব্রাস', group: 'deep', isNew: true },
+  { id: 'election', name: 'নির্বাচন ও রাজনীতি', hint: 'ভোট, সংসদ, রাজনীতি · মার্চিং স্নেয়ার ও স্ট্রিং', group: 'news', isNew: true },
+  { id: 'tech', name: 'অর্থনীতি ও প্রযুক্তি', hint: 'বাজার, ব্যবসা, প্রযুক্তি · মারিম্বা ও প্রতিধ্বনি', group: 'news' },
+  { id: 'investigation', name: 'অনুসন্ধান', hint: 'তদন্ত, অপরাধ, রহস্য · নিচু স্পন্দন ও হার্টবিট', group: 'deep' },
+  { id: 'cinematic', name: 'সিনেমাটিক ডকুমেন্টারি', hint: 'বড় প্রতিবেদন, ডকুমেন্টারি · গভীর প্যাড ও টিম্পানি', group: 'deep', isNew: true },
+  { id: 'sports', name: 'খেলার মাঠ', hint: 'খেলা ও হাইলাইটস · জোরালো বিট ও ব্রাস', group: 'deep' },
   { id: 'calm', name: 'শান্ত পটভূমি', hint: 'সাক্ষাৎকার, মানবিক ও ফিচার · নরম পিয়ানো', group: 'human' },
-  { id: 'sad', name: 'শোক ও মানবিক', hint: 'দুর্ঘটনা, শোক, মানবিক গল্প · ধীর পিয়ানো', group: 'human', isNew: true },
-  { id: 'morning', name: 'সকাল ও জীবনধারা', hint: 'লাইফস্টাইল, ভ্রমণ, খাবার · গিটার ও শেকার', group: 'human', isNew: true },
+  { id: 'sad', name: 'শোক ও মানবিক', hint: 'দুর্ঘটনা, শোক, মানবিক গল্প · ধীর পিয়ানো', group: 'human' },
+  { id: 'morning', name: 'সকাল ও জীবনধারা', hint: 'লাইফস্টাইল, ভ্রমণ, খাবার · গিটার ও শেকার', group: 'human' },
+  { id: 'weather', name: 'আবহাওয়া ও প্রকৃতি', hint: 'আবহাওয়া, পরিবেশ, কৃষি · মারিম্বা ও বাঁশি', group: 'human', isNew: true },
+  { id: 'lofi', name: 'লো-ফাই ফিচার', hint: 'ব্যাখ্যা, ফিচার, টিপস · নরম ই-পিয়ানো ও বিট', group: 'human', isNew: true },
   { id: 'showbiz', name: 'বিনোদন পপ', hint: 'বিনোদন, শোবিজ ও লাইফস্টাইল · হালকা পপ', group: 'fun' },
   { id: 'desi', name: 'দেশি সুর', hint: 'দেশ, সংস্কৃতি ও উৎসব · বাঁশি, দোতারা ও তবলা', group: 'fun' },
-  { id: 'anthem', name: 'জাতীয় ও উৎসব', hint: 'জাতীয় দিবস, বিজয়, উৎসব · বড় কর্ড ও টিম্পানি', group: 'fun', isNew: true },
+  { id: 'anthem', name: 'জাতীয় ও উৎসব', hint: 'জাতীয় দিবস, বিজয়, উৎসব · বড় কর্ড ও টিম্পানি', group: 'fun' },
+  { id: 'village', name: 'গ্রামবাংলা', hint: 'গ্রাম, লোকজ সংস্কৃতি, মেলা · তার-বাদ্য, তবলা ও বাঁশি', group: 'fun', isNew: true },
 ]
 
 export const DEFAULT_MUSIC: MusicId = 'signature'
@@ -84,6 +96,24 @@ export interface AudioSettings {
 }
 
 /** A file from the media library (video clip or image). */
+/**
+ * Round 27 — a recorded or uploaded voice laid over the video. It starts
+ * at source second `at` of the main video (so it stays with its pictures
+ * when intros/ads are added) and plays at normal speed.
+ */
+export interface VoiceOver {
+  clip: MediaRef
+  at: number
+  /** 0..2 */
+  vol: number
+  /** How loud everything else stays while the voice speaks (0..1, 1 = no dip). */
+  duck: number
+  /** Voice clean-up (EQ + compressor). */
+  clean: boolean
+  /** Seconds skipped at the start of the recording. */
+  offset: number
+}
+
 export interface MediaRef {
   id: number
   url: string
@@ -243,6 +273,15 @@ export type ThumbTemplate =
   | 'alert'
   | 'exclusive'
   | 'duo'
+  // round 27
+  | 'nil-poster'
+  | 'nil-circle'
+  | 'urgent'
+  | 'factcheck'
+  | 'cinematic'
+  | 'neon'
+  | 'weather'
+  | 'crime'
   | 'interview'
   | 'reaction'
   | 'question'
@@ -305,6 +344,8 @@ export interface EditConfig {
   format: FormatId
   fit: FitMode
   quality: Quality
+  /** Round 27: file size vs picture quality (smaller = faster upload). */
+  fileSize: FileSize
   frame: {
     id: FrameId
     title: string
@@ -315,6 +356,11 @@ export interface EditConfig {
     adText: string
     adImage: MediaRef | null
     size: FrameSize
+    /** Round 27: height of the top / bottom band (1 = standard, up to 2). */
+    top: number
+    bottom: number
+    /** Round 27: 'lively' adds a light sweep and accent motion; 'calm' is the old look. */
+    motion: FrameMotion
   }
   logo: {
     on: boolean
@@ -343,6 +389,7 @@ export interface EditConfig {
   reframe: Reframe
   thumb: ThumbDesign
   sounds: PlacedSound[]
+  voices: VoiceOver[]
 }
 
 export const DEFAULT_LOOK: Look = { filter: 'none', brightness: 1, contrast: 1, saturation: 1, zoom: 1, panX: 0, panY: 0, rotate: 0, flip: false }
@@ -353,7 +400,8 @@ export const DEFAULT_CONFIG: EditConfig = {
   format: 'source',
   fit: 'blur',
   quality: '1080',
-  frame: { id: 'none', title: '', kicker: '', date: true, footer: 'ticker', ticker: '', adText: '', adImage: null, size: 'auto' },
+  fileSize: 'balanced',
+  frame: { id: 'none', title: '', kicker: '', date: true, footer: 'ticker', ticker: '', adText: '', adImage: null, size: 'auto', top: 1, bottom: 1, motion: 'lively' },
   logo: { on: false, style: 'reveal', corner: 'tr', size: 6, every: 12, plate: true, opacity: 1 },
   intro: { id: 'none', text: '', clip: null },
   outro: { id: 'none', clip: null },
@@ -371,6 +419,7 @@ export const DEFAULT_CONFIG: EditConfig = {
   reframe: { on: false, step: 0.5, xs: [], ys: [] },
   thumb: { on: true, at: null, template: 'nil-bar', title: '', badge: '', face: null, size: '16:9', sub: '', palette: 'auto', scale: 1, logo: 'auto', grade: 'none', layers: [] },
   sounds: [],
+  voices: [],
 }
 
 // ---- catalogue ----
@@ -399,13 +448,19 @@ export interface FrameInfo {
 }
 
 export const FRAMES: FrameInfo[] = [
-  { id: 'nil', name: 'মিহা নীল', hint: 'নীল গ্রেডিয়েন্ট, সোনালি রেখা ও চিপ', label: 'শিরোনাম', swatch: ['#0B2A6B', '#FFC20E'], group: 'nil', isNew: true },
-  { id: 'tv', name: 'টিভি নিউজ', hint: 'চ্যানেলের মতো সোনালি স্ল্যাব, স্ক্যান লাইন', label: 'সংবাদ', swatch: ['#1546B8', '#FFC20E'], group: 'nil', isNew: true },
-  { id: 'ujjol', name: 'উজ্জ্বল নীল', hint: 'উজ্জ্বল নীল, সোনালি চলমান রেখা ও ফুটার', label: 'শিরোনাম', swatch: ['#2E6BFF', '#FFC20E'], group: 'nil', isNew: true },
-  { id: 'investigation', name: 'অনুসন্ধান', hint: 'গাঢ় নীল-কালো, নথির গ্রিড ও স্ক্যানিং আলো', label: 'অনুসন্ধান', swatch: ['#05070D', '#FFC20E'], group: 'special', isNew: true },
-  { id: 'interview', name: 'সাক্ষাৎকার', hint: 'বেগুনি-নীল, বড় উদ্ধৃতি চিহ্ন', label: 'সাক্ষাৎকার', swatch: ['#3730A3', '#FFC20E'], group: 'special', isNew: true },
-  { id: 'economy', name: 'অর্থনীতি', hint: 'টিল সবুজ, চলমান বাজার-রেখা', label: 'বাজার', swatch: ['#0F766E', '#FFC20E'], group: 'special', isNew: true },
-  { id: 'national', name: 'জাতীয়', hint: 'সবুজ ও লাল সূর্য — জাতীয় দিবস, দেশের খবর', label: 'জাতীয়', swatch: ['#006A4E', '#F42A41'], group: 'topic', isNew: true },
+  { id: 'world', name: 'আন্তর্জাতিক', hint: 'নীল, ঘুরন্ত তারের গ্লোব', label: 'বিশ্ব', swatch: ['#071A44', '#FFC20E'], group: 'nil', isNew: true },
+  { id: 'crime', name: 'অপরাধ', hint: 'কালো, লাল-নীল পুলিশ আলো, হলুদ টেপ', label: 'অপরাধ', swatch: ['#0A0A0A', '#FACC15'], group: 'breaking', isNew: true },
+  { id: 'gold', name: 'প্রিমিয়াম সোনালি', hint: 'কালো ও সোনালি রেখা, ঝিলিক', label: 'বিশেষ', swatch: ['#0B0905', '#D6B45E'], group: 'special', isNew: true },
+  { id: 'weather', name: 'আবহাওয়া', hint: 'আকাশি নীল, সূর্য ও ভেসে চলা মেঘ', label: 'আবহাওয়া', swatch: ['#0C4A8F', '#FFD65A'], group: 'topic', isNew: true },
+  { id: 'health', name: 'স্বাস্থ্য', hint: 'টিল সবুজ, চলমান হৃৎস্পন্দন রেখা', label: 'স্বাস্থ্য', swatch: ['#065F5B', '#E11D48'], group: 'topic', isNew: true },
+  { id: 'tech', name: 'প্রযুক্তি', hint: 'গাঢ় নীল, সার্কিটে চলমান আলো', label: 'প্রযুক্তি', swatch: ['#020617', '#22D3EE'], group: 'topic', isNew: true },
+  { id: 'nil', name: 'মিহা নীল', hint: 'নীল গ্রেডিয়েন্ট, সোনালি রেখা ও চিপ', label: 'শিরোনাম', swatch: ['#0B2A6B', '#FFC20E'], group: 'nil' },
+  { id: 'tv', name: 'টিভি নিউজ', hint: 'চ্যানেলের মতো সোনালি স্ল্যাব, স্ক্যান লাইন', label: 'সংবাদ', swatch: ['#1546B8', '#FFC20E'], group: 'nil' },
+  { id: 'ujjol', name: 'উজ্জ্বল নীল', hint: 'উজ্জ্বল নীল, সোনালি চলমান রেখা ও ফুটার', label: 'শিরোনাম', swatch: ['#2E6BFF', '#FFC20E'], group: 'nil' },
+  { id: 'investigation', name: 'অনুসন্ধান', hint: 'গাঢ় নীল-কালো, নথির গ্রিড ও স্ক্যানিং আলো', label: 'অনুসন্ধান', swatch: ['#05070D', '#FFC20E'], group: 'special' },
+  { id: 'interview', name: 'সাক্ষাৎকার', hint: 'বেগুনি-নীল, বড় উদ্ধৃতি চিহ্ন', label: 'সাক্ষাৎকার', swatch: ['#3730A3', '#FFC20E'], group: 'special' },
+  { id: 'economy', name: 'অর্থনীতি', hint: 'টিল সবুজ, চলমান বাজার-রেখা', label: 'বাজার', swatch: ['#0F766E', '#FFC20E'], group: 'special' },
+  { id: 'national', name: 'জাতীয়', hint: 'সবুজ ও লাল সূর্য — জাতীয় দিবস, দেশের খবর', label: 'জাতীয়', swatch: ['#006A4E', '#F42A41'], group: 'topic' },
   { id: 'breaking', name: 'ব্রেকিং নিউজ', hint: 'লাল, জ্বলজ্বলে ব্যাজ ও চলমান স্ক্রল', label: 'সর্বশেষ', swatch: ['#C8102E', '#111827'], group: 'breaking' },
   { id: 'news', name: 'সংবাদ', hint: 'মিহা নীল, ক্যাটেগরি চিপ ও তারিখ', label: 'শিরোনাম', swatch: ['#025AB2', '#0B2746'], group: 'news' },
   { id: 'live', name: 'সরাসরি', hint: 'জ্বলা-নেভা লাল বিন্দু, গাঢ় পটভূমি', label: 'সরাসরি', swatch: ['#0F172A', '#DC2626'], group: 'breaking' },
@@ -450,8 +505,12 @@ export interface SceneInfo<T extends string> {
 }
 
 export const INTROS: SceneInfo<IntroId>[] = [
-  { id: 'nil-reveal', name: 'মিহা নীল রিভিল', hint: 'সোনালি রেখা থেকে লোগো, তারপর শিরোনাম', duration: 3.6, group: 'nil', isNew: true },
-  { id: 'tv-open', name: 'টিভি নিউজ ওপেনিং', hint: 'ঘুরন্ত বলয়, আলোর রেখা, লোয়ার-থার্ডে শিরোনাম', duration: 4, group: 'nil', isNew: true },
+  { id: 'shatter', name: 'ব্রেকিং শক', hint: 'সাদা ঝলক, কাচের টুকরো জুড়ে লাল স্ল্যাব, ঝাঁকুনি', duration: 3.8, group: 'breaking', isNew: true },
+  { id: 'globe', name: 'ঘুরন্ত গ্লোব', hint: 'ঘুরন্ত পৃথিবী, সোনালি কক্ষপথ, মাঝে লোগো', duration: 4, group: 'nil', isNew: true },
+  { id: 'kinetic', name: 'কাইনেটিক শিরোনাম', hint: 'শিরোনামের প্রতিটি শব্দ রঙ বদলে ঝাঁপিয়ে আসে', duration: 3.8, group: 'news', isNew: true },
+  { id: 'split', name: 'স্প্লিট রিভিল', hint: 'নীল-সোনালি দুই ভাগ সরে লোগো, তারপর শিরোনাম', duration: 3.4, group: 'nil', isNew: true },
+  { id: 'nil-reveal', name: 'মিহা নীল রিভিল', hint: 'সোনালি রেখা থেকে লোগো, তারপর শিরোনাম', duration: 3.6, group: 'nil' },
+  { id: 'tv-open', name: 'টিভি নিউজ ওপেনিং', hint: 'ঘুরন্ত বলয়, আলোর রেখা, লোয়ার-থার্ডে শিরোনাম', duration: 4, group: 'nil' },
   { id: 'meeha-logo', name: 'মিহা লোগো এনিমেশন', hint: 'আপনার দেওয়া লোগো এনিমেশন (৩.৫ সেকেন্ড)', group: 'brand' },
   { id: 'headline', name: 'শিরোনাম কার্ড', hint: 'লোগো, ক্যাটেগরি ও শিরোনাম লাইন ধরে', duration: 4, group: 'news' },
   { id: 'swipe', name: 'রঙিন সোয়াইপ', hint: 'রঙের প্যানেল সরে লোগো ও শিরোনাম', duration: 3.2, group: 'news' },
@@ -459,16 +518,19 @@ export const INTROS: SceneInfo<IntroId>[] = [
   { id: 'breaking', name: 'ব্রেকিং নিউজ', hint: 'লাল ফ্ল্যাশ, ঝাঁকুনি ও শিরোনাম', duration: 3, group: 'breaking' },
   { id: 'live', name: 'সরাসরি', hint: 'রাডারের মতো লাল ঢেউ, “সরাসরি”', duration: 3, group: 'breaking' },
   { id: 'special', name: 'বিশেষ প্রতিবেদন', hint: 'সোনালি রেখা ও শিরোনাম', duration: 3.5, group: 'special' },
-  { id: 'investigation', name: 'অনুসন্ধান', hint: 'অন্ধকার নথির গ্রিড, স্পটলাইট, টাইপ হওয়া শিরোনাম', duration: 4, group: 'special', isNew: true },
-  { id: 'sports', name: 'খেলা', hint: 'দৌড়ানো রেখা, ঝাঁপিয়ে আসা লেখা', duration: 3, group: 'topic', isNew: true },
-  { id: 'showbiz', name: 'বিনোদন', hint: 'গোলাপি-বেগুনি, ঝিকমিক তারা', duration: 3.2, group: 'topic', isNew: true },
+  { id: 'investigation', name: 'অনুসন্ধান', hint: 'অন্ধকার নথির গ্রিড, স্পটলাইট, টাইপ হওয়া শিরোনাম', duration: 4, group: 'special' },
+  { id: 'sports', name: 'খেলা', hint: 'দৌড়ানো রেখা, ঝাঁপিয়ে আসা লেখা', duration: 3, group: 'topic' },
+  { id: 'showbiz', name: 'বিনোদন', hint: 'গোলাপি-বেগুনি, ঝিকমিক তারা', duration: 3.2, group: 'topic' },
   { id: 'custom', name: 'গ্যালারি থেকে', hint: 'নিজের ইন্ট্রো ভিডিও', group: 'clip' },
 ]
 
 export const OUTROS: SceneInfo<OutroId>[] = [
-  { id: 'nil-end', name: 'মিহা নীল এন্ড কার্ড', hint: 'লোগো, “ফলো করুন”, সোশ্যাল আইকন ও ঠিকানা', duration: 5, group: 'nil', isNew: true },
-  { id: 'endscreen', name: 'ইউটিউব এন্ড স্ক্রিন', hint: 'ইউটিউবের “পরের ভিডিও” ও সাবস্ক্রাইবের জায়গা রেখে (২০ সে. পর্যন্ত লাগে না, ৮ সে.)', duration: 8, group: 'nil', isNew: true },
-  { id: 'credits', name: 'ক্রেডিট', hint: 'প্রতিবেদক, সম্পাদনা ও তারিখ', duration: 4.5, group: 'nil', isNew: true },
+  { id: 'subscribe', name: 'সাবস্ক্রাইব করুন', hint: 'বড় বোতাম, কার্সার চাপ দেয়, বেল বাজে', duration: 5, group: 'nil', isNew: true },
+  { id: 'staytuned', name: 'চোখ রাখুন', hint: 'ঘুরন্ত আলোর রশ্মি, লোগো নেমে আসে, ঠিকানা', duration: 4.5, group: 'nil', isNew: true },
+  { id: 'thanks-burst', name: 'রঙিন ধন্যবাদ', hint: 'কনফেটি, “দেখার জন্য ধন্যবাদ”, লাইক · শেয়ার · কমেন্ট', duration: 4, group: 'news', isNew: true },
+  { id: 'nil-end', name: 'মিহা নীল এন্ড কার্ড', hint: 'লোগো, “ফলো করুন”, সোশ্যাল আইকন ও ঠিকানা', duration: 5, group: 'nil' },
+  { id: 'endscreen', name: 'ইউটিউব এন্ড স্ক্রিন', hint: 'ইউটিউবের “পরের ভিডিও” ও সাবস্ক্রাইবের জায়গা রেখে (২০ সে. পর্যন্ত লাগে না, ৮ সে.)', duration: 8, group: 'nil' },
+  { id: 'credits', name: 'ক্রেডিট', hint: 'প্রতিবেদক, সম্পাদনা ও তারিখ', duration: 4.5, group: 'nil' },
   { id: 'meeha-social', name: 'মিহা সোশ্যাল আউট্রো', hint: 'আপনার দেওয়া আউট্রো — সোশ্যাল লিংকসহ (৮ সেকেন্ড)', group: 'brand' },
   { id: 'thanks', name: 'ধন্যবাদ কার্ড', hint: 'লোগো, “দেখার জন্য ধন্যবাদ” ও ওয়েবসাইট', duration: 4, group: 'news' },
   { id: 'follow', name: 'ফলো করুন', hint: 'লাইক · শেয়ার · ফলো বোতামে ট্যাপের এনিমেশন', duration: 4.5, group: 'news' },
@@ -555,6 +617,7 @@ export const LIMITS = {
   thumbLayers: 12,
   thumbLayerText: 40,
   sounds: 40,
+  voices: 10,
   /** Reframe samples (2 per second → about 40 minutes). */
   reframe: 5000,
 }
@@ -594,32 +657,40 @@ export const THUMB_GROUPS: { id: ThumbGroup; name: string; hint: string }[] = [
 ]
 
 export const THUMB_TEMPLATES: { id: ThumbTemplate; name: string; hint: string; group: ThumbGroup; isNew?: boolean }[] = [
-  { id: 'nil-bar', name: 'নীল পট্টি', hint: 'নিচে নেভি পট্টি, সোনালি দাগ', group: 'nil', isNew: true },
-  { id: 'nil-split', name: 'নীল ভাগ', hint: 'একপাশে ছবি, অন্যপাশে লেখা', group: 'nil', isNew: true },
-  { id: 'nil-frame', name: 'নীল ফ্রেম', hint: 'ছবি ফ্রেমে, সোনালি কোণ', group: 'nil', isNew: true },
-  { id: 'nil-quote', name: 'নীল উক্তি', hint: 'বড় উদ্ধৃতি চিহ্ন, বক্তার নাম', group: 'nil', isNew: true },
-  { id: 'nil-card', name: 'সাদা কার্ড', hint: 'সাদা কার্ডে নেভি লেখা, মার্কার', group: 'nil', isNew: true },
+  { id: 'nil-bar', name: 'নীল পট্টি', hint: 'নিচে নেভি পট্টি, সোনালি দাগ', group: 'nil' },
+  { id: 'nil-split', name: 'নীল ভাগ', hint: 'একপাশে ছবি, অন্যপাশে লেখা', group: 'nil' },
+  { id: 'nil-frame', name: 'নীল ফ্রেম', hint: 'ছবি ফ্রেমে, সোনালি কোণ', group: 'nil' },
+  { id: 'nil-quote', name: 'নীল উক্তি', hint: 'বড় উদ্ধৃতি চিহ্ন, বক্তার নাম', group: 'nil' },
+  { id: 'nil-card', name: 'সাদা কার্ড', hint: 'সাদা কার্ডে নেভি লেখা, মার্কার', group: 'nil' },
+  { id: 'nil-poster', name: 'নীল পোস্টার', hint: 'নিচে তির্যক নীল অংশ, সোনালি দাগ', group: 'nil', isNew: true },
+  { id: 'nil-circle', name: 'নীল বৃত্ত', hint: 'গোল ছবি, চারপাশে বলয়', group: 'nil', isNew: true },
+  { id: 'cinematic', name: 'সিনেমাটিক', hint: 'উপর-নিচে কালো পট্টি, সিনেমার মতো', group: 'news', isNew: true },
   { id: 'bold', name: 'বড় শিরোনাম', hint: 'নিচে গাঢ় পট্টিতে বড় লেখা', group: 'news' },
-  { id: 'top', name: 'উপরে শিরোনাম', hint: 'উপরে রঙিন পট্টি', group: 'news', isNew: true },
-  { id: 'lower', name: 'টিভি লোয়ার থার্ড', hint: 'টিভির মতো নামফলক', group: 'news', isNew: true },
-  { id: 'glass', name: 'কাচের বাক্স', hint: 'মাঝে ঝাপসা কাচে লেখা', group: 'news', isNew: true },
+  { id: 'top', name: 'উপরে শিরোনাম', hint: 'উপরে রঙিন পট্টি', group: 'news' },
+  { id: 'lower', name: 'টিভি লোয়ার থার্ড', hint: 'টিভির মতো নামফলক', group: 'news' },
+  { id: 'glass', name: 'কাচের বাক্স', hint: 'মাঝে ঝাপসা কাচে লেখা', group: 'news' },
   { id: 'minimal', name: 'মিনিমাল', hint: 'ছবির উপর হালকা লেখা', group: 'news' },
   { id: 'breaking', name: 'ব্রেকিং', hint: 'লাল ব্যানার, তির্যক রেখা', group: 'breaking' },
-  { id: 'live', name: 'সরাসরি', hint: 'লাইভ চিহ্ন ও লাল পট্টি', group: 'breaking', isNew: true },
-  { id: 'alert', name: 'জরুরি সতর্কতা', hint: 'হলুদ-কালো সতর্ক দাগ', group: 'breaking', isNew: true },
-  { id: 'exclusive', name: 'এক্সক্লুসিভ', hint: 'কোণে সোনালি ফিতা', group: 'breaking', isNew: true },
+  { id: 'live', name: 'সরাসরি', hint: 'লাইভ চিহ্ন ও লাল পট্টি', group: 'breaking' },
+  { id: 'alert', name: 'জরুরি সতর্কতা', hint: 'হলুদ-কালো সতর্ক দাগ', group: 'breaking' },
+  { id: 'exclusive', name: 'এক্সক্লুসিভ', hint: 'কোণে সোনালি ফিতা', group: 'breaking' },
+  { id: 'urgent', name: 'জরুরি বার্তা', hint: 'উপরে লাল “জরুরি” পট্টি, নিচে কালো', group: 'breaking', isNew: true },
   { id: 'face', name: 'মুখের ছবি', hint: 'গোল ফ্রেমে মুখ, পাশে শিরোনাম', group: 'face' },
-  { id: 'duo', name: 'মুখোমুখি', hint: 'দুই ছবি, মাঝে “বনাম”', group: 'face', isNew: true },
-  { id: 'interview', name: 'সাক্ষাৎকার', hint: 'বড় মুখ, নাম ও উক্তি', group: 'face', isNew: true },
-  { id: 'reaction', name: 'প্রতিক্রিয়া', hint: 'হেলানো বড় ছবি, সাদা দাগ', group: 'face', isNew: true },
-  { id: 'question', name: 'বড় প্রশ্ন', hint: 'বিশাল “?” আর প্রশ্ন', group: 'impact', isNew: true },
-  { id: 'number', name: 'বড় সংখ্যা', hint: 'শিরোনামের সংখ্যা বিশাল করে', group: 'impact', isNew: true },
-  { id: 'shock', name: 'চমক', hint: 'দাগ-দেওয়া বড় লেখা, বিস্ফোরণ ব্যাজ', group: 'impact', isNew: true },
-  { id: 'pointer', name: 'তীর দিয়ে দেখানো', hint: 'লেখা থেকে তীর ছবির দিকে', group: 'impact', isNew: true },
-  { id: 'sports', name: 'খেলা', hint: 'তির্যক সবুজ দাগ, স্কোরের মতো ব্যাজ', group: 'topic', isNew: true },
-  { id: 'showbiz', name: 'বিনোদন', hint: 'গোলাপি-বেগুনি ঝলক', group: 'topic', isNew: true },
-  { id: 'economy', name: 'অর্থনীতি', hint: 'ঊর্ধ্বমুখী রেখা, সবুজ-সোনালি', group: 'topic', isNew: true },
-  { id: 'campus', name: 'শিক্ষা ও ক্যাম্পাস', hint: 'খাতার দাগ, নীল কালি', group: 'topic', isNew: true },
+  { id: 'duo', name: 'মুখোমুখি', hint: 'দুই ছবি, মাঝে “বনাম”', group: 'face' },
+  { id: 'interview', name: 'সাক্ষাৎকার', hint: 'বড় মুখ, নাম ও উক্তি', group: 'face' },
+  { id: 'reaction', name: 'প্রতিক্রিয়া', hint: 'হেলানো বড় ছবি, সাদা দাগ', group: 'face' },
+  { id: 'question', name: 'বড় প্রশ্ন', hint: 'বিশাল “?” আর প্রশ্ন', group: 'impact' },
+  { id: 'number', name: 'বড় সংখ্যা', hint: 'শিরোনামের সংখ্যা বিশাল করে', group: 'impact' },
+  { id: 'shock', name: 'চমক', hint: 'দাগ-দেওয়া বড় লেখা, বিস্ফোরণ ব্যাজ', group: 'impact' },
+  { id: 'pointer', name: 'তীর দিয়ে দেখানো', hint: 'লেখা থেকে তীর ছবির দিকে', group: 'impact' },
+  { id: 'factcheck', name: 'ফ্যাক্টচেক', hint: 'সিলমোহর, সঠিক/ভুল চিহ্ন', group: 'impact', isNew: true },
+  { id: 'neon', name: 'নিয়ন', hint: 'জ্বলজ্বলে নিয়ন রেখা ও লেখা', group: 'impact', isNew: true },
+  { id: 'sports', name: 'খেলা', hint: 'তির্যক সবুজ দাগ, স্কোরের মতো ব্যাজ', group: 'topic' },
+  { id: 'showbiz', name: 'বিনোদন', hint: 'গোলাপি-বেগুনি ঝলক', group: 'topic' },
+  { id: 'economy', name: 'অর্থনীতি', hint: 'ঊর্ধ্বমুখী রেখা, সবুজ-সোনালি', group: 'topic' },
+  { id: 'campus', name: 'শিক্ষা ও ক্যাম্পাস', hint: 'খাতার দাগ, নীল কালি', group: 'topic' },  { id: 'weather', name: 'আবহাওয়া', hint: 'আকাশি আভা, সূর্য ও মেঘ', group: 'topic', isNew: true },
+  { id: 'crime', name: 'অপরাধ', hint: 'হলুদ পুলিশ টেপ, গাঢ় কোণ', group: 'topic', isNew: true },
+
 ]
 
 export const THUMB_SIZES: { id: ThumbSize; name: string; hint: string }[] = [
@@ -688,6 +759,7 @@ export function normalizeConfig(raw: unknown): EditConfig {
     format: oneOf(o.format, ['source', '16:9', '9:16', '1:1', '4:5'] as const, d.format),
     fit: oneOf(o.fit, ['blur', 'cover', 'black'] as const, d.fit),
     quality: oneOf(o.quality, ['720', '1080'] as const, d.quality),
+    fileSize: oneOf(o.fileSize, ['small', 'balanced', 'high'] as const, d.fileSize),
     frame: {
       id: oneOf(frame.id, ['none', ...FRAMES.map((f) => f.id)] as FrameId[], d.frame.id),
       title: str(frame.title, LIMITS.title),
@@ -698,6 +770,9 @@ export function normalizeConfig(raw: unknown): EditConfig {
       adText: str(frame.adText, LIMITS.adText),
       adImage: mediaRef(frame.adImage),
       size: oneOf(frame.size, FRAME_SIZES.map((x) => x.id), d.frame.size),
+      top: num(frame.top, 1, 1, 2),
+      bottom: num(frame.bottom, 1, 1, 2),
+      motion: oneOf(frame.motion, ['lively', 'calm'] as const, d.frame.motion),
     },
     logo: {
       on: bool(logo.on, d.logo.on),
@@ -828,6 +903,14 @@ export function normalizeConfig(raw: unknown): EditConfig {
       .filter((x: any) => SFX_IDS.includes(x?.id))
       .map((x: any) => ({ id: x.id as SfxId, at: num(x?.at, 0, 0, 86400), vol: num(x?.vol, 0.8, 0, 1.5) }))
       .slice(0, LIMITS.sounds),
+    voices: (Array.isArray(o.voices) ? o.voices : [])
+      .map((x: any): VoiceOver | null => {
+        const clip = mediaRef(x?.clip)
+        if (!clip) return null
+        return { clip, at: num(x?.at, 0, 0, 86400), vol: num(x?.vol, 1, 0, 2), duck: num(x?.duck, 0.3, 0, 1), clean: bool(x?.clean, true), offset: num(x?.offset, 0, 0, 3600) }
+      })
+      .filter((x: VoiceOver | null): x is VoiceOver => !!x)
+      .slice(0, LIMITS.voices),
     blurs: (Array.isArray(o.blurs) ? o.blurs : [])
       .map((b: any) => {
         const w = num(b?.w, 0.3, 0.02, 1)
@@ -945,6 +1028,7 @@ export function styleOnly(cfg: EditConfig): EditConfig {
     freezes: [],
     stickers: [],
     sounds: [],
+    voices: [],
     pip: null,
     reframe: { on: false, step: 0.5, xs: [], ys: [] },
     thumb: { ...cfg.thumb, at: null, title: '', sub: '', face: null, layers: [] },
@@ -976,6 +1060,7 @@ export function hasEdits(cfg: EditConfig, srcDuration: number | null): boolean {
     cfg.freezes.length > 0 ||
     cfg.stickers.length > 0 ||
     cfg.sounds.length > 0 ||
+    cfg.voices.length > 0 ||
     cfg.pip !== null ||
     cfg.reframe.on ||
     lookFilter(cfg.look) !== '' ||
