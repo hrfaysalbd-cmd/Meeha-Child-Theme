@@ -16,6 +16,7 @@ import {
   CategoriesApi,
   MediaApi,
   describeError,
+  downloadMediaFile,
   isAbortError,
   type Category,
   type Video,
@@ -38,6 +39,7 @@ import {
 import { Banner, Button, Card, PageHeader, Spinner, bnNumber, inputClass } from '../components/ui'
 import {
   IconBrandYoutube,
+  IconDownload,
   IconExternalLink,
   IconFrame,
   IconLibraryPhoto,
@@ -666,6 +668,7 @@ export default function VideoEditor() {
                         ref={previewVideo}
                         key={previewSrc}
                         src={previewSrc}
+                        poster={thumbnailUrl ?? undefined}
                         controls
                         playsInline
                         preload="metadata"
@@ -783,6 +786,15 @@ export default function VideoEditor() {
                         অন্য ভিডিও দিন
                       </Button>
                     </div>
+                  )}
+
+                  {/* round 29: take the finished video and its thumbnail straight to social media */}
+                  {upload.status !== 'uploading' && (attachmentId || thumbnailId) && fileIsSaved && (
+                    <SaveFiles
+                      videoId={attachmentId}
+                      thumbId={thumbnailId}
+                      name={(decodeSlug(video?.slug ?? '') || title || 'meeha-video').slice(0, 60)}
+                    />
                   )}
 
                   {attachmentId && upload.status !== 'uploading' && (
@@ -1176,4 +1188,47 @@ async function shrinkTarget(file: File, maxBytes: number | null, fast: boolean):
   } catch {
     return over ? Math.floor(maxBytes! * 0.92) : null
   }
+}
+
+/** Round 29 — ভিডিও / থাম্বনেইল ডাউনলোড (through the API, so it works across domains). */
+function SaveFiles({ videoId, thumbId, name }: { videoId: number | null; thumbId: number | null; name: string }) {
+  const [busy, setBusy] = useState<null | { what: 'video' | 'thumb'; pct: number }>(null)
+  const [err, setErr] = useState('')
+  const save = async (what: 'video' | 'thumb', id: number) => {
+    setErr('')
+    setBusy({ what, pct: 0 })
+    try {
+      const blob = await downloadMediaFile(id, (loaded, total) => setBusy({ what, pct: total ? Math.round((loaded / total) * 100) : 0 }))
+      const ext = what === 'thumb' ? (blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg') : blob.type.includes('webm') ? 'webm' : 'mp4'
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${name}${what === 'thumb' ? '-thumbnail' : ''}.${ext}`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (e) {
+      setErr(describeError(e).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+  return (
+    <div className="mt-3 flex items-center gap-2 flex-wrap" data-testid="post-downloads">
+      {videoId && (
+        <Button size="sm" variant="secondary" onClick={() => save('video', videoId)} disabled={!!busy} data-testid="download-video">
+          <IconDownload className="w-3.5 h-3.5" />
+          {busy?.what === 'video' ? `ডাউনলোড হচ্ছে… ${bnNumber(busy.pct)}%` : 'ভিডিও ডাউনলোড'}
+        </Button>
+      )}
+      {thumbId && (
+        <Button size="sm" variant="secondary" onClick={() => save('thumb', thumbId)} disabled={!!busy} data-testid="download-thumb">
+          <IconDownload className="w-3.5 h-3.5" />
+          {busy?.what === 'thumb' ? 'ডাউনলোড হচ্ছে…' : 'থাম্বনেইল ডাউনলোড'}
+        </Button>
+      )}
+      {err && <p className="text-[12px] text-red-600 w-full">{err}</p>}
+    </div>
+  )
 }

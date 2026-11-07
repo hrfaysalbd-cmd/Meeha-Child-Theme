@@ -251,7 +251,7 @@ export class PreviewPlayer {
     const ctx = this.audio
     if (!ctx || this.muted || !this.playing) return
     for (const v of this.voices) {
-      const len = v.buf.duration - v.offset
+      const len = v.len
       if (this.T >= v.start + len) continue
       const wait = Math.max(0, v.start - this.T)
       const skip = v.offset + Math.max(0, this.T - v.start)
@@ -262,7 +262,7 @@ export class PreviewPlayer {
       src.connect(g)
       if (v.clean) g.connect(voiceChain(ctx, 'clear', ctx.destination))
       else g.connect(ctx.destination)
-      src.start(ctx.currentTime + wait, skip)
+      src.start(ctx.currentTime + wait, skip, Math.max(0.01, len - Math.max(0, this.T - v.start)))
       this.voiceNodes.push(src)
     }
   }
@@ -282,7 +282,7 @@ export class PreviewPlayer {
   /** How loud the rest stays at T (the lowest duck of the voices speaking). */
   private voiceDuck() {
     let d = 1
-    for (const v of this.voices) if (this.T >= v.start && this.T < v.start + v.buf.duration - v.offset) d = Math.min(d, v.duck)
+    for (const v of this.voices) if (this.T >= v.start && this.T < v.start + v.len) d = Math.min(d, v.duck)
     return d
   }
 

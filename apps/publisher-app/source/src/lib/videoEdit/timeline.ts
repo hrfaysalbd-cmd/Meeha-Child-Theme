@@ -32,6 +32,8 @@ export interface Segment {
   mute?: boolean
   /** Round 26: the slowed second pass of a slow-motion replay. */
   replay?: boolean
+  /** Round 29: an opening cover — the intro scene's finished look, held; the value is the scene's own length. */
+  cover?: number
 }
 
 /** Source second shown at `local` seconds into a segment. */
@@ -117,14 +119,16 @@ export function computeLayout(cfg: EditConfig, srcW0: number, srcH0: number): La
     const s = (Math.min(vw, vh) / 1080) * k
     const hh = hasHeader ? even(HEADER_UNITS * s * cfg.frame.top) : 0
     const fh = hasFooter ? even(FOOTER_UNITS * s * cfg.frame.bottom) : 0
+    // round 29: the title band can sit under the picture, just above the ticker
+    const low = cfg.frame.titlePos === 'bottom'
     return {
       W: vw,
       H: vh + hh + fh,
       s,
       k,
-      header: hasHeader ? { x: 0, y: 0, w: vw, h: hh } : null,
+      header: hasHeader ? { x: 0, y: low ? vh : 0, w: vw, h: hh } : null,
       footer: hasFooter ? { x: 0, y: hh + vh, w: vw, h: fh } : null,
-      video: { x: 0, y: hh, w: vw, h: vh },
+      video: { x: 0, y: low ? 0 : hh, w: vw, h: vh },
     }
   }
 
@@ -147,14 +151,15 @@ export function computeLayout(cfg: EditConfig, srcW0: number, srcH0: number): La
   }
   hh = hasHeader ? even(hh) : 0
   fh = hasFooter ? even(fh) : 0
+  const low = cfg.frame.titlePos === 'bottom'
   return {
     W,
     H,
     s,
     k,
-    header: hasHeader ? { x: 0, y: 0, w: W, h: hh } : null,
+    header: hasHeader ? { x: 0, y: low ? H - fh - hh : 0, w: W, h: hh } : null,
     footer: hasFooter ? { x: 0, y: H - fh, w: W, h: fh } : null,
-    video: { x: 0, y: hh, w: W, h: H - hh - fh },
+    video: { x: 0, y: low ? 0 : hh, w: W, h: H - hh - fh },
   }
 }
 
@@ -173,6 +178,9 @@ export function trimRange(cfg: EditConfig, mainDuration: number) {
   return { start, end }
 }
 
+/** Round 29: how long the opening cover holds. */
+export const COVER_DUR = 0.8
+
 export function buildTimeline(cfg: EditConfig, d: ClipDurations): Timeline {
   const segs: Segment[] = []
   let t = 0
@@ -185,7 +193,11 @@ export function buildTimeline(cfg: EditConfig, d: ClipDurations): Timeline {
   // Intro
   if (cfg.intro.id !== 'none') {
     const info = INTROS.find((i) => i.id === cfg.intro.id)
-    if (info?.duration) push({ kind: 'intro', dur: info.duration, scene: cfg.intro.id as SceneId, clipStart: 0 })
+    if (info?.duration) {
+      // round 29: open on the intro's finished design (never on black), then play it
+      if (cfg.intro.cover) push({ kind: 'intro', dur: COVER_DUR, scene: cfg.intro.id as SceneId, clipStart: 0, cover: info.duration })
+      push({ kind: 'intro', dur: info.duration, scene: cfg.intro.id as SceneId, clipStart: 0 })
+    }
     else if (d.intro) push({ kind: 'intro', dur: d.intro, clip: 'intro', clipStart: 0 })
   }
 

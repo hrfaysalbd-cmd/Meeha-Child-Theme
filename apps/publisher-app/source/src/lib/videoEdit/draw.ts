@@ -1597,8 +1597,22 @@ function lightSweep(ctx: Ctx, r: Rect, t: number, every: number, delay: number, 
   ctx.restore()
 }
 
-function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t: number) {
-  const s = env.L.s
+/**
+ * Round 29: the frame is already in place on the very first frame of the
+ * news (no black, so every preview and thumbnail shows the full design).
+ * Entrance animations are drawn as if this many seconds had passed; the
+ * opening movement is a colour bar running over the title and a light
+ * sweep instead.
+ */
+export const FRAME_SETTLE = 1.6
+
+function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
+  const s0 = env.L.s
+  const open = t0
+  const t = t0 + FRAME_SETTLE
+  // round 29: a taller band (frame.top) makes everything in it bigger, not just the title
+  const hk = clamp(r.h / (210 * s0), 1, 2.2)
+  const s = s0 * (1 + (hk - 1) * 0.55)
   const enter = win(t, 0, 0.5)
   // background wipes in from the left on the first frames of the video
   ctx.save()
@@ -1612,9 +1626,8 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t: number) {
     ctx.fillRect(r.x + r.w * ease.outCubic(enter), r.y, r.w * (1 - ease.outCubic(enter)), r.h)
   }
   const lively = env.cfg.frame.motion === 'lively'
-  // round 27: a taller band (frame.top) gets a bigger title, not just empty space
-  const hk = clamp(r.h / (210 * s), 1, 2)
   if (lively) lightSweep(ctx, r, t, 9, 2.2)
+  else lightSweep(ctx, r, open + 0.9, 1000, 0, 0.18) // one soft sweep at the start
 
   const padX = 44 * s
   const rowCy = r.y + 50 * s
@@ -1651,7 +1664,10 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t: number) {
     x += drawChip(ctx, env.kicker.trim(), x, rowCy, 40 * s, theme.kickerBg, theme.kickerFg, win(t, 0.3, 0.65)) + 16 * s
     hasRow = true
   }
-  if (env.cfg.frame.date && env.dateText) {
+  ctx.font = bodyFont(500, 26 * s)
+  // round 29: the date only when it does not run into the badge / label (bigger bands, narrow reels)
+  const dateFits = x + ctx.measureText(env.dateText).width + 12 * s < r.x + r.w - padX - extraR
+  if (env.cfg.frame.date && env.dateText && dateFits) {
     ctx.save()
     ctx.globalAlpha *= win(t, 0.45, 0.8)
     ctx.font = bodyFont(500, 26 * s)
@@ -1672,9 +1688,16 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t: number) {
   const bottom = r.y + r.h - 20 * s
   const avail = bottom - top
   const font = (px: number) => bodyFont(700, px)
-  let fit = fitText(ctx, title, font, maxW, 1, Math.min(56 * s * hk, avail * 0.82), 40 * s)
-  if (fit.lines.length === 1 && ctx.measureText(fit.lines[0]).width > maxW) fit = fitText(ctx, title, font, maxW, 2, avail / 2.5, 28 * s)
-  else if (fit.lines.length === 0 || fit.lines[0].endsWith('…')) fit = fitText(ctx, title, font, maxW, 2, Math.min(46 * s * hk, avail / 2.45), 28 * s)
+  // round 29: the biggest size that shows the whole title in 1, 2 or (tall bands) 3 lines
+  const tries = hk >= 1.3 ? [1, 2, 3] : [1, 2]
+  let fit = fitText(ctx, title, font, maxW, 2, Math.min(46 * s0 * hk, avail / 2.45), 26 * s0)
+  for (const n of tries) {
+    const cap = n === 1 ? Math.min(58 * s0 * hk, avail * 0.8) : Math.min((n === 2 ? 50 : 44) * s0 * hk, avail / (n * 1.24))
+    const f2 = fitText(ctx, title, font, maxW, n, cap, Math.min(cap, (n === 1 ? 40 : 26) * s0))
+    ctx.font = font(f2.size)
+    const whole = f2.lines.length > 0 && !f2.lines[f2.lines.length - 1].endsWith('…') && f2.lines.every((l) => ctx.measureText(l).width <= maxW + 0.5)
+    if (whole && f2.size > fit.size) fit = f2
+  }
   const blockH = fit.lines.length * fit.lineHeight
   const y0 = top + (avail - blockH) / 2
   ctx.save()
@@ -1694,23 +1717,15 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t: number) {
     return
   }
   // lively: a TV-style colour bar wipes across each line and leaves the text behind it
+  // (round 29: the text is already there; the bar runs over it once at the start)
   fit.lines.forEach((line, i) => {
     const lw = Math.min(maxW, ctx.measureText(line).width)
     const cy = y0 + fit.lineHeight * (i + 0.5)
-    const a = 0.35 + i * 0.12
-    const grow = ease.outCubic(win(t, a, a + 0.32))
-    const leave = ease.inOutCubic(win(t, a + 0.32, a + 0.62))
-    const textIn = win(t, a + 0.3, a + 0.34)
-    ctx.save()
-    if (textIn > 0) {
-      ctx.globalAlpha = textIn
-      ctx.beginPath()
-      ctx.rect(left - 4 * s, cy - fit.lineHeight, (lw + 8 * s) * Math.max(leave, textIn >= 1 ? 1 : 0), fit.lineHeight * 2)
-      if (leave < 1) ctx.clip()
-      ctx.fillStyle = theme.title
-      ctx.fillText(line, left, cy)
-    }
-    ctx.restore()
+    const a = 0.25 + i * 0.12
+    const grow = ease.outCubic(win(open, a, a + 0.32))
+    const leave = ease.inOutCubic(win(open, a + 0.32, a + 0.62))
+    ctx.fillStyle = theme.title
+    ctx.fillText(line, left, cy)
     if (grow > 0 && leave < 1) {
       const x0 = left - 6 * s + (lw + 12 * s) * leave
       const x1 = left - 6 * s + (lw + 12 * s) * grow
@@ -1764,9 +1779,10 @@ function scroll(ctx: Ctx, text: string, r: Rect, t: number, s: number, color: st
   ctx.restore()
 }
 
-function drawFooter(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t: number) {
+function drawFooter(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   const s = env.L.s
   const f = env.cfg.frame
+  const t = t0 + FRAME_SETTLE
   const enter = win(t, 0.1, 0.55)
   ctx.save()
   ctx.beginPath()
@@ -4378,17 +4394,19 @@ function drawMain(ctx: Ctx, env: DrawEnv, seg: Segment, local: number, pic: Pict
     if (L.footer) drawBlurFill(ctx, env, pic, L.footer, cfg.look.rotate, cfg.look.flip)
   }
   // video fades up from black at the very start of the news
-  if (seg.mainOffset === 0) blackFade(ctx, L.W, L.H, 1 - win(local, 0, 0.3))
+  // round 29: only after an intro (a video that starts with the news shows a full picture on frame one)
+  if (seg.mainOffset === 0 && env.tl.mainStart > 0.01) blackFade(ctx, L.W, L.H, 1 - win(local, 0, 0.3))
 
   if (theme) {
     if (L.header) drawHeader(ctx, env, theme, L.header, mainT)
     if (L.footer) drawFooter(ctx, env, theme, L.footer, mainT)
     if (theme.edge && L.header) {
-      const p = ease.outCubic(win(mainT, 0.2, 0.7))
+      const p = ease.outCubic(win(mainT + FRAME_SETTLE, 0.2, 0.7))
       ctx.fillStyle = theme.edge
-      ctx.fillRect(L.header.x, L.header.y + L.header.h - 5 * L.s, L.header.w * p, 5 * L.s)
+      // under the picture the accent line sits on the band's top edge
+      ctx.fillRect(L.header.x, cfg.frame.titlePos === 'bottom' ? L.header.y : L.header.y + L.header.h - 5 * L.s, L.header.w * p, 5 * L.s)
     }
-    if (cfg.frame.id === 'special') drawBrackets(ctx, L.video, mainT, L.s, '#E8B33A')
+    if (cfg.frame.id === 'special') drawBrackets(ctx, L.video, mainT + FRAME_SETTLE, L.s, '#E8B33A')
   }
 
   drawLogoBug(ctx, env, mainT)
@@ -4401,6 +4419,80 @@ function drawMain(ctx: Ctx, env: DrawEnv, seg: Segment, local: number, pic: Pict
     const used = drawCaption(ctx, env, c, src - c.at, c.dur === null ? dur + 1 : dur, theme?.accent ?? BRAND.red, stacks[c.pos] ?? 0)
     stacks[c.pos] = (stacks[c.pos] ?? 0) + used
   }
+  drawSubtitle(ctx, env, src, stacks.bc ?? 0)
+  drawProgress(ctx, env, mainT)
+}
+
+/** Round 29 — the subtitle line showing at main-video second `src`. */
+function drawSubtitle(ctx: Ctx, env: DrawEnv, src: number, lift: number) {
+  const st = env.cfg.subtitles
+  if (!st.on || !st.items.length) return
+  const at = src - st.shift
+  const line = st.items.find((x) => at >= x.at && at < x.end)
+  if (!line) return
+  const v = env.L.video
+  const u = Math.min(v.w, v.h) / 1080
+  const tall = v.h > v.w * 1.2
+  // sized by the picture's width: readable on a phone in a reel and on a TV-shaped video alike
+  const px = v.w * (tall ? 0.05 : v.h > v.w * 0.8 ? 0.042 : 0.032) * st.size * (st.style === 'pop' ? 1.1 : 1)
+  const maxW = v.w * 0.86
+  const font = (n: number) => bodyFont(st.style === 'pop' ? 800 : 700, n)
+  const fit = fitText(ctx, line.text, font, maxW, 2, px, px * 0.7, 1.28)
+  const age = at - line.at
+  const pop = st.style === 'pop' ? ease.outBack(win(age, 0, 0.18)) : 1
+  const alpha = win(age, 0, 0.12) * (1 - win(at, line.end - 0.08, line.end))
+  if (alpha <= 0) return
+  const bottom = v.y + v.h - (tall ? v.h * 0.2 : v.h * 0.07) - lift
+  ctx.save()
+  ctx.globalAlpha *= alpha
+  ctx.font = font(fit.size)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  const cx = v.x + v.w / 2
+  const n = fit.lines.length
+  fit.lines.forEach((l, i) => {
+    const cy = bottom - (n - i - 0.5) * fit.lineHeight
+    const w = ctx.measureText(l).width
+    ctx.save()
+    ctx.translate(cx, cy)
+    ctx.scale(pop, pop)
+    if (st.style === 'box' || st.style === 'pop') {
+      const padX = fit.size * 0.45
+      fillRoundRect(ctx, -w / 2 - padX, -fit.lineHeight / 2 + 2 * u, w + padX * 2, fit.lineHeight - 4 * u, fit.size * 0.18, st.style === 'pop' ? '#FFD400' : 'rgba(0,0,0,0.74)')
+      ctx.fillStyle = st.style === 'pop' ? '#111111' : '#FFFFFF'
+    } else {
+      ctx.lineJoin = 'round'
+      ctx.lineWidth = fit.size * 0.16
+      ctx.strokeStyle = 'rgba(0,0,0,0.9)'
+      ctx.strokeText(l, 0, fit.size * 0.04)
+      ctx.fillStyle = '#FFFFFF'
+    }
+    ctx.fillText(l, 0, fit.size * 0.04)
+    ctx.restore()
+  })
+  ctx.restore()
+}
+
+const PROGRESS_COLORS = { red: '#E11D2E', yellow: '#FFC20E', blue: '#2563EB', white: '#FFFFFF' } as const
+
+/** Round 29 — a reel-style bar along the bottom of the picture: how much of the news has played. */
+function drawProgress(ctx: Ctx, env: DrawEnv, mainT: number) {
+  const pr = env.cfg.progress
+  if (!pr.on || env.tl.mainDuration <= 0) return
+  const v = env.L.video
+  const h = Math.max(6, Math.round(Math.max(v.w, v.h) * 0.0055))
+  const p = clamp(mainT / env.tl.mainDuration)
+  const y = v.y + v.h - h
+  ctx.save()
+  ctx.fillStyle = 'rgba(255,255,255,0.28)'
+  ctx.fillRect(v.x, y, v.w, h)
+  ctx.fillStyle = PROGRESS_COLORS[pr.color]
+  ctx.fillRect(v.x, y, v.w * p, h)
+  // a small glowing head
+  ctx.shadowColor = PROGRESS_COLORS[pr.color]
+  ctx.shadowBlur = h * 2
+  ctx.fillRect(v.x + v.w * p - h, y, h, h)
+  ctx.restore()
 }
 
 /** Round 26 — the slowed second pass of an action replay: a white flash, then a "রিপ্লে" tag in the corner. */
@@ -4473,7 +4565,8 @@ export function drawOutputFrame(ctx: Ctx, env: DrawEnv, seg: Segment, T: number,
       break
     case 'intro':
     case 'outro':
-      if (seg.scene) drawScene(ctx, env, seg.scene, local, seg.dur)
+      if (seg.scene && seg.cover) drawCover(ctx, env, seg.scene, seg.cover, local, seg.dur)
+      else if (seg.scene) drawScene(ctx, env, seg.scene, local, seg.dur)
       else drawClipFull(ctx, env, pic, local, seg.dur, seg.kind === 'outro')
       break
     case 'ad':
@@ -4490,6 +4583,40 @@ export function drawOutputFrame(ctx: Ctx, env: DrawEnv, seg: Segment, T: number,
   const tr = transitionAt(env.tl, env.cfg, T)
   if (tr) drawTransition(ctx, env.cfg.transition.id, tr.p, tr.region === 'video' ? env.L.video : { x: 0, y: 0, w: env.L.W, h: env.L.H }, env.L.s / env.L.k, env.scratch.box)
   ctx.restore()
+}
+
+/** When an intro looks finished: its title and design are all in, nothing has left yet. */
+export function introSettledAt(scene: SceneId, dur: number) {
+  const custom: Partial<Record<SceneId, number>> = { kinetic: 3, 'tv-open': 2.6, countdown: 3 }
+  return Math.min(custom[scene] ?? dur * 0.55, dur - 0.6)
+}
+
+/**
+ * Round 29 — the opening cover: the intro's finished look, held still with
+ * a slow push-in and one light sweep, so the first frame (what players and
+ * feeds show before play) is the full design. Without a transition it melts
+ * into the start of the intro.
+ */
+function drawCover(ctx: Ctx, env: DrawEnv, scene: SceneId, sceneDur: number, local: number, dur: number) {
+  const { W, H } = env.L
+  const at = introSettledAt(scene, sceneDur)
+  ctx.save()
+  const z = 1 + 0.025 * ease.outCubic(win(local, 0, dur))
+  ctx.translate(W / 2, H / 2)
+  ctx.scale(z, z)
+  ctx.translate(-W / 2, -H / 2)
+  drawScene(ctx, env, scene, at, sceneDur)
+  ctx.restore()
+  lightSweep(ctx, { x: 0, y: 0, w: W, h: H }, local, 1000, 0.1, 0.16)
+  if (env.cfg.transition.id === 'none') {
+    const p = win(local, dur - 0.3, dur)
+    if (p > 0) {
+      ctx.save()
+      ctx.globalAlpha = p
+      drawScene(ctx, env, scene, 0, sceneDur)
+      ctx.restore()
+    }
+  }
 }
 
 /** Sound-effect cues on the output timeline (whoosh / hit / chime). */
@@ -4509,6 +4636,7 @@ export function sfxCues(tl: Timeline, cfg: EditConfig): { t: number; kind: SfxKi
   }
   if (!cfg.audio.sfx) return cues
   for (const s of tl.segments) {
+    if (s.cover) continue
     if (s.scene === 'breaking') cues.push({ t: s.t0, kind: 'whoosh', gain: 0.8 }, { t: s.t0 + 0.17, kind: 'hit', gain: 1 }, { t: s.t0 + s.dur - 0.5, kind: 'whoosh', gain: 0.6 })
     else if (s.scene === 'headline') cues.push({ t: s.t0 + 0.05, kind: 'whoosh', gain: 0.6 }, { t: s.t0 + 0.6, kind: 'chime', gain: 0.6 })
     else if (s.scene === 'special') cues.push({ t: s.t0 + 0.08, kind: 'hit', gain: 0.6 }, { t: s.t0 + 0.5, kind: 'chime', gain: 0.55 })

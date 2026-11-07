@@ -112,7 +112,57 @@ export interface VoiceOver {
   clean: boolean
   /** Seconds skipped at the start of the recording. */
   offset: number
+  /** Round 29: main-video second where the voice stops (null = plays to its end). */
+  until: number | null
 }
+
+/** Round 29: one subtitle line (main-video seconds). */
+export interface SubLine {
+  at: number
+  end: number
+  text: string
+}
+
+export type SubStyle = 'box' | 'outline' | 'pop'
+export const SUB_STYLES: { id: SubStyle; name: string; hint: string }[] = [
+  { id: 'box', name: 'কালো পটভূমি', hint: 'টিভির মতো, সব দৃশ্যে পড়া যায়' },
+  { id: 'outline', name: 'সাদা লেখা, কালো রেখা', hint: 'ছবি কম ঢাকে' },
+  { id: 'pop', name: 'রিল স্টাইল', hint: 'হলুদ পটভূমি, বড় ও মোটা লেখা' },
+]
+
+/** Round 29: one-click starting looks for common news videos (only the design changes, never the text or edits). */
+export const QUICK_LOOKS: { id: string; name: string; hint: string; apply: (c: EditConfig) => EditConfig }[] = [
+  {
+    id: 'breaking-reel',
+    name: 'ব্রেকিং রিল',
+    hint: '৯:১৬, ব্রেকিং ফ্রেম ও ইন্ট্রো, প্রগ্রেস বার',
+    apply: (c) => ({ ...c, format: '9:16', frame: { ...c.frame, id: 'breaking', motion: 'lively' }, intro: { ...c.intro, id: 'breaking', cover: true }, outro: { ...c.outro, id: 'follow' }, progress: { ...c.progress, on: true, color: 'red' }, watermark: { ...c.watermark, on: true } }),
+  },
+  {
+    id: 'news',
+    name: 'সাধারণ সংবাদ',
+    hint: '১৬:৯, মিহা ফ্রেম, শিরোনাম ইন্ট্রো',
+    apply: (c) => ({ ...c, format: '16:9', frame: { ...c.frame, id: 'nil', motion: 'lively' }, intro: { ...c.intro, id: 'nil-reveal', cover: true }, outro: { ...c.outro, id: 'nil-end' }, progress: { ...c.progress, on: false }, watermark: { ...c.watermark, on: true } }),
+  },
+  {
+    id: 'reel-lower',
+    name: 'রিল — শিরোনাম নিচে',
+    hint: '৯:১৬, টিভি ফ্রেম, শিরোনাম ছবির নিচে',
+    apply: (c) => ({ ...c, format: '9:16', frame: { ...c.frame, id: 'tv', titlePos: 'bottom', motion: 'lively' }, intro: { ...c.intro, id: 'tv-open', cover: true }, outro: { ...c.outro, id: 'subscribe' }, progress: { ...c.progress, on: true, color: 'yellow' }, watermark: { ...c.watermark, on: true } }),
+  },
+  {
+    id: 'interview',
+    name: 'সাক্ষাৎকার',
+    hint: 'সাক্ষাৎকার ফ্রেম, শান্ত অ্যানিমেশন',
+    apply: (c) => ({ ...c, frame: { ...c.frame, id: 'interview', motion: 'calm' }, intro: { ...c.intro, id: 'headline', cover: true }, outro: { ...c.outro, id: 'credits' }, watermark: { ...c.watermark, on: true } }),
+  },
+  {
+    id: 'sports',
+    name: 'খেলা',
+    hint: 'খেলার ফ্রেম, ইন্ট্রো ও মিউজিক',
+    apply: (c) => ({ ...c, frame: { ...c.frame, id: 'sports', motion: 'lively' }, intro: { ...c.intro, id: 'sports', cover: true }, outro: { ...c.outro, id: 'follow' }, audio: { ...c.audio, music: 'sports' }, watermark: { ...c.watermark, on: true } }),
+  },
+]
 
 export interface MediaRef {
   id: number
@@ -358,6 +408,8 @@ export interface EditConfig {
     size: FrameSize
     /** Round 27: height of the top / bottom band (1 = standard, up to 2). */
     top: number
+    /** Round 29: where the title band goes: above the picture, or under it (above the ticker). */
+    titlePos: 'top' | 'bottom'
     bottom: number
     /** Round 27: 'lively' adds a light sweep and accent motion; 'calm' is the old look. */
     motion: FrameMotion
@@ -385,10 +437,15 @@ export interface EditConfig {
     plate: boolean
     opacity: number
   }
-  intro: { id: IntroId; text: string; clip: MediaRef | null }
+  /** `cover` (round 29): the intro's finished design shows first for a moment, so the video never opens on black. */
+  intro: { id: IntroId; text: string; clip: MediaRef | null; cover: boolean }
   outro: { id: OutroId; clip: MediaRef | null }
   ads: AdBreak[]
   captions: Caption[]
+  /** Round 29: subtitles (typed, pasted or from an .srt file). */
+  subtitles: { on: boolean; style: SubStyle; size: number; shift: number; items: SubLine[] }
+  /** Round 29: a thin bar along the bottom of the picture showing how much of the news is left. */
+  progress: { on: boolean; color: 'red' | 'yellow' | 'blue' | 'white' }
   audio: AudioSettings
   cuts: Cut[]
   look: Look
@@ -413,13 +470,15 @@ export const DEFAULT_CONFIG: EditConfig = {
   fit: 'blur',
   quality: '1080',
   fileSize: 'balanced',
-  frame: { id: 'none', title: '', kicker: '', date: true, footer: 'ticker', ticker: '', adText: '', adImage: null, size: 'auto', top: 1, bottom: 1, motion: 'lively' },
+  frame: { id: 'none', title: '', kicker: '', date: true, footer: 'ticker', ticker: '', adText: '', adImage: null, size: 'auto', top: 1, bottom: 1, motion: 'lively', titlePos: 'top' },
   logo: { on: false, style: 'reveal', corner: 'tr', size: 6, every: 12, plate: true, opacity: 1 },
   watermark: { on: true, style: 'hop', size: 6, every: 9, opacity: 0.42, site: true },
-  intro: { id: 'none', text: '', clip: null },
+  intro: { id: 'none', text: '', clip: null, cover: true },
   outro: { id: 'none', clip: null },
   ads: [],
   captions: [],
+  subtitles: { on: true, style: 'box', size: 1, shift: 0, items: [] },
+  progress: { on: false, color: 'red' },
   audio: { main: 1, clips: 1, sfx: true, music: DEFAULT_MUSIC, musicVol: 0.25, duck: true, musicOver: 'all', voice: 'off', denoise: 'off', unmusic: 'off', loudness: '-14' },
   cuts: [],
   look: { filter: 'none', brightness: 1, contrast: 1, saturation: 1, zoom: 1, panX: 0, panY: 0, rotate: 0, flip: false },
@@ -623,6 +682,8 @@ export const LIMITS = {
   capSub: 70,
   ads: 6,
   captions: 12,
+  subtitles: 600,
+  subtitleText: 160,
   cuts: 150,
   blurs: 8,
   speeds: 12,
@@ -791,6 +852,7 @@ export function normalizeConfig(raw: unknown): EditConfig {
       adImage: mediaRef(frame.adImage),
       size: oneOf(frame.size, FRAME_SIZES.map((x) => x.id), d.frame.size),
       top: num(frame.top, 1, 1, 2),
+      titlePos: oneOf(frame.titlePos, ['top', 'bottom'] as const, 'top'),
       bottom: num(frame.bottom, 1, 1, 2),
       motion: oneOf(frame.motion, ['lively', 'calm'] as const, d.frame.motion),
     },
@@ -815,6 +877,7 @@ export function normalizeConfig(raw: unknown): EditConfig {
       id: oneOf(intro.id, ['none', ...INTROS.map((i) => i.id)] as IntroId[], d.intro.id),
       text: str(intro.text, LIMITS.introText),
       clip: mediaRef(intro.clip),
+      cover: bool(intro.cover, d.intro.cover),
     },
     outro: {
       id: oneOf(outro.id, ['none', ...OUTROS.map((i) => i.id)] as OutroId[], d.outro.id),
@@ -828,6 +891,22 @@ export function normalizeConfig(raw: unknown): EditConfig {
       })
       .filter(Boolean)
       .slice(0, LIMITS.ads) as AdBreak[],
+    subtitles: {
+      on: bool(o.subtitles?.on, d.subtitles.on),
+      style: oneOf(o.subtitles?.style, SUB_STYLES.map((x) => x.id), d.subtitles.style),
+      size: num(o.subtitles?.size, 1, 0.7, 1.6),
+      shift: num(o.subtitles?.shift, 0, -30, 30),
+      items: (Array.isArray(o.subtitles?.items) ? o.subtitles.items : [])
+        .map((x: any): SubLine | null => {
+          const text = str(x?.text, LIMITS.subtitleText).trim()
+          const at = num(x?.at, 0, 0, 86400)
+          const end = num(x?.end, at + 2, 0, 86400)
+          return text && end > at ? { at, end, text } : null
+        })
+        .filter((x: SubLine | null): x is SubLine => !!x)
+        .slice(0, LIMITS.subtitles),
+    },
+    progress: { on: bool(o.progress?.on, d.progress.on), color: oneOf(o.progress?.color, ['red', 'yellow', 'blue', 'white'] as const, d.progress.color) },
     captions: (Array.isArray(o.captions) ? o.captions : [])
       .map((c: any) => ({
         text: str(c?.text, LIMITS.capText),
@@ -935,7 +1014,7 @@ export function normalizeConfig(raw: unknown): EditConfig {
       .map((x: any): VoiceOver | null => {
         const clip = mediaRef(x?.clip)
         if (!clip) return null
-        return { clip, at: num(x?.at, 0, 0, 86400), vol: num(x?.vol, 1, 0, 2), duck: num(x?.duck, 0.3, 0, 1), clean: bool(x?.clean, true), offset: num(x?.offset, 0, 0, 3600) }
+        return { clip, at: num(x?.at, 0, 0, 86400), vol: num(x?.vol, 1, 0, 2), duck: num(x?.duck, 0.3, 0, 1), clean: bool(x?.clean, true), offset: num(x?.offset, 0, 0, 3600), until: x?.until == null ? null : num(x?.until, 0, 0, 86400) }
       })
       .filter((x: VoiceOver | null): x is VoiceOver => !!x)
       .slice(0, LIMITS.voices),
@@ -1050,6 +1129,7 @@ export function styleOnly(cfg: EditConfig): EditConfig {
     intro: { ...cfg.intro, text: '' },
     ads: [],
     captions: [],
+    subtitles: { ...cfg.subtitles, items: [] },
     cuts: [],
     blurs: [],
     speeds: [],
@@ -1071,6 +1151,8 @@ export function hasEdits(cfg: EditConfig, srcDuration: number | null): boolean {
     cfg.frame.id !== 'none' ||
     cfg.logo.on ||
     cfg.watermark.on ||
+    cfg.subtitles.items.length > 0 ||
+    cfg.progress.on ||
     cfg.intro.id !== 'none' ||
     cfg.outro.id !== 'none' ||
     cfg.ads.length > 0 ||

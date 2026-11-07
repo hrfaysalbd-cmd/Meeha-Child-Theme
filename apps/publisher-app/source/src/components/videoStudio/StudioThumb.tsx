@@ -90,7 +90,10 @@ export default function ThumbPanel({
   face,
   onPickFace,
   getMain,
+  wide = false,
 }: {
+  /** Round 29: shown under the preview, full width: preview and controls side by side. */
+  wide?: boolean
   cfg: EditConfig
   set: Setter
   env: DrawEnv
@@ -246,7 +249,8 @@ export default function ThumbPanel({
   }
 
   return (
-    <div>
+    <div className={wide ? 'grid md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] gap-x-6 items-start' : ''}>
+      <div className={wide ? 'md:sticky md:top-4' : ''}>
       <Section title="থাম্বনেইল ডিজাইন" hint="রেন্ডারের সময় পোস্টের থাম্বনেইল এই ডিজাইনে তৈরি হবে। প্রিভিউর উপর লেয়ার টেনে সরান।">
         <SwitchRow label="ডিজাইন করা থাম্বনেইল" hint="বন্ধ রাখলে ফ্রেমসহ ভিডিওর একটি দৃশ্য থাম্বনেইল হবে।" checked={t.on} onChange={(v) => patch({ on: v })} testId="thumb-on" />
         <div className={`mt-2 rounded-xl overflow-hidden border border-neutral-200 bg-neutral-900 flex justify-center ${t.on ? '' : 'opacity-40'}`}>
@@ -271,6 +275,8 @@ export default function ThumbPanel({
           {job && <span className="text-[11.5px] text-neutral-500 self-center">{job}</span>}
         </div>
       </Section>
+      </div>
+      <div>
 
       <Section title="মাপ (রেশিও)" hint="পোস্টে যে মাপটি বসবে। প্রতিটি নকশা সব মাপে নিজে থেকে সাজে।">
         <Segmented value={t.size} options={THUMB_SIZES.map((s) => ({ id: s.id, name: `${s.name} · ${s.hint}` }))} onChange={(v) => patch({ size: v })} size="sm" />
@@ -290,7 +296,7 @@ export default function ThumbPanel({
             return (
               <Group key={g.id} title={g.name} hint={g.hint} count={items.length} open={open} onToggle={() => groups.toggle(g.id)} hasSelected={items.some((x) => x.id === t.template)} testId={`thumb-group-${g.id}`}>
                 {open && (
-                  <div className={`grid ${ratio >= 1 ? 'grid-cols-2' : 'grid-cols-3'} gap-2.5`}>
+                  <div className={`grid ${wide ? (ratio >= 1 ? 'grid-cols-2 xl:grid-cols-3' : 'grid-cols-3 xl:grid-cols-4') : ratio >= 1 ? 'grid-cols-2' : 'grid-cols-3'} gap-2.5`}>
                     {items.map((x) => (
                       <DesignCard
                         key={x.id}
@@ -486,6 +492,7 @@ export default function ThumbPanel({
           <p className="text-[11px] text-neutral-400 mt-1">ছবি না দিলে ভিডিওর দৃশ্যটিই বসবে।</p>
         </div>
       </Section>
+      </div>
     </div>
   )
 }

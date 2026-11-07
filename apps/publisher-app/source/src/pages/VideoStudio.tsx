@@ -27,7 +27,7 @@ import {
 } from '../lib/api'
 import { DEFAULT_CONFIG, FRAMES, INTROS, LIMITS, OUTROS, hasEdits, normalizeConfig, styleOnly, type EditConfig, type FormatId, type MediaRef } from '../lib/videoEdit/config'
 import { BUILTIN_CLIPS, fetchBlob, loadFonts, loadLogo, type LogoAsset } from '../lib/videoEdit/assets'
-import { drawOutputFrame, drawScene, makeScratch, type DrawEnv, type Picture } from '../lib/videoEdit/draw'
+import { drawOutputFrame, drawScene, introSettledAt, makeScratch, type DrawEnv, type Picture } from '../lib/videoEdit/draw'
 import { EMPTY_HOUSE, HOUSE_ADS, houseInfo, type HouseAdId, type HouseInfo } from '../lib/videoEdit/houseads'
 import { bnClock, bnDate } from '../lib/videoEdit/motion'
 import { PreviewPlayer, probeUrl, type PreviewState } from '../lib/videoEdit/preview'
@@ -78,6 +78,7 @@ import SoundPanel, { type AuditionState } from '../components/videoStudio/Studio
 import VoicePanel from '../components/videoStudio/StudioVoice'
 import EffectsPanel from '../components/videoStudio/StudioEffects'
 import ThumbPanel from '../components/videoStudio/StudioThumb'
+import SubtitlesSection from '../components/videoStudio/StudioSubtitles'
 
 type Tab = 'frame' | 'logo' | 'intro' | 'ads' | 'captions' | 'tools' | 'fx' | 'sound' | 'thumb' | 'layout'
 
@@ -90,7 +91,6 @@ const TABS: { id: Tab; name: string; icon: (p: { className?: string }) => ReactN
   { id: 'tools', name: 'সম্পাদনা', icon: IconAdjustments },
   { id: 'fx', name: 'ইফেক্ট', icon: IconBolt },
   { id: 'sound', name: 'শব্দ ও মিউজিক', icon: IconMusic },
-  { id: 'thumb', name: 'থাম্বনেইল', icon: IconLibraryPhoto },
   { id: 'layout', name: 'আকার', icon: IconAspectRatio },
 ]
 
@@ -213,6 +213,24 @@ export default function VideoStudio() {
   // round 28: upload only on পোস্টে বসান, unless this is ticked
   const [attach, setAttach] = useState(false)
   const [setThumb, setSetThumb] = useState(true)
+  // round 29: the thumbnail studio under the editor; open unless closed before
+  const [thumbOpen, setThumbOpenRaw] = useState(() => {
+    try {
+      return localStorage.getItem('meeha-studio:thumb-open') !== '0'
+    } catch {
+      return true
+    }
+  })
+  const setThumbOpen = (f: (v: boolean) => boolean) =>
+    setThumbOpenRaw((v) => {
+      const n = f(v)
+      try {
+        localStorage.setItem('meeha-studio:thumb-open', n ? '1' : '0')
+      } catch {
+        // private mode: just not remembered
+      }
+      return n
+    })
   const [notice, setNotice] = useState('')
   const [presetMenu, setPresetMenu] = useState(false)
   const [kit, setKit] = useState<VideoKit | null>(null)
@@ -537,7 +555,7 @@ export default function VideoStudio() {
           drawOutputFrame(ctx, e2, { ...seg, mainOffset: 3 - 0 }, seg.t0, pic)
         } else {
           const scene = (kind === 'intro' ? INTROS : OUTROS).find((x) => x.id === id)
-          if (scene?.duration) drawScene(ctx, e2, id as SceneId, kind === 'intro' ? scene.duration * 0.55 : 1.8, scene.duration)
+          if (scene?.duration) drawScene(ctx, e2, id as SceneId, kind === 'intro' ? introSettledAt(id as SceneId, scene.duration) : 1.8, scene.duration)
           else {
             // clip-based: a branded placeholder card
             const g = ctx.createLinearGradient(0, 0, L2.W, L2.H)
@@ -1413,7 +1431,7 @@ export default function VideoStudio() {
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_400px] gap-5 items-start">
         {/* preview */}
-        <Card className="p-4 lg:sticky lg:top-4">
+        <Card className="p-4">
           <div className="relative rounded-xl bg-[#0b0d12] flex items-center justify-center overflow-hidden" style={{ height: 'min(62vh, 640px)' }}>
             <canvas
               ref={canvasRef}
@@ -1547,10 +1565,12 @@ export default function VideoStudio() {
                 onPickPip={() => setPicker({ kind: 'pip' })}
               />
             )}
-            {tab === 'thumb' && (
-              <ThumbPanel cfg={cfg} set={set} env={thumbEnv ?? env} mainUrl={loaded.mainUrl} range={range} playhead={playheadSrc} face={facePic} onPickFace={() => setImagePicker('face')} getMain={mainBlob} />
-            )}
             {tab === 'captions' && <CaptionsPanel cfg={cfg} set={set} range={range} playhead={playheadSrc} defaultName={loaded.video.author.name} kit={kit} onKit={setKit} />}
+            {tab === 'captions' && (
+              <div className="mt-5 pt-4 border-t border-neutral-100">
+                <SubtitlesSection cfg={cfg} set={set} range={range} playhead={playheadSrc} />
+              </div>
+            )}
             {tab === 'layout' && (
               <LayoutPanel
                 cfg={cfg}
@@ -1612,6 +1632,35 @@ export default function VideoStudio() {
             )}
           </div>
         </Card>
+      </div>
+
+      {/* round 29: the thumbnail studio gets the full width under the editor */}
+      <div className="mt-5" data-testid="thumb-studio">
+      <Card className="overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setThumbOpen((v) => !v)}
+          className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-neutral-50"
+          aria-expanded={thumbOpen}
+          data-testid="thumb-studio-toggle"
+        >
+          <span className="flex items-center gap-2.5 min-w-0">
+            <IconLibraryPhoto className="w-5 h-5 text-brand-600 shrink-0" />
+            <span className="min-w-0">
+              <span className="block text-[14px] font-semibold text-neutral-900">থাম্বনেইল স্টুডিও</span>
+              <span className="block text-[11.5px] text-neutral-500 truncate">
+                {cfg.thumb.on ? 'ডিজাইন করা থাম্বনেইল চালু — রেন্ডারের সময় পোস্টে বসবে' : 'বন্ধ — ফ্রেমসহ ভিডিওর একটি দৃশ্য থাম্বনেইল হবে'}
+              </span>
+            </span>
+          </span>
+          <span className="text-[12.5px] font-semibold text-brand-700 shrink-0">{thumbOpen ? 'বন্ধ করুন ▲' : 'খুলুন ▼'}</span>
+        </button>
+        {thumbOpen && (
+          <div className="px-4 pb-4 border-t border-neutral-100 pt-3">
+            <ThumbPanel wide cfg={cfg} set={set} env={thumbEnv ?? env} mainUrl={loaded.mainUrl} range={range} playhead={playheadSrc} face={facePic} onPickFace={() => setImagePicker('face')} getMain={mainBlob} />
+          </div>
+        )}
+      </Card>
       </div>
 
       {picker && (

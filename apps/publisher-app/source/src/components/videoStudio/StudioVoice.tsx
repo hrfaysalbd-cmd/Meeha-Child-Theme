@@ -141,7 +141,7 @@ export default function VoicePanel({
       const title = name.replace(/\.[^.]+$/, '')
       set((c) => ({
         ...c,
-        voices: [...c.voices, { clip: { id: res.id, url: res.url, title, duration }, at, vol: 1, duck: 0.3, clean: true, offset: 0 }].slice(0, LIMITS.voices),
+        voices: [...c.voices, { clip: { id: res.id, url: res.url, title, duration }, at, vol: 1, duck: 0.3, clean: true, offset: 0, until: null }].slice(0, LIMITS.voices),
       }))
       setRec(null)
     } catch (err) {
@@ -260,7 +260,7 @@ export default function VoicePanel({
             className="flex items-center gap-1.5 rounded-full bg-brand-600 text-white px-4 py-2 text-[13px] font-semibold disabled:opacity-40"
           >
             <IconMicrophone className="w-4 h-4" />
-            রেকর্ড শুরু
+            {cfg.voices.length ? 'আরেকটি ভয়েস রেকর্ড' : 'রেকর্ড শুরু'}
           </button>
         )}
         <button
@@ -271,7 +271,7 @@ export default function VoicePanel({
           className="flex items-center gap-1.5 rounded-full border border-neutral-300 px-4 py-2 text-[13px] font-semibold text-neutral-700 disabled:opacity-40"
         >
           <IconUpload className="w-4 h-4" />
-          ফাইল আপলোড
+          {cfg.voices.length ? 'আরেকটি ফাইল' : 'ফাইল আপলোড'}
         </button>
         <input
           ref={fileInput}
@@ -337,7 +337,7 @@ export default function VoicePanel({
       {cfg.voices.length > 0 && (
         <div className="mt-3 flex flex-col gap-2">
           <p className="text-[12px] font-semibold text-neutral-700">
-            ভিডিওতে ভয়েস ({bnNumber(cfg.voices.length)}/{bnNumber(LIMITS.voices)})
+            ভিডিওতে ভয়েস ({bnNumber(cfg.voices.length)}/{bnNumber(LIMITS.voices)}) — আরও যোগ করতে উপরের “রেকর্ড” বা “ফাইল আপলোড” আবার চাপুন
           </p>
           {cfg.voices.map((v, i) => {
             const dur = v.clip.duration ?? null
@@ -351,7 +351,27 @@ export default function VoicePanel({
                       {dur ? ` · ${bnClock(dur)}` : ''}
                     </span>
                   </div>
-                  <TimeField label="মূল ভিডিওর কোন সময়ে" value={v.at} min={range.start} max={range.end} onChange={(x) => update(i, { at: x })} onPlayhead={() => update(i, { at: here() })} />
+                  <TimeField label="শুরু (ভিডিওর সময়)" value={v.at} min={range.start} max={range.end} onChange={(x) => update(i, { at: x, until: v.until !== null && v.until <= x ? null : v.until })} onPlayhead={() => update(i, { at: here() })} />
+                  {v.until === null ? (
+                    <div>
+                      <span className="block text-[11.5px] text-neutral-500 mb-1">শেষ</span>
+                      <button
+                        type="button"
+                        onClick={() => update(i, { until: Math.min(range.end, Math.round((v.at + Math.max(1, (dur ?? 10) - v.offset)) * 10) / 10) })}
+                        className="rounded-lg border border-dashed border-neutral-300 px-2.5 py-1.5 text-[12px] text-neutral-600 hover:border-brand-400"
+                        data-testid="voice-set-until"
+                      >
+                        পুরোটা · শেষ সময় দিন
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-end gap-1">
+                      <TimeField label="শেষ (ভিডিওর সময়)" value={v.until} min={v.at + 0.5} max={range.end} onChange={(x) => update(i, { until: x })} onPlayhead={() => update(i, { until: Math.max(v.at + 0.5, here()) })} />
+                      <button type="button" onClick={() => update(i, { until: null })} className="mb-1.5 text-[11px] text-neutral-500 underline" title="ভয়েস পুরোটা বাজবে">
+                        পুরোটা
+                      </button>
+                    </div>
+                  )}
                   <button type="button" onClick={() => set((c) => ({ ...c, voices: c.voices.filter((_, j) => j !== i) }))} aria-label="সরান" className="ml-auto mb-1.5 text-red-500 hover:text-red-700">
                     <IconTrash className="w-4 h-4" />
                   </button>
@@ -383,7 +403,7 @@ export default function VoicePanel({
             )
           })}
           <p className="text-[11px] text-neutral-400">
-            সময় মূল ভিডিওর হিসাবে, এখন: {bnClock(here())}। প্রিভিউতে ভয়েস শোনা যায়; চূড়ান্ত মিক্স শুনতে নিচের “শুনে দেখুন” চাপুন। রেকর্ড শুরুতে সামান্য দেরি থাকলে “শুরুর অংশ বাদ” দিয়ে মিলিয়ে নিন।
+            সময় মূল ভিডিওর হিসাবে, এখন: {bnClock(here())}। “শেষ” দিলে ভয়েস সেই সময়ে থেমে যাবে (নরমভাবে মিলিয়ে)। একাধিক ভয়েস একসাথে বা পরপর বাজতে পারে। প্রিভিউতে ভয়েস শোনা যায়; চূড়ান্ত মিক্স শুনতে নিচের “শুনে দেখুন” চাপুন। রেকর্ড শুরুতে সামান্য দেরি থাকলে “শুরুর অংশ বাদ” দিয়ে মিলিয়ে নিন।
           </p>
         </div>
       )}

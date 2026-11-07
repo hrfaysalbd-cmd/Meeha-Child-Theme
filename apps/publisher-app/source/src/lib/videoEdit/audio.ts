@@ -334,7 +334,7 @@ export async function mixWindow(
   // round 27: voice-overs, on top of the dipped bed
   for (const v of voices) {
     const when = v.start - r0
-    const len = v.buf.duration - v.offset
+    const len = v.len
     if (len <= 0 || when >= span || when + len <= 0) continue
     const g = ctx.createGain()
     const vEnd = when + len
@@ -346,7 +346,7 @@ export async function mixWindow(
     const src = ctx.createBufferSource()
     src.buffer = v.buf
     src.connect(g)
-    src.start(Math.max(0, when), v.offset + Math.max(0, -when))
+    src.start(Math.max(0, when), v.offset + Math.max(0, -when), Math.max(0.01, len - Math.max(0, -when)))
   }
 
   const mixed = await ctx.startRendering()
@@ -505,6 +505,8 @@ export interface VoiceTrack {
   /** Output second where it starts. */
   start: number
   offset: number
+  /** Round 29: seconds of the recording that play (to its end, or to the chosen stop). */
+  len: number
   vol: number
   duck: number
   clean: boolean
@@ -533,7 +535,13 @@ export async function prepareVoices(cfg: EditConfig, tl: Timeline, blobs: (Blob 
     if (start === null) continue
     try {
       const buf = await decodeVoice(blob)
-      out.push({ buf, start, offset: Math.min(v.offset, Math.max(0, buf.duration - 0.1)), vol: v.vol, duck: v.duck, clean: v.clean })
+      const offset = Math.min(v.offset, Math.max(0, buf.duration - 0.1))
+      let len = buf.duration - offset
+      if (v.until !== null && v.until > v.at) {
+        const stop = sourceToOutput(tl, v.until) ?? outputAtOrAfter(tl, v.until)
+        if (stop !== null && stop > start) len = Math.min(len, stop - start)
+      }
+      out.push({ buf, start, offset, len, vol: v.vol, duck: v.duck, clean: v.clean })
     } catch {
       // a file the browser cannot read: left out rather than failing the render
     }
@@ -545,7 +553,7 @@ export async function prepareVoices(cfg: EditConfig, tl: Timeline, blobs: (Blob 
 function duckBed(gain: AudioParam, voices: VoiceTrack[], r0: number, span: number) {
   gain.setValueAtTime(1, 0)
   const spans = voices
-    .map((v) => ({ a: v.start - r0, b: v.start - r0 + (v.buf.duration - v.offset), d: v.duck }))
+    .map((v) => ({ a: v.start - r0, b: v.start - r0 + v.len, d: v.duck }))
     .filter((x) => x.d < 0.999 && x.b > -0.5 && x.a < span + 0.5)
     .sort((x, y) => x.a - y.a)
   if (!spans.length) return

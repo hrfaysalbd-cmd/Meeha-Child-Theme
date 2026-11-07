@@ -16,6 +16,7 @@ import {
   INTROS,
   LIMITS,
   LOGO_STYLES,
+  QUICK_LOOKS,
   WATERMARK_STYLES,
   OUTROS,
   type Caption,
@@ -74,6 +75,22 @@ export function FramePanel({
   const frameGroups = useGroups('nil', FRAMES.find((o) => o.id === f.id)?.group)
   return (
     <div>
+      <Section title="এক ক্লিকে সাজান" hint="ফ্রেম, ইন্ট্রো, আউট্রো ও মাপ একসাথে বসে। আপনার লেখা, কাটা অংশ ও ক্যাপশন যেমন আছে থাকবে; পরে যেকোনোটা বদলানো যায়।">
+        <div className="grid grid-cols-2 gap-2" data-testid="quick-looks">
+          {QUICK_LOOKS.map((q) => (
+            <button
+              key={q.id}
+              type="button"
+              onClick={() => set((c) => q.apply(c))}
+              className="text-left rounded-xl border border-neutral-200 px-3 py-2 hover:border-brand-400 hover:bg-brand-50/40"
+              data-testid={`look-${q.id}`}
+            >
+              <span className="block text-[13px] font-semibold text-neutral-800">{q.name}</span>
+              <span className="block text-[11px] text-neutral-500 leading-snug">{q.hint}</span>
+            </button>
+          ))}
+        </div>
+      </Section>
       <Section title="এনিমেটেড ফ্রেম" hint="ক্লিক করলে পুরো ভিডিওর উপরে ও নিচে ফ্রেমের অংশ যোগ হবে। নকশাগুলো ভাগ করে সাজানো — শিরোনামে চাপ দিলে খোলে।">
         <div className="mb-2.5">
           <ChoiceCard active={f.id === 'none'} onClick={() => setF({ id: 'none' })} title="ফ্রেম নেই" hint="শুধু ভিডিও" testId="frame-none" />
@@ -105,10 +122,21 @@ export function FramePanel({
 
       {f.id !== 'none' && (
         <>
+          <Section title="শিরোনাম কোথায় থাকবে" hint="নিচে দিলে শিরোনামের পট্টি ছবির নিচে, স্ক্রলের ঠিক উপরে বসে — টিভির লোয়ার-থার্ডের মতো।">
+            <Segmented
+              value={f.titlePos}
+              options={[
+                { id: 'top', name: 'ছবির উপরে' },
+                { id: 'bottom', name: 'ছবির নিচে (নতুন)' },
+              ]}
+              onChange={(v) => setF({ titlePos: v })}
+              size="sm"
+            />
+          </Section>
           <Section title="ফ্রেমের আকার" hint="স্বয়ংক্রিয়: রিল (৯:১৬) ভিডিওতে ফ্রেম ও লেখা বড় হয়, কারণ ফোনে পুরো স্ক্রিনে দেখা হয়।">
             <Segmented value={f.size} options={FRAME_SIZES} onChange={(v) => setF({ size: v })} size="sm" />
             <div className="mt-2">
-              <Slider label="উপরের অংশের উচ্চতা" value={Math.round(f.top * 100)} min={100} max={200} step={10} onChange={(v) => setF({ top: v / 100 })} format={(v) => (v === 100 ? 'স্বাভাবিক' : `${bnNumber(v)}%`)} />
+              <Slider label={f.titlePos === 'bottom' ? 'শিরোনাম পট্টির উচ্চতা' : 'উপরের অংশের উচ্চতা'} value={Math.round(f.top * 100)} min={100} max={200} step={10} onChange={(v) => setF({ top: v / 100 })} format={(v) => (v === 100 ? 'স্বাভাবিক' : `${bnNumber(v)}%`)} />
               {f.footer !== 'none' && (
                 <Slider label="নিচের অংশের উচ্চতা" value={Math.round(f.bottom * 100)} min={100} max={200} step={10} onChange={(v) => setF({ bottom: v / 100 })} format={(v) => (v === 100 ? 'স্বাভাবিক' : `${bnNumber(v)}%`)} />
               )}
@@ -124,9 +152,9 @@ export function FramePanel({
               onChange={(v) => setF({ motion: v })}
               size="sm"
             />
-            <p className="text-[11px] text-neutral-400 mt-1">প্রাণবন্ত: শিরোনামে রঙের বার টেনে লেখা আসে, ফ্রেমের উপর মাঝে মাঝে আলোর ঝলক যায়।</p>
+            <p className="text-[11px] text-neutral-400 mt-1">প্রথম ফ্রেম থেকেই পুরো ফ্রেম দেখা যায় (কালো দিয়ে শুরু হয় না)। প্রাণবন্ত: শুরুতে শিরোনামের উপর দিয়ে রঙের বার যায়, মাঝে মাঝে আলোর ঝলক।</p>
           </Section>
-          <Section title="উপরের অংশ">
+          <Section title={f.titlePos === 'bottom' ? 'শিরোনাম পট্টি' : 'উপরের অংশ'}>
             <TextInput label="শিরোনাম / নিজের লেখা" value={f.title} onChange={(v) => setF({ title: v })} max={LIMITS.title} placeholder={postTitle || 'ভিডিওর শিরোনাম'} testId="frame-title" />
             <TextInput label="ক্যাটেগরি / লেবেল (ঐচ্ছিক)" value={f.kicker} onChange={(v) => setF({ kicker: v })} max={LIMITS.kicker} placeholder="যেমন: জাতীয়, খেলা, ক্যাম্পাস" />
             <SwitchRow label="তারিখ দেখান" checked={f.date} onChange={(v) => setF({ date: v })} />
@@ -163,6 +191,22 @@ export function FramePanel({
           </Section>
         </>
       )}
+      <Section title="প্রগ্রেস বার" hint="ছবির নিচে সরু দাগ — খবরের কতটা বাকি দেখায়, রিলে দর্শক শেষ পর্যন্ত থাকে।">
+        <SwitchRow label="প্রগ্রেস বার দেখান" checked={cfg.progress.on} onChange={(v) => set((c) => ({ ...c, progress: { ...c.progress, on: v } }))} testId="progress-on" />
+        {cfg.progress.on && (
+          <Segmented
+            value={cfg.progress.color}
+            options={[
+              { id: 'red', name: 'লাল' },
+              { id: 'yellow', name: 'হলুদ' },
+              { id: 'blue', name: 'নীল' },
+              { id: 'white', name: 'সাদা' },
+            ]}
+            onChange={(v) => set((c) => ({ ...c, progress: { ...c.progress, color: v } }))}
+            size="sm"
+          />
+        )}
+      </Section>
     </div>
   )
 }
@@ -350,6 +394,17 @@ export function IntroOutroPanel({
       <Section title="ইন্ট্রো" hint="ক্লিক করলে ভিডিওর শুরুতে যোগ হবে।">
         {grouped('intro', INTROS, intro.id, introGroups, pickIntro)}
         {intro.id === 'custom' && <ClipChooser clip={intro.clip} label="ইন্ট্রো ভিডিও বেছে নিন" onPick={() => onPick('intro')} />}
+        {intro.id !== 'none' && intro.id !== 'custom' && (
+          <div className="mt-3">
+            <SwitchRow
+              label="শুরুতে পূর্ণ ডিজাইন (কভার)"
+              hint="ভিডিও কালো দিয়ে শুরু হবে না: প্রথম ০.৮ সেকেন্ড ইন্ট্রোর সম্পূর্ণ ডিজাইন দেখাবে, তারপর এনিমেশন। ফেসবুক/প্লেয়ারের প্রিভিউতেও এটিই দেখাবে।"
+              checked={intro.cover}
+              onChange={(v) => set((c) => ({ ...c, intro: { ...c.intro, cover: v } }))}
+              testId="intro-cover"
+            />
+          </div>
+        )}
         {textIntro && (
           <div className="mt-3">
             <TextInput label="ইন্ট্রোর লেখা" value={intro.text} onChange={(v) => set((c) => ({ ...c, intro: { ...c.intro, text: v } }))} max={LIMITS.introText} placeholder={cfg.frame.title || postTitle || 'শিরোনাম'} />
