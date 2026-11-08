@@ -208,6 +208,7 @@ interface RequestOpts {
   auth?: boolean // defaults true
   retry?: boolean // allow automatic retries for a non-GET that is safe to repeat (e.g. logout)
   timeoutMs?: number // overrides the default timeout (a slow server-side step)
+  headers?: Record<string, string> // r30: extra headers (প্রোফাইল ডেস্কের ভল্ট টোকেন)
 }
 
 async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
@@ -219,6 +220,7 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
     // — the backend also sends matching no-store response headers on every
     // nros/v1 route (see class-nros-core.php).
     'Cache-Control': 'no-cache',
+    ...(opts.headers ?? {}),
   }
   let payload: BodyInit | undefined
 
@@ -314,6 +316,11 @@ function parseReply<T>(status: number, text: string, path: string): T {
   return data as T
 }
 
+/** r30 — the shared request helper, for feature modules kept in their own file (lib/profileDesk.ts). */
+export function apiRequest<T>(path: string, opts: RequestOpts = {}) {
+  return request<T>(path, opts)
+}
+
 /** GET a private file with the access token (one silent refresh on a 401). */
 async function requestBlob(path: string): Promise<Blob> {
   const get = () =>
@@ -352,6 +359,8 @@ export interface NotificationCounts {
   videos?: number
   applications?: number
   withdrawals?: number
+  /** r30 — new posts/videos on the profiles this person watches (প্রোফাইল ডেস্ক). */
+  profile_desk?: number
 }
 
 export interface NotificationsPoll {
@@ -537,6 +546,8 @@ export interface Profile {
     delete_posts?: boolean
     change_post_date?: boolean
     change_post_author?: boolean
+    /** r30 — প্রোফাইল ডেস্ক (Publisher always; an Editor once the Publisher allows it). */
+    profile_desk?: boolean
   }
 }
 
@@ -2249,7 +2260,11 @@ export const DeshchitroApi = {
 // ---- Round 27: resumable uploads ----
 
 export interface ResumableOpts {
-  kind?: 'video' | 'audio'
+  kind?: 'video' | 'audio' | 'pd'
+  /** r30 — extra fields for the session start (প্রোফাইল ডেস্ক: pd_scope, pd_entity, pd_folder, pd_note…). */
+  extra?: Record<string, unknown>
+  /** r30 — extra headers for the session start (the vault token). */
+  headers?: Record<string, string>
   onProgress?: (p: UploadProgress) => void
   /** A line for the user while waiting/retrying ("নেটওয়ার্ক দুর্বল…"), null when going again. */
   onStatus?: (msg: string | null) => void
@@ -2260,7 +2275,7 @@ export interface ResumableOpts {
   onSession?: (s: { id: string }) => void
 }
 
-interface UploadedFile {
+export interface UploadedFile {
   id: number
   url: string
   mime: string
@@ -2309,7 +2324,7 @@ function retryable(err: unknown) {
 function fatalUpload(err: unknown) {
   if (!(err instanceof ApiError)) return false
   if (err.code === UPLOAD_ABORTED_CODE || err.kind === 'session') return true
-  return ['nros_bad_file_type', 'nros_forbidden', 'nros_file_too_large', 'nros_upload_session_missing', 'nros_suspended', 'nros_video_daily_upload_cap'].includes(err.code ?? '')
+  return ['nros_bad_file_type', 'nros_forbidden', 'nros_file_too_large', 'nros_upload_session_missing', 'nros_suspended', 'nros_video_daily_upload_cap', 'nros_pd_vault_closed', 'nros_not_found', 'nros_bad_request'].includes(err.code ?? '')
 }
 
 async function uploadResumable(file: File, o: ResumableOpts): Promise<UploadedFile> {
@@ -2359,7 +2374,7 @@ async function uploadResumable(file: File, o: ResumableOpts): Promise<UploadedFi
   if (!session) {
     try {
       const s = await withRetry(
-        () => request<{ id: string; chunk_size: number; received: number }>('/media/upload-session', { method: 'POST', body: { kind, name: file.name, size: file.size } }),
+        () => request<{ id: string; chunk_size: number; received: number }>('/media/upload-session', { method: 'POST', body: { kind, name: file.name, size: file.size, ...(o.extra ?? {}) }, headers: o.headers }),
         'সংযোগ',
       )
       session = { id: s.id, chunk: Math.max(262144, Math.min(s.chunk_size || 4194304, 8 * 1048576)) }

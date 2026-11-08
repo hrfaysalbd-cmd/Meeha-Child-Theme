@@ -27,12 +27,15 @@ import {
 import { NotificationsProvider, useNotifications } from '../lib/notifications'
 import NotificationBell, { NotificationToasts } from '../components/NotificationBell'
 import type { NotificationCounts } from '../lib/api'
+import { IconAddressBook } from '../components/profileDesk/icons'
 
 interface NavItem {
   to: string
   label: string
   icon: typeof IconDashboard
   publisherOnly?: boolean
+  /** r30: shown only to those the publisher gave প্রোফাইল ডেস্ক access */
+  profileDesk?: boolean
   /** Round 18: live "waiting" count shown as a badge (from GET /notifications). */
   count?: keyof NotificationCounts
 }
@@ -47,6 +50,7 @@ const NAV: NavItem[] = [
   { to: '/app/quotes', label: 'উক্তি', icon: IconQuote },
   { to: '/app/photocard', label: 'ফটোকার্ড', icon: IconPhoto },
   { to: '/app/deshchitro', label: 'দেশচিত্র', icon: IconMapStats },
+  { to: '/app/profile-desk', label: 'প্রোফাইল ডেস্ক', icon: IconAddressBook, count: 'profile_desk', profileDesk: true },
   { to: '/app/correspondents', label: 'সংবাদদাতা', icon: IconUsers },
   { to: '/app/applications', label: 'আবেদন', icon: IconFileCheck, count: 'applications' },
   { to: '/app/ad-clients', label: 'বিজ্ঞাপনদাতা', icon: IconBuildingStore },
@@ -103,7 +107,7 @@ function Shell() {
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const items = NAV.filter((n) => !n.publisherOnly || isPublisher)
+  const items = NAV.filter((n) => (!n.publisherOnly || isPublisher) && (!n.profileDesk || !!profile?.can?.profile_desk))
   // The "আরও" tab lights up when the current screen is one of the ones
   // tucked inside it, so the tab bar always shows where you are.
   // (Prefix match, so e.g. /app/write/12 counts as the "লিখুন" tab.)

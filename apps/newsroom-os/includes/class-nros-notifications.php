@@ -422,6 +422,9 @@ class NROS_Notifications {
 			'videos'       => (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'meeha_video' AND post_status = 'pending'" ),
 			'applications' => (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}nros_applications WHERE status = 'pending'" ),
 		);
+		if ( class_exists( 'NROS_Profile_Desk' ) && NROS_Profile_Desk::can_access( $user ) ) {
+			$counts['profile_desk'] = NROS_PD_Feeds::unseen_total( $user );
+		}
 		if ( NROS_Core::financial_visible_to( $user ) ) {
 			$counts['withdrawals'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}nros_withdraw_requests WHERE status = 'pending'" );
 		}
