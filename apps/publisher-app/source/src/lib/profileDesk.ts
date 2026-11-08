@@ -1,5 +1,6 @@
 /**
  * r30 — প্রোফাইল ডেস্ক: types and API (newsroom-os 1.15.0, routes under /pd).
+ * r31 — ডেস্ক হোম, কাজ, ঘটনাপঞ্জি, সম্পর্ক, পিন, সংরক্ষিত তালিকা, আমদানি/রপ্তানি (newsroom-os 1.16.0).
  *
  * The vault token (after PIN + OTP) lives in this tab's sessionStorage only:
  * closing the tab forgets it, and the server ends it after 15 idle minutes.
@@ -69,6 +70,118 @@ export interface PdEntity {
   org: PdRef | null
   parent: PdRef | null
   files?: number
+  /** 0–100, how filled-in the profile is (list items, r31) */
+  score?: number
+  pinned?: boolean
+}
+
+export interface PdCompleteness {
+  score: number
+  missing: { key: string; label: string }[]
+}
+
+export interface PdTask {
+  id: number
+  title: string
+  details: string
+  entity: PdRef | null
+  due_at: string | null
+  overdue: boolean
+  priority: 1 | 2 | 3
+  status: 'open' | 'done'
+  assignee: { id: number; name: string } | null
+  creator: { id: number; name: string }
+  source_url: string
+  created_at: string
+  done_at: string | null
+  done_by: string
+  can_edit: boolean
+  can_delete: boolean
+}
+
+export interface PdEvent {
+  id: number
+  entity: PdRef | null
+  kind: string
+  happened_on: string
+  title: string
+  details: string
+  source_url: string
+  importance: number
+  author: string
+  created_by: number
+  created_at: string
+}
+
+export interface PdRelation {
+  id: number
+  kind: string
+  note: string
+  other: PdRef
+}
+
+export interface PdView {
+  id: number
+  name: string
+  params: Partial<PdListParams>
+  shared: boolean
+  owner: string
+  can_edit: boolean
+}
+
+export interface PdHome {
+  pinned: PdEntity[]
+  recent: PdEntity[]
+  tasks: PdTask[]
+  counts: { my_open: number; overdue: number; today: number; given: number; unseen: number }
+  events: PdEvent[]
+  weak: { id: number; name: string; score: number; missing: string[] }[]
+}
+
+export interface PdCoverage {
+  names: string[]
+  posts: { id: number; title: string; url: string; date: string }[]
+  quotes: { id: number; text: string; url: string; date: string }[]
+}
+
+/** One row of the import format (also what the JSON export writes). */
+export interface PdImportRow {
+  name_bn?: string
+  name_en?: string
+  category?: string
+  kind?: string
+  title?: string
+  org?: string
+  org_category?: string
+  aliases?: string | string[]
+  district?: string
+  upazila?: string
+  country?: string
+  status?: string
+  importance?: number | string
+  tags?: string | string[]
+  phone?: string
+  email?: string
+  bio?: string
+  links?: string | (string | { url: string })[]
+  events?: { date?: string; happened_on?: string; kind?: string; title: string; details?: string; source_url?: string }[]
+  force?: boolean
+}
+
+export interface PdImportResult {
+  dry_run: boolean
+  created: number
+  rows: {
+    row: number
+    name: string
+    status: 'new' | 'created' | 'duplicate' | 'error'
+    message?: string
+    category?: string
+    links?: number
+    events?: number
+    id?: number
+    similar?: { id: number; name: string; title: string }[]
+  }[]
 }
 
 export interface PdFile {
@@ -117,6 +230,11 @@ export interface PdEntityFull extends Omit<PdEntity, 'files'> {
   files: { folders: PdFolder[]; items: PdFile[]; vault: { count: number; open: boolean; items: PdFile[] } }
   recent_items: PdFeedItem[]
   creator: string
+  pinned: boolean
+  completeness: PdCompleteness
+  events: PdEvent[]
+  relations: PdRelation[]
+  tasks: PdTask[]
 }
 
 export interface PdVaultState {
@@ -139,6 +257,11 @@ export interface PdMeta {
   storage: { used_bytes: number; files: number; free_bytes: number | null; writable: boolean; exposure: 'ok' | 'exposed' | 'unknown'; checked_at: string | null }
   max_file: number
   unseen: number
+  event_kinds: { key: string; label: string }[]
+  relation_kinds: { key: string; label: string }[]
+  /** everyone with desk access (for "assign to") */
+  people: { id: number; name: string; avatar: string }[]
+  me: number
 }
 
 export interface PdGroup {
@@ -167,6 +290,8 @@ export interface PdListParams {
   sort?: 'updated' | 'name' | 'importance'
   page?: number
   per_page?: number
+  pinned?: boolean
+  ids?: string
 }
 
 export interface PdAlerts {
@@ -315,6 +440,42 @@ export const ProfileDeskApi = {
   access: () => request<PdAccessRow[]>('/pd/access'),
   setAccess: (user_id: number, access: boolean) => request<{ access: boolean }>('/pd/access', { method: 'POST', body: { user_id, access } }),
   audit: () => request<PdAuditRow[]>('/pd/audit'),
+  home: () => request<PdHome>('/pd/home'),
+  pin: (id: number, on: boolean) => request<{ pinned: boolean }>(`/pd/entities/${id}/pin`, { method: 'POST', body: { on } }),
+  coverage: (id: number) => request<PdCoverage>(`/pd/entities/${id}/coverage`),
+
+  tasks: (p: { scope?: 'mine' | 'given' | 'all'; status?: 'open' | 'done' | 'all'; entity?: number; q?: string; due?: '' | 'overdue' | 'today' | 'week' } = {}) =>
+    request<PdTask[]>(`/pd/tasks${qs(p)}`),
+  createTask: (body: { title: string; details?: string; entity_id?: number; due_at?: string; priority?: number; assignee_id?: number; source_url?: string }) =>
+    request<PdTask>('/pd/tasks', { method: 'POST', body }),
+  updateTask: (id: number, body: Partial<{ title: string; details: string; entity_id: number; due_at: string; priority: number; assignee_id: number; source_url: string; done: boolean }>) =>
+    request<PdTask>(`/pd/tasks/${id}`, { method: 'PATCH', body }),
+  removeTask: (id: number) => request<{ deleted: boolean }>(`/pd/tasks/${id}`, { method: 'DELETE' }),
+
+  events: (p: { entity?: number; kind?: string; from?: string; to?: string; q?: string; page?: number } = {}) =>
+    request<{ items: PdEvent[]; total: number; page: number; pages: number }>(`/pd/events${qs(p)}`),
+  createEvent: (body: { entity_id: number; kind: string; happened_on: string; title: string; details?: string; source_url?: string; importance?: number }) =>
+    request<PdEvent>('/pd/events', { method: 'POST', body }),
+  updateEvent: (id: number, body: Partial<{ kind: string; happened_on: string; title: string; details: string; source_url: string; importance: number }>) =>
+    request<PdEvent>(`/pd/events/${id}`, { method: 'PATCH', body }),
+  removeEvent: (id: number) => request<{ deleted: boolean }>(`/pd/events/${id}`, { method: 'DELETE' }),
+
+  addRelation: (body: { a_id: number; b_id: number; kind: string; note?: string }) =>
+    request<{ id: number; relations: PdRelation[] }>('/pd/relations', { method: 'POST', body }),
+  removeRelation: (id: number) => request<{ deleted: boolean }>(`/pd/relations/${id}`, { method: 'DELETE' }),
+
+  views: () => request<PdView[]>('/pd/views'),
+  createView: (body: { name: string; params: Partial<PdListParams>; shared?: boolean }) =>
+    request<PdView>('/pd/views', { method: 'POST', body: body as Record<string, unknown> }),
+  updateView: (id: number, body: { name?: string; params?: Partial<PdListParams>; shared?: boolean }) =>
+    request<PdView>(`/pd/views/${id}`, { method: 'PATCH', body: body as Record<string, unknown> }),
+  removeView: (id: number) => request<{ deleted: boolean }>(`/pd/views/${id}`, { method: 'DELETE' }),
+
+  importRows: (rows: PdImportRow[], dry_run: boolean) =>
+    request<PdImportResult>('/pd/import', { method: 'POST', body: { rows, dry_run } as Record<string, unknown>, timeoutMs: 120_000 }),
+  exportCsv: () => request<{ csv: string; count: number; filename: string }>('/pd/export', { timeoutMs: 120_000 }),
+  exportJson: () => request<{ json: string; count: number; filename: string }>('/pd/export?format=json', { timeoutMs: 120_000 }),
+
   storageTest: () => request<PdMeta['storage']>('/pd/storage/test', { method: 'POST', timeoutMs: 30_000 }),
 }
 
@@ -387,4 +548,32 @@ export function errText(e: unknown): string {
   if (e instanceof ApiError) return describeError(e).message
   if (e instanceof Error) return e.message
   return String(e)
+}
+
+
+/** Saves text as a file in the person's Downloads (or the folder they pick). */
+export function saveText(text: string, filename: string, mime: string) {
+  const blob = new Blob([text], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 4000)
+}
+
+/** "2026-11-08 14:30:00" → "৮ নভেম্বর, বিকেল ২:৩০" style short Bangla date. */
+const MONTHS = ['জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর']
+export function bnDate(d: string | null, withTime = false) {
+  if (!d) return ''
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/.exec(d)
+  if (!m) return d
+  let s = `${bn(Number(m[3]))} ${MONTHS[Number(m[2]) - 1]} ${bn(m[1])}`
+  if (withTime && m[4] && !(m[4] === '23' && m[5] === '59')) {
+    const h = Number(m[4])
+    s += `, ${bn(((h + 11) % 12) + 1)}:${bn(m[5])} ${h < 12 ? 'সকাল' : h < 17 ? 'দুপুর' : 'সন্ধ্যা'}`
+  }
+  return s
 }

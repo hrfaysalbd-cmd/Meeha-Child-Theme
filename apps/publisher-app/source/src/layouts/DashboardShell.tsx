@@ -28,6 +28,7 @@ import { NotificationsProvider, useNotifications } from '../lib/notifications'
 import NotificationBell, { NotificationToasts } from '../components/NotificationBell'
 import type { NotificationCounts } from '../lib/api'
 import { IconAddressBook } from '../components/profileDesk/icons'
+import CommandPalette from '../components/profileDesk/CommandPalette'
 
 interface NavItem {
   to: string
@@ -180,6 +181,8 @@ function Shell() {
       <div className="hidden lg:block">
         <NotificationToasts position="bottom-right" />
       </div>
+      {/* r31: Ctrl+K profile search, for everyone with desk access */}
+      {profile?.can?.profile_desk && <CommandPalette />}
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex lg:flex-col w-64 shrink-0 bg-white border-r border-neutral-200/80">{sidebar}</aside>
 

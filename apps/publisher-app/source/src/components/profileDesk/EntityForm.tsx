@@ -14,12 +14,15 @@ export default function EntityForm({
   meta,
   entity,
   defaultKind = 'person',
+  initialLinks = '',
   onClose,
   onSaved,
 }: {
   meta: PdMeta
   entity?: PdEntityFull | null
   defaultKind?: 'person' | 'org'
+  /** r31: a pasted link to start a new profile from */
+  initialLinks?: string
   onClose: () => void
   onSaved: (e: PdEntityFull) => void
 }) {
@@ -43,7 +46,7 @@ export default function EntityForm({
   const [email, setEmail] = useState(entity?.email ?? '')
   const [bio, setBio] = useState(entity?.bio ?? '')
   const [note, setNote] = useState(entity?.private_note ?? '')
-  const [links, setLinks] = useState('')
+  const [links, setLinks] = useState(initialLinks)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [similar, setSimilar] = useState<{ id: number; name: string; title: string }[] | null>(null)

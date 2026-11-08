@@ -541,7 +541,7 @@ class NROS_Profile_Desk {
 	 * @param mixed $raw Raw.
 	 * @return string[]
 	 */
-	protected static function clean_tags( $raw ) {
+	public static function clean_tags( $raw ) {
 		if ( is_string( $raw ) ) {
 			$raw = preg_split( '/[,،;\n]+/u', $raw );
 		}
@@ -706,9 +706,27 @@ class NROS_Profile_Desk {
 				'storage'    => NROS_PD_Files::storage_summary(),
 				'max_file'   => NROS_PD_Files::max_bytes(),
 				'unseen'     => NROS_PD_Feeds::unseen_total( $user ),
+				'event_kinds'    => class_exists( 'NROS_PD_Work' ) ? self::pairs( NROS_PD_Work::EVENT_KINDS ) : array(),
+				'relation_kinds' => class_exists( 'NROS_PD_Work' ) ? self::pairs( NROS_PD_Work::RELATION_KINDS ) : array(),
+				'people'         => class_exists( 'NROS_PD_Work' ) ? NROS_PD_Work::people() : array(),
+				'me'             => (int) $user->ID,
 			),
 			200
 		);
+	}
+
+	/**
+	 * [{key, label}] from a key => label map.
+	 *
+	 * @param array $map Map.
+	 * @return array
+	 */
+	protected static function pairs( $map ) {
+		$out = array();
+		foreach ( $map as $k => $l ) {
+			$out[] = array( 'key' => $k, 'label' => $l );
+		}
+		return $out;
 	}
 
 	/**
@@ -883,6 +901,14 @@ class NROS_Profile_Desk {
 		if ( $request->get_param( 'files' ) ) {
 			$where[] = "e.id IN (SELECT entity_id FROM " . self::t( 'files' ) . " WHERE scope = 'entity')";
 		}
+		$only = array_filter( array_map( 'intval', explode( ',', (string) $request->get_param( 'ids' ) ) ) );
+		if ( $only ) {
+			$where[] = 'e.id IN (' . implode( ',', array_slice( $only, 0, 200 ) ) . ')';
+		}
+		if ( $request->get_param( 'pinned' ) && class_exists( 'NROS_PD_Work' ) ) {
+			$pins    = NROS_PD_Work::pinned_ids( (int) $user->ID );
+			$where[] = $pins ? 'e.id IN (' . implode( ',', $pins ) . ')' : '1=0';
+		}
 		$platform = sanitize_key( (string) $request->get_param( 'platform' ) );
 		if ( isset( self::PLATFORMS[ $platform ] ) ) {
 			$where[] = $wpdb->prepare( 'e.id IN (SELECT entity_id FROM ' . self::t( 'links' ) . ' WHERE platform = %s)', $platform ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
@@ -918,6 +944,7 @@ class NROS_Profile_Desk {
 				$files[ (int) $r['entity_id'] ] = (int) $r['n'];
 			}
 		}
+		$pinned = class_exists( 'NROS_PD_Work' ) ? NROS_PD_Work::pinned_ids( (int) $user->ID ) : array();
 		$items = array();
 		foreach ( $rows as $e ) {
 			$s            = self::shape( $e, $user );
@@ -925,6 +952,11 @@ class NROS_Profile_Desk {
 			$s['org']     = isset( $orgs[ (int) $e['org_id'] ] ) ? $orgs[ (int) $e['org_id'] ] : null;
 			$s['parent']  = isset( $orgs[ (int) $e['parent_id'] ] ) ? $orgs[ (int) $e['parent_id'] ] : null;
 			$s['files']   = isset( $files[ (int) $e['id'] ] ) ? $files[ (int) $e['id'] ] : 0;
+			if ( class_exists( 'NROS_PD_Work' ) ) {
+				$c          = NROS_PD_Work::completeness( $e, count( $s['links'] ) );
+				$s['score'] = $c['score'];
+				$s['pinned'] = in_array( (int) $e['id'], $pinned, true );
+			}
 			$items[]      = $s;
 		}
 		return new WP_REST_Response(
@@ -1041,7 +1073,7 @@ class NROS_Profile_Desk {
 	 * @param int     $except  Id to skip.
 	 * @return array
 	 */
-	protected static function similar( $name_bn, $name_en, $user, $except = 0 ) {
+	public static function similar( $name_bn, $name_en, $user, $except = 0 ) {
 		global $wpdb;
 		$te  = self::t( 'entities' );
 		$vis = self::visible_sql( $user );
@@ -1209,6 +1241,9 @@ class NROS_Profile_Desk {
 		$out['files']        = NROS_PD_Files::entity_files( $id, $user, $request );
 		$out['recent_items'] = NROS_PD_Feeds::recent_items_for_entity( $id, 12 );
 		$out['creator']      = $e['created_by'] ? get_the_author_meta( 'display_name', (int) $e['created_by'] ) : '';
+		if ( class_exists( 'NROS_PD_Work' ) ) {
+			$out = array_merge( $out, NROS_PD_Work::entity_extras( $e, count( $out['links'] ), $user ) );
+		}
 		if ( 'restricted' === $e['sensitivity'] ) {
 			self::audit( $user->ID, 'entity_view', 'entity', $id, $out['name'] );
 		}
@@ -1294,6 +1329,9 @@ class NROS_Profile_Desk {
 		}
 		$wpdb->delete( $tl, array( 'entity_id' => $id ) );
 		$wpdb->delete( self::t( 'group_members' ), array( 'entity_id' => $id ) );
+		if ( class_exists( 'NROS_PD_Work' ) ) {
+			NROS_PD_Work::forget_entity( $id );
+		}
 		$wpdb->update( self::t( 'entities' ), array( 'org_id' => 0 ), array( 'org_id' => $id ) );
 		$wpdb->update( self::t( 'entities' ), array( 'parent_id' => 0 ), array( 'parent_id' => $id ) );
 		$wpdb->delete( self::t( 'entities' ), array( 'id' => $id ) );
@@ -1453,7 +1491,7 @@ class NROS_Profile_Desk {
 	 * @param int $gid Group.
 	 * @param int $eid Entity.
 	 */
-	protected static function add_member( $gid, $eid ) {
+	public static function add_member( $gid, $eid ) {
 		global $wpdb;
 		if ( $gid <= 0 || $eid <= 0 ) {
 			return;

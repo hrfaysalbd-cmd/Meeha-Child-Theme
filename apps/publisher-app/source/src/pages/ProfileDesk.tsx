@@ -6,6 +6,9 @@
  * new-video counts on the platform icons for watched links (YouTube, Telegram, RSS: automatic;
  * Facebook, X, TikTok…: an "আজ দেখা বাকি" list); encrypted files under each profile; a PIN + OTP
  * vault (private and shared); access and log for the publisher.
+ *
+ * r31 (newsroom-os 1.16.0): ডেস্ক হোম (default tab), কাজ (to-do with assign + reminders),
+ * ঘটনাপঞ্জি, saved lists, pins, table view, import (file / paste / AI prompt) and export.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
@@ -27,6 +30,7 @@ import {
   type PdMeta,
   type PdRef,
   type PdVaultList,
+  type PdView,
 } from '../lib/profileDesk'
 import { ApiError } from '../lib/api'
 import { Badge, Banner, Button, Card, PageHeader, Spinner, inputClass } from '../components/ui'
@@ -35,19 +39,49 @@ import { Avatar, LinkChip, LinkChips, OpenAllBar, Overlay, PLATFORM_LABEL, PLATF
 import EntityForm, { EntityPicker } from '../components/profileDesk/EntityForm'
 import FileBox from '../components/profileDesk/FileBox'
 import VaultGate, { VaultLockBar } from '../components/profileDesk/VaultGate'
-import { IconAddressBook, IconBell, IconFilter, IconShieldLock, IconUsersGroup } from '../components/profileDesk/icons'
+import { IconAddressBook, IconBell, IconCalendarEvent, IconChecklist, IconFilter, IconHome, IconLayoutGrid, IconPin, IconShieldLock, IconTable, IconUpload, IconUsersGroup } from '../components/profileDesk/icons'
+import { EventsTab, HomeTab, ScoreDot, TaskForm, TasksTab } from '../components/profileDesk/Work'
+import { ExportMenu, ImportDialog } from '../components/profileDesk/ImportExport'
+import { IconDownload } from '../components/Icon'
 
-type Tab = 'profiles' | 'alerts' | 'groups' | 'vault' | 'admin'
+type Tab = 'home' | 'profiles' | 'tasks' | 'events' | 'alerts' | 'groups' | 'vault' | 'admin'
 const GROUP_COLORS = ['#DC2626', '#2563EB', '#059669', '#D97706', '#7C3AED', '#0891B2', '#DB2777', '#475569']
 
 export default function ProfileDesk() {
   const [params, setParams] = useSearchParams()
-  const tab = (params.get('tab') as Tab) || 'profiles'
+  const tab = (params.get('tab') as Tab) || 'home'
   const [meta, setMeta] = useState<PdMeta | null>(null)
   const [denied, setDenied] = useState(false)
   const [error, setError] = useState('')
   const [creating, setCreating] = useState<EntityKind | null>(null)
+  const [newLink, setNewLink] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [reload, setReload] = useState(0)
   const navigate = useNavigate()
+
+  // r31: ?add=<link> (from the bookmarklet or a pasted link) — open the profile that has this
+  // link, or start a new profile with it
+  const addUrl = params.get('add')
+  useEffect(() => {
+    if (!addUrl || !meta) return
+    const p = new URLSearchParams(params)
+    p.delete('add')
+    setParams(p, { replace: true })
+    ProfileDeskApi.list({ q: addUrl, per_page: 1 })
+      .then((r) => {
+        if (r.items[0] && r.items[0].links.some((l) => addUrl.includes(l.handle || l.url))) navigate(`/app/profile-desk/${r.items[0].id}`)
+        else {
+          setNewLink(addUrl)
+          setCreating('person')
+        }
+      })
+      .catch(() => {
+        setNewLink(addUrl)
+        setCreating('person')
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addUrl, meta])
 
   const loadMeta = useCallback(() => {
     ProfileDeskApi.meta()
@@ -65,7 +99,7 @@ export default function ProfileDesk() {
 
   const setTab = (t: Tab) => {
     const p = new URLSearchParams(params)
-    if (t === 'profiles') p.delete('tab')
+    if (t === 'home') p.delete('tab')
     else p.set('tab', t)
     setParams(p, { replace: true })
   }
@@ -82,7 +116,10 @@ export default function ProfileDesk() {
   if (!meta) return <Spinner className="mt-16" />
 
   const TABS: { key: Tab; label: string; icon: typeof IconBell; n?: number }[] = [
+    { key: 'home', label: 'ডেস্ক', icon: IconHome },
     { key: 'profiles', label: 'প্রোফাইল', icon: IconAddressBook, n: meta.totals.person + meta.totals.org },
+    { key: 'tasks', label: 'কাজ', icon: IconChecklist },
+    { key: 'events', label: 'ঘটনাপঞ্জি', icon: IconCalendarEvent },
     { key: 'alerts', label: 'এলার্ট', icon: IconBell, n: meta.unseen },
     { key: 'groups', label: 'গ্রুপ', icon: IconUsersGroup },
     { key: 'vault', label: 'গোপন ভল্ট', icon: IconShieldLock },
@@ -96,6 +133,14 @@ export default function ProfileDesk() {
         subtitle={`${bn(meta.totals.person)} জন ব্যক্তি · ${bn(meta.totals.org)}টি সংস্থা — খুঁজুন, এক ক্লিকে খুলুন, নতুন পোস্টের খবর পান`}
         actions={
           <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setImporting(true)} data-testid="pd-import-open">
+              <IconUpload className="w-4 h-4" /> <span className="hidden sm:inline">আমদানি</span>
+            </Button>
+            {meta.is_boss && (
+              <Button variant="secondary" onClick={() => setExporting(true)} data-testid="pd-export-open">
+                <IconDownload className="w-4 h-4" /> <span className="hidden sm:inline">রপ্তানি</span>
+              </Button>
+            )}
             <Button variant="secondary" className="hidden sm:inline-flex" onClick={() => setCreating('org')}>
               <IconPlus className="w-4 h-4" /> সংস্থা
             </Button>
@@ -126,8 +171,11 @@ export default function ProfileDesk() {
         ))}
       </div>
 
-      {tab === 'profiles' && <ProfilesTab meta={meta} />}
-      {tab === 'alerts' && <AlertsTab onChanged={loadMeta} />}
+      {tab === 'home' && <HomeTab key={reload} meta={meta} goto={(t) => setTab(t as Tab)} onChanged={loadMeta} />}
+      {tab === 'profiles' && <ProfilesTab key={reload} meta={meta} onNewFromLink={(u) => (setNewLink(u), setCreating('person'))} />}
+      {tab === 'tasks' && <TasksTab meta={meta} onChanged={loadMeta} />}
+      {tab === 'events' && <EventsTab meta={meta} />}
+      {tab === 'alerts' && <AlertsTab meta={meta} onChanged={loadMeta} />}
       {tab === 'groups' && <GroupsTab />}
       {tab === 'vault' && <VaultTab meta={meta} onState={loadMeta} />}
       {tab === 'admin' && meta.is_boss && <AdminTab meta={meta} onChanged={loadMeta} />}
@@ -136,13 +184,26 @@ export default function ProfileDesk() {
         <EntityForm
           meta={meta}
           defaultKind={creating}
-          onClose={() => setCreating(null)}
+          initialLinks={newLink}
+          onClose={() => (setCreating(null), setNewLink(''))}
           onSaved={(e) => {
             setCreating(null)
+            setNewLink('')
             navigate(`/app/profile-desk/${e.id}`)
           }}
         />
       )}
+      {importing && (
+        <ImportDialog
+          meta={meta}
+          onClose={() => setImporting(false)}
+          onDone={() => {
+            loadMeta()
+            setReload((n) => n + 1)
+          }}
+        />
+      )}
+      {exporting && <ExportMenu onClose={() => setExporting(false)} />}
     </div>
   )
 }
@@ -151,8 +212,20 @@ export default function ProfileDesk() {
 // Profiles
 // ---------------------------------------------------------------------------
 
-function ProfilesTab({ meta }: { meta: PdMeta }) {
+const LAYOUT_KEY = 'meeha-pd-layout'
+
+function ProfilesTab({ meta, onNewFromLink }: { meta: PdMeta; onNewFromLink: (url: string) => void }) {
   const [f, setF] = useState<PdListParams>({ sort: 'importance', per_page: 30 })
+  const [views, setViews] = useState<PdView[]>([])
+  const [layout, setLayoutState] = useState<'cards' | 'table'>(() => (localStorage.getItem(LAYOUT_KEY) === 'table' ? 'table' : 'cards'))
+  const setLayout = (l: 'cards' | 'table') => {
+    setLayoutState(l)
+    try {
+      localStorage.setItem(LAYOUT_KEY, l)
+    } catch {
+      // ignore
+    }
+  }
   const [q, setQ] = useState('')
   const [items, setItems] = useState<PdEntity[]>([])
   const [total, setTotal] = useState(0)
@@ -188,6 +261,10 @@ function ProfilesTab({ meta }: { meta: PdMeta }) {
     ProfileDeskApi.groups().then(setGroups).catch(() => {})
   }, [])
   useEffect(loadGroups, [loadGroups])
+  const loadViews = useCallback(() => {
+    ProfileDeskApi.views().then(setViews).catch(() => {})
+  }, [])
+  useEffect(loadViews, [loadViews])
 
   const load = useCallback(
     (p: number) => {
@@ -213,7 +290,28 @@ function ProfilesTab({ meta }: { meta: PdMeta }) {
   const set = (patch: Partial<PdListParams>) => setF((x) => ({ ...x, ...patch }))
   const cats = meta.categories.filter((c) => !f.kind || c.kind === f.kind)
   const activeGroup = groups.find((g) => g.id === f.group)
-  const activeCount = [f.category, f.district, f.country, f.status, f.tag, f.importance, f.platform, f.alert, f.files, f.group].filter(Boolean).length
+  const activeCount = [f.category, f.district, f.country, f.status, f.tag, f.importance, f.platform, f.alert, f.files, f.group, f.pinned].filter(Boolean).length
+  const viewParams = (x: PdListParams) => {
+    const out: Partial<PdListParams> = {}
+    for (const k of ['q', 'kind', 'category', 'country', 'district', 'status', 'tag', 'importance', 'platform', 'alert', 'files', 'group', 'sort'] as const) {
+      const v = x[k]
+      if (v !== undefined && v !== '' && v !== 0 && v !== false) (out as Record<string, unknown>)[k] = v
+    }
+    return out
+  }
+  const sameView = (v: PdView) => JSON.stringify(Object.entries(viewParams(v.params as PdListParams)).sort()) === JSON.stringify(Object.entries(viewParams(f)).sort())
+  async function saveView() {
+    const name = prompt('এই তালিকার নাম দিন (যেমন: ঢাকার বিএনপি সংসদ সদস্য)')
+    if (!name?.trim()) return
+    const shared = confirm('সবাই (যাঁদের ডেস্কে প্রবেশাধিকার আছে) এই তালিকা দেখবেন?\n"OK" = সবার জন্য, "Cancel" = শুধু আমার')
+    try {
+      await ProfileDeskApi.createView({ name: name.trim(), params: viewParams(f), shared })
+      loadViews()
+    } catch (e) {
+      alert(errText(e))
+    }
+  }
+  const looksLikeLink = /^(https?:\/\/|www\.)|\.(com|net|org|me|tv|bd)\b/i.test((f.q ?? '').trim())
 
   return (
     <div>
@@ -251,6 +349,49 @@ function ProfilesTab({ meta }: { meta: PdMeta }) {
           <option value="updated">সর্বশেষ বদল</option>
           <option value="name">নাম অনুযায়ী</option>
         </select>
+      </div>
+
+      {/* r31: saved lists + pinned */}
+      <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-1" data-testid="pd-views">
+        <Chip on={!!f.pinned} onClick={() => set({ pinned: !f.pinned })}>
+          <IconPin className="w-3.5 h-3.5 inline -mt-0.5" /> পিন করা
+        </Chip>
+        {views.map((v) => (
+          <span key={v.id} className="shrink-0 inline-flex items-center">
+            <Chip on={sameView(v)} onClick={() => setF({ per_page: 30, sort: 'importance', ...(v.params as PdListParams) })}>
+              {v.shared ? '' : '🔒 '}
+              {v.name}
+            </Chip>
+            {v.can_edit && sameView(v) && (
+              <button
+                type="button"
+                className="ml-0.5 text-neutral-400 hover:text-red-600 text-[13px] px-1"
+                title="তালিকা মুছুন"
+                onClick={async () => {
+                  if (!confirm(`"${v.name}" তালিকা মুছবেন? প্রোফাইলগুলো থাকবে।`)) return
+                  await ProfileDeskApi.removeView(v.id).catch(() => {})
+                  loadViews()
+                }}
+              >
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+        {(activeCount > 0 || f.q) && !views.some(sameView) && (
+          <button type="button" onClick={saveView} className="shrink-0 px-3 py-1 rounded-full text-[12.5px] font-semibold text-brand-600 border border-dashed border-brand-300 hover:bg-brand-50" data-testid="pd-view-save">
+            + এই খোঁজ তালিকা হিসেবে রাখুন
+          </button>
+        )}
+        <span className="flex-1" />
+        <div className="shrink-0 inline-flex rounded-lg bg-neutral-100 p-0.5">
+          <button type="button" title="কার্ড" onClick={() => setLayout('cards')} className={`p-1.5 rounded-md ${layout === 'cards' ? 'bg-white shadow-sm text-neutral-900' : 'text-neutral-400'}`}>
+            <IconLayoutGrid className="w-4 h-4" />
+          </button>
+          <button type="button" title="টেবিল" onClick={() => setLayout('table')} className={`p-1.5 rounded-md ${layout === 'table' ? 'bg-white shadow-sm text-neutral-900' : 'text-neutral-400'}`} data-testid="pd-layout-table">
+            <IconTable className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* category chips */}
@@ -392,7 +533,8 @@ function ProfilesTab({ meta }: { meta: PdMeta }) {
         </div>
       )}
 
-      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+      {layout === 'table' && items.length > 0 && <EntityTable items={items} meta={meta} picked={picked} setPicked={setPicked} />}
+      <div className={`mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 ${layout === 'table' ? 'hidden' : ''}`}>
         {items.map((e) => (
           <EntityCard
             key={e.id}
@@ -413,7 +555,14 @@ function ProfilesTab({ meta }: { meta: PdMeta }) {
       {loading && <Spinner className="mt-6" />}
       {!loading && !items.length && !error && (
         <div className="mt-8 text-center text-[13.5px] text-neutral-500">
-          {f.q || activeCount ? 'কিছু পাওয়া যায়নি। বানান একটু বদলে বা ফিল্টার কমিয়ে দেখুন।' : 'এখনো কোনো প্রোফাইল নেই। ডানে উপরে "নতুন প্রোফাইল" চাপুন।'}
+          {f.q || activeCount ? 'কিছু পাওয়া যায়নি। বানান একটু বদলে বা ফিল্টার কমিয়ে দেখুন।' : 'এখনো কোনো প্রোফাইল নেই। ডানে উপরে "নতুন প্রোফাইল" বা "আমদানি" চাপুন।'}
+          {looksLikeLink && (
+            <div className="mt-3">
+              <Button onClick={() => onNewFromLink((f.q ?? '').trim())} data-testid="pd-new-from-link">
+                <IconPlus className="w-4 h-4" /> এই লিংক দিয়ে নতুন প্রোফাইল
+              </Button>
+            </div>
+          )}
         </div>
       )}
       {!loading && page < pages && (
@@ -485,6 +634,8 @@ function EntityCard({ e, meta, picked, onPick }: { e: PdEntity; meta: PdMeta; pi
             <Stars n={e.importance} size={11} />
             {!!e.files && <span className="text-neutral-500">📎 {bn(e.files)}</span>}
             {unseen > 0 && <span className="px-1.5 py-0.5 rounded bg-red-50 text-red-600 font-semibold">{bn(unseen)} নতুন</span>}
+            {e.pinned && <IconPin className="w-3 h-3 text-brand-600" />}
+            <ScoreDot score={e.score} />
           </div>
         </div>
       </Link>
@@ -502,6 +653,63 @@ function EntityCard({ e, meta, picked, onPick }: { e: PdEntity; meta: PdMeta; pi
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/** r31: compact table view (many rows at once, sortable by the main sort select). */
+function EntityTable({ items, meta, picked, setPicked }: { items: PdEntity[]; meta: PdMeta; picked: Set<number>; setPicked: (f: (s: Set<number>) => Set<number>) => void }) {
+  const toggle = (id: number) =>
+    setPicked((s) => {
+      const n = new Set(s)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+  return (
+    <div className="mt-3 overflow-x-auto rounded-2xl border border-neutral-200 bg-white" data-testid="pd-table">
+      <table className="w-full text-[12.5px]">
+        <thead className="bg-neutral-50 text-neutral-500 text-left">
+          <tr>
+            <th className="px-3 py-2 w-8" />
+            <th className="px-3 py-2">নাম</th>
+            <th className="px-3 py-2">পদ</th>
+            <th className="px-3 py-2 hidden md:table-cell">দল / সংস্থা</th>
+            <th className="px-3 py-2 hidden lg:table-cell">ধরন</th>
+            <th className="px-3 py-2 hidden lg:table-cell">জেলা / দেশ</th>
+            <th className="px-3 py-2">লিংক</th>
+            <th className="px-3 py-2 hidden sm:table-cell">পূর্ণ</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-neutral-100">
+          {items.map((e) => (
+            <tr key={e.id} className={picked.has(e.id) ? 'bg-brand-50/50' : 'hover:bg-neutral-50'}>
+              <td className="px-3 py-1.5">
+                <input type="checkbox" checked={picked.has(e.id)} onChange={() => toggle(e.id)} />
+              </td>
+              <td className="px-3 py-1.5">
+                <Link to={`/app/profile-desk/${e.id}`} className="flex items-center gap-2 font-semibold text-neutral-900 hover:text-brand-700">
+                  <Avatar name={e.name} photo={e.photo} kind={e.kind} size={26} />
+                  <span className="truncate max-w-[200px]">{e.name}</span>
+                  {e.pinned && <IconPin className="w-3 h-3 text-brand-600 shrink-0" />}
+                </Link>
+              </td>
+              <td className="px-3 py-1.5 text-neutral-600 max-w-[260px] truncate" title={e.title}>
+                {e.title}
+              </td>
+              <td className="px-3 py-1.5 text-neutral-600 hidden md:table-cell max-w-[180px] truncate">{e.org?.name}</td>
+              <td className="px-3 py-1.5 text-neutral-500 hidden lg:table-cell">{catLabel(meta, e.category)}</td>
+              <td className="px-3 py-1.5 text-neutral-500 hidden lg:table-cell">{e.district || e.country}</td>
+              <td className="px-3 py-1.5">
+                <LinkChips links={e.links} size="sm" max={4} />
+              </td>
+              <td className="px-3 py-1.5 hidden sm:table-cell">
+                <ScoreDot score={e.score} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -565,7 +773,9 @@ function AddToGroup({ groups, ids, onClose, onDone }: { groups: PdGroup[]; ids: 
 // Alerts
 // ---------------------------------------------------------------------------
 
-function AlertsTab({ onChanged }: { onChanged: () => void }) {
+function AlertsTab({ meta, onChanged }: { meta: PdMeta; onChanged: () => void }) {
+  const [newsTask, setNewsTask] = useState<{ entity: PdRef; url: string; title: string } | null>(null)
+  const [taskDone, setTaskDone] = useState('')
   const [data, setData] = useState<PdAlerts | null>(null)
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(false)
@@ -623,7 +833,21 @@ function AlertsTab({ onChanged }: { onChanged: () => void }) {
         </Button>
       </div>
       {notice && <Banner kind="success">{notice}</Banner>}
+      {taskDone && <Banner kind="success">{taskDone}</Banner>}
       {error && <Banner kind="error">{error}</Banner>}
+      {newsTask && (
+        <TaskForm
+          meta={meta}
+          entity={newsTask.entity}
+          sourceUrl={newsTask.url}
+          defaultTitle={`খবর করুন: ${newsTask.title}`.slice(0, 200)}
+          onClose={() => setNewsTask(null)}
+          onSaved={(t) => {
+            setNewsTask(null)
+            setTaskDone(`কাজ যোগ হয়েছে: ${t.title}${t.assignee ? ` (${t.assignee.name}-কে দেওয়া)` : ''}`)
+          }}
+        />
+      )}
       {!data.cron_ok && <Banner kind="info">সার্ভারের স্বয়ংক্রিয় কাজ (WP-Cron) বন্ধ মনে হচ্ছে। তাহলে "এখনই খুঁজুন" চাপলেই কেবল নতুন পোস্ট ধরা পড়বে।</Banner>}
 
       {!data.entities.length && (
@@ -661,6 +885,14 @@ function AlertsTab({ onChanged }: { onChanged: () => void }) {
                                 {it.title || '(শিরোনাম নেই)'}
                               </a>
                               <span className="text-[11px] text-neutral-400">{bnAgo(it.published_at)}</span>
+                              <button
+                                type="button"
+                                className="ml-2 text-[11px] font-semibold text-brand-600 hover:underline"
+                                onClick={() => setNewsTask({ entity: { id: e.id, name: e.name, kind: 'person', category: '' }, url: it.url, title: it.title })}
+                                data-testid="pd-news-task"
+                              >
+                                এ নিয়ে খবর
+                              </button>
                             </li>
                           ))}
                         </ul>

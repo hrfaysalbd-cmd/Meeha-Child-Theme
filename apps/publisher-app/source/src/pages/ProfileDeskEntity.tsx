@@ -1,6 +1,7 @@
 /**
  * r30 — একটা প্রোফাইলের পুরো পাতা (/app/profile-desk/:id): লিংক ও এলার্ট, নতুন পোস্ট,
  * গ্রুপ, অধীনস্থ ব্যক্তি/শাখা, পরিচিতি, গোপন নোট, ফাইল ও ভল্টের ফাইল.
+ * r31: পিন, কতটা পূর্ণ, ঘটনাপঞ্জি, সম্পর্ক, এর কাজ, মিহায় প্রকাশিত খবর, প্রিন্ট (ডসিয়ে).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -11,7 +12,8 @@ import { Avatar, LinkChip, OpenAllBar, PLATFORM_LABEL, STATUS_TONE, Stars, catLa
 import EntityForm from '../components/profileDesk/EntityForm'
 import FileBox from '../components/profileDesk/FileBox'
 import VaultGate from '../components/profileDesk/VaultGate'
-import { IconBell, IconPlayerPlay, IconShieldLock, PLATFORM_COLOR, PlatformIcon } from '../components/profileDesk/icons'
+import { IconBell, IconCalendarEvent, IconChecklist, IconNews, IconPin, IconPlayerPlay, IconPrinter, IconRelation, IconShieldLock, PLATFORM_COLOR, PlatformIcon } from '../components/profileDesk/icons'
+import { CompletenessBar, Coverage, EventForm, QuickTask, Relations, TaskList, Timeline } from '../components/profileDesk/Work'
 
 export default function ProfileDeskEntity() {
   const { id } = useParams()
@@ -25,6 +27,8 @@ export default function ProfileDeskEntity() {
   const [folder, setFolder] = useState(0)
   const photoInput = useRef<HTMLInputElement>(null)
   const [photoBusy, setPhotoBusy] = useState(false)
+  const [addEvent, setAddEvent] = useState(false)
+  const [showCoverage, setShowCoverage] = useState(false)
 
   const load = useCallback(() => {
     ProfileDeskApi.get(eid)
@@ -85,7 +89,7 @@ export default function ProfileDeskEntity() {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <nav className="flex items-center gap-1 text-[12.5px] text-neutral-500 mb-3">
+      <nav className="pd-no-print flex items-center gap-1 text-[12.5px] text-neutral-500 mb-3">
         <Link to="/app/profile-desk" className="hover:text-neutral-900">
           প্রোফাইল ডেস্ক
         </Link>
@@ -100,7 +104,7 @@ export default function ProfileDeskEntity() {
       )}
 
       {/* header */}
-      <Card className="p-4 sm:p-5">
+      <Card className="p-4 sm:p-5 pd-print-card">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative shrink-0 self-start">
             <Avatar name={e.name} photo={e.photo} kind={e.kind} size={96} />
@@ -141,6 +145,17 @@ export default function ProfileDeskEntity() {
                 {e.name_en && e.name_bn && <p className="text-[13px] text-neutral-500">{e.name_en}</p>}
                 {e.aliases && <p className="text-[12.5px] text-neutral-500">অন্য নাম: {e.aliases}</p>}
               </div>
+              <div className="pd-no-print flex gap-2">
+              <Button
+                variant={e.pinned ? 'primary' : 'secondary'}
+                onClick={() => act(() => ProfileDeskApi.pin(e.id, !e.pinned))}
+                data-testid="pd-pin"
+              >
+                <IconPin className="w-4 h-4" /> {e.pinned ? 'পিন করা' : 'পিন'}
+              </Button>
+              <Button variant="secondary" onClick={() => window.print()} className="hidden sm:inline-flex">
+                <IconPrinter className="w-4 h-4" />
+              </Button>
               {e.can_edit && (
                 <Button variant="secondary" onClick={() => setEditing(true)}>
                   <IconPencil className="w-4 h-4" /> সম্পাদনা
@@ -159,6 +174,7 @@ export default function ProfileDeskEntity() {
                   <IconTrash className="w-4 h-4" />
                 </Button>
               )}
+              </div>
             </div>
             <p className="mt-1.5 text-[14px] text-neutral-700">
               {e.title}
@@ -211,6 +227,46 @@ export default function ProfileDeskEntity() {
       <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
           <LinksCard e={e} onChanged={load} onError={setError} />
+
+          <Card className="p-4 pd-print-card">
+            <div className="flex items-center gap-2 mb-2">
+              <h3 className="font-bold text-[14px] flex-1 flex items-center gap-1.5">
+                <IconCalendarEvent className="w-4 h-4" /> ঘটনাপঞ্জি {e.events.length > 0 && <span className="text-neutral-400 font-medium">({bn(e.events.length)})</span>}
+              </h3>
+              <Button size="sm" variant="secondary" onClick={() => setAddEvent(true)} className="pd-no-print" data-testid="pd-entity-event-add">
+                <IconPlus className="w-4 h-4" /> ঘটনা
+              </Button>
+            </div>
+            {meta && <Timeline events={e.events} meta={meta} onChanged={load} />}
+          </Card>
+
+          <Card className="p-4 pd-no-print">
+            <h3 className="font-bold text-[14px] mb-2 flex items-center gap-1.5">
+              <IconChecklist className="w-4 h-4" /> এ নিয়ে কাজ
+            </h3>
+            {meta && (
+              <>
+                <QuickTask meta={meta} entity={{ id: e.id, name: e.name, kind: e.kind, category: e.category }} onAdded={load} />
+                <div className="mt-1 -mx-3">
+                  <TaskList tasks={e.tasks} meta={meta} onChanged={load} showEntity={false} empty="এই প্রোফাইল নিয়ে কোনো কাজ নেই।" />
+                </div>
+              </>
+            )}
+          </Card>
+
+          <Card className="p-4 pd-no-print">
+            <div className="flex items-center">
+              <h3 className="font-bold text-[14px] flex-1 flex items-center gap-1.5">
+                <IconNews className="w-4 h-4" /> মিহায় প্রকাশিত
+              </h3>
+              {!showCoverage && (
+                <Button size="sm" variant="secondary" onClick={() => setShowCoverage(true)} data-testid="pd-coverage">
+                  খুঁজে দেখুন
+                </Button>
+              )}
+            </div>
+            {showCoverage ? <div className="mt-2"><Coverage entityId={e.id} /></div> : <p className="text-[12px] text-neutral-500 mt-1">এই নামে মিহার প্রকাশিত খবর ও উক্তি।</p>}
+          </Card>
 
           {e.recent_items.length > 0 && (
             <Card className="p-4">
@@ -283,7 +339,18 @@ export default function ProfileDeskEntity() {
         </div>
 
         <div className="space-y-4">
-          <Card className="p-4">
+          {e.can_edit && e.completeness.score < 100 && (
+            <div className="pd-no-print">
+              <CompletenessBar c={e.completeness} onFix={() => setEditing(true)} />
+            </div>
+          )}
+          <Card className="p-4 pd-print-card">
+            <h3 className="font-bold text-[14px] mb-2 flex items-center gap-1.5">
+              <IconRelation className="w-4 h-4" /> সম্পর্ক
+            </h3>
+            {meta && <Relations entityId={e.id} relations={e.relations} meta={meta} canEdit onChange={(r) => setE({ ...e, relations: r })} />}
+          </Card>
+          <Card className="p-4 pd-no-print">
             <h3 className="font-bold text-[14px] mb-2">গ্রুপ</h3>
             {!groups.length ? (
               <p className="text-[12.5px] text-neutral-500">
@@ -352,6 +419,17 @@ export default function ProfileDeskEntity() {
         </div>
       </div>
 
+      {addEvent && meta && (
+        <EventForm
+          meta={meta}
+          entity={{ id: e.id, name: e.name, kind: e.kind, category: e.category }}
+          onClose={() => setAddEvent(false)}
+          onSaved={() => {
+            setAddEvent(false)
+            load()
+          }}
+        />
+      )}
       {editing && meta && (
         <EntityForm
           meta={meta}

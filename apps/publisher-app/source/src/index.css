@@ -228,3 +228,11 @@ input[type=number]::-webkit-outer-spin-button {
   from { opacity: 0; transform: translateY(-8px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+/* r31: printing a প্রোফাইল ডেস্ক dossier — only the page, no app chrome */
+@media print {
+  aside, header, .pd-no-print { display: none !important; }
+  main { padding: 0 !important; max-width: none !important; }
+  body { background: #fff !important; }
+  .pd-print-card { break-inside: avoid; box-shadow: none !important; }
+}

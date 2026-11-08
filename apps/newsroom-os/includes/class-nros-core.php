@@ -454,6 +454,9 @@ class NROS_Core {
 		// 1.15.0 — প্রোফাইল ডেস্ক.
 		if ( class_exists( 'NROS_Profile_Desk' ) ) {
 			dbDelta( NROS_Profile_Desk::schema( $charset_collate ) );
+			if ( class_exists( 'NROS_PD_Work' ) ) {
+				dbDelta( NROS_PD_Work::schema( $charset_collate ) );
+			}
 		}
 	}
 
