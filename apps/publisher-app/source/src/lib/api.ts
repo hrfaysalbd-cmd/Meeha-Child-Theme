@@ -548,6 +548,8 @@ export interface Profile {
     change_post_author?: boolean
     /** r30 — প্রোফাইল ডেস্ক (Publisher always; an Editor once the Publisher allows it). */
     profile_desk?: boolean
+    /** r34 — ভিউ/ইনসাইট (Publisher always; Editors when the Publisher allows). */
+    view_insights?: boolean
   }
 }
 

@@ -458,6 +458,11 @@ class NROS_Core {
 				dbDelta( NROS_PD_Work::schema( $charset_collate ) );
 			}
 		}
+
+		// 1.17.0 — ভিউ/ইনসাইট (social + website views).
+		if ( class_exists( 'NROS_VI' ) ) {
+			dbDelta( NROS_VI::schema( $charset_collate ) );
+		}
 	}
 
 	/**

@@ -1465,6 +1465,8 @@ class NROS_Auth {
 				'change_post_author' => NROS_Core::staff_can( $user, 'change_author' ),
 				// 1.15.0 — প্রোফাইল ডেস্ক (Publisher always; an Editor once allowed).
 				'profile_desk'       => class_exists( 'NROS_Profile_Desk' ) && NROS_Profile_Desk::can_access( $user ),
+				// 1.17.0 — ভিউ/ইনসাইট (Publisher always; Editors when the Publisher allows).
+				'view_insights'      => class_exists( 'NROS_VI' ) && NROS_VI::can_view( $user ),
 			),
 		);
 	}

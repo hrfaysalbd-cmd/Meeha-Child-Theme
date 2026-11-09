@@ -23,6 +23,7 @@ import {
   IconMapStats,
   IconWalletCoins,
   IconX,
+  IconChartBar,
 } from '../components/Icon'
 import { NotificationsProvider, useNotifications } from '../lib/notifications'
 import NotificationBell, { NotificationToasts } from '../components/NotificationBell'
@@ -37,12 +38,15 @@ interface NavItem {
   publisherOnly?: boolean
   /** r30: shown only to those the publisher gave প্রোফাইল ডেস্ক access */
   profileDesk?: boolean
+  /** r34: ভিউ/ইনসাইট — Publisher always, Editors when allowed */
+  viewInsights?: boolean
   /** Round 18: live "waiting" count shown as a badge (from GET /notifications). */
   count?: keyof NotificationCounts
 }
 
 const NAV: NavItem[] = [
   { to: '/app', label: 'ওভারভিউ', icon: IconDashboard },
+  { to: '/app/insights', label: 'ভিউ/ইনসাইট', icon: IconChartBar, viewInsights: true },
   { to: '/app/write', label: 'লিখুন', icon: IconPencil },
   { to: '/app/queue', label: 'এডিটোরিয়াল কিউ', icon: IconInbox, count: 'queue' },
   { to: '/app/posts', label: 'নিউজ লিস্ট', icon: IconListDetails },
@@ -108,7 +112,7 @@ function Shell() {
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const items = NAV.filter((n) => (!n.publisherOnly || isPublisher) && (!n.profileDesk || !!profile?.can?.profile_desk))
+  const items = NAV.filter((n) => (!n.publisherOnly || isPublisher) && (!n.profileDesk || !!profile?.can?.profile_desk) && (!n.viewInsights || !!profile?.can?.view_insights))
   // The "আরও" tab lights up when the current screen is one of the ones
   // tucked inside it, so the tab bar always shows where you are.
   // (Prefix match, so e.g. /app/write/12 counts as the "লিখুন" tab.)
