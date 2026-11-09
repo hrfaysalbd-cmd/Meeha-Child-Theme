@@ -51,7 +51,7 @@ export default function SoundPanel({
   const [sample, setSample] = useState<{ id: SampleId; ready: boolean } | null>(null)
   const sampleSrc = useRef<AudioBufferSourceNode | null>(null)
   const wanted = useRef<SampleId | null>(null)
-  const musicGroups = useGroups('news', MUSIC.find((m) => m.id === a.music)?.group)
+  const musicGroups = useGroups('talk', MUSIC.find((m) => m.id === a.music)?.group)
   const sfxGroups = useGroups('brand')
   const bufferOf = (id: SampleId) => (id.startsWith('sfx:') ? sfxBuffer(id.slice(4) as SfxId) : musicBuffer(id as MusicId))
   async function download(id: SampleId) {
@@ -144,7 +144,7 @@ export default function SoundPanel({
 
   return (
     <div>
-      <Section title="মিউজিক লাইব্রেরি" hint="মীহা নিউজের নিজস্ব ১১টি সুর — এই অ্যাপের ভেতরেই তৈরি, কারও রেকর্ডিং বা স্যাম্পল নেই। ভিডিও যত বড়ই হোক, পুরোটা জুড়ে নিচু ভলিউমে বারবার বাজবে। প্রতিটি সুর শুরু হয় মীহার চার-নোটের সিগনেচার সুর দিয়ে। ⤓ দিয়ে WAV ফাইল নামানো যায়।">
+      <Section title="মিউজিক লাইব্রেরি" hint="মীহা নিউজের নিজস্ব ২৬টি সুর — এই অ্যাপের ভেতরেই তৈরি, কারও রেকর্ডিং বা স্যাম্পল নেই। ভিডিও যত বড়ই হোক, পুরোটা জুড়ে নিচু ভলিউমে বারবার বাজবে। প্রতিটি সুর শুরু হয় মীহার চার-নোটের সিগনেচার সুর দিয়ে। ⤓ দিয়ে WAV ফাইল নামানো যায়।">
         <div className="space-y-1.5" role="radiogroup" aria-label="ব্র্যান্ড মিউজিক">
           {musicRow({ id: 'none', name: 'মিউজিক নেই', hint: 'শুধু ভিডিওর নিজের শব্দ' })}
           {MUSIC_GROUPS.map((g) => {

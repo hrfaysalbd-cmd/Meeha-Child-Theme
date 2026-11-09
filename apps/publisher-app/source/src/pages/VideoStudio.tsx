@@ -79,6 +79,8 @@ import VoicePanel from '../components/videoStudio/StudioVoice'
 import EffectsPanel from '../components/videoStudio/StudioEffects'
 import ThumbPanel from '../components/videoStudio/StudioThumb'
 import SubtitlesSection from '../components/videoStudio/StudioSubtitles'
+import StudioViewBar, { readUi, writeUi, type StudioUi } from '../components/videoStudio/StudioViewBar'
+import { announce, askNotify, notifyPermission } from '../lib/videoEdit/notify'
 
 type Tab = 'frame' | 'logo' | 'intro' | 'ads' | 'captions' | 'tools' | 'fx' | 'sound' | 'thumb' | 'layout'
 
@@ -93,6 +95,8 @@ const TABS: { id: Tab; name: string; icon: (p: { className?: string }) => ReactN
   { id: 'sound', name: 'শব্দ ও মিউজিক', icon: IconMusic },
   { id: 'layout', name: 'আকার', icon: IconAspectRatio },
 ]
+
+const TAB_COLS = ['grid-cols-1', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4', 'grid-cols-5']
 
 const draftKey = (videoId: number, originalId: number) => `meeha-studio:v1:${videoId}:${originalId}`
 const STYLE_KEY = 'meeha-studio:last-style'
@@ -196,7 +200,8 @@ export default function VideoStudio() {
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [loadError, setLoadError] = useState('')
   const [cfg, setCfg] = useState<EditConfig>(DEFAULT_CONFIG)
-  const [tab, setTab] = useState<Tab>('frame')
+  // round 30: open on the first tab the tick bar keeps
+  const [tab, setTab] = useState<Tab>(() => TABS.find((t) => !readUi().hiddenTabs.includes(t.id))?.id ?? 'frame')
   const [pstate, setPstate] = useState<PreviewState>({ time: 0, playing: false, waiting: false })
   const [durations, setDurations] = useState<Record<string, number>>({})
   const [adPic, setAdPic] = useState<Picture | null>(null)
@@ -210,8 +215,23 @@ export default function VideoStudio() {
   const [extraFormats, setExtraFormats] = useState<FormatId[]>([])
   const analysisRef = useRef<{ wave: AbortController | null; reframe: AbortController | null }>({ wave: null, reframe: null })
   const [job, setJob] = useState<Job | null>(null)
-  // round 28: upload only on পোস্টে বসান, unless this is ticked
-  const [attach, setAttach] = useState(false)
+  // round 28: upload only on পোস্টে বসান, unless this is ticked (round 30: remembered)
+  const [attach, setAttachRaw] = useState(() => readJson('meeha-studio:auto-attach') === true)
+  const setAttach = (v: boolean) => {
+    setAttachRaw(v)
+    writeJson('meeha-studio:auto-attach', v)
+  }
+  // round 30: the render dialog folded away while the job goes on in the background
+  const [bg, setBg] = useState(false)
+  // round 30: what the studio shows (the tick bar at the top)
+  const [ui, setUiRaw] = useState<StudioUi>(readUi)
+  const setUi = (f: (u: StudioUi) => StudioUi) =>
+    setUiRaw((u) => {
+      const n = f(u)
+      writeUi(n)
+      return n
+    })
+  const [notifyState, setNotifyState] = useState(notifyPermission)
   const [setThumb, setSetThumb] = useState(true)
   // round 29: the thumbnail studio under the editor; open unless closed before
   const [thumbOpen, setThumbOpenRaw] = useState(() => {
@@ -965,7 +985,12 @@ export default function VideoStudio() {
         savedAt: Date.now(),
       })
       setJob({ stage: 'done', url: resultUrl.current, size: result.blob.size, attached: false, filename, tooLarge, extras: extras(), canAttach: true, mime: result.mime })
-      if (attach) void attachNow()
+      if (attach) {
+        // round 30 fix: the render's own controller must be let go first, or
+        // attachNow() sees a job still running and does nothing
+        if (abortRef.current === ctrl) abortRef.current = null
+        void attachNow()
+      }
     } catch (err) {
       if (signal.aborted && pendingRef.current) {
         setJob({ stage: 'error', message: 'আপলোড থামানো হয়েছে। রেন্ডার করা ভিডিও রাখা আছে — আবার চালু করলে যেখানে থেমেছিল সেখান থেকে চলবে।', resume: true })
@@ -1195,6 +1220,25 @@ export default function VideoStudio() {
     return () => window.removeEventListener('beforeunload', warn)
   }, [busyNow])
 
+  // round 30: a chime, a browser notification and a blinking tab title when a long job ends
+  const lastStage = useRef<Job['stage'] | null>(null)
+  const uiRef = useRef(ui)
+  uiRef.current = ui
+  useEffect(() => {
+    const prev = lastStage.current
+    const now = job?.stage ?? null
+    lastStage.current = now
+    const wasBusy = prev === 'render' || prev === 'upload' || prev === 'saving' || prev === 'shrink' || prev === 'download'
+    if (!wasBusy || !job) return
+    const u = uiRef.current
+    if (job.stage === 'done') {
+      const title = job.attached ? 'ভিডিও পোস্টে বসানো হয়েছে' : 'ভিডিও তৈরি হয়ে গেছে'
+      announce({ title, body: job.attached ? 'মিহা স্টুডিও: আপলোড শেষ, পোস্টে নতুন ভিডিও।' : 'মিহা স্টুডিও: ডাউনলোড করুন বা পোস্টে বসান।', ok: true, sound: u.sound, browser: u.browser })
+    } else if (job.stage === 'error') {
+      announce({ title: 'ভিডিওর কাজ থেমে গেছে', body: job.message.slice(0, 140), ok: false, sound: u.sound, browser: u.browser })
+    }
+  }, [job])
+
   // ---- presets ----
   async function savePreset() {
     setPresetMenu(false)
@@ -1261,6 +1305,8 @@ export default function VideoStudio() {
   }
 
   const edited = hasEdits(cfg, loaded.main.duration)
+  // round 30: hidden tabs leave the bar; the open one stays until another is picked
+  const shownTabs = TABS.filter((t) => !ui.hiddenTabs.includes(t.id) || t.id === tab)
   const chips: { label: string; on: boolean; onClick: () => void; testId: string }[] = [
     {
       label: 'ওয়াটারমার্ক',
@@ -1373,10 +1419,23 @@ export default function VideoStudio() {
               </div>
             )}
           </div>
-          <Button onClick={() => setJob({ stage: 'options' })} disabled={!edited || !capability.ok}>
-            <IconMovie className="w-4 h-4" />
-            রেন্ডার করুন
-          </Button>
+          {job && bg ? (
+            <Button onClick={() => setBg(false)} data-testid="job-open">
+              <IconMovie className="w-4 h-4" />
+              {busyNow ? 'চলছে — দেখুন' : 'ফল দেখুন'}
+            </Button>
+          ) : (
+            <Button
+              onClick={() => {
+                setBg(false)
+                setJob({ stage: 'options' })
+              }}
+              disabled={!edited || !capability.ok}
+            >
+              <IconMovie className="w-4 h-4" />
+              রেন্ডার করুন
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1410,7 +1469,17 @@ export default function VideoStudio() {
         </div>
       )}
 
+      {/* round 30: tick what the studio shows */}
+      <StudioViewBar
+        ui={ui}
+        setUi={setUi}
+        tabs={TABS.map((t) => ({ id: t.id, name: t.name }))}
+        notifyState={notifyState}
+        onAskNotify={() => void askNotify().then(() => setNotifyState(notifyPermission()))}
+      />
+
       {/* one-click add */}
+      {ui.chips && (
       <div className="flex flex-wrap gap-2 mb-4" data-testid="quick-add">
         {chips.map((c) => (
           <button
@@ -1428,6 +1497,7 @@ export default function VideoStudio() {
           </button>
         ))}
       </div>
+      )}
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_400px] gap-5 items-start">
         {/* preview */}
@@ -1479,10 +1549,12 @@ export default function VideoStudio() {
               {frameName ? ` · ${frameName}` : ''}
             </span>
           </div>
+          {ui.timeline && (
           <div className="mt-3">
             <StudioTimeline tl={tl} cfg={cfg} time={pstate.time} onSeek={(t) => playerRef.current?.seek(t)} wave={wave} />
           </div>
-          {!wave && (
+          )}
+          {ui.timeline && !wave && (
             <div className="mt-2 flex items-center gap-2 flex-wrap">
               {waveJob && 'ratio' in waveJob ? (
                 <>
@@ -1505,15 +1577,17 @@ export default function VideoStudio() {
               {waveJob && 'error' in waveJob && <span className="text-[11.5px] text-red-700">{waveJob.error}</span>}
             </div>
           )}
+          {ui.tips && (
           <p className="mt-2 text-[11.5px] text-neutral-400">
             স্পেসবার = চালান/থামান · ← → এক সেকেন্ড (Shift: পাঁচ) · , . এক ফ্রেম · প্রিভিউ যা দেখাচ্ছে, রেন্ডারে ঠিক তা-ই হবে।
           </p>
+          )}
         </Card>
 
         {/* panels */}
         <Card className="overflow-hidden">
-          <div className="grid grid-cols-5 border-b border-neutral-100 px-1" role="tablist">
-            {TABS.map((t) => (
+          <div className={`grid ${TAB_COLS[Math.min(5, shownTabs.length)]} border-b border-neutral-100 px-1`} role="tablist">
+            {shownTabs.map((t) => (
               <button
                 key={t.id}
                 role="tab"
@@ -1635,6 +1709,7 @@ export default function VideoStudio() {
       </div>
 
       {/* round 29: the thumbnail studio gets the full width under the editor */}
+      {ui.thumb && (
       <div className="mt-5" data-testid="thumb-studio">
       <Card className="overflow-hidden">
         <button
@@ -1662,6 +1737,7 @@ export default function VideoStudio() {
         )}
       </Card>
       </div>
+      )}
 
       {picker && (
         <VideoLibraryPicker
@@ -1701,9 +1777,14 @@ export default function VideoStudio() {
           }}
         />
       )}
-      {job && (
+      {job && bg && <JobDock job={job} onOpen={() => setBg(false)} onCancel={() => abortRef.current?.abort()} onDismiss={() => { setBg(false); setJob(null) }} />}
+      {job && !bg && (
         <RenderDialog
           job={job}
+          onBackground={() => {
+            setBg(true)
+            if (notifyState === 'default' && ui.browser) void askNotify().then(() => setNotifyState(notifyPermission()))
+          }}
           attach={attach}
           setAttach={setAttach}
           setThumb={setThumb}
@@ -1761,7 +1842,68 @@ function BackLink({ id }: { id: number }) {
   )
 }
 
+/** Round 30: one line saying where a background job is, and how far. */
+function jobLine(job: Job): { text: string; ratio: number | null } {
+  switch (job.stage) {
+    case 'download':
+      return { text: job.label, ratio: job.ratio }
+    case 'render':
+      return { text: job.p.stage === 'render' ? `রেন্ডার হচ্ছে${job.part ? ` (${job.part})` : ''}${job.p.eta !== null ? ` · আর প্রায় ${bnClock(job.p.eta)}` : ''}` : 'রেন্ডারের প্রস্তুতি…', ratio: job.p.ratio }
+    case 'shrink':
+      return { text: 'সার্ভারের সীমায় আনতে ছোট করা হচ্ছে…', ratio: job.ratio }
+    case 'upload':
+      return { text: job.note ? job.note : job.percent >= 100 ? 'সার্ভারে প্রসেস হচ্ছে…' : `আপলোড হচ্ছে${job.speed ? ` · ${bnSpeed(job.speed)}` : ''}`, ratio: job.percent / 100 }
+    case 'saving':
+      return { text: 'পোস্টে বসানো হচ্ছে…', ratio: null }
+    case 'done':
+      return { text: job.attached ? 'ভিডিও পোস্টে বসানো হয়েছে ✓' : 'ভিডিও তৈরি ✓ — ডাউনলোড বা পোস্টে বসান', ratio: 1 }
+    case 'error':
+      return { text: job.message, ratio: null }
+    default:
+      return { text: 'রেন্ডারের সেটিংস', ratio: null }
+  }
+}
+
+/** Round 30: the job runs on while the user keeps editing; this small card follows it. */
+function JobDock({ job, onOpen, onCancel, onDismiss }: { job: Job; onOpen: () => void; onCancel: () => void; onDismiss: () => void }) {
+  const { text, ratio } = jobLine(job)
+  const busy = job.stage === 'download' || job.stage === 'render' || job.stage === 'upload' || job.stage === 'saving' || job.stage === 'shrink'
+  const tone = job.stage === 'done' ? 'border-emerald-300 bg-emerald-50' : job.stage === 'error' ? 'border-red-200 bg-red-50' : 'border-neutral-200 bg-white'
+  return (
+    <div className={`fixed z-40 bottom-4 right-4 left-4 sm:left-auto sm:w-[360px] rounded-2xl border shadow-lg p-3 ${tone}`} role="status" aria-live="polite" data-testid="job-dock">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-[12.5px] font-semibold text-neutral-900">{busy ? 'পটভূমিতে চলছে — এডিট চালিয়ে যেতে পারেন' : job.stage === 'done' ? 'কাজ শেষ' : 'থেমে গেছে'}</p>
+          <p className={`text-[12px] mt-0.5 line-clamp-2 ${job.stage === 'error' ? 'text-red-700' : 'text-neutral-600'}`}>{text}</p>
+        </div>
+        {!busy && (
+          <button type="button" onClick={onDismiss} aria-label="বন্ধ" className="text-neutral-400 hover:text-neutral-700">
+            <IconX className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+      {ratio !== null && busy && (
+        <div className="mt-2 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
+          <div className="h-full bg-brand-600 transition-[width] duration-300" style={{ width: `${Math.round(Math.min(1, ratio) * 100)}%` }} />
+        </div>
+      )}
+      <div className="mt-2 flex items-center gap-2">
+        <button type="button" onClick={onOpen} className="rounded-lg bg-brand-600 text-white px-3 py-1.5 text-[12.5px] font-semibold" data-testid="job-dock-open">
+          {job.stage === 'done' ? 'দেখুন ও ডাউনলোড' : 'খুলুন'}
+        </button>
+        {busy && (
+          <button type="button" onClick={onCancel} className="rounded-lg bg-neutral-100 text-neutral-700 px-3 py-1.5 text-[12.5px] font-semibold">
+            {job.stage === 'render' || job.stage === 'download' ? 'বাতিল' : 'থামান'}
+          </button>
+        )}
+        {ratio !== null && busy && <span className="ml-auto text-[11.5px] text-neutral-500 tabular-nums">{bnNumber(Math.round(Math.min(1, ratio) * 100))}%</span>}
+      </div>
+    </div>
+  )
+}
+
 function RenderDialog({
+  onBackground,
   job,
   attach,
   setAttach,
@@ -1786,6 +1928,7 @@ function RenderDialog({
   maxBytes,
   keptUrl,
 }: {
+  onBackground: () => void
   onResume: () => void
   onDiscard: () => void
   keptName: string | null
@@ -1952,7 +2095,10 @@ function RenderDialog({
         )}
         {job.stage === 'saving' && <p className="text-[13px] text-neutral-700">পোস্টে বসানো হচ্ছে…</p>}
         {busy && (
-          <div className="mt-4">
+          <div className="mt-4 flex gap-2 flex-wrap">
+            <Button onClick={onBackground} data-testid="run-background">
+              পটভূমিতে চালান, এডিট করুন
+            </Button>
             <Button variant="secondary" onClick={onCancel}>
               {job.stage === 'upload' || job.stage === 'saving' || (job.stage === 'shrink' && keptUrl) ? 'আপলোড থামান' : 'বাতিল করুন'}
             </Button>

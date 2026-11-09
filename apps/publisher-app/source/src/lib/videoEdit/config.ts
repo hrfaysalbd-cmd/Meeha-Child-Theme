@@ -29,6 +29,7 @@ export const FILE_SIZES: { id: FileSize; name: string; hint: string }[] = [
 ]
 export type FitMode = 'blur' | 'cover' | 'black'
 export type FrameId = 'none' | 'breaking' | 'news' | 'live' | 'special' | 'wave' | 'minimal' | 'exclusive' | 'sports' | 'election' | 'alert' | 'glass' | 'campus' | 'showbiz' | 'cinema' | 'music' | 'nil' | 'tv' | 'ujjol' | 'investigation' | 'interview' | 'economy' | 'national' | 'weather' | 'crime' | 'health' | 'tech' | 'world' | 'gold'
+  | 'tricolor' | 'ribbon' | 'rhythm' | 'festive' | 'signal'
 /** How big the frame bands, their text and the captions are (auto = bigger for reels). */
 export type FrameSize = 'auto' | 's' | 'm' | 'l' | 'xl'
 export type FrameMotion = 'lively' | 'calm'
@@ -40,10 +41,12 @@ export type Corner = 'tr' | 'tl' | 'br' | 'bl'
 export type Quality = '720' | '1080'
 /* brand music catalogue (the pieces themselves are in music.ts) */
 export type MusicId = 'signature' | 'pulse' | 'calm' | 'showbiz' | 'desi' | 'investigation' | 'sports' | 'tech' | 'sad' | 'anthem' | 'morning' | 'cinematic' | 'election' | 'weather' | 'lofi' | 'village'
+  | 'hottalk' | 'debate' | 'emotional' | 'heartfelt' | 'excited' | 'upbeat' | 'fiery' | 'rally' | 'weighty' | 'analysis'
 
 /** Round 26: the music library is shown in collapsible groups. */
-export type MusicGroup = 'news' | 'human' | 'fun' | 'deep'
+export type MusicGroup = 'talk' | 'news' | 'human' | 'fun' | 'deep'
 export const MUSIC_GROUPS: { id: MusicGroup; name: string; hint: string }[] = [
+  { id: 'talk', name: 'কথা ও বক্তব্য', hint: 'হট টক, আবেগের কথা, উত্তেজিত আলোচনা, জ্বালাময়ী ভাষণ, গম্ভীর বিশ্লেষণ' },
   { id: 'news', name: 'সংবাদ', hint: 'প্রতিদিনের খবর, ব্রেকিং, অর্থনীতি' },
   { id: 'deep', name: 'অনুসন্ধান ও খেলা', hint: 'টানটান রহস্য, দ্রুত ছন্দ' },
   { id: 'human', name: 'মানবিক ও ফিচার', hint: 'সাক্ষাৎকার, শোক, সকাল' },
@@ -53,20 +56,31 @@ export const MUSIC_GROUPS: { id: MusicGroup; name: string; hint: string }[] = [
 export const MUSIC: { id: MusicId; name: string; hint: string; group: MusicGroup; isNew?: boolean }[] = [
   { id: 'signature', name: 'মীহা সিগনেচার', hint: 'সব খবরে মানানসই · উজ্জ্বল, স্থির ছন্দ', group: 'news' },
   { id: 'pulse', name: 'ব্রেকিং পালস', hint: 'জরুরি ও ব্রেকিং খবর · ঘড়ির টিকটিক', group: 'news' },
-  { id: 'election', name: 'নির্বাচন ও রাজনীতি', hint: 'ভোট, সংসদ, রাজনীতি · মার্চিং স্নেয়ার ও স্ট্রিং', group: 'news', isNew: true },
+  { id: 'election', name: 'নির্বাচন ও রাজনীতি', hint: 'ভোট, সংসদ, রাজনীতি · মার্চিং স্নেয়ার ও স্ট্রিং', group: 'news' },
   { id: 'tech', name: 'অর্থনীতি ও প্রযুক্তি', hint: 'বাজার, ব্যবসা, প্রযুক্তি · মারিম্বা ও প্রতিধ্বনি', group: 'news' },
   { id: 'investigation', name: 'অনুসন্ধান', hint: 'তদন্ত, অপরাধ, রহস্য · নিচু স্পন্দন ও হার্টবিট', group: 'deep' },
-  { id: 'cinematic', name: 'সিনেমাটিক ডকুমেন্টারি', hint: 'বড় প্রতিবেদন, ডকুমেন্টারি · গভীর প্যাড ও টিম্পানি', group: 'deep', isNew: true },
+  { id: 'cinematic', name: 'সিনেমাটিক ডকুমেন্টারি', hint: 'বড় প্রতিবেদন, ডকুমেন্টারি · গভীর প্যাড ও টিম্পানি', group: 'deep' },
   { id: 'sports', name: 'খেলার মাঠ', hint: 'খেলা ও হাইলাইটস · জোরালো বিট ও ব্রাস', group: 'deep' },
   { id: 'calm', name: 'শান্ত পটভূমি', hint: 'সাক্ষাৎকার, মানবিক ও ফিচার · নরম পিয়ানো', group: 'human' },
   { id: 'sad', name: 'শোক ও মানবিক', hint: 'দুর্ঘটনা, শোক, মানবিক গল্প · ধীর পিয়ানো', group: 'human' },
   { id: 'morning', name: 'সকাল ও জীবনধারা', hint: 'লাইফস্টাইল, ভ্রমণ, খাবার · গিটার ও শেকার', group: 'human' },
-  { id: 'weather', name: 'আবহাওয়া ও প্রকৃতি', hint: 'আবহাওয়া, পরিবেশ, কৃষি · মারিম্বা ও বাঁশি', group: 'human', isNew: true },
-  { id: 'lofi', name: 'লো-ফাই ফিচার', hint: 'ব্যাখ্যা, ফিচার, টিপস · নরম ই-পিয়ানো ও বিট', group: 'human', isNew: true },
+  { id: 'weather', name: 'আবহাওয়া ও প্রকৃতি', hint: 'আবহাওয়া, পরিবেশ, কৃষি · মারিম্বা ও বাঁশি', group: 'human' },
+  { id: 'lofi', name: 'লো-ফাই ফিচার', hint: 'ব্যাখ্যা, ফিচার, টিপস · নরম ই-পিয়ানো ও বিট', group: 'human' },
   { id: 'showbiz', name: 'বিনোদন পপ', hint: 'বিনোদন, শোবিজ ও লাইফস্টাইল · হালকা পপ', group: 'fun' },
   { id: 'desi', name: 'দেশি সুর', hint: 'দেশ, সংস্কৃতি ও উৎসব · বাঁশি, দোতারা ও তবলা', group: 'fun' },
   { id: 'anthem', name: 'জাতীয় ও উৎসব', hint: 'জাতীয় দিবস, বিজয়, উৎসব · বড় কর্ড ও টিম্পানি', group: 'fun' },
-  { id: 'village', name: 'গ্রামবাংলা', hint: 'গ্রাম, লোকজ সংস্কৃতি, মেলা · তার-বাদ্য, তবলা ও বাঁশি', group: 'fun', isNew: true },
+  { id: 'village', name: 'গ্রামবাংলা', hint: 'গ্রাম, লোকজ সংস্কৃতি, মেলা · তার-বাদ্য, তবলা ও বাঁশি', group: 'fun' },
+  // round 30: beds for talk shows and speeches (kept light in the voice band)
+  { id: 'hottalk', name: 'হট টক', hint: 'টকশো, তীব্র প্রশ্ন · টানটান নিচু ছন্দ', group: 'talk', isNew: true },
+  { id: 'debate', name: 'তর্ক-বিতর্ক', hint: 'বিতর্ক, পাল্টাপাল্টি যুক্তি · চলমান বেস ও ড্রাম', group: 'talk', isNew: true },
+  { id: 'fiery', name: 'জ্বালাময়ী ভাষণ', hint: 'হিট স্পিচ, জোরালো বক্তব্য · টিম্পানি ও ব্রাস', group: 'talk', isNew: true },
+  { id: 'rally', name: 'জনসভা ও মিছিল', hint: 'সমাবেশ, স্লোগান, আন্দোলন · জোরালো বিট ও তালি', group: 'talk', isNew: true },
+  { id: 'excited', name: 'উত্তেজিত আলোচনা', hint: 'উচ্ছ্বসিত কথা, ভালো খবর · উজ্জ্বল ছন্দ ও তালি', group: 'talk', isNew: true },
+  { id: 'upbeat', name: 'চনমনে কথা', hint: 'হালকা আড্ডা, ভ্লগ, টিপস · মারিম্বা ও শেকার', group: 'talk', isNew: true },
+  { id: 'emotional', name: 'আবেগের কথা', hint: 'আবেগী সাক্ষাৎকার, স্মৃতিচারণ · নরম পিয়ানো ও স্ট্রিং', group: 'talk', isNew: true },
+  { id: 'heartfelt', name: 'হৃদয়ছোঁয়া', hint: 'আশার গল্প, মানবিক বার্তা · তার-বাদ্য ও ঘণ্টা', group: 'talk', isNew: true },
+  { id: 'weighty', name: 'শান্ত কিন্তু ওজনদার', hint: 'গম্ভীর বার্তা, সম্পাদকীয় · গভীর ড্রোন ও দূরের ঘণ্টা', group: 'talk', isNew: true },
+  { id: 'analysis', name: 'বিশ্লেষণ', hint: 'ব্যাখ্যা, বিশ্লেষণ, তথ্যভিত্তিক কথা · নিচু স্পন্দন ও টিকটিক', group: 'talk', isNew: true },
 ]
 
 export const DEFAULT_MUSIC: MusicId = 'signature'
@@ -161,6 +175,25 @@ export const QUICK_LOOKS: { id: string; name: string; hint: string; apply: (c: E
     name: 'খেলা',
     hint: 'খেলার ফ্রেম, ইন্ট্রো ও মিউজিক',
     apply: (c) => ({ ...c, frame: { ...c.frame, id: 'sports', motion: 'lively' }, intro: { ...c.intro, id: 'sports', cover: true }, outro: { ...c.outro, id: 'follow' }, audio: { ...c.audio, music: 'sports' }, watermark: { ...c.watermark, on: true } }),
+  },
+  // round 30
+  {
+    id: 'talkshow',
+    name: 'টকশো / হট টক',
+    hint: 'সিগন্যাল বার ফ্রেম, হট টক মিউজিক নিচু ভলিউমে, কথায় আরও নিচু',
+    apply: (c) => ({ ...c, frame: { ...c.frame, id: 'signal', motion: 'lively' }, intro: { ...c.intro, id: 'headline', cover: true }, outro: { ...c.outro, id: 'follow' }, audio: { ...c.audio, music: 'hottalk', musicVol: Math.min(c.audio.musicVol, 0.3), duck: true }, watermark: { ...c.watermark, on: true } }),
+  },
+  {
+    id: 'speech',
+    name: 'বক্তব্য / ভাষণ',
+    hint: 'ত্রিরঙা ফ্রেম, জ্বালাময়ী ভাষণের মিউজিক, ত্রিরঙা প্রগ্রেস বার',
+    apply: (c) => ({ ...c, frame: { ...c.frame, id: 'tricolor', motion: 'lively' }, intro: { ...c.intro, id: 'headline', cover: true }, outro: { ...c.outro, id: 'follow' }, audio: { ...c.audio, music: 'fiery', musicVol: Math.min(c.audio.musicVol, 0.3), duck: true }, progress: { ...c.progress, on: true, color: 'tri' }, watermark: { ...c.watermark, on: true } }),
+  },
+  {
+    id: 'calm-words',
+    name: 'শান্ত কিন্তু ওজনদার',
+    hint: 'রঙের ছন্দ ফ্রেম, শান্ত অ্যানিমেশন, গভীর মিউজিক',
+    apply: (c) => ({ ...c, frame: { ...c.frame, id: 'rhythm', motion: 'calm' }, intro: { ...c.intro, id: 'headline', cover: true }, outro: { ...c.outro, id: 'credits' }, audio: { ...c.audio, music: 'weighty', musicVol: Math.min(c.audio.musicVol, 0.3), duck: true }, watermark: { ...c.watermark, on: true } }),
   },
 ]
 
@@ -445,7 +478,7 @@ export interface EditConfig {
   /** Round 29: subtitles (typed, pasted or from an .srt file). */
   subtitles: { on: boolean; style: SubStyle; size: number; shift: number; items: SubLine[] }
   /** Round 29: a thin bar along the bottom of the picture showing how much of the news is left. */
-  progress: { on: boolean; color: 'red' | 'yellow' | 'blue' | 'white' }
+  progress: { on: boolean; color: 'red' | 'yellow' | 'blue' | 'white' | 'tri' }
   audio: AudioSettings
   cuts: Cut[]
   look: Look
@@ -497,8 +530,9 @@ export const DEFAULT_CONFIG: EditConfig = {
 // ---- catalogue ----
 
 /** Round 26: frames, intros and outros sit in collapsible sections, like the photocard designs. */
-export type DesignGroup = 'nil' | 'news' | 'breaking' | 'special' | 'topic' | 'brand' | 'clip'
+export type DesignGroup = 'color' | 'nil' | 'news' | 'breaking' | 'special' | 'topic' | 'brand' | 'clip'
 export const DESIGN_GROUPS: { id: DesignGroup; name: string; hint: string }[] = [
+  { id: 'color', name: 'রঙিন ব্র্যান্ড বার (নতুন)', hint: 'লাল-হলুদ-সবুজ চলমান বার' },
   { id: 'nil', name: 'মিহা নীল (নতুন)', hint: 'ফটোকার্ডের মতো নীল-সোনালি নকশা' },
   { id: 'news', name: 'সংবাদ', hint: 'প্রতিদিনের খবর' },
   { id: 'breaking', name: 'ব্রেকিং ও সরাসরি', hint: 'জরুরি, লাইভ, এক্সক্লুসিভ' },
@@ -520,12 +554,17 @@ export interface FrameInfo {
 }
 
 export const FRAMES: FrameInfo[] = [
-  { id: 'world', name: 'আন্তর্জাতিক', hint: 'নীল, ঘুরন্ত তারের গ্লোব', label: 'বিশ্ব', swatch: ['#071A44', '#FFC20E'], group: 'nil', isNew: true },
-  { id: 'crime', name: 'অপরাধ', hint: 'কালো, লাল-নীল পুলিশ আলো, হলুদ টেপ', label: 'অপরাধ', swatch: ['#0A0A0A', '#FACC15'], group: 'breaking', isNew: true },
-  { id: 'gold', name: 'প্রিমিয়াম সোনালি', hint: 'কালো ও সোনালি রেখা, ঝিলিক', label: 'বিশেষ', swatch: ['#0B0905', '#D6B45E'], group: 'special', isNew: true },
-  { id: 'weather', name: 'আবহাওয়া', hint: 'আকাশি নীল, সূর্য ও ভেসে চলা মেঘ', label: 'আবহাওয়া', swatch: ['#0C4A8F', '#FFD65A'], group: 'topic', isNew: true },
-  { id: 'health', name: 'স্বাস্থ্য', hint: 'টিল সবুজ, চলমান হৃৎস্পন্দন রেখা', label: 'স্বাস্থ্য', swatch: ['#065F5B', '#E11D48'], group: 'topic', isNew: true },
-  { id: 'tech', name: 'প্রযুক্তি', hint: 'গাঢ় নীল, সার্কিটে চলমান আলো', label: 'প্রযুক্তি', swatch: ['#020617', '#22D3EE'], group: 'topic', isNew: true },
+  { id: 'tricolor', name: 'ত্রিরঙা স্রোত', hint: 'গাঢ় নীল, উপরে লাল-হলুদ-সবুজ বার বয়ে চলে', label: 'শিরোনাম', swatch: ['#0A1430', '#FFC20E'], group: 'color', isNew: true },
+  { id: 'ribbon', name: 'রঙিন ফিতা', hint: 'সাদা, উপরে তিন রঙের ফিতা পতাকার মতো দোলে', label: 'শিরোনাম', swatch: ['#FFFFFF', '#12A150'], group: 'color', isNew: true },
+  { id: 'rhythm', name: 'রঙের ছন্দ', hint: 'কালো, তিন রঙের ভাগ ছন্দে বড়-ছোট হয়, ঝিলিক', label: 'সর্বশেষ', swatch: ['#0A0A0A', '#CC2A1F'], group: 'color', isNew: true },
+  { id: 'festive', name: 'উৎসবের আলো', hint: 'সবুজ-নীল, উপরে তিন রঙের চলমান বাতি', label: 'শিরোনাম', swatch: ['#063B2C', '#FFC20E'], group: 'color', isNew: true },
+  { id: 'signal', name: 'সিগন্যাল বার', hint: 'গাঢ় স্লেট, তিন রঙ পালা করে জ্বলে, সর্বশেষ ব্যাজ', label: 'সর্বশেষ', swatch: ['#0F172A', '#12A150'], group: 'color', isNew: true },
+  { id: 'world', name: 'আন্তর্জাতিক', hint: 'নীল, ঘুরন্ত তারের গ্লোব', label: 'বিশ্ব', swatch: ['#071A44', '#FFC20E'], group: 'nil' },
+  { id: 'crime', name: 'অপরাধ', hint: 'কালো, লাল-নীল পুলিশ আলো, হলুদ টেপ', label: 'অপরাধ', swatch: ['#0A0A0A', '#FACC15'], group: 'breaking' },
+  { id: 'gold', name: 'প্রিমিয়াম সোনালি', hint: 'কালো ও সোনালি রেখা, ঝিলিক', label: 'বিশেষ', swatch: ['#0B0905', '#D6B45E'], group: 'special' },
+  { id: 'weather', name: 'আবহাওয়া', hint: 'আকাশি নীল, সূর্য ও ভেসে চলা মেঘ', label: 'আবহাওয়া', swatch: ['#0C4A8F', '#FFD65A'], group: 'topic' },
+  { id: 'health', name: 'স্বাস্থ্য', hint: 'টিল সবুজ, চলমান হৃৎস্পন্দন রেখা', label: 'স্বাস্থ্য', swatch: ['#065F5B', '#E11D48'], group: 'topic' },
+  { id: 'tech', name: 'প্রযুক্তি', hint: 'গাঢ় নীল, সার্কিটে চলমান আলো', label: 'প্রযুক্তি', swatch: ['#020617', '#22D3EE'], group: 'topic' },
   { id: 'nil', name: 'মিহা নীল', hint: 'নীল গ্রেডিয়েন্ট, সোনালি রেখা ও চিপ', label: 'শিরোনাম', swatch: ['#0B2A6B', '#FFC20E'], group: 'nil' },
   { id: 'tv', name: 'টিভি নিউজ', hint: 'চ্যানেলের মতো সোনালি স্ল্যাব, স্ক্যান লাইন', label: 'সংবাদ', swatch: ['#1546B8', '#FFC20E'], group: 'nil' },
   { id: 'ujjol', name: 'উজ্জ্বল নীল', hint: 'উজ্জ্বল নীল, সোনালি চলমান রেখা ও ফুটার', label: 'শিরোনাম', swatch: ['#2E6BFF', '#FFC20E'], group: 'nil' },
@@ -906,7 +945,7 @@ export function normalizeConfig(raw: unknown): EditConfig {
         .filter((x: SubLine | null): x is SubLine => !!x)
         .slice(0, LIMITS.subtitles),
     },
-    progress: { on: bool(o.progress?.on, d.progress.on), color: oneOf(o.progress?.color, ['red', 'yellow', 'blue', 'white'] as const, d.progress.color) },
+    progress: { on: bool(o.progress?.on, d.progress.on), color: oneOf(o.progress?.color, ['red', 'yellow', 'blue', 'white', 'tri'] as const, d.progress.color) },
     captions: (Array.isArray(o.captions) ? o.captions : [])
       .map((c: any) => ({
         text: str(c?.text, LIMITS.capText),

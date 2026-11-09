@@ -201,6 +201,7 @@ export function FramePanel({
               { id: 'yellow', name: 'হলুদ' },
               { id: 'blue', name: 'নীল' },
               { id: 'white', name: 'সাদা' },
+              { id: 'tri', name: 'লাল-হলুদ-সবুজ' },
             ]}
             onChange={(v) => set((c) => ({ ...c, progress: { ...c.progress, color: v } }))}
             size="sm"

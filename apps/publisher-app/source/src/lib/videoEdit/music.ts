@@ -1055,6 +1055,282 @@ const PIECES: Record<MusicId, Piece> = {
       flute(k, 67, at(5, 0), k.beat * 3, 0.55)
     },
   },
+  // ---- round 30: talk beds ----
+  // These sit under a voice for a whole talk show or speech, so they keep the
+  // 1-4 kHz speech band light: dark pads, sub bass, sparse percussion, and the
+  // melodic parts low or very soft.
+
+  // C minor, 96 BPM. Cm - Ab - Fm - G: tight low ostinato, heartbeat kick, a hit every 2 bars — hot talk.
+  hottalk: {
+    bpm: 96,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [48, 51, 55],
+        [44, 48, 51],
+        [41, 44, 48],
+        [43, 47, 50],
+      ]
+      const roots = [36, 32, 29, 31]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        pad(k, c, at(bar, 0), k.beat * 4, 0.8, 600)
+        for (let e = 0; e < 8; e++) pulseNote(k, c[e % 3 === 2 ? 2 : 0] + 12, at(bar, e / 2), k.beat * 0.22, e % 2 ? 0.45 : 0.7, e % 2 ? 0.3 : -0.3)
+        bass(k, roots[bar % 4], at(bar, 0), k.beat * 1.4, 0.9)
+        bass(k, roots[bar % 4], at(bar, 2.5), k.beat * 0.4, 0.6)
+        kick(k, at(bar, 0), 0.85)
+        kick(k, at(bar, 0.5), 0.45)
+        kick(k, at(bar, 2), 0.7)
+        for (let s = 0; s < 4; s++) tick(k, at(bar, s + 0.5), 0.3, s % 2 ? 0.5 : -0.5)
+        if (bar % 2 === 1) stab(k, c.map((n) => n - 12), at(bar, 3.5), k.beat * 0.4, 0.7)
+      }
+      timpani(k, 36, at(0, 0), 0.6)
+      timpani(k, 36, at(4, 0), 0.5)
+      swell(k, at(7, 2), k.beat * 2, 0.55)
+    },
+  },
+  // D minor, 104 BPM. Dm - Bb - C - A: driving eighth bass, soft backbeat — debate and argument.
+  debate: {
+    bpm: 104,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [50, 53, 57],
+        [46, 50, 53],
+        [48, 52, 55],
+        [45, 49, 52],
+      ]
+      const roots = [38, 34, 36, 33]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        const r = roots[bar % 4]
+        pad(k, c, at(bar, 0), k.beat * 4, 0.6, 750)
+        for (let e = 0; e < 8; e++) bass(k, e === 6 ? r + 7 : r, at(bar, e / 2), k.beat * 0.38, e % 2 ? 0.55 : 0.8)
+        kick(k, at(bar, 0), 0.85)
+        kick(k, at(bar, 1.75), 0.5)
+        kick(k, at(bar, 2), 0.75)
+        snare(k, at(bar, 1), 0.38)
+        snare(k, at(bar, 3), 0.42)
+        for (let s = 0; s < 8; s++) hat(k, at(bar, s / 2), s % 2 ? 0.5 : 0.25, false, 0.35)
+        if (bar >= 2) stab(k, c.map((n) => n - 12), at(bar, 0), k.beat * 0.3, 0.55)
+        if (bar === 3 || bar === 7) for (let s = 0; s < 4; s++) snare(k, at(bar, 3 + s / 4), 0.25 + s * 0.08)
+      }
+      for (const [n, b] of motif(62, true)) bell(k, n, at(0, b), 0.6, 0)
+    },
+  },
+  // G minor, 68 BPM. Gm - Eb - Bb - F: soft piano arpeggio over strings — emotional talk.
+  emotional: {
+    bpm: 68,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [43, 50, 55, 58],
+        [39, 46, 51, 55],
+        [46, 50, 53, 58],
+        [41, 48, 53, 57],
+      ]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        pad(k, [c[1], c[2], c[3]], at(bar, 0), k.beat * 4, 0.65, 650)
+        bass(k, c[0] - 12, at(bar, 0), k.beat * 3.8, 0.5)
+        const arp = [c[1], c[2], c[3], c[2], c[1], c[2], c[3], c[2]]
+        arp.forEach((n, i) => epiano(k, n, at(bar, i / 2), k.beat * 0.9, i % 4 === 0 ? 0.55 : 0.35, i % 2 ? 0.3 : -0.3))
+        if (bar === 3 || bar === 7) swell(k, at(bar, 2), k.beat * 2, 0.4)
+      }
+      for (const [n, b, l] of motif(67, true)) epiano(k, n, at(4, b + 1), k.beat * l, 0.6, 0)
+    },
+  },
+  // D major, 72 BPM. D - Bm - G - A: warm plucked strings, distant bells — heartfelt, hopeful stories.
+  heartfelt: {
+    bpm: 72,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [50, 54, 57, 62],
+        [47, 50, 54, 59],
+        [43, 50, 55, 59],
+        [45, 49, 52, 57],
+      ]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        pad(k, [c[1], c[2], c[3]], at(bar, 0), k.beat * 4, 0.6, 900)
+        bass(k, c[0] - 12, at(bar, 0), k.beat * 1.8, 0.55)
+        bass(k, c[0] - 12, at(bar, 2), k.beat * 1.8, 0.45)
+        for (let e = 0; e < 8; e++) pluck(k, [c[0], c[1], c[2], c[3], c[2], c[1], c[2], c[3]][e], at(bar, e / 2), e % 4 === 0 ? 0.6 : 0.4, e % 2 ? 0.35 : -0.35, 0.35)
+        kick(k, at(bar, 0), 0.4)
+        if (bar % 2 === 1) shaker(k, at(bar, 3.5), 0.4)
+      }
+      for (const [n, b] of motif(74, false)) bell(k, n, at(0, b + 1), 0.55, 0.2)
+      for (const [n, b] of motif(74, false)) bell(k, n + 12, at(4, b + 1), 0.3, -0.2)
+      swell(k, at(7, 2), k.beat * 2, 0.4)
+    },
+  },
+  // A major, 122 BPM. A - E - F#m - D: bright plucks, claps, light four-on-the-floor — excited talk.
+  excited: {
+    bpm: 122,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [57, 61, 64],
+        [52, 56, 59],
+        [54, 57, 61],
+        [50, 54, 57],
+      ]
+      const roots = [33, 40, 42, 38]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        const r = roots[bar % 4]
+        pad(k, c.map((n) => n - 12), at(bar, 0), k.beat * 4, 0.5, 1000)
+        for (let b = 0; b < 4; b++) kick(k, at(bar, b), 0.8)
+        clap(k, at(bar, 1), 0.6)
+        clap(k, at(bar, 3), 0.65)
+        for (let s = 0; s < 8; s++) hat(k, at(bar, s / 2 + 0.25), 0.4, s === 7, 0.25)
+        for (let e = 0; e < 8; e++) bass(k, e % 2 ? r + 12 : r, at(bar, e / 2), k.beat * 0.35, 0.75)
+        if (bar >= 1) for (let s = 0; s < 8; s++) pluck(k, c[[0, 1, 2, 1][s % 4]], at(bar, s / 2), 0.4, s % 2 ? 0.4 : -0.4, 0.45)
+        if (bar === 7) swell(k, at(bar, 3), k.beat, 0.6)
+      }
+      for (const [n, b] of motif(69, false)) pluck(k, n, at(0, b), 0.9, 0, 0.6)
+    },
+  },
+  // G major, 116 BPM. G - D - Em - C: marimba, shaker and claps — lively, cheerful conversation.
+  upbeat: {
+    bpm: 116,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [55, 59, 62],
+        [50, 54, 57],
+        [52, 55, 59],
+        [48, 52, 55],
+      ]
+      const roots = [43, 38, 40, 36]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        const r = roots[bar % 4]
+        pad(k, c.map((n) => n - 12), at(bar, 0), k.beat * 4, 0.45, 1100)
+        bass(k, r, at(bar, 0), k.beat * 0.8, 0.8)
+        bass(k, r, at(bar, 1.5), k.beat * 0.4, 0.6)
+        bass(k, r + 7, at(bar, 2), k.beat * 0.8, 0.7)
+        bass(k, r + 12, at(bar, 3.5), k.beat * 0.4, 0.55)
+        kick(k, at(bar, 0), 0.75)
+        kick(k, at(bar, 2), 0.7)
+        clap(k, at(bar, 1), 0.5)
+        clap(k, at(bar, 3), 0.55)
+        for (let s = 0; s < 16; s++) shaker(k, at(bar, s / 4), s % 2 ? 0.3 : 0.55)
+        for (const s of [0, 1.5, 2.5, 3]) marimba(k, c[Math.floor(s) % 3], at(bar, s), 0.5, s > 2 ? 0.35 : -0.35, 0.25)
+      }
+      for (const [n, b] of motif(67, false)) marimba(k, n, at(0, b), 0.9, 0, 0.3)
+    },
+  },
+  // E minor, 90 BPM. Em - C - D - B: timpani, low brass, snare rolls — fiery, rousing speeches.
+  fiery: {
+    bpm: 90,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [52, 55, 59],
+        [48, 52, 55],
+        [50, 54, 57],
+        [47, 51, 54],
+      ]
+      const roots = [40, 36, 38, 35]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        const r = roots[bar % 4]
+        pad(k, c, at(bar, 0), k.beat * 4, 0.85, 700)
+        bass(k, r, at(bar, 0), k.beat * 1.5, 0.95)
+        bass(k, r, at(bar, 1.5), k.beat * 0.5, 0.7)
+        bass(k, r, at(bar, 2.5), k.beat * 1.5, 0.8)
+        timpani(k, r, at(bar, 0), 0.75)
+        timpani(k, r, at(bar, 1.5), 0.45)
+        kick(k, at(bar, 2.5), 0.6)
+        snare(k, at(bar, 1), 0.35)
+        snare(k, at(bar, 3), 0.45)
+        stab(k, c.map((n) => n - 12), at(bar, 0), k.beat * 0.6, 0.75)
+        if (bar % 2 === 1) stab(k, c.map((n) => n - 12), at(bar, 2.5), k.beat * 0.4, 0.6)
+        if (bar === 3 || bar === 7) for (let s = 0; s < 8; s++) snare(k, at(bar, 2 + s / 4), 0.2 + s * 0.06)
+      }
+      swell(k, at(7, 2), k.beat * 2, 0.6)
+    },
+  },
+  // F minor, 128 BPM. Fm - Db - Eb - C: stomping kick, claps, heavy stabs — rallies and processions.
+  rally: {
+    bpm: 128,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [53, 56, 60],
+        [49, 53, 56],
+        [51, 55, 58],
+        [48, 52, 55],
+      ]
+      const roots = [41, 37, 39, 36]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        const r = roots[bar % 4]
+        pad(k, c.map((n) => n - 12), at(bar, 0), k.beat * 4, 0.6, 800)
+        for (let b = 0; b < 4; b++) kick(k, at(bar, b), 0.95)
+        clap(k, at(bar, 1), 0.7)
+        clap(k, at(bar, 3), 0.75)
+        for (let s = 0; s < 8; s++) hat(k, at(bar, s / 2 + 0.25), 0.35, false, -0.25)
+        for (let e = 0; e < 8; e++) bass(k, r, at(bar, e / 2), k.beat * 0.3, e % 2 ? 0.6 : 0.85)
+        stab(k, c.map((n) => n - 12), at(bar, 0), k.beat * 0.45, 0.85)
+        stab(k, c.map((n) => n - 12), at(bar, 1.5), k.beat * 0.3, 0.6)
+        if (bar % 4 === 3) for (let s = 0; s < 8; s++) snare(k, at(bar, 2 + s / 4), 0.3 + s * 0.07)
+        if (bar % 4 === 0) timpani(k, r, at(bar, 0), 0.6)
+      }
+    },
+  },
+  // C# minor, 60 BPM. C#m - A - F#m - G#: drone, sub and far-off bells — calm but weighty words.
+  weighty: {
+    bpm: 60,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [49, 52, 56],
+        [45, 49, 52],
+        [42, 45, 49],
+        [44, 48, 51],
+      ]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        pad(k, c, at(bar, 0), k.beat * 4, 0.75, 520)
+        bass(k, c[0] - 12, at(bar, 0), k.beat * 3.8, 0.55)
+        if (bar % 2 === 0) drone(k, 37, at(bar, 0), 0.7, -0.2)
+        if (bar % 2 === 1) drone(k, 44, at(bar, 0), 0.55, 0.2)
+        kick(k, at(bar, 0), 0.35)
+        epiano(k, c[1], at(bar, 2), k.beat * 1.8, 0.35, 0.2)
+        if (bar % 4 === 0) timpani(k, 37, at(bar, 0), 0.4)
+      }
+      for (const [n, b] of motif(68, true)) bell(k, n, at(2, b), 0.35, -0.3)
+      for (const [n, b] of motif(68, true)) bell(k, n, at(6, b), 0.25, 0.3)
+    },
+  },
+  // B minor, 74 BPM. Bm - G - D - F#: low pulse and soft ticks, cello-like pad — analysis and explainers.
+  analysis: {
+    bpm: 74,
+    bars: 8,
+    write(k, at) {
+      const chords = [
+        [47, 50, 54],
+        [43, 47, 50],
+        [50, 54, 57],
+        [42, 46, 49],
+      ]
+      for (let bar = 0; bar < 8; bar++) {
+        const c = chords[bar % 4]
+        pad(k, c, at(bar, 0), k.beat * 4, 0.7, 600)
+        for (let e = 0; e < 8; e++) pulseNote(k, c[0], at(bar, e / 2), k.beat * 0.25, e % 2 ? 0.3 : 0.5, 0)
+        bass(k, c[0] - 12, at(bar, 0), k.beat * 1.8, 0.65)
+        bass(k, c[0] - 12, at(bar, 2), k.beat * 1.8, 0.5)
+        kick(k, at(bar, 0), 0.55)
+        kick(k, at(bar, 2.5), 0.35)
+        for (let s = 0; s < 4; s++) tick(k, at(bar, s), 0.22, s % 2 ? 0.45 : -0.45)
+        if (bar % 2 === 1) marimba(k, c[2] + 12, at(bar, 3), 0.35, 0.3, 0.4)
+      }
+      for (const [n, b] of motif(71, true)) marimba(k, n, at(0, b), 0.6, 0, 0.4)
+    },
+  },
 }
 
 const cache = new Map<MusicId, Promise<AudioBuffer>>()

@@ -338,6 +338,119 @@ function filmStrip(ctx: Ctx, r: Rect, t: number, s: number, reverse = false) {
   ctx.restore()
 }
 
+/**
+ * Round 30: the red-yellow-green brand colours. Red and yellow are the
+ * studio's existing brand red and amber; the green is a vivid one chosen
+ * for video (no green is defined in the brand files).
+ */
+const TRI = { red: '#CC2A1F', yellow: '#FFC20E', green: '#12A150' }
+const TRI_LIST = [TRI.red, TRI.yellow, TRI.green]
+
+function hexA(hex: string, a: number) {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${clamp(a, 0, 1).toFixed(3)})`
+}
+
+/** A glossy top on a colour bar. */
+function gloss(ctx: Ctx, r: Rect) {
+  const g = ctx.createLinearGradient(0, r.y, 0, r.y + r.h)
+  g.addColorStop(0, 'rgba(255,255,255,0.28)')
+  g.addColorStop(0.5, 'rgba(255,255,255,0.05)')
+  g.addColorStop(1, 'rgba(0,0,0,0.12)')
+  ctx.fillStyle = g
+  ctx.fillRect(r.x, r.y, r.w, r.h)
+}
+
+/** Red, yellow and green blocks gliding along the bar (negative speed: to the left). */
+function triSlide(ctx: Ctx, r: Rect, t: number, s: number, speed: number) {
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(r.x, r.y, r.w, r.h)
+  ctx.clip()
+  const seg = Math.max(r.w / 7, 90 * s)
+  const period = seg * 3
+  const off = (((t * speed * s) % period) + period) % period
+  for (let i = -3; i * seg < r.w + period; i++) {
+    const x = r.x + i * seg + off - period
+    ctx.fillStyle = TRI_LIST[((i % 3) + 3) % 3]
+    ctx.fillRect(x, r.y, seg + 1, r.h)
+  }
+  // soft joins between the colours
+  for (let i = -3; i * seg < r.w + period; i++) {
+    const x = r.x + i * seg + off - period
+    const g = ctx.createLinearGradient(x - seg * 0.12, 0, x + seg * 0.12, 0)
+    g.addColorStop(0, hexA(TRI_LIST[(((i - 1) % 3) + 3) % 3], 0))
+    g.addColorStop(0.5, hexA(TRI_LIST[(((i - 1) % 3) + 3) % 3], 0.55))
+    g.addColorStop(1, hexA(TRI_LIST[(((i - 1) % 3) + 3) % 3], 0))
+    ctx.fillStyle = g
+    ctx.fillRect(x - seg * 0.12, r.y, seg * 0.24, r.h)
+  }
+  gloss(ctx, r)
+  ctx.restore()
+}
+
+/** Three parts whose widths swell and shrink in turn, with a running glint. */
+function triBreathe(ctx: Ctx, r: Rect, t: number) {
+  const w = TRI_LIST.map((_, i) => 1 + 0.55 * Math.sin(t * 1.6 - (i * Math.PI * 2) / 3))
+  const sum = w[0] + w[1] + w[2]
+  let x = r.x
+  TRI_LIST.forEach((c, i) => {
+    const ww = (w[i] / sum) * r.w
+    ctx.fillStyle = c
+    ctx.fillRect(x, r.y, ww + 1, r.h)
+    x += ww
+  })
+  gloss(ctx, r)
+  const p = (t % 3.2) / 3.2
+  const gx = r.x + r.w * (p * 1.4 - 0.2)
+  const g = ctx.createLinearGradient(gx - r.w * 0.08, 0, gx + r.w * 0.08, 0)
+  g.addColorStop(0, 'rgba(255,255,255,0)')
+  g.addColorStop(0.5, 'rgba(255,255,255,0.6)')
+  g.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(r.x, r.y, r.w, r.h)
+}
+
+/** A row of round lights in the three colours, with a bright wave running along it. */
+function chaseLights(ctx: Ctx, r: Rect, t: number, s: number) {
+  const step = 26 * s
+  const rad = Math.min(r.h * 0.3, 6 * s)
+  const n = Math.ceil(r.w / step) + 1
+  const head = (t * 9) % (n + 12)
+  for (let i = 0; i < n; i++) {
+    const d = Math.abs(i - head)
+    const lit = d < 4 ? 1 - d / 4 : 0
+    const cx = r.x + step * 0.5 + i * step
+    const cy = r.y + r.h / 2
+    const c = TRI_LIST[i % 3]
+    if (lit > 0) {
+      ctx.fillStyle = hexA(c, 0.35 * lit)
+      ctx.beginPath()
+      ctx.arc(cx, cy, rad * 2.2, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.fillStyle = hexA(c, 0.45 + 0.55 * lit)
+    ctx.beginPath()
+    ctx.arc(cx, cy, rad, 0, Math.PI * 2)
+    ctx.fill()
+  }
+}
+
+/** Three equal parts that light up one after another, like a signal. */
+function triSignal(ctx: Ctx, r: Rect, t: number) {
+  const ph = (t / 0.9) % 3
+  const w = r.w / 3
+  TRI_LIST.forEach((c, i) => {
+    const d = Math.min(Math.abs(ph - i - 0.5), 3 - Math.abs(ph - i - 0.5))
+    const on = clamp(1.25 - d, 0.38, 1)
+    ctx.fillStyle = c
+    ctx.globalAlpha = on
+    ctx.fillRect(r.x + i * w, r.y, w + 1, r.h)
+  })
+  ctx.globalAlpha = 1
+  gloss(ctx, r)
+}
+
 const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
   breaking: {
     headerBg: (ctx, r, t, s) => {
@@ -1478,6 +1591,155 @@ const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
     tickerFg: '#F8E7B5',
     accent: '#D6B45E',
     edge: '#D6B45E',
+  },
+  // ---- round 30: the red-yellow-green brand bars, animated on the top of the band ----
+  tricolor: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#0A1430'],
+        [1, '#14295A'],
+      ], -0.25)
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      triSlide(ctx, { x: r.x, y: r.y, w: r.w, h: 16 * s }, t, s, 60)
+      triSlide(ctx, { x: r.x, y: r.y + r.h - 5 * s, w: r.w, h: 5 * s }, t, s, -40)
+      sweep(ctx, r, t, 6, 0.12)
+    },
+    footerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = '#0A1430'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      triSlide(ctx, { x: r.x, y: r.y, w: r.w, h: 4 * s }, t, s, 40)
+    },
+    title: '#FFFFFF',
+    date: '#FDE68A',
+    kickerBg: TRI.red,
+    kickerFg: '#FFFFFF',
+    labelBg: TRI.green,
+    labelFg: '#FFFFFF',
+    tickerFg: '#FFFFFF',
+    accent: TRI.yellow,
+  },
+  ribbon: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = '#FFFFFF'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(r.x, r.y, r.w, r.h)
+      ctx.clip()
+      // three ribbons waving like a flag, each a little behind the last
+      const band = 7 * s
+      ;[TRI.green, TRI.yellow, TRI.red].forEach((c, i) => {
+        const y0 = r.y + band * (3 - i)
+        wave(ctx, { x: r.x, y: r.y, w: r.w, h: y0 - r.y }, y0, 3 * s, r.w * 0.38, t * 2.6 - i * 0.7, c, false)
+      })
+      ctx.restore()
+      ctx.fillStyle = 'rgba(11,39,70,0.06)'
+      ctx.fillRect(r.x, r.y + r.h - 3 * s, r.w, 3 * s)
+    },
+    footerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = '#FFFFFF'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      triSlide(ctx, { x: r.x, y: r.y, w: r.w, h: 4 * s }, t, s, 30)
+    },
+    title: '#0B2746',
+    date: '#565A66',
+    kickerBg: TRI.green,
+    kickerFg: '#FFFFFF',
+    labelBg: TRI.red,
+    labelFg: '#FFFFFF',
+    tickerFg: '#0B2746',
+    accent: TRI.red,
+    edge: TRI.green,
+  },
+  rhythm: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#070707'],
+        [1, '#1A1A1A'],
+      ], 0.4)
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      // a soft glow at the right that slowly turns red, yellow, green
+      const ph = (t / 2.4) % 3
+      const i = Math.floor(ph)
+      const glow = ctx.createRadialGradient(r.x + r.w * 0.92, r.y + r.h * 0.5, 0, r.x + r.w * 0.92, r.y + r.h * 0.5, r.h * 1.6)
+      glow.addColorStop(0, hexA(TRI_LIST[i], 0.28 * (1 - Math.abs(ph - i - 0.5))))
+      glow.addColorStop(1, 'rgba(0,0,0,0)')
+      ctx.fillStyle = glow
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      triBreathe(ctx, { x: r.x, y: r.y, w: r.w, h: 15 * s }, t)
+    },
+    footerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = '#0D0D0D'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      triBreathe(ctx, { x: r.x, y: r.y, w: r.w, h: 4 * s }, t + 1.3)
+    },
+    title: '#FFFFFF',
+    date: 'rgba(255,255,255,0.75)',
+    kickerBg: TRI.yellow,
+    kickerFg: '#111111',
+    labelBg: TRI.red,
+    labelFg: '#FFFFFF',
+    tickerFg: '#FFFFFF',
+    accent: TRI.green,
+  },
+  festive: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#063B2C'],
+        [1, '#0B2746'],
+      ], -0.4)
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      // faint diagonal stripes in the three colours, drifting
+      ctx.save()
+      ctx.globalAlpha = 0.09
+      stripes(ctx, r, t, s, TRI.red, 132, 16, 26)
+      ctx.translate(44 * s, 0)
+      stripes(ctx, r, t, s, TRI.yellow, 132, 16, 26)
+      ctx.translate(44 * s, 0)
+      stripes(ctx, r, t, s, TRI.green, 132, 16, 26)
+      ctx.restore()
+      chaseLights(ctx, { x: r.x, y: r.y, w: r.w, h: 20 * s }, t, s)
+      sweep(ctx, r, t, 7, 0.1)
+    },
+    footerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = '#062B22'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      triSlide(ctx, { x: r.x, y: r.y, w: r.w, h: 4 * s }, t, s, -36)
+    },
+    title: '#FFFFFF',
+    date: '#BBF7D0',
+    kickerBg: TRI.red,
+    kickerFg: '#FFFFFF',
+    labelBg: TRI.yellow,
+    labelFg: '#111111',
+    tickerFg: '#FFFFFF',
+    accent: TRI.yellow,
+    edge: TRI.yellow,
+  },
+  signal: {
+    headerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = linear(ctx, r, [
+        [0, '#0F172A'],
+        [1, '#1E293B'],
+      ])
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      triSignal(ctx, { x: r.x, y: r.y, w: r.w, h: 16 * s }, t)
+      stripes(ctx, r, t, s, 'rgba(255,255,255,0.025)', 40, 12, 30)
+    },
+    footerBg: (ctx, r, t, s) => {
+      ctx.fillStyle = '#0F172A'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      triSignal(ctx, { x: r.x, y: r.y, w: r.w, h: 4 * s }, t + 0.4)
+    },
+    title: '#FFFFFF',
+    date: '#CBD5E1',
+    kickerBg: TRI.green,
+    kickerFg: '#FFFFFF',
+    badge: { text: 'সর্বশেষ', bg: TRI.red, fg: '#FFFFFF', kind: 'pulse' },
+    labelBg: TRI.red,
+    labelFg: '#FFFFFF',
+    tickerFg: '#FFFFFF',
+    accent: TRI.red,
   },
 }
 
@@ -4473,7 +4735,7 @@ function drawSubtitle(ctx: Ctx, env: DrawEnv, src: number, lift: number) {
   ctx.restore()
 }
 
-const PROGRESS_COLORS = { red: '#E11D2E', yellow: '#FFC20E', blue: '#2563EB', white: '#FFFFFF' } as const
+const PROGRESS_COLORS = { red: '#E11D2E', yellow: '#FFC20E', blue: '#2563EB', white: '#FFFFFF', tri: '#FFC20E' } as const
 
 /** Round 29 — a reel-style bar along the bottom of the picture: how much of the news has played. */
 function drawProgress(ctx: Ctx, env: DrawEnv, mainT: number) {
@@ -4486,7 +4748,14 @@ function drawProgress(ctx: Ctx, env: DrawEnv, mainT: number) {
   ctx.save()
   ctx.fillStyle = 'rgba(255,255,255,0.28)'
   ctx.fillRect(v.x, y, v.w, h)
-  ctx.fillStyle = PROGRESS_COLORS[pr.color]
+  if (pr.color === 'tri') {
+    // round 30: the brand red, yellow and green along the played part
+    const g = ctx.createLinearGradient(v.x, 0, v.x + v.w, 0)
+    g.addColorStop(0, TRI.red)
+    g.addColorStop(0.5, TRI.yellow)
+    g.addColorStop(1, TRI.green)
+    ctx.fillStyle = g
+  } else ctx.fillStyle = PROGRESS_COLORS[pr.color]
   ctx.fillRect(v.x, y, v.w * p, h)
   // a small glowing head
   ctx.shadowColor = PROGRESS_COLORS[pr.color]
