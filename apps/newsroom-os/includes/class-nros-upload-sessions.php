@@ -120,6 +120,9 @@ class NROS_Upload_Sessions {
 	 * @return int
 	 */
 	public static function max_bytes( $kind ) {
+		if ( 'pd' === $kind && class_exists( 'NROS_PD_Files' ) ) {
+			return NROS_PD_Files::max_bytes();
+		}
 		$max = 'audio' === $kind ? self::AUDIO_MAX : self::VIDEO_MAX;
 		return (int) apply_filters( 'nros_upload_session_max_bytes', $max, $kind );
 	}
@@ -215,12 +218,24 @@ class NROS_Upload_Sessions {
 	 */
 	public static function start( $request ) {
 		$user = NROS_Auth::get_user_from_request( $request );
-		$kind = 'audio' === $request->get_param( 'kind' ) ? 'audio' : 'video';
+		$asked = (string) $request->get_param( 'kind' );
+		$kind  = in_array( $asked, array( 'audio', 'pd' ), true ) ? $asked : 'video';
 		$size = (int) $request->get_param( 'size' );
 		$name = sanitize_file_name( (string) $request->get_param( 'name' ) );
+		$pd   = null;
 
 		if ( 'audio' === $kind && ! user_can( $user, 'edit_others_posts' ) ) {
 			return new WP_Error( 'nros_forbidden', 'এই অ্যাক্সেস নেই।', array( 'status' => 403 ) );
+		}
+		// 1.15.0 — a file for প্রোফাইল ডেস্ক (any type except web pages/scripts; encrypted on finish)
+		if ( 'pd' === $kind ) {
+			if ( ! class_exists( 'NROS_PD_Files' ) ) {
+				return new WP_Error( 'nros_forbidden', 'এই অ্যাক্সেস নেই।', array( 'status' => 403 ) );
+			}
+			$pd = NROS_PD_Files::upload_target( $user, $request );
+			if ( is_wp_error( $pd ) ) {
+				return $pd;
+			}
 		}
 		if ( 'video' === $kind ) {
 			$allowed = NROS_Media::check_video_upload_allowed( $user );
@@ -258,6 +273,7 @@ class NROS_Upload_Sessions {
 				'name'    => '' !== $name ? $name : 'meeha-' . $kind,
 				'created' => time(),
 				'result'  => null,
+				'pd'      => $pd,
 			),
 			self::TTL
 		);
@@ -419,6 +435,20 @@ class NROS_Upload_Sessions {
 					'received' => $have,
 				)
 			);
+		}
+
+		// 1.15.0 — প্রোফাইল ডেস্ক: encrypted into the desk folder, never the media library
+		if ( 'pd' === $s['kind'] ) {
+			$result = NROS_PD_Files::store_upload( $path, $s, NROS_Auth::get_user_from_request( $request ) );
+			if ( is_wp_error( $result ) ) {
+				delete_transient( 'nros_upsess_' . $s['id'] );
+				return $result;
+			}
+			$s['result'] = $result;
+			$id          = $s['id'];
+			unset( $s['id'] );
+			set_transient( 'nros_upsess_' . $id, $s, HOUR_IN_SECONDS );
+			return new WP_REST_Response( $result, 201 );
 		}
 
 		$finfo     = finfo_open( FILEINFO_MIME_TYPE );

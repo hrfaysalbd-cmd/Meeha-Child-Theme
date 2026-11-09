@@ -1463,6 +1463,8 @@ class NROS_Auth {
 				'delete_posts'       => NROS_Core::staff_can( $user, 'delete_posts' ),
 				'change_post_date'   => NROS_Core::staff_can( $user, 'change_date' ),
 				'change_post_author' => NROS_Core::staff_can( $user, 'change_author' ),
+				// 1.15.0 — প্রোফাইল ডেস্ক (Publisher always; an Editor once allowed).
+				'profile_desk'       => class_exists( 'NROS_Profile_Desk' ) && NROS_Profile_Desk::can_access( $user ),
 			),
 		);
 	}

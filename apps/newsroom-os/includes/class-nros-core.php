@@ -450,6 +450,14 @@ class NROS_Core {
 		if ( class_exists( 'NROS_Notifications' ) ) {
 			dbDelta( NROS_Notifications::schema( $charset_collate ) );
 		}
+
+		// 1.15.0 — প্রোফাইল ডেস্ক.
+		if ( class_exists( 'NROS_Profile_Desk' ) ) {
+			dbDelta( NROS_Profile_Desk::schema( $charset_collate ) );
+			if ( class_exists( 'NROS_PD_Work' ) ) {
+				dbDelta( NROS_PD_Work::schema( $charset_collate ) );
+			}
+		}
 	}
 
 	/**
@@ -777,7 +785,7 @@ class NROS_Core {
 			header( 'Access-Control-Allow-Origin: ' . $origin );
 			header( 'Access-Control-Allow-Credentials: true' );
 			header( 'Access-Control-Allow-Methods: GET, POST, PATCH, DELETE, OPTIONS' );
-			header( 'Access-Control-Allow-Headers: Authorization, Content-Type, X-WP-Nonce, Cache-Control' );
+			header( 'Access-Control-Allow-Headers: Authorization, Content-Type, X-WP-Nonce, Cache-Control, X-NROS-Vault' );
 			// Round 9 follow-up 4: let the *browser* reuse a successful
 			// preflight for 10 minutes (Chrome's default is 5 seconds) —
 			// roughly halves the number of requests the apps send.
