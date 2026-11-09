@@ -47,11 +47,14 @@ import {
   IconPlayerPlay,
   IconRectangleHorizontal,
   IconRectangleVertical,
+  IconSearch,
   IconUpload,
   IconWand,
   IconX,
 } from '../components/Icon'
 import MediaGallery from '../components/MediaGallery'
+import VideoLibraryPicker from '../components/videoStudio/VideoLibraryPicker'
+import type { LibraryVideo } from '../lib/api'
 import { DeleteConfirmModal, PublishInfoCard } from '../components/PostManagement'
 import type { AuthorValue } from '../components/AuthorPicker'
 import { CharCount, RejectVideoModal, VideoStatusBadge } from '../components/VideoBits'
@@ -148,6 +151,8 @@ export default function VideoEditor() {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
   const [thumbBusy, setThumbBusy] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(false)
+  // round 32: take a video that is already in the media library (uploaded earlier, post never saved)
+  const [libraryOpen, setLibraryOpen] = useState(false)
 
   const [slug, setSlug] = useState('')
   const [seoTitle, setSeoTitle] = useState('')
@@ -367,6 +372,37 @@ export default function VideoEditor() {
 
   function cancelUpload() {
     abortRef.current?.abort()
+  }
+
+  /** Round 32: use a video already uploaded to the media library — no upload again. */
+  function pickFromLibrary(v: LibraryVideo) {
+    const inflight = abortRef.current
+    abortRef.current = null
+    inflight?.abort()
+    pendingFile.current = null
+    setLocalPreview(null)
+    setUpload({ status: 'idle' })
+    setMetaFailed(false)
+    setAttachmentId(v.id)
+    setVideoUrl(v.url)
+    setFileInfo({ name: v.title || 'গ্যালারির ভিডিও', size: v.size })
+    setDuration(v.duration ?? null)
+    setClearEdit(true)
+    setFieldErrors((f) => ({ ...f, video: undefined }))
+    if (!orientationTouched) {
+      if (v.width && v.height) {
+        setOrientation(v.height > v.width ? 'portrait' : 'landscape')
+        setOrientationAuto(true)
+      } else {
+        void readVideoMetadata(v.url).then((meta) => {
+          if (!meta) return
+          setOrientation(meta.orientation)
+          setOrientationAuto(true)
+          if (!v.duration) setDuration(meta.duration)
+        })
+      }
+    }
+    setLibraryOpen(false)
   }
 
   function onYoutubeChange(value: string) {
@@ -704,6 +740,17 @@ export default function VideoEditor() {
                       </span>
                     </button>
                   )}
+                  {!previewSrc && upload.status !== 'uploading' && (
+                    <button
+                      type="button"
+                      onClick={() => setLibraryOpen(true)}
+                      className="mt-2 w-full rounded-xl border border-neutral-200 bg-white py-2.5 px-3 text-[13px] font-semibold text-brand-700 hover:bg-brand-50 flex items-center justify-center gap-1.5"
+                      data-testid="video-from-library"
+                    >
+                      <IconSearch className="w-4 h-4" />
+                      অথবা গ্যালারিতে আগে আপলোড হওয়া ভিডিও বেছে নিন
+                    </button>
+                  )}
                   {upload.status !== 'uploading' && (
                     <label className="mt-2 flex items-start gap-2 text-[12px] text-neutral-600" data-testid="fast-upload">
                       <input
@@ -781,10 +828,16 @@ export default function VideoEditor() {
                         {fileInfo ? `${fileInfo.name} · ${bnFileSize(fileInfo.size)}` : 'আপলোড করা ভিডিও'}
                         {duration ? ` · দৈর্ঘ্য ${bnDuration(duration)}` : ''}
                       </p>
-                      <Button size="sm" variant="secondary" onClick={() => fileInput.current?.click()}>
-                        <IconUpload className="w-3.5 h-3.5" />
-                        অন্য ভিডিও দিন
-                      </Button>
+                      <div className="flex items-center gap-1.5">
+                        <Button size="sm" variant="secondary" onClick={() => fileInput.current?.click()}>
+                          <IconUpload className="w-3.5 h-3.5" />
+                          অন্য ভিডিও দিন
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={() => setLibraryOpen(true)}>
+                          <IconSearch className="w-3.5 h-3.5" />
+                          গ্যালারি থেকে
+                        </Button>
+                      </div>
                     </div>
                   )}
 
@@ -1136,6 +1189,9 @@ export default function VideoEditor() {
                 </button>
               )}
             </div>
+            {libraryOpen && (
+              <VideoLibraryPicker title="ভিডিও গ্যালারি — আগে আপলোড হওয়া ভিডিও বেছে নিন" adsFirst={false} onSelect={pickFromLibrary} onClose={() => setLibraryOpen(false)} />
+            )}
             {galleryOpen && (
               <MediaGallery
                 title="থাম্বনেইল — গ্যালারি থেকে বেছে নিন"
