@@ -431,6 +431,16 @@ export default function Profile() {
         </div>
       )}
 
+      <button
+        type="button"
+        onClick={() => navigate('/app/settings/notifications')}
+        className="w-full mb-3 flex items-center gap-3 rounded-2xl border border-neutral-200 px-4 py-3.5 text-left"
+        data-testid="open-notification-settings"
+      >
+        <span className="text-[20px]">🔔</span>
+        <span className="flex-1 text-[14.5px] font-semibold text-neutral-900">নোটিফিকেশন ও শব্দ</span>
+        <span className="text-neutral-400">›</span>
+      </button>
       <Button onClick={onLogout} variant="danger" className="flex items-center justify-center gap-2">
         <IconLogout className="w-4.5 h-4.5" />
         লগআউট

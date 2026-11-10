@@ -206,6 +206,9 @@ class NROS_Push {
 					continue;
 				}
 				$p = is_callable( $payload ) ? call_user_func( $payload, $s ) : $payload;
+				if ( $p && ! self::wants( (int) $s['user_id'], $p ) ) {
+					continue;
+				}
 				if ( $p ) {
 					self::$queue[] = array( $s, $p, $opt );
 				}
@@ -335,6 +338,8 @@ class NROS_Push {
 		register_rest_route( NROS_API_NS, '/push/subscribe', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'subscribe' ), 'permission_callback' => $app ) );
 		register_rest_route( NROS_API_NS, '/push/unsubscribe', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'unsubscribe' ), 'permission_callback' => $app ) );
 		register_rest_route( NROS_API_NS, '/push/test', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'test' ), 'permission_callback' => $app ) );
+		register_rest_route( NROS_API_NS, '/push/prefs', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'get_prefs' ), 'permission_callback' => $app ) );
+		register_rest_route( NROS_API_NS, '/push/prefs', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'set_prefs' ), 'permission_callback' => $app ) );
 		register_rest_route( NROS_API_NS, '/app/android', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'android_info' ), 'permission_callback' => '__return_true' ) );
 	}
 
@@ -614,6 +619,61 @@ class NROS_Push {
 		$r = rest_ensure_response( $info ? $info : array( 'version_code' => 0 ) );
 		$r->header( 'Cache-Control', 'no-store' );
 		return $r;
+	}
+
+	// ------------------------------------------------------------------
+	// 1.21.0 — which notices a person wants on the phone (all on at first)
+	// ------------------------------------------------------------------
+
+	const PREF_KEYS = array( 'chat', 'urgent', 'inbox', 'alert' );
+
+	public static function prefs( $uid ) {
+		$p   = get_user_meta( (int) $uid, 'nros_push_prefs', true );
+		$out = array();
+		foreach ( self::PREF_KEYS as $k ) {
+			$out[ $k ] = ! is_array( $p ) || ! isset( $p[ $k ] ) || ! empty( $p[ $k ] );
+		}
+		return $out;
+	}
+
+	/** Which setting a notice falls under. */
+	public static function category( $p ) {
+		if ( ! empty( $p['urgent'] ) ) {
+			return 'urgent';
+		}
+		$k = isset( $p['kind'] ) ? (string) $p['kind'] : '';
+		if ( 'chat' === $k || 'alert' === $k || 'inbox' === $k ) {
+			return $k;
+		}
+		return ''; // test notices and the like always go
+	}
+
+	protected static function wants( $uid, $p ) {
+		$c = self::category( $p );
+		if ( '' === $c ) {
+			return true;
+		}
+		$prefs = self::prefs( $uid );
+		return ! empty( $prefs[ $c ] );
+	}
+
+	public static function get_prefs( $request ) {
+		$u = NROS_Auth::get_user_from_request( $request );
+		return rest_ensure_response( self::prefs( $u->ID ) );
+	}
+
+	/** POST /push/prefs — { chat?, urgent?, inbox?, alert? } booleans. */
+	public static function set_prefs( $request ) {
+		$u    = NROS_Auth::get_user_from_request( $request );
+		$cur  = self::prefs( $u->ID );
+		foreach ( self::PREF_KEYS as $k ) {
+			$v = $request->get_param( $k );
+			if ( null !== $v ) {
+				$cur[ $k ] = rest_sanitize_boolean( $v );
+			}
+		}
+		update_user_meta( $u->ID, 'nros_push_prefs', array_map( 'intval', $cur ) );
+		return rest_ensure_response( $cur );
 	}
 
 	// ---- wp-admin: paste the Firebase service account ----

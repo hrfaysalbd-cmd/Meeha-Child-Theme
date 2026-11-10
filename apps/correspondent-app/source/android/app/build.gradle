@@ -23,6 +23,7 @@ android {
             def ks = System.getenv("MEEHA_KEYSTORE")
             if (ks) {
                 storeFile file(ks)
+                storeType "pkcs12"
                 storePassword System.getenv("MEEHA_KEYSTORE_PASSWORD")
                 keyAlias System.getenv("MEEHA_KEY_ALIAS")
                 keyPassword System.getenv("MEEHA_KEY_PASSWORD") ?: System.getenv("MEEHA_KEYSTORE_PASSWORD")

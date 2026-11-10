@@ -141,3 +141,13 @@ export async function syncPush() {
     // quietly try again next time
   }
 }
+
+/** Which notices reach this person's phone (newsroom-os 1.21.0+). All on until changed. */
+export interface PushPrefs {
+  chat: boolean
+  urgent: boolean
+  inbox: boolean
+  alert: boolean
+}
+export const getPushPrefs = () => apiRequest<PushPrefs>('/push/prefs')
+export const setPushPrefs = (p: Partial<PushPrefs>) => apiRequest<PushPrefs>('/push/prefs', { method: 'POST', body: p })

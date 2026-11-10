@@ -106,6 +106,9 @@ export function ChatProvider({ children, enabled = true }: { children: ReactNode
     // Android app: a Firebase notice arrived while the app is open
     const onNative = () => void load()
     window.addEventListener('nros-native-push', onNative)
+    // Android app: notices were just allowed on first start → register this phone
+    const onPerms = () => void syncPush()
+    window.addEventListener('nros-native-perms', onPerms)
     const unlock = () => unlockSounds()
     document.addEventListener('visibilitychange', onVis)
     window.addEventListener('pointerdown', unlock, { once: true })
@@ -116,6 +119,7 @@ export function ChatProvider({ children, enabled = true }: { children: ReactNode
       window.removeEventListener('pointerdown', unlock)
       navigator.serviceWorker?.removeEventListener('message', onSw)
       window.removeEventListener('nros-native-push', onNative)
+      window.removeEventListener('nros-native-perms', onPerms)
     }
   }, [enabled, load])
 

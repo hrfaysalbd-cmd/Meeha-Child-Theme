@@ -180,6 +180,39 @@ export async function startNative() {
     true,
   )
   if (HAS_FCM) void listen()
+  void askOnFirstStart()
+}
+
+/**
+ * The very first start of the app: ask for notifications, microphone and
+ * camera one after another (Android shows its own dialogs). Afterwards
+ * nothing is asked here again: Android remembers the answers, and anything
+ * still missing is asked at the moment it is needed (mic → voice note,
+ * camera → photo). Someone updating from an earlier build has the flag
+ * unset too, but Android simply skips what was already allowed.
+ */
+const FIRST_START = 'nros_native_perms_v1'
+async function askOnFirstStart() {
+  if (localStorage.getItem(FIRST_START)) return
+  localStorage.setItem(FIRST_START, String(Date.now()))
+  await new Promise((ok) => setTimeout(ok, 1200)) // let the first screen draw
+  try {
+    const P = await pushPlugin()
+    const p = await P.checkPermissions()
+    if (p.receive === 'prompt' || p.receive === 'prompt-with-rationale') await P.requestPermissions()
+  } catch {
+    // older Android: notices are allowed without asking
+  }
+  for (const c of [{ audio: true }, { video: true }] as MediaStreamConstraints[]) {
+    try {
+      const st = await navigator.mediaDevices?.getUserMedia(c)
+      st?.getTracks().forEach((t) => t.stop())
+    } catch {
+      // "Don't allow": it is asked again when that feature is used
+    }
+  }
+  // with notices now allowed, register this phone (the chat list does it too once signed in)
+  window.dispatchEvent(new CustomEvent('nros-native-perms'))
 }
 
 // ---------------------------------------------------------------- updates

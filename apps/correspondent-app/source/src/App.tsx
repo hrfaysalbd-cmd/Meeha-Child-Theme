@@ -14,6 +14,7 @@ import Earn from './pages/Earn'
 import Profile from './pages/Profile'
 import Live from './pages/Live'
 import Chat from './pages/Chat'
+import NotificationSettings from './pages/NotificationSettings'
 
 function Root() {
   const { profile, loading } = useAuth()
@@ -69,6 +70,7 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="write" element={<Write />} />
         <Route path="write/:id" element={<Write />} />
+        <Route path="settings/notifications" element={<NotificationSettings />} />
         <Route path="video/new" element={<VideoEditor />} />
         <Route path="video/:id" element={<VideoEditor />} />
         <Route path="news" element={<News />} />
