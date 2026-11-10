@@ -1,3 +1,4 @@
+import { isPushOn } from '../chat/push'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NotificationsApi, type AppNotification, type NotificationCounts } from './api'
 
@@ -81,7 +82,7 @@ export function NotificationsProvider({
   onOpenRef.current = onOpen
 
   const showSystem = useCallback((fresh: AppNotification[]) => {
-    if (!systemSupported() || Notification.permission !== 'granted' || document.visibilityState === 'visible') return
+    if (!systemSupported() || Notification.permission !== 'granted' || document.visibilityState === 'visible' || isPushOn()) return
     for (const n of fresh.slice(0, 3)) {
       try {
         const sys = new Notification(n.title, { body: n.body, tag: `nros-${n.id}`, icon: '/favicon.svg' })

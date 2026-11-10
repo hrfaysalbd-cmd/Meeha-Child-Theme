@@ -1007,12 +1007,66 @@ class NROS_Chat {
 		$wpdb->update( self::t( 'rooms' ), array( 'last_msg_id' => $id, 'last_at' => $now ), array( 'id' => $room['id'] ) );
 		self::touch_member( $room, $u );
 		$wpdb->update( self::t( 'members' ), array( 'last_read_id' => $id ), array( 'room_id' => $room['id'], 'user_id' => $u->ID ) );
+		self::push_message( $room, $u, $id, $body, $label, $request->get_param( 'mentions' ), count( $files ) );
 		// stop "typing…"
 		$tp = (array) get_transient( 'nros_chat_typ_' . $room['id'] );
 		unset( $tp[ $u->ID ] );
 		set_transient( 'nros_chat_typ_' . $room['id'], $tp, 30 );
 		$m = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . self::t( 'messages' ) . ' WHERE id = %d', $id ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		return rest_ensure_response( self::shape_msg( $m, $u, $room ) );
+	}
+
+	/**
+	 * 1.20.0 — a new message as a phone notice (ওয়েব-পুশ) for the people who
+	 * should hear about it: the room's members (not muted, unless জরুরি or I
+	 * was @mentioned); in a desk line, the correspondent ↔ the whole desk.
+	 */
+	protected static function push_message( $room, $u, $msg_id, $body, $label, $mention_ids, $nfiles ) {
+		global $wpdb;
+		if ( ! class_exists( 'NROS_Push' ) ) {
+			return;
+		}
+		$urgent   = 'urgent' === $label;
+		$mentions = array_map( 'intval', (array) $mention_ids );
+		if ( 'desk' === $room['kind'] ) {
+			$to = (int) $room['owner_id'] === (int) $u->ID ? self::people( true ) : array( (int) $room['owner_id'] );
+		} else {
+			$now  = current_time( 'mysql' );
+			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT user_id, muted_until FROM ' . self::t( 'members' ) . ' WHERE room_id = %d AND removed = 0', $room['id'] ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			$to   = array();
+			foreach ( (array) $rows as $r ) {
+				$muted = $r['muted_until'] && $r['muted_until'] > $now;
+				if ( ! $muted || $urgent || in_array( (int) $r['user_id'], $mentions, true ) ) {
+					$to[] = (int) $r['user_id'];
+				}
+			}
+		}
+		$to = array_diff( $to, array( (int) $u->ID ) );
+		if ( ! $to ) {
+			return;
+		}
+		$text = '' !== trim( (string) $body ) ? wp_html_excerpt( (string) $body, 150, '…' ) : ( $nfiles ? '📎 ফাইল / ভয়েস' : '' );
+		$lab  = $label && isset( self::LABELS[ $label ] ) && ! in_array( $label, array( 'general', 'urgent' ), true ) ? '[' . self::LABELS[ $label ][0] . '] ' : '';
+		$rid  = (int) $room['id'];
+		$owner = (int) $room['owner_id'];
+		$name = $room['name'];
+		$icon = $room['icon'] ? $room['icon'] : '💬';
+		NROS_Push::to_users(
+			$to,
+			function ( $sub ) use ( $rid, $owner, $name, $icon, $text, $lab, $u, $urgent, $mentions, $room ) {
+				$is_owner = 'desk' === $room['kind'] && (int) $sub['user_id'] === $owner;
+				$title    = 'desk' === $room['kind'] ? ( $is_owner ? '💬 ডেস্ক (এডিটর ও পাবলিশার)' : '✉️ ' . $u->display_name ) : $icon . ' ' . $name;
+				return array(
+					'title'  => ( $urgent ? '🚨 জরুরি · ' : ( in_array( (int) $sub['user_id'], $mentions, true ) ? '@ ' : '' ) ) . $title,
+					'body'   => ( 'desk' === $room['kind'] && ! $is_owner ? '' : $u->display_name . ': ' ) . $lab . $text,
+					'url'    => 'correspondent' === $sub['app'] ? '/app/chat?room=' . $rid : '/app/inbox?tab=chat&room=' . $rid,
+					'tag'    => 'chat-' . $rid,
+					'urgent' => $urgent,
+					'kind'   => 'chat',
+				);
+			},
+			array( 'topic' => 'chat-' . $rid, 'urgency' => $urgent ? 'high' : 'normal', 'ttl' => $urgent ? DAY_IN_SECONDS : 6 * HOUR_IN_SECONDS )
+		);
 	}
 
 	/**

@@ -3,6 +3,7 @@ import { ChatApi, type ChatLabel, type Room, type RoomsResponse } from './api'
 import { useChat } from './ChatContext'
 import { CountPill, LabelChip, RoomIcon, Sheet, Spinner } from './bits'
 import PeoplePicker from './PeoplePicker'
+import { PushBanner, PushSheet, usePush } from './PushSetup'
 import RoomView from './RoomView'
 import { bnNum, DEFAULT_LABELS, shortWhen } from './util'
 
@@ -136,6 +137,8 @@ export default function ChatBox({
   const [newMenu, setNewMenu] = useState(false)
   const [newRoom, setNewRoom] = useState(false)
   const [deskPick, setDeskPick] = useState(false)
+  const [pushOpen, setPushOpen] = useState(false)
+  const push = usePush()
   const [selected, setSelected] = useState<number | null>(roomId)
   // side by side only when the box itself is wide (the correspondent app is a
   // narrow column even on a computer)
@@ -209,6 +212,17 @@ export default function ChatBox({
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-neutral-400">🔍</span>
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="রুম বা নাম খুঁজুন" className="w-full rounded-xl bg-neutral-100 pl-8 pr-3 py-2 text-[13.5px] outline-none focus:bg-white focus:ring-2 focus:ring-brand-200" />
           </div>
+          <button
+            type="button"
+            onClick={() => setPushOpen(true)}
+            className={`relative h-9 w-9 shrink-0 rounded-xl text-[16px] ${push.state === 'on' ? 'bg-emerald-50' : 'bg-neutral-100'}`}
+            title="ফোনে নোটিফিকেশন"
+            aria-label="ফোনে নোটিফিকেশন"
+            data-testid="push-btn"
+          >
+            🔔
+            {push.state && push.state !== 'on' && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />}
+          </button>
           {me.staff && (
             <div className="relative">
               <button type="button" onClick={() => setNewMenu((v) => !v)} className="h-9 px-3 rounded-xl bg-brand-600 text-white text-[13px] font-semibold whitespace-nowrap" data-testid="chat-new">
@@ -253,6 +267,7 @@ export default function ChatBox({
           ))}
         </div>
       </div>
+      <PushBanner key={String(push.state)} onOpen={() => setPushOpen(true)} />
       <div className="flex-1 min-h-0 overflow-y-auto px-1.5 pb-2">
         {!data && !err ? (
           <div className="p-8 flex justify-center">
@@ -276,6 +291,13 @@ export default function ChatBox({
 
   const dialogs = (
     <>
+      <PushSheet
+        open={pushOpen}
+        onClose={() => {
+          setPushOpen(false)
+          push.refresh()
+        }}
+      />
       {newRoom && (
         <NewRoom
           onClose={() => setNewRoom(false)}

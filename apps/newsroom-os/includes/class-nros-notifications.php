@@ -151,6 +151,10 @@ class NROS_Notifications {
 				)
 			);
 		}
+		// 1.20.0 — also as a phone/computer notice (ওয়েব-পুশ)
+		if ( class_exists( 'NROS_Push' ) ) {
+			NROS_Push::on_notification( $user_ids, $type, $title, $body, $link );
+		}
 	}
 
 	/**

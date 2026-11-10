@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ChatApi, type ChatSummary } from './api'
 import { loadSoundPrefs, playSound, unlockSounds } from '../lib/sounds'
+import { isPushOn, syncPush } from './push'
 
 /**
  * r36 — keeps the chat badge fresh (every ~10 s while the app is open, ~30 s
@@ -54,7 +55,7 @@ export function ChatProvider({ children, enabled = true }: { children: ReactNode
           const kind = l.label === 'urgent' ? 'urgent' : 'chat'
           if (prefs[kind]) playSound(kind, prefs.volume)
           setToast(l)
-          if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+          if (document.hidden && !isPushOn() && 'Notification' in window && Notification.permission === 'granted') {
             try {
               const n = new Notification(`${l.icon} ${l.room}`, { body: `${l.author}: ${l.text}`, tag: `chat-${l.room_id}` })
               n.onclick = () => {
@@ -89,6 +90,19 @@ export function ChatProvider({ children, enabled = true }: { children: ReactNode
         void tick()
       }
     }
+    // ওয়েব-পুশ: keep this device registered; the worker may ask us to
+    // re-send a changed address, or to open a screen after a tap
+    void syncPush()
+    const onSw = (e: MessageEvent) => {
+      const t = e.data?.type
+      if (t === 'nros-push-resubscribe') void syncPush()
+      if (t === 'nros-push') void load()
+      if (t === 'nros-open' && typeof e.data.url === 'string') {
+        const u = new URL(e.data.url, location.href)
+        if (u.origin === location.origin) location.assign(u.pathname + u.search)
+      }
+    }
+    navigator.serviceWorker?.addEventListener('message', onSw)
     const unlock = () => unlockSounds()
     document.addEventListener('visibilitychange', onVis)
     window.addEventListener('pointerdown', unlock, { once: true })
@@ -97,6 +111,7 @@ export function ChatProvider({ children, enabled = true }: { children: ReactNode
       if (timer.current) clearTimeout(timer.current)
       document.removeEventListener('visibilitychange', onVis)
       window.removeEventListener('pointerdown', unlock)
+      navigator.serviceWorker?.removeEventListener('message', onSw)
     }
   }, [enabled, load])
 

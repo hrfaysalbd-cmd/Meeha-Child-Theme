@@ -1,3 +1,4 @@
+import { isPushOn } from '../chat/push'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NotificationsApi, type AppNotification, type NotificationChannel, type NotificationCounts } from './api'
 import { loadSoundPrefs, playSound, saveSoundPrefs, unlockSounds, type SoundKind, type SoundPrefs } from './sounds'
@@ -145,7 +146,7 @@ export function NotificationsProvider({
   }, [])
 
   const showSystem = useCallback((fresh: AppNotification[]) => {
-    if (!systemSupported() || Notification.permission !== 'granted' || document.visibilityState === 'visible') return
+    if (!systemSupported() || Notification.permission !== 'granted' || document.visibilityState === 'visible' || isPushOn()) return
     for (const n of fresh.slice(0, 3)) {
       try {
         const where = channelOf(n) === 'alerts' ? (alertKind(n) === 'video' ? '▶ ভিডিও এলার্ট' : '🔔 পোস্ট এলার্ট') : '📥 ইনবক্স'

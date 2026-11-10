@@ -470,6 +470,11 @@ class NROS_Core {
 				dbDelta( $chat_sql );
 			}
 		}
+
+		// 1.20.0 — ওয়েব-পুশ subscriptions.
+		if ( class_exists( 'NROS_Push' ) ) {
+			dbDelta( NROS_Push::schema( $charset_collate ) );
+		}
 	}
 
 	/**

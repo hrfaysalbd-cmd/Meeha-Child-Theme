@@ -33,6 +33,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
         navigateFallbackDenylist: [/^\/wp-json\//],
         cleanupOutdatedCaches: true,
+        // newsroom-os 1.20.0: push notices (chat, approvals) while the app is closed
+        importScripts: ['push-sw.js'],
       },
     }),
   ],
