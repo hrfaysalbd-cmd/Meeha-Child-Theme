@@ -602,6 +602,19 @@ class NROS_Push {
 	 * "নতুন ভার্সন" notice.
 	 */
 	public static function android_info() {
+		$info = self::android_data();
+		$r    = rest_ensure_response( $info ? $info : array( 'version_code' => 0 ) );
+		$r->header( 'Cache-Control', 'no-store' );
+		return $r;
+	}
+
+	/**
+	 * The newest Android app info (cached 10 minutes), or an empty array
+	 * when android.json can't be read. Also used by the 1.22.0 landing page.
+	 *
+	 * @return array
+	 */
+	public static function android_data() {
 		$info = get_transient( 'nros_android_info' );
 		if ( false === $info ) {
 			$url  = apply_filters( 'nros_android_info_url', self::ANDROID_INFO_URL );
@@ -616,9 +629,7 @@ class NROS_Push {
 			) : array();
 			set_transient( 'nros_android_info', $info, 10 * MINUTE_IN_SECONDS );
 		}
-		$r = rest_ensure_response( $info ? $info : array( 'version_code' => 0 ) );
-		$r->header( 'Cache-Control', 'no-store' );
-		return $r;
+		return is_array( $info ) ? $info : array();
 	}
 
 	// ------------------------------------------------------------------
