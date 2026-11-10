@@ -1,4 +1,5 @@
 import { compressImageForUpload, uploadTimeoutFor } from './imageCompress'
+import { trackRequest, trackUpload } from './netActivity'
 
 /**
  * API client for the newsroom-os plugin's REST API (nros/v1).
@@ -149,6 +150,7 @@ class RequestTimeout extends Error {}
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const end = trackRequest(url.startsWith(API_BASE) ? url.slice(API_BASE.length) : url, (init.method || 'GET').toUpperCase(), init.body)
   try {
     return await fetch(url, { ...init, signal: controller.signal })
   } catch (err) {
@@ -156,6 +158,7 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
     throw err
   } finally {
     clearTimeout(timer)
+    end()
   }
 }
 
@@ -842,7 +845,11 @@ function xhrPost(
     }
     const xhr = new XMLHttpRequest()
     const onAbortSignal = () => xhr.abort()
-    const done = () => signal?.removeEventListener('abort', onAbortSignal)
+    const endUpload = trackUpload()
+    const done = () => {
+      endUpload()
+      signal?.removeEventListener('abort', onAbortSignal)
+    }
 
     xhr.open('POST', `${API_BASE}${path}`)
     xhr.withCredentials = true

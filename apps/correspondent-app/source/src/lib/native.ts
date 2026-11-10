@@ -54,15 +54,27 @@ let fcmToken: string | null = null
 let tokenWaiters: ((t: string | null) => void)[] = []
 let listening = false
 
-async function pushPlugin() {
+/**
+ * The plugin is handed back inside an object on purpose: a Capacitor plugin
+ * answers to every property, also `then`, so returning it straight from an
+ * async function makes the promise wait for a native "then" call that never
+ * answers (r31 bug: nothing was asked on first start, the notification
+ * screen spun forever).
+ */
+async function pushPlugin(): Promise<{ P: typeof import('@capacitor/push-notifications').PushNotifications }> {
   const { PushNotifications } = await import('@capacitor/push-notifications')
-  return PushNotifications
+  return { P: PushNotifications }
+}
+
+/** A native call that can't hang the screen: gives up after `ms`. */
+function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  return Promise.race([p, new Promise<T>((_, no) => setTimeout(() => no(new Error(`${what}: no answer`)), ms))])
 }
 
 async function listen() {
   if (listening) return
   listening = true
-  const P = await pushPlugin()
+  const { P } = await pushPlugin()
   await P.addListener('registration', (t) => {
     fcmToken = t.value
     tokenWaiters.forEach((w) => w(t.value))
@@ -91,7 +103,7 @@ async function listen() {
 }
 
 async function registerToken(): Promise<string | null> {
-  const P = await pushPlugin()
+  const { P } = await pushPlugin()
   await listen()
   if (fcmToken) return fcmToken
   const got = new Promise<string | null>((ok) => {
@@ -107,8 +119,8 @@ export const nativePush = {
 
   async state(): Promise<PushState> {
     if (!HAS_FCM) return 'unsupported'
-    const P = await pushPlugin()
-    const p = await P.checkPermissions()
+    const { P } = await pushPlugin()
+    const p = await withTimeout(P.checkPermissions(), 5000, 'checkPermissions')
     if (p.receive === 'denied') return 'denied'
     if (p.receive !== 'granted') return 'off'
     return fcmToken ? 'on' : 'off'
@@ -116,7 +128,7 @@ export const nativePush = {
 
   async enable(send: Send): Promise<PushState | 'error'> {
     if (!HAS_FCM) return 'unsupported'
-    const P = await pushPlugin()
+    const { P } = await pushPlugin()
     let p = await P.checkPermissions()
     if (p.receive === 'prompt' || p.receive === 'prompt-with-rationale') p = await P.requestPermissions()
     if (p.receive !== 'granted') return p.receive === 'denied' ? 'denied' : 'off'
@@ -128,7 +140,7 @@ export const nativePush = {
 
   async disable(send: Send) {
     if (!HAS_FCM) return
-    const P = await pushPlugin()
+    const { P } = await pushPlugin()
     if (fcmToken) await send({ fcm: fcmToken }).catch(() => {})
     fcmToken = null
     await P.unregister().catch(() => {})
@@ -137,7 +149,7 @@ export const nativePush = {
   /** On start: when allowed, (re)register quietly and tell the server. */
   async sync(send: Send): Promise<boolean> {
     if (!HAS_FCM) return false
-    const P = await pushPlugin()
+    const { P } = await pushPlugin()
     await listen()
     const p = await P.checkPermissions()
     if (p.receive !== 'granted') return false
@@ -191,14 +203,15 @@ export async function startNative() {
  * camera → photo). Someone updating from an earlier build has the flag
  * unset too, but Android simply skips what was already allowed.
  */
-const FIRST_START = 'nros_native_perms_v1'
+// v2: the v1 build stalled before asking (see pushPlugin), so ask once more
+const FIRST_START = 'nros_native_perms_v2'
 async function askOnFirstStart() {
   if (localStorage.getItem(FIRST_START)) return
   localStorage.setItem(FIRST_START, String(Date.now()))
   await new Promise((ok) => setTimeout(ok, 1200)) // let the first screen draw
   try {
-    const P = await pushPlugin()
-    const p = await P.checkPermissions()
+    const { P } = await pushPlugin()
+    const p = await withTimeout(P.checkPermissions(), 5000, 'checkPermissions')
     if (p.receive === 'prompt' || p.receive === 'prompt-with-rationale') await P.requestPermissions()
   } catch {
     // older Android: notices are allowed without asking

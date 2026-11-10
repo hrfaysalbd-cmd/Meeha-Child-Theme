@@ -107,3 +107,13 @@ input[type=number]::-webkit-outer-spin-button {
   from { opacity: 0; transform: translateY(-8px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+/* r31 — Meeha loading mark */
+@keyframes meeha-spin { to { transform: rotate(360deg); } }
+@keyframes meeha-breathe { 0%, 100% { transform: scale(0.92); } 50% { transform: scale(1.04); } }
+.meeha-ring { animation: meeha-spin 1s linear infinite; }
+.meeha-tile { animation: meeha-breathe 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .meeha-ring { animation-duration: 2.5s; }
+  .meeha-tile { animation: none; }
+}

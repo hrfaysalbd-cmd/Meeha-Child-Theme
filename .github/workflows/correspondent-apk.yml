@@ -118,3 +118,53 @@ jobs:
           name: meeha-correspondent-${{ github.run_number }}-${{ env.KIND }}-fcm-${{ env.FCM }}
           path: out/
           retention-days: 30
+
+  # Smoke test on an Android emulator: install, open, and check that the
+  # app's native side answers (the first-start permission dialog appears).
+  # Screenshots + log are kept as an artifact; this job never blocks the APK.
+  emulator-check:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: meeha-correspondent-*
+          merge-multiple: true
+          path: apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: |
+            mkdir -p check
+            adb install -r apk/download/meeha-correspondent.apk
+            adb logcat -c
+            adb shell am start -n news.meeha.correspondent/.MainActivity
+            sleep 25
+            adb exec-out screencap -p > check/1-first-start.png
+            adb shell dumpsys window | grep -E "mCurrentFocus|mFocusedApp" > check/focus-1.txt || true
+            adb shell input tap 540 1500 || true
+            sleep 4
+            adb exec-out screencap -p > check/2-after-tap.png
+            adb shell dumpsys window | grep -E "mCurrentFocus|mFocusedApp" > check/focus-2.txt || true
+            adb shell dumpsys package news.meeha.correspondent | grep -E "permission|granted" > check/permissions.txt || true
+            adb logcat -d > check/logcat.txt || true
+            grep -E "Capacitor|chromium|nros|Firebase|FCM" check/logcat.txt | tail -300 > check/logcat-app.txt || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulator-check-${{ github.run_number }}
+          path: check/
+          retention-days: 14

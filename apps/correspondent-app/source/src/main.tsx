@@ -7,6 +7,7 @@ import { AuthProvider } from './lib/AuthContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { PwaUpdater } from './lib/PwaUpdater'
 import { AppUpdater } from './components/AppUpdater'
+import { NetActivityBadge } from './components/MeehaLoader'
 import { IS_NATIVE, startNative } from './lib/native'
 
 void startNative()
@@ -14,6 +15,7 @@ void startNative()
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {IS_NATIVE ? <AppUpdater /> : <PwaUpdater />}
+    <NetActivityBadge />
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>

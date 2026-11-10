@@ -1,11 +1,13 @@
+import { MeehaMark } from './MeehaLoader'
 import type { ReactNode } from 'react'
 import { IconArrowLeft, IconAlertTriangle, IconRefresh } from './Icon'
 import { describeError } from '../lib/api'
 
 export function Spinner({ className = '' }: { className?: string }) {
+  // r31: the Meeha loading mark instead of a plain ring
   return (
     <div className={`flex items-center justify-center py-10 ${className}`}>
-      <div className="h-7 w-7 rounded-full border-2 border-brand-600 border-t-transparent animate-spin" />
+      <MeehaMark size={44} page />
     </div>
   )
 }
