@@ -557,14 +557,18 @@ class NROS_PD_Feeds {
 			$v = 0;
 			$p = 0;
 			$first = null;
+			$first_p = null;
+			$first_v = null;
 			foreach ( $new as $it ) {
 				if ( $it['published_at'] <= $w['seen_at'] || $it['published_at'] < $fresh ) {
 					continue;
 				}
 				if ( 'video' === $it['kind'] && $w['videos'] ) {
 					++$v;
+					$first_v = $first_v ? $first_v : $it;
 				} elseif ( 'video' !== $it['kind'] && $w['posts'] ) {
 					++$p;
+					$first_p = $first_p ? $first_p : $it;
 				} else {
 					continue;
 				}
@@ -573,8 +577,13 @@ class NROS_PD_Feeds {
 			if ( ! $first ) {
 				continue;
 			}
-			$what = $v && ! $p ? NROS_Core::bn_digits( $v ) . 'টি নতুন ভিডিও' : NROS_Core::bn_digits( $v + $p ) . 'টি নতুন পোস্ট';
-			NROS_Notifications::add( array( (int) $w['user_id'] ), 'pd_alert', $name . ' — ' . $plat . 'ে ' . $what, mb_substr( (string) $first['title'], 0, 140 ), '/app/profile-desk/' . (int) $l['entity_id'], (int) $l['entity_id'] );
+			// r35: posts and videos are separate alerts (each has its own sound in the app).
+			if ( $p ) {
+				NROS_Notifications::add( array( (int) $w['user_id'] ), 'pd_alert', $name . ' — ' . $plat . 'ে ' . NROS_Core::bn_digits( $p ) . 'টি নতুন পোস্ট', mb_substr( (string) $first_p['title'], 0, 140 ), '/app/profile-desk/' . (int) $l['entity_id'], (int) $l['entity_id'] );
+			}
+			if ( $v ) {
+				NROS_Notifications::add( array( (int) $w['user_id'] ), 'pd_alert_video', $name . ' — ' . $plat . 'ে ' . NROS_Core::bn_digits( $v ) . 'টি নতুন ভিডিও', mb_substr( (string) $first_v['title'], 0, 140 ), '/app/profile-desk/' . (int) $l['entity_id'], (int) $l['entity_id'] );
+			}
 		}
 	}
 

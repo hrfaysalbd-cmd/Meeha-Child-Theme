@@ -28,6 +28,13 @@ class NROS_Notifications {
 	/** Rows older than this are pruned. */
 	const KEEP_DAYS = 90;
 
+	/**
+	 * r35 — two places in the apps: the ইনবক্স (editorial queue, approvals,
+	 * applications, tasks …) and the bell (পোস্ট/ভিডিও এলার্ট from the
+	 * প্রোফাইল ডেস্ক). A row belongs to the bell when its type starts with this.
+	 */
+	const ALERT_PREFIX = 'pd_alert';
+
 	/** Staff roles that receive newsroom notifications. */
 	const STAFF_ROLES = array( 'administrator', 'meeha_publisher', 'editor' );
 
@@ -353,6 +360,49 @@ class NROS_Notifications {
 	// -------------------------------------------------------------------------
 
 	/**
+	 * 'alerts' or 'inbox' for a notification type.
+	 *
+	 * @param string $type Type.
+	 * @return string
+	 */
+	public static function channel_of( $type ) {
+		return 0 === strpos( (string) $type, self::ALERT_PREFIX ) ? 'alerts' : 'inbox';
+	}
+
+	/**
+	 * SQL condition (no user input) that limits rows to one channel.
+	 *
+	 * @param string $channel inbox|alerts|'' (all).
+	 * @return string
+	 */
+	protected static function channel_sql( $channel ) {
+		if ( 'alerts' === $channel ) {
+			return " AND LEFT(type, 8) = 'pd_alert'";
+		}
+		if ( 'inbox' === $channel ) {
+			return " AND LEFT(type, 8) <> 'pd_alert'";
+		}
+		return '';
+	}
+
+	/**
+	 * Unread counts per channel.
+	 *
+	 * @param int $uid User id.
+	 * @return array{inbox:int,alerts:int}
+	 */
+	protected static function unread_by( $uid ) {
+		global $wpdb;
+		$table = self::table();
+		$a     = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE user_id = %d AND is_read = 0" . self::channel_sql( 'alerts' ), $uid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$all   = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE user_id = %d AND is_read = 0", $uid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return array(
+			'inbox'  => max( 0, $all - $a ),
+			'alerts' => $a,
+		);
+	}
+
+	/**
 	 * Shapes a row for the apps.
 	 *
 	 * @param array $row DB row.
@@ -362,6 +412,7 @@ class NROS_Notifications {
 		return array(
 			'id'         => (int) $row['id'],
 			'type'       => $row['type'],
+			'channel'    => self::channel_of( $row['type'] ),
 			'title'      => $row['title'],
 			'body'       => (string) $row['body'],
 			'link'       => (string) $row['link'],
@@ -388,17 +439,22 @@ class NROS_Notifications {
 		$after = max( 0, (int) $request->get_param( 'after' ) );
 		$limit = min( 100, max( 1, (int) ( $request->get_param( 'limit' ) ? $request->get_param( 'limit' ) : 30 ) ) );
 
+		// r35: ?channel=inbox|alerts limits the list to one of the two places.
+		$channel = (string) $request->get_param( 'channel' );
+		$csql    = self::channel_sql( $channel );
+
 		if ( $after > 0 ) {
-			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE user_id = %d AND id > %d ORDER BY id DESC LIMIT %d", $uid, $after, $limit ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE user_id = %d AND id > %d{$csql} ORDER BY id DESC LIMIT %d", $uid, $after, $limit ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		} else {
-			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE user_id = %d ORDER BY id DESC LIMIT %d", $uid, $limit ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE user_id = %d{$csql} ORDER BY id DESC LIMIT %d", $uid, $limit ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		}
-		$unread = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE user_id = %d AND is_read = 0", $uid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$by     = self::unread_by( $uid );
 		$latest = (int) $wpdb->get_var( $wpdb->prepare( "SELECT MAX(id) FROM {$table} WHERE user_id = %d", $uid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 		$out = array(
 			'items'     => array_map( array( __CLASS__, 'shape' ), (array) $rows ),
-			'unread'    => $unread,
+			'unread'    => $by['inbox'] + $by['alerts'],
+			'unread_by' => $by,
 			'latest_id' => $latest,
 		);
 
@@ -444,7 +500,9 @@ class NROS_Notifications {
 		$table = self::table();
 
 		if ( $request->get_param( 'all' ) ) {
-			$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET is_read = 1 WHERE user_id = %d AND is_read = 0", $uid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			// r35: { all: true, channel: 'inbox'|'alerts' } clears just one place.
+			$csql = self::channel_sql( (string) $request->get_param( 'channel' ) );
+			$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET is_read = 1 WHERE user_id = %d AND is_read = 0{$csql}", $uid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		} else {
 			$ids = array_slice( array_filter( array_map( 'intval', (array) $request->get_param( 'ids' ) ) ), 0, 200 );
 			if ( $ids ) {
@@ -453,7 +511,7 @@ class NROS_Notifications {
 			}
 		}
 
-		$unread = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE user_id = %d AND is_read = 0", $uid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		return new WP_REST_Response( array( 'ok' => true, 'unread' => $unread ), 200 );
+		$by = self::unread_by( $uid );
+		return new WP_REST_Response( array( 'ok' => true, 'unread' => $by['inbox'] + $by['alerts'], 'unread_by' => $by ), 200 );
 	}
 }

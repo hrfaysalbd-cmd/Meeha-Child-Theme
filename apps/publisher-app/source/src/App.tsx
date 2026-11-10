@@ -28,6 +28,7 @@ import Deshchitro from './pages/Deshchitro'
 import ProfileDesk from './pages/ProfileDesk'
 import ProfileDeskEntity from './pages/ProfileDeskEntity'
 import Insights from './pages/Insights'
+import Inbox from './pages/Inbox'
 
 // Round 21 — the video editor pulls in the encoder (mediabunny): its own chunk.
 const VideoStudio = lazy(() => import('./pages/VideoStudio'))
@@ -98,6 +99,7 @@ export default function App() {
       >
         <Route index element={<Overview />} />
         <Route path="insights" element={<Insights />} />
+        <Route path="inbox" element={<Inbox />} />
         <Route path="write" element={<PostEditor />} />
         <Route path="write/:id" element={<PostEditor />} />
         <Route path="queue" element={<Queue />} />

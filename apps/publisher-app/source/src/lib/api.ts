@@ -342,9 +342,13 @@ async function requestBlob(path: string): Promise<Blob> {
 
 // ---- Round 18: notifications ----
 
+export type NotificationChannel = 'inbox' | 'alerts'
+
 export interface AppNotification {
   id: number
   type: string
+  /** r35 — 'alerts' (প্রোফাইল ডেস্কের পোস্ট/ভিডিও এলার্ট, the bell) or 'inbox' (everything else). */
+  channel?: NotificationChannel
   title: string
   body: string
   link: string
@@ -366,14 +370,23 @@ export interface NotificationCounts {
 export interface NotificationsPoll {
   items: AppNotification[]
   unread: number
+  /** r35 (newsroom-os 1.18.0); older servers leave it out. */
+  unread_by?: { inbox: number; alerts: number }
   latest_id: number
   counts?: NotificationCounts
 }
 
 export const NotificationsApi = {
-  poll: (after?: number) => request<NotificationsPoll>(`/notifications${after ? `?after=${after}` : ''}`),
-  markRead: (body: { ids: number[] } | { all: true }) =>
-    request<{ ok: true; unread: number }>('/notifications/read', { method: 'POST', body, retry: true }),
+  poll: (after?: number, channel?: NotificationChannel, limit?: number) => {
+    const q = new URLSearchParams()
+    if (after) q.set('after', String(after))
+    if (channel) q.set('channel', channel)
+    if (limit) q.set('limit', String(limit))
+    const qs = q.toString()
+    return request<NotificationsPoll>(`/notifications${qs ? `?${qs}` : ''}`)
+  },
+  markRead: (body: { ids: number[] } | { all: true; channel?: NotificationChannel }) =>
+    request<{ ok: true; unread: number; unread_by?: { inbox: number; alerts: number } }>('/notifications/read', { method: 'POST', body, retry: true }),
 }
 
 // ---- Round 10: uploads with real progress ----

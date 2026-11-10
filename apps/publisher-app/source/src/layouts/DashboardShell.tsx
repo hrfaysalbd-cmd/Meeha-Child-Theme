@@ -27,6 +27,7 @@ import {
 } from '../components/Icon'
 import { NotificationsProvider, useNotifications } from '../lib/notifications'
 import NotificationBell, { NotificationToasts } from '../components/NotificationBell'
+import InboxButton from '../components/InboxBox'
 import type { NotificationCounts } from '../lib/api'
 import { IconAddressBook } from '../components/profileDesk/icons'
 import CommandPalette from '../components/profileDesk/CommandPalette'
@@ -41,12 +42,13 @@ interface NavItem {
   /** r34: ভিউ/ইনসাইট — Publisher always, Editors when allowed */
   viewInsights?: boolean
   /** Round 18: live "waiting" count shown as a badge (from GET /notifications). */
-  count?: keyof NotificationCounts
+  count?: keyof NotificationCounts | 'inbox'
 }
 
 const NAV: NavItem[] = [
   { to: '/app', label: 'ওভারভিউ', icon: IconDashboard },
   { to: '/app/insights', label: 'ভিউ/ইনসাইট', icon: IconChartBar, viewInsights: true },
+  { to: '/app/inbox', label: 'ইনবক্স', icon: IconInbox, count: 'inbox' },
   { to: '/app/write', label: 'লিখুন', icon: IconPencil },
   { to: '/app/queue', label: 'এডিটোরিয়াল কিউ', icon: IconInbox, count: 'queue' },
   { to: '/app/posts', label: 'নিউজ লিস্ট', icon: IconListDetails },
@@ -107,7 +109,9 @@ export default function DashboardShell() {
 
 function Shell() {
   const { profile, logout, isPublisher } = useAuth()
-  const { counts } = useNotifications()
+  const { counts: liveCounts, unreadInbox } = useNotifications()
+  // r35: the ইনবক্স item shows its unread count next to the live counters.
+  const counts = { ...(liveCounts ?? {}), inbox: unreadInbox } as Partial<Record<keyof NotificationCounts | 'inbox', number>>
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -206,10 +210,12 @@ function Shell() {
         <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-neutral-200/80 px-4 py-3 flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-brand-600 text-white flex items-center justify-center font-bold text-[12.5px]">মি</div>
           <p className="flex-1 text-[15px] font-bold text-neutral-900">মিহা নিউজ ড্যাশবোর্ড</p>
+          <InboxButton placement="sheet" />
           <NotificationBell placement="sheet" />
         </header>
         <header className="hidden lg:flex relative z-30 justify-end max-w-[1400px] w-full mx-auto px-8 pt-4">
-          <div className="rounded-full bg-white shadow-sm ring-1 ring-neutral-200/80">
+          <div className="flex items-center gap-0.5 rounded-full bg-white shadow-sm ring-1 ring-neutral-200/80 px-0.5">
+            <InboxButton placement="dropdown" />
             <NotificationBell placement="dropdown" />
           </div>
         </header>
