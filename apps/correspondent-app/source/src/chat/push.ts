@@ -5,7 +5,7 @@
  * web views (Facebook, simple "website to app" wrappers) don't support it.
  */
 import { apiRequest } from '../lib/api'
-import { PUSH_APP, PUSH_SW } from '../lib/pushConfig'
+import { NATIVE_PUSH, PUSH_APP, PUSH_SW } from '../lib/pushConfig'
 
 let active = false
 /** True once this device is registered for push: the page then skips its own system pop-ups (no doubles). */
@@ -15,6 +15,9 @@ export type PushState = 'on' | 'off' | 'denied' | 'unsupported' | 'ios-home' | '
 
 const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 const standalone = () => window.matchMedia?.('(display-mode: standalone)').matches || (navigator as unknown as { standalone?: boolean }).standalone === true
+// the Android app (Capacitor) uses Firebase notices (NATIVE_PUSH) instead
+const nativeSend = (body: Record<string, unknown>) => apiRequest('/push/subscribe', { method: 'POST', body: { ...body, app: PUSH_APP }, retry: true })
+const nativeDrop = (body: Record<string, unknown>) => apiRequest('/push/unsubscribe', { method: 'POST', body })
 const webView = () => /; wv\)/.test(navigator.userAgent) || /FBAN|FBAV|Instagram/.test(navigator.userAgent)
 
 function supported() {
@@ -43,6 +46,11 @@ function keyBytes(b64u: string) {
 }
 
 export async function pushState(): Promise<PushState> {
+  if (NATIVE_PUSH) {
+    const st = await NATIVE_PUSH.state()
+    active = st === 'on'
+    return st
+  }
   if (webView()) return 'webview'
   if (isIOS() && !standalone()) return 'ios-home'
   if (!supported()) return 'unsupported'
@@ -61,6 +69,15 @@ async function send(sub: PushSubscription) {
 
 /** Ask for permission (needs a tap) and register this device. */
 export async function enablePush(): Promise<PushState | 'error'> {
+  if (NATIVE_PUSH) {
+    try {
+      const r = await NATIVE_PUSH.enable(nativeSend)
+      active = r === 'on'
+      return r
+    } catch {
+      return 'error'
+    }
+  }
   const st = await pushState()
   if (st === 'webview' || st === 'ios-home' || st === 'unsupported') return st
   const perm = await Notification.requestPermission()
@@ -89,6 +106,11 @@ export async function enablePush(): Promise<PushState | 'error'> {
 }
 
 export async function disablePush() {
+  if (NATIVE_PUSH) {
+    await NATIVE_PUSH.disable(nativeDrop)
+    active = false
+    return
+  }
   const reg = await registration()
   const sub = await reg?.pushManager.getSubscription()
   if (!sub) return
@@ -104,6 +126,10 @@ export function testPush() {
 /** On every start: if allowed, make sure the server has this device's current address. */
 export async function syncPush() {
   try {
+    if (NATIVE_PUSH) {
+      active = await NATIVE_PUSH.sync(nativeSend)
+      return
+    }
     if (!supported() || Notification.permission !== 'granted') return
     const reg = await registration()
     const sub = await reg?.pushManager.getSubscription()

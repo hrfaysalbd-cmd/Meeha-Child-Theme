@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { AppDownloadCard } from '../components/AppDownloadCard'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { AvatarApi, LedgerApi, AdLeadsApi, ApiError, type AdLead, type DealingStatus } from '../lib/api'
@@ -210,6 +211,7 @@ export default function Profile() {
 
   return (
     <div className="px-5 pt-5 pb-6">
+      <AppDownloadCard className="mb-5" />
       <div className="flex flex-col items-center text-center mb-6">
         <input
           ref={avatarInput}

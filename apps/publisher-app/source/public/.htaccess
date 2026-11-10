@@ -12,3 +12,10 @@
 
   RewriteRule ^ index.html [L]
 </IfModule>
+
+# r38: never cache the page itself or the push worker, so a new deploy shows up at once
+<IfModule mod_headers.c>
+  <FilesMatch "^(index\.html|push-sw\.js)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </FilesMatch>
+</IfModule>

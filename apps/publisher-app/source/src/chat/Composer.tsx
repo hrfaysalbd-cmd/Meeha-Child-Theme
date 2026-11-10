@@ -27,8 +27,11 @@ interface Pending {
 }
 
 const WEBVIEW_MIC = 'এই অ্যাপের ভেতর থেকে মাইক চালু করা যাচ্ছে না (অ্যাপটি ফোনের অনুমতি চায় না)। ভয়েস পাঠাতে Chrome-এ খুলুন বা মিহার নিজস্ব অ্যাপ ব্যবহার করুন।'
+/** Our own Android app (Capacitor): the mic works there, Android asks for it. */
+export const isNativeApp = () => !!(window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()
+const NATIVE_MIC = 'মাইকের অনুমতি নেই। ফোনের Settings → Apps → মিহা সংবাদদাতা → Permissions → Microphone → Allow দিন।'
 /** Android in-app web views (Facebook, simple "website to app" wrappers…) mark themselves with "; wv)". */
-export const isWebView = () => /; wv\)/.test(navigator.userAgent) || /FBAN|FBAV|Instagram/.test(navigator.userAgent)
+export const isWebView = () => !isNativeApp() && (/; wv\)/.test(navigator.userAgent) || /FBAN|FBAV|Instagram/.test(navigator.userAgent))
 
 const draftKey = (id: number) => `nros_chat_draft_${id}`
 const MAX_REC = 5 * 60
@@ -250,7 +253,7 @@ export default function Composer({ room, labels, members, me, replyTo, editing, 
         if (s >= MAX_REC) r.stop()
       }, 250)
     } catch {
-      alert(isWebView() ? WEBVIEW_MIC : 'মাইক্রোফোন চালু করা গেল না। ব্রাউজারের ঠিকানার পাশের 🔒 চেপে মাইকের অনুমতি দিন।')
+      alert(isNativeApp() ? NATIVE_MIC : isWebView() ? WEBVIEW_MIC : 'মাইক্রোফোন চালু করা গেল না। ব্রাউজারের ঠিকানার পাশের 🔒 চেপে মাইকের অনুমতি দিন।')
     }
   }
   const stopRec = (cancel: boolean) => {

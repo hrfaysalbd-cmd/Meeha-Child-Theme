@@ -19,6 +19,8 @@ import {
 import { captureFrame, readVideoMeta, youtubeIdFrom, youtubeThumb, type VideoMeta } from '../lib/video'
 import { Banner, Button, CharCount, ErrorRetry, Segmented, Spinner, TopBar, bnDuration, bnNumber, inputClass } from '../components/ui'
 import VideoPayment from '../components/VideoPayment'
+import CategoryPicker from '../components/CategoryPicker'
+import { rememberCategory } from '../lib/categoryTree'
 import WriteModeSwitch from '../components/WriteModeSwitch'
 import {
   IconBrandYoutube,
@@ -43,6 +45,8 @@ import {
 } from '../components/Icon'
 
 const TITLE_RECOMMENDED = 70
+// r31: same chip picker as the news form; videos keep their own "recent" list
+const RECENT_VIDEO_CATEGORIES_KEY = 'nros_recent_video_categories'
 const EXCERPT_MAX = 300
 
 type SaveTarget = 'draft' | 'pending' | 'save'
@@ -105,6 +109,7 @@ export default function VideoEditor() {
   const [loadError, setLoadError] = useState<unknown>(null)
   const [video, setVideo] = useState<Video | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
+  const [categoriesState, setCategoriesState] = useState<'loading' | 'ok' | 'error'>('loading')
   const [maxBytes, setMaxBytes] = useState<number | null>(null)
 
   // Round 12: correspondents only UPLOAD. 'youtube' only ever comes from an
@@ -177,13 +182,23 @@ export default function VideoEditor() {
     }
   }, [])
 
-  // Supporting data — failures just leave the hint/dropdown empty.
+  const loadCategories = useCallback(() => {
+    setCategoriesState('loading')
+    CategoriesApi.list()
+      .then((c) => {
+        setCategories(c)
+        setCategoriesState('ok')
+      })
+      .catch(() => setCategoriesState('error'))
+  }, [])
+
+  // Supporting data — failures just leave the hint empty (categories can retry).
   useEffect(() => {
-    CategoriesApi.list().then(setCategories).catch(() => setCategories([]))
+    loadCategories()
     MediaApi.videoLimits()
       .then((l) => setMaxBytes(l.max_bytes > 0 ? l.max_bytes : null))
       .catch(() => setMaxBytes(null))
-  }, [])
+  }, [loadCategories])
 
   // The video being edited. Skipped when `id` only just appeared because we
   // created this very video (the URL is swapped from /new to /{id}).
@@ -382,6 +397,7 @@ export default function VideoEditor() {
   }
 
   function buildInput(target: SaveTarget): VideoInput {
+    if (categoryId) rememberCategory(RECENT_VIDEO_CATEGORIES_KEY, categoryId)
     const body: VideoInput = {
       title: title.trim(),
       excerpt: excerpt.trim(),
@@ -886,19 +902,15 @@ export default function VideoEditor() {
         {/* ---------- Category ---------- */}
         <div className="mb-4">
           <SectionLabel>বিষয় (ক্যাটেগরি)</SectionLabel>
-          <select
-            className={inputClass}
+          <CategoryPicker
+            categories={categories}
             value={categoryId}
-            onChange={(e) => setCategoryId(Number(e.target.value))}
-            aria-label="বিষয় (ক্যাটেগরি)"
-          >
-            <option value={0}>নির্বাচন করুন</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            onChange={setCategoryId}
+            recentKey={RECENT_VIDEO_CATEGORIES_KEY}
+            loading={categoriesState === 'loading'}
+            error={categoriesState === 'error'}
+            onRetry={loadCategories}
+          />
         </div>
 
         {/* ---------- লিংক (স্লাগ) — round 13: the SEO fields are gone ---------- */}

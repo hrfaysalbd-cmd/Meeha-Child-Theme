@@ -25,6 +25,35 @@ import { useRegisterSW } from 'virtual:pwa-register/react'
 //      new version queued until some future natural navigation.
 const UPDATE_CHECK_INTERVAL_MS = 60 * 1000 // at most once a minute
 
+// r31: Hafiz still saw the old version in the phone browser. When the host
+// (or the phone) keeps handing out an old sw.js, the worker never notices a
+// new deploy. So the app also reads /version.json straight from the server
+// (no cache, no worker) and, when it names another build, empties the
+// worker's file cache and reloads. The worker itself stays registered, so
+// the phone's notification permission and push address are kept.
+const RELOAD_FOR = 'nros_reload_for_build'
+
+async function checkBuild() {
+  try {
+    const r = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' })
+    if (!r.ok) return
+    const { build } = (await r.json()) as { build?: string }
+    if (!build || build === __BUILD_ID__) return
+    // only one forced reload per new build (a host that serves an old index.html can't loop us)
+    if (sessionStorage.getItem(RELOAD_FOR) === build) return
+    sessionStorage.setItem(RELOAD_FOR, build)
+    if ('caches' in window) {
+      const keys = await caches.keys()
+      await Promise.all(keys.filter((k) => k.includes('workbox') || k.includes('precache')).map((k) => caches.delete(k)))
+    }
+    const reg = await navigator.serviceWorker?.getRegistration()
+    await reg?.update().catch(() => {})
+    location.reload()
+  } catch {
+    // offline: try again later
+  }
+}
+
 export function PwaUpdater() {
   const { updateServiceWorker } = useRegisterSW({
     immediate: true,
@@ -35,7 +64,9 @@ export function PwaUpdater() {
         registration.update().catch(() => {
           // Offline or the request was blocked — try again next tick.
         })
+        void checkBuild()
       }
+      void checkBuild()
 
       window.setInterval(check, UPDATE_CHECK_INTERVAL_MS)
       document.addEventListener('visibilitychange', () => {

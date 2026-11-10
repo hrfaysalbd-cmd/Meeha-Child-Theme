@@ -14,9 +14,15 @@
   RewriteRule ^ index.html [L]
 </IfModule>
 
-# Service worker must never be cached, or PWA updates won't reach users.
+# Service worker, index.html and the version files must never be cached,
+# or updates won't reach users (r31: index.html + version.json added).
 <IfModule mod_headers.c>
-  <FilesMatch "^(sw\.js|registerSW\.js)$">
+  <FilesMatch "^(sw\.js|registerSW\.js|push-sw\.js|index\.html|version\.json|manifest\.webmanifest|android\.json)$">
     Header set Cache-Control "no-cache, no-store, must-revalidate"
   </FilesMatch>
+</IfModule>
+
+# r31: the Android app file downloads as an app, not as a zip
+<IfModule mod_mime.c>
+  AddType application/vnd.android.package-archive .apk
 </IfModule>

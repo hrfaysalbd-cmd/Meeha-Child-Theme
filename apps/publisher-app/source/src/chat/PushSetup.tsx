@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Sheet, Spinner } from './bits'
 import { disablePush, enablePush, pushState, testPush, type PushState } from './push'
+import { NATIVE_PUSH } from '../lib/pushConfig'
 import { bnNum } from './util'
 
 const HIDE_KEY = 'nros_push_banner_hidden'
@@ -21,6 +22,11 @@ const HELP: Record<string, string> = {
   'ios-home': 'iPhone-এ: নিচের Share (⬆️) চেপে “Add to Home Screen” দিন, তারপর হোম স্ক্রিনের মিহা আইকন থেকে খুলে এখানে চালু করুন (iOS ১৬.৪ বা নতুন লাগবে)।',
   unsupported: 'এই ব্রাউজারে পুশ নোটিফিকেশন চলে না। Chrome বা Edge-এ খুলুন।',
   denied: 'আগে “Block” দেওয়া হয়েছে। ঠিকানার পাশের 🔒 → Notifications → Allow করে পাতাটা আবার খুলুন।',
+}
+/** In the Android app the fixes are in the phone's settings. */
+const NATIVE_HELP: Record<string, string> = {
+  unsupported: 'এই APK-তে এখনো নোটিফিকেশন যুক্ত হয়নি। নতুন ভার্সন এলে চালু হবে।',
+  denied: 'নোটিফিকেশন বন্ধ করা আছে। ফোনের Settings → Apps → মিহা সংবাদদাতা → Notifications চালু করুন, তারপর অ্যাপে ফিরে আসুন।',
 }
 
 /** The card at the top of the chat list until this device gets notices. */
@@ -130,7 +136,7 @@ export function PushSheet({ open, onClose }: { open: boolean; onClose: () => voi
           </>
         ) : (
           <p className="rounded-xl bg-amber-50 text-amber-900 px-4 py-3 text-[13.5px] leading-relaxed" data-testid="push-help">
-            {HELP[state]}
+            {(NATIVE_PUSH && NATIVE_HELP[state]) || HELP[state]}
           </p>
         )}
         {msg && <p className="mt-3 text-[13px] text-neutral-700">{msg}</p>}

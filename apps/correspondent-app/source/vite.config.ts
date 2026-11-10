@@ -1,12 +1,38 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+/**
+ * r31: every build gets an id. The web build writes it to /version.json, and
+ * the app checks that file (never from cache) to notice a newer deploy and
+ * reload itself, even when a phone browser or a host cache holds on to the
+ * old index.html. `--mode native` builds the same screens for the Android
+ * app (Capacitor): no service worker there, the files live inside the APK.
+ */
+const BUILD_ID = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
+
+function versionFile(): Plugin {
+  return {
+    name: 'nros-version-file',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build: BUILD_ID }) + '\n' })
+    },
+  }
+}
+
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  define: {
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
+    __NATIVE__: JSON.stringify(mode === 'native'),
+  },
+  build: mode === 'native' ? { outDir: 'dist-native' } : undefined,
+  resolve: mode === 'native' ? { alias: { 'virtual:pwa-register/react': '/src/lib/pwa-stub.ts' } } : undefined,
   plugins: [
     react(),
-    VitePWA({
+    versionFile(),
+    mode !== 'native' && VitePWA({
       registerType: 'autoUpdate',
       // Registered explicitly in src/lib/PwaUpdater.tsx (via
       // virtual:pwa-register/react) instead of the auto-injected script, so
@@ -31,7 +57,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
-        navigateFallbackDenylist: [/^\/wp-json\//],
+        navigateFallbackDenylist: [/^\/wp-json\//, /^\/download\//],
         cleanupOutdatedCaches: true,
         // newsroom-os 1.20.0: push notices (chat, approvals) while the app is closed
         importScripts: ['push-sw.js'],
@@ -42,4 +68,4 @@ export default defineConfig({
     host: true,
     port: 5173,
   },
-})
+}))

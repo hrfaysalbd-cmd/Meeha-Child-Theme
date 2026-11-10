@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { IconEdit, IconUser } from '../components/Icon'
+import { AppDownloadCard } from '../components/AppDownloadCard'
 
 export default function Landing() {
   const navigate = useNavigate()
@@ -17,6 +18,7 @@ export default function Landing() {
       </div>
 
       <div className="px-6 pb-10 flex flex-col gap-3">
+        <AppDownloadCard className="mb-1" />
         <button
           onClick={() => navigate('/apply')}
           className="w-full rounded-2xl bg-brand-600 text-white py-4 text-[16px] font-semibold flex items-center justify-center gap-2 shadow-lg shadow-brand-600/25 active:scale-[0.98] transition"

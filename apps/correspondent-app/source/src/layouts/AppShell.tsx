@@ -5,6 +5,8 @@ import { ChatProvider, ChatToast, useChat } from '../chat/ChatContext'
 import { Spinner } from '../components/ui'
 import { NotificationsProvider } from '../lib/notifications'
 import { NotificationToasts } from '../components/NotificationBell'
+import { useEffect } from 'react'
+import { IS_NATIVE, takePendingPath } from '../lib/native'
 
 const tabs = [
   { to: '/app', label: 'হোম', icon: IconHome, end: true },
@@ -21,6 +23,19 @@ export default function AppShell() {
   const navigate = useNavigate()
   // The video editor is part of the "লিখুন" tab (its segmented control).
   const inVideoEditor = pathname.startsWith('/app/video')
+
+  // Android app: a tapped notice opens its screen (also on a cold start)
+  useEffect(() => {
+    if (!IS_NATIVE) return
+    const go = (path: string | null) => path && navigate(path)
+    go(takePendingPath())
+    const h = (e: Event) => {
+      takePendingPath()
+      go((e as CustomEvent<string>).detail)
+    }
+    window.addEventListener('nros-navigate', h)
+    return () => window.removeEventListener('nros-navigate', h)
+  }, [navigate])
 
   if (loading) {
     return (

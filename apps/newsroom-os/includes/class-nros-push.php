@@ -11,6 +11,11 @@
  * Sends are queued during the request and go out after the answer has been
  * sent to the app (fastcgi_finish_request), in parallel with curl_multi.
  *
+ * 1.21.0 — the Android app (Capacitor, মিহা সংবাদদাতা) gets its notices
+ * through Firebase Cloud Messaging instead: its devices are stored here with
+ * the endpoint "fcm:<token>", and the site signs in to FCM with a service
+ * account pasted under wp-admin → "অ্যাপ নোটিফিকেশন (Firebase)".
+ *
  * @package NewsroomOS
  */
 
@@ -24,9 +29,16 @@ class NROS_Push {
 	/** @var array[] queued [sub row, payload array, options] */
 	protected static $queue = array();
 
+	const FCM_OPTION = 'nros_fcm';
+	const FCM_PREFIX = 'fcm:';
+	/** Where the Android app's deploy package puts its version file. */
+	const ANDROID_INFO_URL = 'https://correspondent.meeha.news/download/android.json';
+
 	public static function init() {
 		add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
 		add_action( 'shutdown', array( __CLASS__, 'flush' ), 1 );
+		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ), 30 );
+		add_action( 'admin_init', array( __CLASS__, 'admin_save' ) );
 	}
 
 	public static function table() {
@@ -182,12 +194,17 @@ class NROS_Push {
 	public static function to_users( $uids, $payload, $opt = array() ) {
 		global $wpdb;
 		$uids = array_values( array_unique( array_filter( array_map( 'intval', (array) $uids ) ) ) );
-		if ( ! $uids || ! self::supported() || ! self::vapid() ) {
+		$web_ok = self::supported() && self::vapid();
+		$fcm_ok = (bool) self::fcm_account();
+		if ( ! $uids || ( ! $web_ok && ! $fcm_ok ) ) {
 			return;
 		}
 		foreach ( array_chunk( $uids, 500 ) as $chunk ) {
 			$rows = $wpdb->get_results( 'SELECT * FROM ' . self::table() . ' WHERE user_id IN (' . implode( ',', $chunk ) . ') AND fails < 5', ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 			foreach ( (array) $rows as $s ) {
+				if ( ! ( self::is_fcm( $s ) ? $fcm_ok : $web_ok ) ) {
+					continue;
+				}
 				$p = is_callable( $payload ) ? call_user_func( $payload, $s ) : $payload;
 				if ( $p ) {
 					self::$queue[] = array( $s, $p, $opt );
@@ -224,6 +241,13 @@ class NROS_Push {
 		$reqs = array();
 		foreach ( $queue as $q ) {
 			list( $s, $p, $opt ) = $q;
+			if ( self::is_fcm( $s ) ) {
+				$r = self::fcm_request( $s, $p, $opt );
+				if ( $r ) {
+					$reqs[] = $r;
+				}
+				continue;
+			}
 			$body = self::encrypt( wp_json_encode( $p ), $s['p256dh'], $s['auth'] );
 			if ( null === $body ) {
 				continue;
@@ -238,7 +262,7 @@ class NROS_Push {
 			if ( ! empty( $opt['topic'] ) ) {
 				$headers[] = 'Topic: ' . substr( preg_replace( '/[^A-Za-z0-9_-]/', '', $opt['topic'] ), 0, 32 );
 			}
-			$reqs[] = array( $s, $body, $headers );
+			$reqs[] = array( $s, $body, $headers, $s['endpoint'] );
 		}
 		$out = array();
 		if ( ! $reqs ) {
@@ -249,7 +273,7 @@ class NROS_Push {
 				$mh  = curl_multi_init();
 				$hs  = array();
 				foreach ( $batch as $i => $r ) {
-					$ch = curl_init( $r[0]['endpoint'] );
+					$ch = curl_init( $r[3] );
 					curl_setopt_array(
 						$ch,
 						array(
@@ -271,7 +295,7 @@ class NROS_Push {
 					}
 				} while ( $running && CURLM_OK === $st );
 				foreach ( $hs as $i => $ch ) {
-					$out[ (int) $batch[ $i ][0]['id'] ] = (int) curl_getinfo( $ch, CURLINFO_HTTP_CODE );
+					$out[ (int) $batch[ $i ][0]['id'] ] = self::status_of( $batch[ $i ][0], (int) curl_getinfo( $ch, CURLINFO_HTTP_CODE ), (string) curl_multi_getcontent( $ch ) );
 					curl_multi_remove_handle( $mh, $ch );
 					curl_close( $ch );
 				}
@@ -284,8 +308,8 @@ class NROS_Push {
 					list( $k, $v ) = explode( ': ', $line, 2 );
 					$h[ $k ] = $v;
 				}
-				$res = wp_remote_post( $r[0]['endpoint'], array( 'body' => $r[1], 'headers' => $h, 'timeout' => 10 ) );
-				$out[ (int) $r[0]['id'] ] = is_wp_error( $res ) ? 0 : (int) wp_remote_retrieve_response_code( $res );
+				$res = wp_remote_post( $r[3], array( 'body' => $r[1], 'headers' => $h, 'timeout' => 10 ) );
+				$out[ (int) $r[0]['id'] ] = is_wp_error( $res ) ? 0 : self::status_of( $r[0], (int) wp_remote_retrieve_response_code( $res ), (string) wp_remote_retrieve_body( $res ) );
 			}
 		}
 		// gone subscriptions are dropped; other failures counted
@@ -311,6 +335,7 @@ class NROS_Push {
 		register_rest_route( NROS_API_NS, '/push/subscribe', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'subscribe' ), 'permission_callback' => $app ) );
 		register_rest_route( NROS_API_NS, '/push/unsubscribe', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'unsubscribe' ), 'permission_callback' => $app ) );
 		register_rest_route( NROS_API_NS, '/push/test', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'test' ), 'permission_callback' => $app ) );
+		register_rest_route( NROS_API_NS, '/app/android', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'android_info' ), 'permission_callback' => '__return_true' ) );
 	}
 
 	public static function key() {
@@ -327,6 +352,10 @@ class NROS_Push {
 	public static function subscribe( $request ) {
 		global $wpdb;
 		$u        = NROS_Auth::get_user_from_request( $request );
+		$fcm      = (string) $request->get_param( 'fcm' );
+		if ( '' !== $fcm ) {
+			return self::subscribe_fcm( $request, $u, $fcm );
+		}
 		$endpoint = esc_url_raw( (string) $request->get_param( 'endpoint' ), array( 'https' ) );
 		$keys     = (array) $request->get_param( 'keys' );
 		$p256     = preg_replace( '/[^A-Za-z0-9_-]/', '', (string) ( $keys['p256dh'] ?? '' ) );
@@ -335,6 +364,23 @@ class NROS_Push {
 			return new WP_Error( 'nros_bad', 'সাবস্ক্রিপশন ঠিক নেই।', array( 'status' => 400 ) );
 		}
 		$app  = in_array( $request->get_param( 'app' ), array( 'publisher', 'correspondent' ), true ) ? $request->get_param( 'app' ) : '';
+		return self::save_sub( $request, $u, $app, $endpoint, $p256, $auth );
+	}
+
+	/** POST /push/subscribe with { fcm: <token>, app } from the Android app. */
+	protected static function subscribe_fcm( $request, $u, $token ) {
+		if ( ! preg_match( '/^[A-Za-z0-9:_\-]{20,4096}$/', $token ) ) {
+			return new WP_Error( 'nros_bad', 'অ্যাপের টোকেন ঠিক নেই।', array( 'status' => 400 ) );
+		}
+		if ( ! self::fcm_account() ) {
+			return new WP_Error( 'nros_fcm_off', 'সাইটে এখনো Firebase চাবি বসানো হয়নি। ওয়ার্ডপ্রেস অ্যাডমিন → অ্যাপ নোটিফিকেশন (Firebase)-এ বসান।', array( 'status' => 503 ) );
+		}
+		$app = in_array( $request->get_param( 'app' ), array( 'publisher', 'correspondent' ), true ) ? $request->get_param( 'app' ) : 'correspondent';
+		return self::save_sub( $request, $u, $app, self::FCM_PREFIX . $token, '', '' );
+	}
+
+	protected static function save_sub( $request, $u, $app, $endpoint, $p256, $auth ) {
+		global $wpdb;
 		$hash = sha1( $endpoint );
 		$row  = array(
 			'user_id'    => (int) $u->ID,
@@ -365,7 +411,9 @@ class NROS_Push {
 	public static function unsubscribe( $request ) {
 		global $wpdb;
 		$u = NROS_Auth::get_user_from_request( $request );
-		$wpdb->delete( self::table(), array( 'ep_hash' => sha1( esc_url_raw( (string) $request->get_param( 'endpoint' ), array( 'https' ) ) ), 'user_id' => (int) $u->ID ) );
+		$fcm = (string) $request->get_param( 'fcm' );
+		$ep  = '' !== $fcm ? self::FCM_PREFIX . $fcm : esc_url_raw( (string) $request->get_param( 'endpoint' ), array( 'https' ) );
+		$wpdb->delete( self::table(), array( 'ep_hash' => sha1( $ep ), 'user_id' => (int) $u->ID ) );
 		return rest_ensure_response( array( 'ok' => true ) );
 	}
 
@@ -402,5 +450,258 @@ class NROS_Push {
 			),
 			array( 'topic' => 'n-' . sanitize_key( $type ), 'ttl' => 2 * DAY_IN_SECONDS )
 		);
+	}
+
+	// ------------------------------------------------------------------
+	// 1.21.0 — Firebase Cloud Messaging for the Android app
+	// ------------------------------------------------------------------
+
+	public static function is_fcm( $s ) {
+		return 0 === strpos( (string) $s['endpoint'], self::FCM_PREFIX );
+	}
+
+	/**
+	 * The pasted service account (project_id, client_email, private_key), or null.
+	 */
+	public static function fcm_account() {
+		$a = get_option( self::FCM_OPTION );
+		if ( ! is_array( $a ) || empty( $a['project_id'] ) || empty( $a['client_email'] ) || empty( $a['private_key'] ) ) {
+			return null;
+		}
+		return $a;
+	}
+
+	/** Google OAuth access token for FCM (cached ~50 min). */
+	protected static function fcm_token( $force = false ) {
+		$a = self::fcm_account();
+		if ( ! $a ) {
+			return '';
+		}
+		$t = get_transient( 'nros_fcm_token' );
+		if ( $t && ! $force ) {
+			return $t;
+		}
+		$now = time();
+		$h   = self::b64u( wp_json_encode( array( 'alg' => 'RS256', 'typ' => 'JWT' ) ) );
+		$c   = self::b64u(
+			wp_json_encode(
+				array(
+					'iss'   => $a['client_email'],
+					'scope' => 'https://www.googleapis.com/auth/firebase.messaging',
+					'aud'   => 'https://oauth2.googleapis.com/token',
+					'iat'   => $now,
+					'exp'   => $now + 3600,
+				)
+			)
+		);
+		$key = openssl_pkey_get_private( $a['private_key'] );
+		if ( ! $key || ! openssl_sign( $h . '.' . $c, $sig, $key, OPENSSL_ALGO_SHA256 ) ) {
+			update_option( 'nros_fcm_error', 'Firebase চাবির private_key পড়া গেল না।', false );
+			return '';
+		}
+		$res = wp_remote_post(
+			apply_filters( 'nros_fcm_token_url', 'https://oauth2.googleapis.com/token' ),
+			array(
+				'timeout' => 10,
+				'body'    => array(
+					'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+					'assertion'  => $h . '.' . $c . '.' . self::b64u( $sig ),
+				),
+			)
+		);
+		$j = is_wp_error( $res ) ? null : json_decode( (string) wp_remote_retrieve_body( $res ), true );
+		if ( empty( $j['access_token'] ) ) {
+			update_option( 'nros_fcm_error', 'Google লগইন হলো না: ' . ( is_wp_error( $res ) ? $res->get_error_message() : mb_substr( (string) wp_remote_retrieve_body( $res ), 0, 200 ) ), false );
+			return '';
+		}
+		delete_option( 'nros_fcm_error' );
+		set_transient( 'nros_fcm_token', $j['access_token'], max( 300, (int) ( $j['expires_in'] ?? 3600 ) - 600 ) );
+		return $j['access_token'];
+	}
+
+	/**
+	 * One FCM HTTP v1 request: [sub, body, headers, url], or null.
+	 */
+	protected static function fcm_request( $s, $p, $opt ) {
+		$a     = self::fcm_account();
+		$token = self::fcm_token();
+		if ( ! $a || ! $token ) {
+			return null;
+		}
+		$urgent = ! empty( $p['urgent'] );
+		$kind   = isset( $p['kind'] ) ? (string) $p['kind'] : '';
+		$data   = array();
+		foreach ( array( 'url', 'tag', 'kind' ) as $k ) {
+			if ( isset( $p[ $k ] ) ) {
+				$data[ $k ] = (string) $p[ $k ];
+			}
+		}
+		$data['urgent'] = $urgent ? '1' : '0';
+		$ttl            = (int) ( isset( $opt['ttl'] ) ? $opt['ttl'] : DAY_IN_SECONDS );
+		$msg            = array(
+			'token'        => substr( $s['endpoint'], strlen( self::FCM_PREFIX ) ),
+			'notification' => array(
+				'title' => (string) ( $p['title'] ?? 'মিহা' ),
+				'body'  => (string) ( $p['body'] ?? '' ),
+			),
+			'data'         => $data,
+			'android'      => array(
+				// chat and approvals should not wait for the phone's next wake-up
+				'priority'     => ( 'alert' === $kind ) ? 'NORMAL' : 'HIGH',
+				'ttl'          => max( 0, $ttl ) . 's',
+				'notification' => array(
+					'channel_id'            => $urgent ? 'urgent' : ( 'chat' === $kind ? 'chat' : 'general' ),
+					'tag'                   => (string) ( $p['tag'] ?? '' ),
+					'sound'                 => 'default',
+					'notification_priority' => $urgent ? 'PRIORITY_MAX' : 'PRIORITY_HIGH',
+					'default_vibrate_timings' => true,
+					'color'                 => '#b91c1c',
+				),
+			),
+		);
+		if ( '' === $msg['android']['notification']['tag'] ) {
+			unset( $msg['android']['notification']['tag'] );
+		}
+		if ( ! empty( $opt['topic'] ) ) {
+			$msg['android']['collapse_key'] = substr( preg_replace( '/[^A-Za-z0-9_-]/', '', $opt['topic'] ), 0, 64 );
+		}
+		return array(
+			$s,
+			wp_json_encode( array( 'message' => $msg ) ),
+			array( 'Content-Type: application/json; charset=UTF-8', 'Authorization: Bearer ' . $token ),
+			apply_filters( 'nros_fcm_base', 'https://fcm.googleapis.com' ) . '/v1/projects/' . rawurlencode( $a['project_id'] ) . '/messages:send',
+		);
+	}
+
+	/**
+	 * HTTP answer → status used for clean-up. FCM says "this app was removed"
+	 * with 404 UNREGISTERED (or 400 for a malformed token) → treated as 410.
+	 */
+	protected static function status_of( $s, $code, $body ) {
+		if ( ! self::is_fcm( $s ) ) {
+			return $code;
+		}
+		if ( 404 === $code || ( 400 === $code && false !== strpos( $body, 'registration token' ) ) || false !== strpos( $body, 'UNREGISTERED' ) ) {
+			return 410;
+		}
+		if ( 401 === $code || 403 === $code ) {
+			delete_transient( 'nros_fcm_token' );
+			update_option( 'nros_fcm_error', 'Firebase অনুমতি দিল না (' . $code . '): ' . mb_substr( $body, 0, 200 ), false );
+		}
+		return $code;
+	}
+
+	/**
+	 * GET /app/android — the newest Android app (from the deploy package's
+	 * download/android.json on the correspondent site), for the in-app
+	 * "নতুন ভার্সন" notice.
+	 */
+	public static function android_info() {
+		$info = get_transient( 'nros_android_info' );
+		if ( false === $info ) {
+			$url  = apply_filters( 'nros_android_info_url', self::ANDROID_INFO_URL );
+			$res  = wp_remote_get( add_query_arg( 't', time(), $url ), array( 'timeout' => 6 ) );
+			$j    = is_wp_error( $res ) || 200 !== (int) wp_remote_retrieve_response_code( $res ) ? null : json_decode( (string) wp_remote_retrieve_body( $res ), true );
+			$info = is_array( $j ) && ! empty( $j['version_code'] ) ? array(
+				'version_code' => (int) $j['version_code'],
+				'version_name' => sanitize_text_field( (string) ( $j['version_name'] ?? '' ) ),
+				'url'          => esc_url_raw( (string) ( $j['url'] ?? '' ) ),
+				'notes'        => sanitize_text_field( (string) ( $j['notes'] ?? '' ) ),
+				'min_code'     => (int) ( $j['min_code'] ?? 0 ),
+			) : array();
+			set_transient( 'nros_android_info', $info, 10 * MINUTE_IN_SECONDS );
+		}
+		$r = rest_ensure_response( $info ? $info : array( 'version_code' => 0 ) );
+		$r->header( 'Cache-Control', 'no-store' );
+		return $r;
+	}
+
+	// ---- wp-admin: paste the Firebase service account ----
+
+	public static function admin_menu() {
+		$parent = isset( $GLOBALS['admin_page_hooks']['meeha-homepage-settings'] ) ? 'meeha-homepage-settings' : 'nros-applications';
+		add_submenu_page( $parent, 'অ্যাপ নোটিফিকেশন (Firebase)', 'অ্যাপ নোটিফিকেশন (Firebase)', 'manage_options', 'nros-fcm', array( __CLASS__, 'render_admin' ) );
+	}
+
+	public static function admin_save() {
+		if ( empty( $_POST['nros_fcm_action'] ) || ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		check_admin_referer( 'nros_fcm', 'nros_fcm_nonce' );
+		$act = sanitize_key( wp_unslash( $_POST['nros_fcm_action'] ) );
+		$msg = '';
+		if ( 'remove' === $act ) {
+			delete_option( self::FCM_OPTION );
+			delete_transient( 'nros_fcm_token' );
+			$msg = 'removed';
+		} elseif ( 'save' === $act ) {
+			$raw = isset( $_POST['nros_fcm_json'] ) ? (string) wp_unslash( $_POST['nros_fcm_json'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON key, checked below
+			$j   = json_decode( trim( $raw ), true );
+			if ( ! is_array( $j ) || ( $j['type'] ?? '' ) !== 'service_account' || empty( $j['project_id'] ) || empty( $j['client_email'] ) || empty( $j['private_key'] ) || ! openssl_pkey_get_private( $j['private_key'] ) ) {
+				$msg = 'bad';
+			} else {
+				update_option(
+					self::FCM_OPTION,
+					array(
+						'project_id'   => sanitize_text_field( $j['project_id'] ),
+						'client_email' => sanitize_email( $j['client_email'] ),
+						'private_key'  => $j['private_key'],
+					),
+					false
+				);
+				delete_transient( 'nros_fcm_token' );
+				$msg = self::fcm_token( true ) ? 'ok' : 'saved-noauth';
+			}
+		}
+		wp_safe_redirect( add_query_arg( array( 'page' => 'nros-fcm', 'nros_fcm' => $msg ), admin_url( 'admin.php' ) ) );
+		exit;
+	}
+
+	public static function render_admin() {
+		global $wpdb;
+		$a    = self::fcm_account();
+		$err  = get_option( 'nros_fcm_error' );
+		$done = isset( $_GET['nros_fcm'] ) ? sanitize_key( wp_unslash( $_GET['nros_fcm'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$n    = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . self::table() . ' WHERE endpoint LIKE %s', self::FCM_PREFIX . '%' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$msgs = array(
+			'ok'           => array( 'success', 'চাবি বসানো হয়েছে, Google-এ লগইনও হয়েছে ✅' ),
+			'saved-noauth' => array( 'warning', 'চাবি রাখা হয়েছে, কিন্তু Google-এ লগইন হলো না। নিচের ভুলের লেখাটা দেখুন।' ),
+			'bad'          => array( 'error', 'এটা Firebase-এর service account JSON নয়, বা অসম্পূর্ণ। পুরো ফাইলের লেখা কপি করে বসান।' ),
+			'removed'      => array( 'success', 'চাবি সরানো হয়েছে।' ),
+		);
+		?>
+		<div class="wrap">
+			<h1>অ্যাপ নোটিফিকেশন (Firebase)</h1>
+			<?php if ( isset( $msgs[ $done ] ) ) : ?>
+				<div class="notice notice-<?php echo esc_attr( $msgs[ $done ][0] ); ?>"><p><?php echo esc_html( $msgs[ $done ][1] ); ?></p></div>
+			<?php endif; ?>
+			<p>মিহা সংবাদদাতার Android অ্যাপে নোটিফিকেশন যায় Firebase Cloud Messaging দিয়ে। ব্রাউজারের নোটিফিকেশন এটা ছাড়াই চলে।</p>
+			<p><b>অবস্থা:</b>
+				<?php echo $a ? '✅ চালু (প্রজেক্ট: <code>' . esc_html( $a['project_id'] ) . '</code>)' : '⛔ চাবি বসানো হয়নি'; ?>
+				· অ্যাপে নোটিফিকেশন চালু আছে <?php echo esc_html( number_format_i18n( $n ) ); ?>টি ফোনে
+			</p>
+			<?php if ( $err ) : ?>
+				<p style="color:#b32d2e"><b>শেষ ভুল:</b> <?php echo esc_html( $err ); ?></p>
+			<?php endif; ?>
+			<ol>
+				<li>Firebase Console → আপনার প্রজেক্ট → ⚙ Project settings → <b>Service accounts</b> → <b>Generate new private key</b>। একটা .json ফাইল নামবে।</li>
+				<li>ফাইলটা Notepad-এ খুলে পুরো লেখা কপি করে নিচে বসান, তারপর <b>রাখুন</b>।</li>
+			</ol>
+			<form method="post">
+				<?php wp_nonce_field( 'nros_fcm', 'nros_fcm_nonce' ); ?>
+				<input type="hidden" name="nros_fcm_action" value="save" />
+				<textarea name="nros_fcm_json" rows="10" class="large-text code" placeholder='{"type": "service_account", "project_id": "...", ...}'></textarea>
+				<p><button class="button button-primary">রাখুন</button></p>
+			</form>
+			<?php if ( $a ) : ?>
+				<form method="post" onsubmit="return confirm('চাবি সরালে অ্যাপে নোটিফিকেশন যাবে না। সরাবেন?')">
+					<?php wp_nonce_field( 'nros_fcm', 'nros_fcm_nonce' ); ?>
+					<input type="hidden" name="nros_fcm_action" value="remove" />
+					<p><button class="button">চাবি সরান</button></p>
+				</form>
+			<?php endif; ?>
+			<p class="description">চাবিটা গোপন রাখুন। কাউকে পাঠাবেন না, শুধু এখানে বসাবেন।</p>
+		</div>
+		<?php
 	}
 }

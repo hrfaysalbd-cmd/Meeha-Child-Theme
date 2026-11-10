@@ -6,10 +6,14 @@ import App from './App.tsx'
 import { AuthProvider } from './lib/AuthContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { PwaUpdater } from './lib/PwaUpdater'
+import { AppUpdater } from './components/AppUpdater'
+import { IS_NATIVE, startNative } from './lib/native'
+
+void startNative()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <PwaUpdater />
+    {IS_NATIVE ? <AppUpdater /> : <PwaUpdater />}
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>

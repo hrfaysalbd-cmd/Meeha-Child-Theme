@@ -1,0 +1,120 @@
+# মিহা সংবাদদাতা — Android app (Capacitor). The correspondent app's screens
+# are built (vite --mode native) and packed inside the APK.
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   MEEHA_KEYSTORE_B64          base64 of the .jks signing key (same key every
+#   MEEHA_KEYSTORE_PASSWORD     time, so a new APK installs over the old one)
+#   MEEHA_KEY_ALIAS             key alias (default: meeha)
+#   MEEHA_GOOGLE_SERVICES_JSON  the Firebase google-services.json (raw text)
+#                               for notices; without it the app works, minus notices
+# Without a keystore a throw-away key is made for this run only (test installs).
+name: Correspondent APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'apps/correspondent-app/source/**'
+      - '.github/workflows/correspondent-apk.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: apps/correspondent-app/source
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/correspondent-app/source/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Firebase (notices)
+        env:
+          GSJ: ${{ secrets.MEEHA_GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GSJ" ]; then
+            printf '%s' "$GSJ" > android/app/google-services.json
+            echo "VITE_FCM=1" >> "$GITHUB_ENV"
+            echo "FCM=on" >> "$GITHUB_ENV"
+          else
+            echo "VITE_FCM=0" >> "$GITHUB_ENV"
+            echo "FCM=off" >> "$GITHUB_ENV"
+            echo "::warning::No MEEHA_GOOGLE_SERVICES_JSON secret: this APK has no notifications."
+          fi
+
+      - name: Signing key
+        env:
+          KS_B64: ${{ secrets.MEEHA_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.MEEHA_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.MEEHA_KEY_ALIAS }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/sign"
+          KS="$RUNNER_TEMP/sign/meeha.jks"
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$KS"
+            echo "KIND=permanent" >> "$GITHUB_ENV"
+            ALIAS="${KS_ALIAS:-meeha}"
+            PASS="$KS_PASS"
+          else
+            PASS="$(openssl rand -hex 16)"
+            ALIAS=meeha
+            keytool -genkeypair -v -keystore "$KS" -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$PASS" -keypass "$PASS" -dname "CN=Meeha News, O=Meeha News, C=BD"
+            echo "KIND=temporary" >> "$GITHUB_ENV"
+            echo "::warning::No MEEHA_KEYSTORE_B64 secret: signed with a throw-away key (test only; a later APK will not install over this one)."
+          fi
+          echo "::add-mask::$PASS"
+          echo "MEEHA_KEYSTORE=$KS" >> "$GITHUB_ENV"
+          echo "MEEHA_KEYSTORE_PASSWORD=$PASS" >> "$GITHUB_ENV"
+          echo "MEEHA_KEY_PASSWORD=$PASS" >> "$GITHUB_ENV"
+          echo "MEEHA_KEY_ALIAS=$ALIAS" >> "$GITHUB_ENV"
+
+      - name: Build the screens
+        run: |
+          npm ci
+          npm run build:native
+          npx cap sync android
+
+      - name: Build APK
+        working-directory: apps/correspondent-app/source/android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 1.0.${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+
+      - name: Collect
+        run: |
+          OUT="$GITHUB_WORKSPACE/out"
+          mkdir -p "$OUT/download"
+          cp android/app/build/outputs/apk/release/*.apk "$OUT/download/meeha-correspondent.apk"
+          N=${{ github.run_number }}
+          printf '{"version_code": %s, "version_name": "1.0.%s", "url": "https://correspondent.meeha.news/download/meeha-correspondent.apk", "notes": "", "min_code": 0}\n' "$N" "$N" > "$OUT/download/android.json"
+          {
+            echo "মিহা সংবাদদাতা Android অ্যাপ 1.0.$N"
+            echo "সই-চাবি: $KIND   নোটিফিকেশন (Firebase): $FCM"
+            echo ""
+            echo "download/ ফোল্ডারটা correspondent.meeha.news-এর মূল ফোল্ডারে তুলুন:"
+            echo "  https://correspondent.meeha.news/download/meeha-correspondent.apk  <- ফোনে এই লিংক খুলে ইনস্টল"
+            echo "  https://correspondent.meeha.news/download/android.json            <- অ্যাপ এটা দেখে নতুন ভার্সন জানায়"
+          } > "$OUT/README.txt"
+          ls -la "$OUT" "$OUT/download"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meeha-correspondent-${{ github.run_number }}-${{ env.KIND }}-fcm-${{ env.FCM }}
+          path: out/
+          retention-days: 30
