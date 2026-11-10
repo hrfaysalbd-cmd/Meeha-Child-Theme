@@ -9,8 +9,8 @@
 // 300–900 KB. Small files, GIFs (animation) and anything the browser can't
 // decode are uploaded untouched.
 
-const MAX_EDGE = 2048
-const QUALITY = 0.85
+const MAX_EDGE_DEFAULT = 2048
+const QUALITY_DEFAULT = 0.85
 const SKIP_BELOW_BYTES = 600 * 1024
 
 function loadImage(file: File): Promise<HTMLImageElement> {
@@ -45,9 +45,22 @@ function hasAlpha(ctx: CanvasRenderingContext2D, w: number, h: number) {
   return false
 }
 
-export async function compressImageForUpload(file: File): Promise<File> {
-  if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') return file
-  if (file.size < SKIP_BELOW_BYTES) return file
+export interface ShrinkOpts {
+  maxEdge?: number
+  quality?: number
+  skipBelow?: number
+}
+
+/** r33 — a profile picture is shown at most ~200 px: 800 px is plenty. */
+export const AVATAR_SHRINK: ShrinkOpts = { maxEdge: 800, quality: 0.86, skipBelow: 120 * 1024 }
+
+export async function compressImageForUpload(file: File, opts: ShrinkOpts = {}): Promise<File> {
+  const MAX_EDGE = opts.maxEdge ?? MAX_EDGE_DEFAULT
+  const QUALITY = opts.quality ?? QUALITY_DEFAULT
+  // some Android pickers hand over a photo with an empty type: try to decode it anyway
+  const type0 = file.type || (/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name) ? 'image/jpeg' : '')
+  if (!type0.startsWith('image/') || type0 === 'image/gif' || type0 === 'image/svg+xml') return file
+  if (file.size < (opts.skipBelow ?? SKIP_BELOW_BYTES)) return file
 
   let img: HTMLImageElement
   try {

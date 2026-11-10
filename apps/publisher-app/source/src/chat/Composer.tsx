@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { ChatApi, type ChatFile, type ChatLabel, type LabelKey, type Member, type Room } from './api'
 import { Avatar, LabelChip, Spinner } from './bits'
+import { NewsList, newsText, TemplatePicker } from './Templates'
+import type { NewsItem } from './api'
 import type { LocalMsg } from './RoomView'
 import { bnNum, duration, fileSize, isTouch, LABEL_ICON, localToIso } from './util'
 
@@ -8,7 +10,7 @@ interface Props {
   room: Room
   labels: ChatLabel[]
   members: Member[]
-  me: { id: number }
+  me: { id: number; staff: boolean; publisher: boolean }
   replyTo: LocalMsg | null
   editing: LocalMsg | null
   onCancelReply: () => void
@@ -45,6 +47,8 @@ export default function Composer({ room, labels, members, me, replyTo, editing, 
   const [mentions, setMentions] = useState<{ id: number; name: string }[]>([])
   const [mq, setMq] = useState<string | null>(null)
   const [mIndex, setMIndex] = useState(0)
+  const [slashQ, setSlashQ] = useState<string | null>(null)
+  const [tplOpen, setTplOpen] = useState(false)
   const [rec, setRec] = useState<{ secs: number; level: number; silent: boolean } | null>(null)
   const [sending, setSending] = useState(false)
   const ta = useRef<HTMLTextAreaElement>(null)
@@ -120,6 +124,9 @@ export default function Composer({ room, labels, members, me, replyTo, editing, 
     const m = before.match(/(?:^|\s)@([\p{L}\p{M}\p{N}_.]*)$/u)
     setMq(m ? m[1] : null)
     setMIndex(0)
+    // “/” = pick a news: /, /নাম, /8285 or a pasted link
+    const s = m ? null : before.match(/(?:^|\s)\/([^\s/]{0,40})$/u)
+    setSlashQ(s ? s[1] : null)
     if (v && Date.now() - lastTyping.current > 4000) {
       lastTyping.current = Date.now()
       ChatApi.typing(room.id).catch(() => {})
@@ -137,6 +144,40 @@ export default function Composer({ room, labels, members, me, replyTo, editing, 
     setTimeout(() => {
       el?.focus()
       el?.setSelectionRange(before.length, before.length)
+    }, 0)
+  }
+
+  const pickNews = (n: NewsItem) => {
+    const el = ta.current
+    const caret = el?.selectionStart ?? text.length
+    const before = text.slice(0, caret).replace(/\/([^\s/]{0,40})$/u, newsText(n) + ' ')
+    const next = before + text.slice(caret)
+    setText(next)
+    setSlashQ(null)
+    setTimeout(() => {
+      el?.focus()
+      el?.setSelectionRange(before.length, before.length)
+    }, 0)
+  }
+  const putTemplate = (body: string, lab: LabelKey | '') => {
+    setTplOpen(false)
+    const next = text.trim() ? text.replace(/\s*$/, '\n') + body : body
+    setText(next)
+    if (lab) setLabel(lab)
+    // a template that names the peer: mention them so they are told
+    if (room.peer && body.includes('@')) {
+      const tag = '@' + room.peer.name.replace(/\s+/g, '_')
+      if (next.includes(tag)) setMentions((p) => (p.some((x) => x.id === room.peer!.id) ? p : [...p, { id: room.peer!.id, name: room.peer!.name }]))
+    }
+    setTimeout(() => {
+      const el = ta.current
+      if (!el) return
+      el.focus()
+      // jump to the first [blank] left to fill
+      const i = next.indexOf('[')
+      const j = i >= 0 ? next.indexOf(']', i) : -1
+      if (i >= 0 && j > i) el.setSelectionRange(i, j + 1)
+      else el.setSelectionRange(next.length, next.length)
     }, 0)
   }
 
@@ -175,6 +216,7 @@ export default function Composer({ room, labels, members, me, replyTo, editing, 
       if (e.key === 'Enter' || e.key === 'Tab') return e.preventDefault(), pickMention(suggestions[mIndex])
       if (e.key === 'Escape') return setMq(null)
     }
+    if (slashQ !== null && e.key === 'Escape') return setSlashQ(null)
     if (e.key === 'Escape') {
       if (editing) onCancelEdit()
       else if (replyTo) onCancelReply()
@@ -291,6 +333,21 @@ export default function Composer({ room, labels, members, me, replyTo, editing, 
           ))}
         </div>
       )}
+
+      {/* “/” news */}
+      {slashQ !== null && suggestions.length === 0 && (
+        <div className="absolute left-3 right-3 bottom-full mb-1 z-10 max-h-72 overflow-y-auto rounded-xl bg-white shadow-xl ring-1 ring-black/5" data-testid="slash-list">
+          <div className="sticky top-0 bg-white/95 px-3 py-1.5 text-[11px] text-neutral-500 border-b border-neutral-100 flex items-center gap-2">
+            <span className="flex-1">/ এর পরে খবরের নাম, পোস্ট নম্বর বা লিংক লিখুন</span>
+            <button type="button" onMouseDown={(e) => (e.preventDefault(), setSlashQ(null))} className="text-neutral-400 text-[15px] leading-none" aria-label="বন্ধ">
+              ×
+            </button>
+          </div>
+          <NewsList room={room} q={slashQ} staff={me.staff} onPick={pickNews} compact />
+        </div>
+      )}
+
+      {tplOpen && <TemplatePicker room={room} me={me} labels={labels} onPick={putTemplate} onClose={() => setTplOpen(false)} />}
 
       {/* reply / edit */}
       {(replyTo || editing) && (
@@ -430,6 +487,9 @@ export default function Composer({ room, labels, members, me, replyTo, editing, 
               </>
             )}
           </div>
+          <button type="button" onClick={() => setTplOpen(true)} className="w-10 h-10 rounded-full hover:bg-neutral-100 text-[18px]" title="তৈরি মেসেজ (টেমপ্লেট)" aria-label="তৈরি মেসেজ" data-testid="tpl-btn">
+            📋
+          </button>
           <button type="button" onClick={() => fileIn.current?.click()} className="w-10 h-10 rounded-full hover:bg-neutral-100 text-[18px]" title="ছবি/ফাইল" aria-label="ছবি বা ফাইল দিন" data-testid="attach-btn">
             📎
           </button>
@@ -458,8 +518,8 @@ export default function Composer({ room, labels, members, me, replyTo, editing, 
                 addFiles(fs)
               }
             }}
-            placeholder={label === 'urgent' ? 'জরুরি কী হয়েছে লিখুন…' : room.kind === 'desk' ? 'ডেস্ককে লিখুন…' : 'মেসেজ লিখুন… @ দিয়ে ডাকুন'}
-            title="@ লিখে নাম বাছলে তিনি আলাদা করে জানবেন"
+            placeholder={label === 'urgent' ? 'জরুরি কী হয়েছে লিখুন…' : room.kind === 'desk' ? 'ডেস্ককে লিখুন…' : 'মেসেজ লিখুন… @ ডাকুন, / খবর'}
+            title="@ লিখে নাম বাছলে তিনি আলাদা করে জানবেন। / লিখলে খবর বাছতে পারবেন"
             className="flex-1 min-w-0 resize-none rounded-2xl bg-neutral-100 px-4 py-2.5 text-[14.5px] leading-[1.45] outline-none focus:bg-white focus:ring-2 focus:ring-brand-200 max-h-40"
             data-testid="composer-input"
           />

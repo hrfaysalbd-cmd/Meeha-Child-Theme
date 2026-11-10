@@ -1,4 +1,4 @@
-import { compressImageForUpload, uploadTimeoutFor } from './imageCompress'
+import { compressImageForUpload, uploadTimeoutFor, AVATAR_SHRINK } from './imageCompress'
 import { trackRequest, trackUpload } from './netActivity'
 
 /**
@@ -784,6 +784,24 @@ export const MediaApi = {
    */
   uploadVideo: (file: File, onProgress?: (p: UploadProgress) => void, opts: { signal?: AbortSignal } = {}) =>
     uploadVideoFile(file, onProgress, opts.signal),
+  /**
+   * r33: a short upload-speed check (≈384 KB to the server, thrown away
+   * there). Bytes a second, or null when it could not be measured.
+   */
+  speedTest: async (signal?: AbortSignal): Promise<number | null> => {
+    const size = 384 * 1024
+    const bytes = new Uint8Array(size)
+    // random bytes, so nothing on the way can squeeze them smaller
+    for (let i = 0; i < size; i += 65536) crypto.getRandomValues(bytes.subarray(i, Math.min(size, i + 65536)))
+    const t0 = performance.now()
+    try {
+      await sendPiece('/media/speedtest', new Blob([bytes], { type: 'application/octet-stream' }), () => {}, signal)
+    } catch {
+      return null
+    }
+    const secs = (performance.now() - t0) / 1000
+    return secs > 0.05 ? Math.round(size / secs) : null
+  },
 }
 
 // ---- Video upload (XMLHttpRequest, for real progress) ----
@@ -1061,10 +1079,15 @@ export const LedgerApi = {
 
 export const AvatarApi = {
   // Multipart field name is fixed on the backend: "nros_avatar".
-  upload: (file: File) => {
+  // r33: the photo is shrunk to 800 px first (a 6–12 MB phone photo was
+  // refused by the web server's size limit or timed out — the app then said
+  // "সার্ভারের সাথে সংযোগ করা যায়নি"). Replacing the picture is safe to
+  // repeat, so a dropped connection is retried.
+  upload: async (original: File) => {
+    const file = await compressImageForUpload(original, AVATAR_SHRINK)
     const form = new FormData()
-    form.append('nros_avatar', file)
-    return request<{ ok: true; avatar: string }>('/me/avatar', { method: 'POST', body: form })
+    form.append('nros_avatar', file, /\.(jpe?g|png|webp)$/i.test(file.name) ? file.name : 'avatar.jpg')
+    return request<{ ok: true; avatar: string }>('/me/avatar', { method: 'POST', body: form, retry: true, timeoutMs: uploadTimeoutFor(file.size) })
   },
   // Reverts to the default (Gravatar) picture. Safe to call even if no
   // custom picture was ever uploaded — the backend just no-ops.
@@ -1236,9 +1259,14 @@ async function uploadVideoInPieces(file: File, chunkMax: number, onProgress?: (p
     const from = received
     const piece = file.slice(from, Math.min(file.size, from + chunk))
     try {
+      const t0 = Date.now()
       const r = await sendPiece(`/media/upload-session/${s.id}/chunk?offset=${from}`, piece, (l) => report(from + l), signal)
       received = r.received
-      if (chunk < full) chunk = Math.min(full, chunk * 2)
+      const took = Date.now() - t0
+      // r33: a slow line gets smaller pieces (each one finishes well inside
+      // the timeout); a fast one grows back to the full size
+      if (took > 45_000) chunk = Math.max(262144, Math.floor(chunk / 2))
+      else if (chunk < full && took < 15_000) chunk = Math.min(full, chunk * 2)
     } catch (err) {
       const conflict = err instanceof ApiError && err.status === 409
       if (err instanceof ApiError && err.status === 413) {

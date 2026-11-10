@@ -16,6 +16,7 @@ import {
   type VideoOrientation,
   type VideoSource,
 } from '../lib/api'
+import { canShrink, etaText, PICK_MAX_BYTES, targetFor } from '../lib/videoTarget'
 import { captureFrame, readVideoMeta, youtubeIdFrom, youtubeThumb, type VideoMeta } from '../lib/video'
 import { Banner, Button, CharCount, ErrorRetry, Segmented, Spinner, TopBar, bnDuration, bnNumber, inputClass } from '../components/ui'
 import VideoPayment from '../components/VideoPayment'
@@ -59,6 +60,22 @@ interface UploadState {
   percent: number
   error?: string
   detail?: string
+  /** r33: checking the line → making the file smaller → sending it */
+  phase?: 'check' | 'shrink' | 'send'
+  /** e.g. "৬১২ MB → ৯৮ MB · ৭২০p · প্রায় ৪ মিনিট" */
+  note?: string
+}
+
+/** r33: keep the screen on while a long shrink/upload runs (where allowed). */
+async function keepAwake(): Promise<() => void> {
+  try {
+    const wl = (navigator as { wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } }).wakeLock
+    if (!wl) return () => {}
+    const lock = await wl.request('screen')
+    return () => void lock.release().catch(() => {})
+  } catch {
+    return () => {}
+  }
 }
 
 interface FieldErrors {
@@ -132,6 +149,8 @@ export default function VideoEditor() {
   const [upload, setUpload] = useState<UploadState | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const pickedFileRef = useRef<File | null>(null)
+  // r33: the smaller copy made from the picked file — a retry sends it again without re-encoding
+  const shrunkRef = useRef<{ src: File; out: File; note: string } | null>(null)
   const pickSeq = useRef(0)
   const beforePick = useRef<{ orientation: VideoOrientation; duration: number | null; detected: VideoMeta | null } | null>(null)
 
@@ -196,7 +215,8 @@ export default function VideoEditor() {
   useEffect(() => {
     loadCategories()
     MediaApi.videoLimits()
-      .then((l) => setMaxBytes(l.max_bytes > 0 ? l.max_bytes : null))
+      // r33: the piece-by-piece limit is the real one (a host's single-request limit can be tiny)
+      .then((l) => { const m = l.resumable?.max_bytes || l.max_bytes; setMaxBytes(m > 0 ? m : null) })
       .catch(() => setMaxBytes(null))
   }, [loadCategories])
 
@@ -251,34 +271,82 @@ export default function VideoEditor() {
     const ctrl = new AbortController()
     abortRef.current = ctrl
     pickedFileRef.current = file
-    setUpload({ state: 'uploading', name: file.name, loaded: 0, total: file.size, percent: 0 })
+    const live = () => abortRef.current === ctrl
+    const serverMax = maxBytes ?? 0
+    setUpload({ state: 'uploading', phase: 'check', name: file.name, loaded: 0, total: file.size, percent: 0 })
+    const release = await keepAwake()
     try {
+      // ---- r33: make a big file smaller first, sized for this connection ----
+      let toSend = file
+      let note = ''
+      if (shrunkRef.current?.src === file) {
+        toSend = shrunkRef.current.out
+        note = shrunkRef.current.note
+      } else if (file.size > 25 * 1048576 && canShrink()) {
+        const speed = await MediaApi.speedTest(ctrl.signal)
+        if (!live()) return
+        const target = targetFor(speed, serverMax)
+        if (file.size > target * 1.15 || (serverMax > 0 && file.size > serverMax)) {
+          let shrinkCancelled: (new (...a: never[]) => Error) | null = null
+          try {
+            // the encoder (≈1 MB) loads only when a big video is picked
+            const { planShrink, shrinkVideo, ShrinkCancelled } = await import('../lib/videoShrink')
+            shrinkCancelled = ShrinkCancelled
+            const plan = await planShrink(file, target)
+            if (!live()) return
+            if (plan && plan.estimate < file.size * 0.85) {
+              const pLabel = `${bnNumber(plan.short)}p`
+              setUpload((u) => (u ? { ...u, phase: 'shrink', percent: 0, loaded: 0, note: `${formatBytes(file.size)} → প্রায় ${formatBytes(plan.estimate)} · ${pLabel}` } : u))
+              const out = await shrinkVideo(file, target, {
+                signal: ctrl.signal,
+                onProgress: (r) => live() && setUpload((u) => (u && u.state === 'uploading' ? { ...u, percent: Math.min(99, Math.floor(r * 100)) } : u)),
+              })
+              if (!live()) return
+              const base = file.name.replace(/\.[^.]+$/, '') || 'video'
+              toSend = new File([out.blob], `${base}-meeha.${out.ext}`, { type: out.mime })
+              const eta = etaText(toSend.size, speed)
+              note = `${formatBytes(file.size)} → ${formatBytes(toSend.size)} · ${bnNumber(Math.min(out.width, out.height))}p${eta ? ' · ' + eta : ''}`
+              shrunkRef.current = { src: file, out: toSend, note }
+            }
+          } catch (err) {
+            if (!live() || (shrinkCancelled && err instanceof shrinkCancelled)) return
+            // could not re-encode here: the original still goes if the server takes it
+            if (serverMax > 0 && file.size > serverMax) throw new ApiError('এই ফোনে ভিডিওটি ছোট করা গেল না, আর আসল ফাইলটি সার্ভারের সীমার চেয়ে বড়। ভিডিওটি কেটে ছোট করে বা কম রেজোলিউশনে রেকর্ড করে আবার দিন।', 413, 'nros_video_too_large', 'client', '/media/video')
+            note = 'ছোট করা গেল না — আসল ফাইলটিই যাচ্ছে'
+          }
+        }
+      }
+      if (serverMax > 0 && toSend.size > serverMax) throw new ApiError(videoTooLargeMessage(toSend.size, serverMax), 413, 'nros_video_too_large', 'client', '/media/video')
+
+      setUpload({ state: 'uploading', phase: 'send', name: toSend.name, loaded: 0, total: toSend.size, percent: 0, note })
       const res = await MediaApi.uploadVideo(
-        file,
+        toSend,
         (p) => {
-          if (abortRef.current === ctrl) setUpload((u) => (u && u.state === 'uploading' ? { ...u, ...p } : u))
+          if (live()) setUpload((u) => (u && u.state === 'uploading' ? { ...u, ...p } : u))
         },
         { signal: ctrl.signal },
       )
-      if (abortRef.current !== ctrl) return
+      if (!live()) return
       setAttachmentId(res.id)
       setServerVideoUrl(res.url)
-      setUpload({ state: 'done', name: file.name, loaded: file.size, total: file.size, percent: 100 })
+      setUpload({ state: 'done', name: toSend.name, loaded: toSend.size, total: toSend.size, percent: 100, note: note.replace(/ · প্রায় .*$/, '') })
+      shrunkRef.current = null
       beforePick.current = null // this file is now the post's video
       setFieldErrors((f) => ({ ...f, video: undefined }))
     } catch (err) {
-      if (abortRef.current !== ctrl || isUploadCancelled(err)) return
+      if (!live() || isUploadCancelled(err)) return
       const d = describeError(err)
       setUpload((u) => ({
         state: 'error',
         name: file.name,
         loaded: u?.loaded ?? 0,
-        total: file.size,
+        total: u?.total ?? file.size,
         percent: u?.percent ?? 0,
         error: d.message,
         detail: d.detail,
       }))
     } finally {
+      release()
       if (abortRef.current === ctrl) abortRef.current = null
     }
   }
@@ -290,8 +358,10 @@ export default function VideoEditor() {
       setFieldErrors((f) => ({ ...f, video: 'শুধু MP4, WebM বা MOV ফরম্যাটের ভিডিও আপলোড করা যাবে।' }))
       return
     }
-    if (maxBytes && file.size > maxBytes) {
-      setFieldErrors((f) => ({ ...f, video: videoTooLargeMessage(file.size, maxBytes) }))
+    // r33: up to 1 GB where the phone can make it smaller before sending
+    const pickMax = maxBytes && canShrink() ? Math.max(maxBytes, PICK_MAX_BYTES) : maxBytes
+    if (pickMax && file.size > pickMax) {
+      setFieldErrors((f) => ({ ...f, video: videoTooLargeMessage(file.size, pickMax) }))
       return
     }
     setFieldErrors((f) => ({ ...f, video: undefined }))
@@ -327,6 +397,7 @@ export default function VideoEditor() {
     ctrl?.abort()
     pickSeq.current++
     pickedFileRef.current = null
+    shrunkRef.current = null
     setUpload(null)
     setLocalUrl(null)
     setMetaFailed(false)
@@ -635,8 +706,13 @@ export default function VideoEditor() {
                   </span>
                   <span className="text-[14.5px] font-semibold text-neutral-800">ভিডিও নির্বাচন করুন</span>
                   <span className="text-[12px] text-neutral-400">
-                    MP4, WebM বা MOV{maxBytes ? ` · সর্বোচ্চ ${formatBytes(maxBytes)}` : ''}
+                    MP4, WebM বা MOV{maxBytes ? ` · সর্বোচ্চ ${formatBytes(canShrink() ? Math.max(maxBytes, PICK_MAX_BYTES) : maxBytes)}` : ''}
                   </span>
+                  {canShrink() && (
+                    <span className="text-[11.5px] text-neutral-500 max-w-xs" data-testid="shrink-hint">
+                      বড় ভিডিও ফোনেই ছোট হয়ে যাবে। নেট ধীর হলে আরও ছোট করে, টুকরো টুকরো করে পাঠানো হবে।
+                    </span>
+                  )}
                 </button>
               )}
 
@@ -648,8 +724,12 @@ export default function VideoEditor() {
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-medium text-neutral-800 truncate">{upload.name}</p>
-                      <p className="text-[11.5px] text-neutral-400 tabular-nums">
-                        {formatBytes(upload.loaded)} / {formatBytes(upload.total)}
+                      <p className="text-[11.5px] text-neutral-400 tabular-nums" data-testid="upload-phase">
+                        {upload.phase === 'check'
+                          ? 'নেটের গতি দেখা হচ্ছে…'
+                          : upload.phase === 'shrink'
+                            ? `ফোনে ছোট করা হচ্ছে · ${upload.note ?? ''}`
+                            : `${formatBytes(upload.loaded)} / ${formatBytes(upload.total)}${upload.note ? ' · ' + upload.note : ''}`}
                       </p>
                     </div>
                     <span className="text-[15px] font-bold text-brand-600 tabular-nums">{bnNumber(upload.percent)}%</span>
@@ -669,10 +749,14 @@ export default function VideoEditor() {
                     aria-valuemax={100}
                     aria-valuenow={upload.percent}
                   >
-                    <div className="h-full rounded-full bg-brand-600 transition-[width] duration-300" style={{ width: `${upload.percent}%` }} />
+                    <div className={`h-full rounded-full transition-[width] duration-300 ${upload.phase === 'shrink' ? 'bg-amber-500' : 'bg-brand-600'} ${upload.phase === 'check' ? 'animate-pulse w-1/5' : ''}`} style={upload.phase === 'check' ? undefined : { width: `${upload.percent}%` }} />
                   </div>
                   <p className="text-[11.5px] text-neutral-500 mt-2">
-                    আপলোড চলছে — এই পেজ থেকে বের হবেন না। এর মধ্যে নিচের তথ্যগুলো পূরণ করে নিতে পারেন।
+                    {upload.phase === 'shrink'
+                      ? 'ধাপ ১/২: ভিডিও ছোট হচ্ছে (ছবি ও শব্দ ঠিক থাকবে)। স্ক্রিন চালু রাখুন, অ্যাপ থেকে বের হবেন না।'
+                      : upload.phase === 'send' && upload.note
+                        ? 'ধাপ ২/২: আপলোড চলছে। নেট কেটে গেলে নিজে থেকে আবার চেষ্টা করবে, যেখানে থেমেছিল সেখান থেকে। এর মধ্যে নিচের তথ্যগুলো পূরণ করুন।'
+                        : 'আপলোড চলছে — এই পেজ থেকে বের হবেন না। এর মধ্যে নিচের তথ্যগুলো পূরণ করে নিতে পারেন।'}
                   </p>
                 </div>
               )}
@@ -706,7 +790,7 @@ export default function VideoEditor() {
                   {upload?.state === 'done' ? (
                     <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-emerald-600 min-w-0">
                       <IconCheck className="w-4 h-4 shrink-0" />
-                      <span className="truncate">আপলোড সম্পন্ন · {formatBytes(upload.total)}</span>
+                      <span className="truncate">আপলোড সম্পন্ন · {upload.note || formatBytes(upload.total)}</span>
                     </span>
                   ) : (
                     <span className="flex items-center gap-1.5 text-[12.5px] text-neutral-500">

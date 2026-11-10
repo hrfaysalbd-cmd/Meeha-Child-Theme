@@ -98,7 +98,28 @@ class NROS_Chat {
 		$g = self::t( 'messages' );
 		$f = self::t( 'files' );
 		$k = self::t( 'tasks' );
+		$p = self::t( 'templates' );
 		return array(
+			// 1.24.0 — message templates (built-in + the team's + personal)
+			"CREATE TABLE {$p} (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				tkey VARCHAR(40) DEFAULT NULL,
+				title VARCHAR(120) NOT NULL,
+				body TEXT NOT NULL,
+				cat VARCHAR(20) NOT NULL DEFAULT 'general',
+				audience VARCHAR(14) NOT NULL DEFAULT 'staff',
+				label VARCHAR(12) NOT NULL DEFAULT '',
+				owner_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+				active TINYINT(1) NOT NULL DEFAULT 1,
+				sort INT NOT NULL DEFAULT 100,
+				uses INT UNSIGNED NOT NULL DEFAULT 0,
+				created_by BIGINT UNSIGNED NOT NULL DEFAULT 0,
+				updated_at DATETIME DEFAULT NULL,
+				created_at DATETIME NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY tkey (tkey),
+				KEY owner_aud (owner_id,audience)
+			) {$c};",
 			// 1.23.0 — টু-ডু (a room's task list)
 			"CREATE TABLE {$k} (
 				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -989,6 +1010,8 @@ class NROS_Chat {
 			'urgent'   => $c['urgent'],
 			'last'     => $last,
 			'last_at'  => $row['last_at'] ? self::iso( $row['last_at'] ) : null,
+			// 1.24.0 — who a desk line is with (templates fill {নাম}, “/” shows their news first)
+			'peer'     => 'desk' === $row['kind'] && (int) $row['owner_id'] !== (int) $u->ID ? self::person( $row['owner_id'] ) : null,
 		);
 	}
 
@@ -1270,6 +1293,15 @@ class NROS_Chat {
 		if ( ! self::can_post( $room, $u ) ) {
 			return new WP_Error( 'nros_forbidden', 'এই রুমে শুধু অ্যাডমিন লিখতে পারেন।', array( 'status' => 403 ) );
 		}
+		// 1.24.0 — a runaway script or a stuck button can't flood a room
+		$rk   = 'nros_chat_rate_' . (int) $u->ID;
+		$rate = (array) get_transient( $rk );
+		$rate = array_filter( $rate, function ( $t ) { return time() - (int) $t < 60; } );
+		if ( count( $rate ) >= (int) apply_filters( 'nros_chat_per_minute', 30 ) ) {
+			return new WP_Error( 'nros_slow_down', 'খুব দ্রুত অনেক মেসেজ যাচ্ছে, এক মিনিট পরে আবার লিখুন।', array( 'status' => 429 ) );
+		}
+		$rate[] = time();
+		set_transient( $rk, array_values( $rate ), 120 );
 		$body  = trim( sanitize_textarea_field( (string) $request->get_param( 'body' ) ) );
 		$body  = mb_substr( $body, 0, 4000 );
 		$label = sanitize_key( (string) $request->get_param( 'label' ) );

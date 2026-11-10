@@ -1,4 +1,4 @@
-import { compressImageForUpload } from './imageCompress'
+import { compressImageForUpload, uploadTimeoutFor, AVATAR_SHRINK } from './imageCompress'
 
 /**
  * API client for the newsroom-os plugin's REST API (nros/v1) — the same
@@ -1086,10 +1086,15 @@ export const AuthApi = {
 
 export const AvatarApi = {
   // Multipart field name is fixed on the backend: "nros_avatar".
-  upload: (file: File) => {
+  // r41: the photo is shrunk to 800 px first (a 6–12 MB phone photo was
+  // refused by the web server's size limit or timed out — the app then said
+  // "সার্ভারের সাথে সংযোগ করা যায়নি"). Replacing the picture is safe to
+  // repeat, so a dropped connection is retried.
+  upload: async (original: File) => {
+    const file = await compressImageForUpload(original, AVATAR_SHRINK)
     const form = new FormData()
-    form.append('nros_avatar', file)
-    return request<{ ok: true; avatar: string }>('/me/avatar', { method: 'POST', body: form })
+    form.append('nros_avatar', file, /\.(jpe?g|png|webp)$/i.test(file.name) ? file.name : 'avatar.jpg')
+    return request<{ ok: true; avatar: string }>('/me/avatar', { method: 'POST', body: form, retry: true, timeoutMs: uploadTimeoutFor(file.size) })
   },
   // Reverts to the default (Gravatar) picture. Safe to call even if no
   // custom picture was ever uploaded — the backend just no-ops.

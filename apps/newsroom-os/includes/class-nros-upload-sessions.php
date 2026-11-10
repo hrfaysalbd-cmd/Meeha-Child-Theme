@@ -72,9 +72,39 @@ class NROS_Upload_Sessions {
 	}
 
 	/**
+	 * POST /media/speedtest — the body (≤ 1 MB) is read and thrown away.
+	 * At most 20 checks an hour per person.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function speedtest( $request ) {
+		$u   = NROS_Auth::get_user_from_request( $request );
+		$key = 'nros_speedtest_' . (int) $u->ID;
+		$n   = (int) get_transient( $key );
+		if ( $n >= 20 ) {
+			return new WP_Error( 'nros_slow_down', 'একটু পরে আবার চেষ্টা করুন।', array( 'status' => 429 ) );
+		}
+		set_transient( $key, $n + 1, HOUR_IN_SECONDS );
+		$len = strlen( (string) $request->get_body() );
+		return new WP_REST_Response( array( 'received' => min( $len, 1048576 ), 't' => microtime( true ) ), 200 );
+	}
+
+	/**
 	 * Registers REST routes under nros/v1.
 	 */
 	public static function register_routes() {
+		// 1.24.0 — a short upload-speed check, so the app can pick how small to
+		// make a video before sending it on a weak connection
+		register_rest_route(
+			NROS_API_NS,
+			'/media/speedtest',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'speedtest' ),
+				'permission_callback' => array( 'NROS_Core', 'require_app_user' ),
+			)
+		);
 		register_rest_route(
 			NROS_API_NS,
 			'/media/upload-session',

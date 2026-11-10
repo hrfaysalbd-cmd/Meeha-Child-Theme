@@ -95,6 +95,66 @@ export interface Room {
   last_at: string | null
   /** open tasks in the room (1.23.0) */
   tasks?: number
+  /** a desk line, seen by the desk: the correspondent (1.24.0) */
+  peer?: Person | null
+}
+
+/** 1.24.0 — message templates */
+export interface ChatTemplate {
+  id: number
+  key: string
+  title: string
+  body: string
+  cat: string
+  kind: string
+  audience: 'staff' | 'correspondent' | 'all' | 'auto'
+  label: LabelKey | ''
+  personal: boolean
+  builtin: boolean
+  active: boolean
+  uses: number
+  can_edit: boolean
+  changed: boolean
+}
+
+export interface TemplateCat {
+  key: string
+  name: string
+  icon: string
+}
+
+export interface TemplatesResponse {
+  templates: ChatTemplate[]
+  cats: TemplateCat[]
+  vars: string[]
+  can_manage: boolean
+  me: { name: string; area: string }
+}
+
+export interface TemplateInput {
+  title?: string
+  body?: string
+  cat?: string
+  label?: string
+  audience?: string
+  active?: boolean
+  shared?: boolean
+}
+
+/** 1.24.0 — a news for “/” */
+export interface NewsItem {
+  id: number
+  title: string
+  url: string
+  status: string
+  status_l: string
+  type: 'post' | 'video'
+  date: string
+  author: string
+  author_id: number
+  thumb: string
+  fb: string
+  share: string
 }
 
 export interface ChatFile {
@@ -234,6 +294,14 @@ export const ChatApi = {
   addTask: (room: number, input: TaskInput) => apiRequest<Task>(`/chat/rooms/${room}/tasks`, { method: 'POST', body: input as Record<string, unknown> }),
   updateTask: (id: number, input: TaskInput) => apiRequest<Task>(`/chat/tasks/${id}`, { method: 'PATCH', body: input as Record<string, unknown> }),
   deleteTask: (id: number) => apiRequest<{ deleted: true; id: number }>(`/chat/tasks/${id}`, { method: 'DELETE' }),
+  templates: (manage = false) => apiRequest<TemplatesResponse>(`/chat/templates${manage ? '?manage=1' : ''}`),
+  createTemplate: (input: TemplateInput) => apiRequest<ChatTemplate>('/chat/templates', { method: 'POST', body: input as Record<string, unknown> }),
+  updateTemplate: (id: number, input: TemplateInput) => apiRequest<ChatTemplate>(`/chat/templates/${id}`, { method: 'PATCH', body: input as Record<string, unknown> }),
+  deleteTemplate: (id: number) => apiRequest<{ id: number; deleted?: boolean; off?: boolean }>(`/chat/templates/${id}`, { method: 'DELETE' }),
+  resetTemplate: (id: number) => apiRequest<ChatTemplate>(`/chat/templates/${id}/reset`, { method: 'POST', body: {} }),
+  templateUsed: (id: number) => apiRequest<{ ok: true }>(`/chat/templates/${id}/used`, { method: 'POST', body: {}, retry: true }),
+  posts: (room: number, q = '') => apiRequest<{ posts: NewsItem[]; focus: Person | null }>(`/chat/posts${qs({ room, q })}`),
+  setFb: (postId: number, url: string) => apiRequest<NewsItem>(`/chat/posts/${postId}/fb`, { method: 'POST', body: { url } }),
   openDesk: (user_id?: number) => apiRequest<{ id: number }>('/chat/desk', { method: 'POST', body: user_id ? { user_id } : {} }),
   people: (q: string) => apiRequest<{ people: Person[] }>(`/chat/people${qs({ q })}`),
   upload: (room: number, file: Blob, name: string, duration = 0) => {
