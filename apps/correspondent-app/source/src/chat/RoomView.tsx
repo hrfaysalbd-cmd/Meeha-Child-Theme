@@ -43,6 +43,94 @@ function RichText({ text, mine }: { text: string; mine: boolean }) {
   return <>{parts}</>
 }
 
+/** Voice note: big play button, progress, speed; a clear message if this phone can't play it. */
+function VoicePlayer({ f, mine }: { f: ChatFile; mine: boolean }) {
+  const a = useRef<HTMLAudioElement | null>(null)
+  const [playing, setPlaying] = useState(false)
+  const [t, setT] = useState(0)
+  const [len, setLen] = useState(f.duration || 0)
+  const [rate, setRate] = useState(1)
+  const [err, setErr] = useState(false)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => () => a.current?.pause(), [])
+  const el = () => {
+    if (!a.current) {
+      const au = new Audio()
+      au.preload = 'metadata'
+      au.src = f.url
+      au.ontimeupdate = () => setT(au.currentTime)
+      au.onloadedmetadata = () => isFinite(au.duration) && au.duration > 0 && setLen(au.duration)
+      au.onplaying = () => (setPlaying(true), setBusy(false))
+      au.onpause = () => setPlaying(false)
+      au.onended = () => (setPlaying(false), setT(0))
+      au.onwaiting = () => setBusy(true)
+      au.onerror = () => (setErr(true), setBusy(false), setPlaying(false))
+      a.current = au
+    }
+    return a.current
+  }
+  const toggle = () => {
+    const au = el()
+    if (playing) return au.pause()
+    // only one voice at a time
+    document.dispatchEvent(new CustomEvent('nros-voice-play', { detail: f.id }))
+    setBusy(true)
+    au.playbackRate = rate
+    au.play().catch(() => (setErr(true), setBusy(false)))
+  }
+  useEffect(() => {
+    const h = (e: Event) => (e as CustomEvent<number>).detail !== f.id && a.current?.pause()
+    document.addEventListener('nros-voice-play', h)
+    return () => document.removeEventListener('nros-voice-play', h)
+  }, [f.id])
+  const pct = len ? Math.min(100, (t / len) * 100) : 0
+  const seek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!len) return
+    const r = e.currentTarget.getBoundingClientRect()
+    el().currentTime = ((e.clientX - r.left) / r.width) * len
+  }
+  const fg = mine ? 'bg-white' : 'bg-brand-600'
+  return (
+    <div className={`flex items-center gap-2.5 rounded-2xl px-2 py-2 w-[250px] max-w-full ${mine ? 'bg-white/15' : 'bg-neutral-100'}`} data-testid="voice-player">
+      <button
+        type="button"
+        onClick={toggle}
+        className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-[15px] ${mine ? 'bg-white text-brand-700' : 'bg-brand-600 text-white'}`}
+        aria-label={playing ? 'থামান' : 'শুনুন'}
+      >
+        {busy ? <Spinner className="w-4 h-4" /> : playing ? '❚❚' : '▶'}
+      </button>
+      <div className="min-w-0 flex-1">
+        {err ? (
+          <a href={f.download} download={f.name} className={`block text-[11.5px] leading-snug underline ${mine ? 'text-white' : 'text-red-600'}`}>
+            এই অ্যাপে বাজানো গেল না। ডাউনলোড করে শুনুন
+          </a>
+        ) : (
+          <>
+            <div className={`h-1.5 rounded-full cursor-pointer ${mine ? 'bg-white/30' : 'bg-neutral-300'}`} onClick={seek}>
+              <div className={`h-full rounded-full ${fg}`} style={{ width: `${pct}%` }} />
+            </div>
+            <div className={`mt-1 flex items-center text-[11px] ${mine ? 'text-white/85' : 'text-neutral-500'}`}>
+              <span>🎙️ {fmtDur(playing || t ? t : len)}</span>
+              <button
+                type="button"
+                className="ml-auto font-semibold"
+                onClick={() => {
+                  const r = rate === 1 ? 1.5 : rate === 1.5 ? 2 : 1
+                  setRate(r)
+                  if (a.current) a.current.playbackRate = r
+                }}
+              >
+                {bnNum(rate)}x
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function Files({ files, mine, onImage }: { files: ChatFile[]; mine: boolean; onImage: (f: ChatFile) => void }) {
   const imgs = files.filter((f) => f.kind === 'image')
   const rest = files.filter((f) => f.kind !== 'image')
@@ -59,11 +147,7 @@ function Files({ files, mine, onImage }: { files: ChatFile[]; mine: boolean; onI
       )}
       {rest.map((f) =>
         f.kind === 'audio' ? (
-          <div key={f.id} className={`flex items-center gap-2 rounded-xl px-2 py-1.5 ${mine ? 'bg-white/15' : 'bg-neutral-100'}`}>
-            <span className="text-[16px]">🎙️</span>
-            <audio src={f.url} controls preload="metadata" className="h-9 w-[210px] max-w-full" />
-            {f.duration > 0 && <span className={`text-[11px] ${mine ? 'text-white/80' : 'text-neutral-500'}`}>{fmtDur(f.duration)}</span>}
-          </div>
+          <VoicePlayer key={f.id} f={f} mine={mine} />
         ) : f.kind === 'video' ? (
           <video key={f.id} src={f.url} controls preload="metadata" playsInline className="w-full max-h-72 rounded-xl bg-black" />
         ) : (
@@ -514,12 +598,34 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
       .map((s) => memberName.get(s.id))
       .filter(Boolean) as string[]
 
+  // phones: hold a message for the menu, swipe it right to reply
+  const touch = isTouch()
   const long = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const touchStart = (m: LocalMsg) => {
-    if (m.kind !== 'text' || m.deleted) return
-    long.current = setTimeout(() => setMenu(m), 450)
+  const swipe = useRef<{ x: number; y: number } | null>(null)
+  const touchStart = (m: LocalMsg, e: React.TouchEvent) => {
+    if (m.kind !== 'text' || m.deleted || m.id < 0) return
+    swipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    long.current = setTimeout(() => {
+      swipe.current = null
+      navigator.vibrate?.(15)
+      setMenu(m)
+    }, 450)
   }
-  const touchEnd = () => long.current && clearTimeout(long.current)
+  const touchMove = () => {
+    if (long.current) clearTimeout(long.current)
+  }
+  const touchEnd = (m: LocalMsg, e: React.TouchEvent) => {
+    if (long.current) clearTimeout(long.current)
+    const s0 = swipe.current
+    swipe.current = null
+    if (!s0) return
+    const dx = e.changedTouches[0].clientX - s0.x
+    const dy = Math.abs(e.changedTouches[0].clientY - s0.y)
+    if (dx > 70 && dy < 40) {
+      navigator.vibrate?.(10)
+      setReplyTo(m)
+    }
+  }
 
   const showResults = find.open && (!!results || resBusy)
   const headRef = useRef<HTMLDivElement>(null)
@@ -567,6 +673,7 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
     }
     const head = !prev || prev.kind === 'system' || prev.author?.id !== m.author?.id || prev.mine !== m.mine || new Date(m.at).getTime() - new Date(prev.at).getTime() > 5 * 60000 || dayKey(prev.at) !== dayKey(m.at)
     const mine = m.mine
+    const media = !m.deleted && m.files.some((f) => f.kind === 'image' || f.kind === 'video')
     const urgent = m.label === 'urgent'
     const seenBy = mine && m.id === lastMine ? seenNames(m.id) : []
     const anySeen = mine && m.id > 0 && seen.some((s) => s.read >= m.id && s.id !== me.id)
@@ -585,8 +692,8 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
         data-mid={m.id}
         className={`group flex gap-2 px-3 ${head ? 'mt-3' : 'mt-0.5'} ${mine ? 'flex-row-reverse' : ''} ${flash === m.id ? 'animate-pulse' : ''}`}
       >
-        {!mine && <div className="w-9 shrink-0">{head && m.author && <Avatar p={m.author} size={36} />}</div>}
-        <div className={`min-w-0 max-w-[82%] sm:max-w-[72%] flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
+        {!mine && <div className="w-8 shrink-0">{head && m.author && <Avatar p={m.author} size={32} />}</div>}
+        <div className={`min-w-0 ${mine ? 'max-w-[86%] items-end' : 'max-w-[calc(100%-40px)] items-start'} sm:max-w-[75%] flex flex-col`}>
           {head && !mine && m.author && (
             <div className="flex items-baseline gap-1.5 px-1 mb-0.5">
               <span className="text-[12.5px] font-semibold text-neutral-800">{m.author.name}</span>
@@ -596,7 +703,7 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
               </span>
             </div>
           )}
-          <div className={`relative flex items-center gap-1 ${mine ? 'flex-row-reverse' : ''}`}>
+          <div className={`relative max-w-full ${media ? 'w-[300px]' : ''}`}>
             <div
               className={`rounded-2xl px-3 py-2 ${bubble} ${mine ? (head ? 'rounded-tr-md' : '') : head ? 'rounded-tl-md' : ''} ${m.pending && !m.failed ? 'opacity-70' : ''}`}
               onContextMenu={(e) => {
@@ -604,9 +711,9 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
                 e.preventDefault()
                 setMenu(m)
               }}
-              onTouchStart={() => touchStart(m)}
-              onTouchEnd={touchEnd}
-              onTouchMove={touchEnd}
+              onTouchStart={(e) => touchStart(m, e)}
+              onTouchEnd={(e) => touchEnd(m, e)}
+              onTouchMove={touchMove}
             >
               {m.deleted ? (
                 <span className="text-[13px]">🚫 মেসেজটি মুছে ফেলা হয়েছে</span>
@@ -649,7 +756,7 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
             </div>
             {/* quick actions (hover on a computer; ⋯ on phones) */}
             {m.id > 0 && !m.deleted && (
-              <div className={`flex items-center gap-0.5 ${isTouch() ? 'opacity-0' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'} transition-opacity`}>
+              <div className={`absolute top-1/2 -translate-y-1/2 ${mine ? 'right-full mr-1' : 'left-full ml-1'} ${touch ? 'hidden' : 'flex'} items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity`}>
                 <button type="button" onClick={() => setPicker(picker === m.id ? null : m.id)} className="w-7 h-7 rounded-full hover:bg-neutral-200/70 text-[15px]" title="প্রতিক্রিয়া" aria-label="প্রতিক্রিয়া">
                   😊
                 </button>
@@ -717,11 +824,11 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
       onDragLeave={(e) => e.currentTarget === e.target && setDropping(false)}
       onDrop={onDrop}
     >
-      <div ref={headRef}>
+      <div ref={headRef} className="shrink-0">
       {/* header */}
       <div className="flex items-center gap-2.5 px-2 sm:px-3 py-2 bg-white border-b border-neutral-200/80">
         {onBack && (
-          <button type="button" onClick={onBack} className="md:hidden w-9 h-9 rounded-full hover:bg-neutral-100 text-[20px] text-neutral-600 shrink-0" aria-label="পেছনে" data-testid="room-back">
+          <button type="button" onClick={onBack} className="w-9 h-9 rounded-full hover:bg-neutral-100 text-[20px] text-neutral-600 shrink-0" aria-label="পেছনে" data-testid="room-back">
             ←
           </button>
         )}

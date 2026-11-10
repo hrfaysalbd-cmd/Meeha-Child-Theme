@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChatApi, type ChatLabel, type Room, type RoomsResponse } from './api'
 import { useChat } from './ChatContext'
 import { CountPill, LabelChip, RoomIcon, Sheet, Spinner } from './bits'
@@ -137,6 +137,17 @@ export default function ChatBox({
   const [newRoom, setNewRoom] = useState(false)
   const [deskPick, setDeskPick] = useState(false)
   const [selected, setSelected] = useState<number | null>(roomId)
+  // side by side only when the box itself is wide (the correspondent app is a
+  // narrow column even on a computer)
+  const boxRef = useRef<HTMLDivElement>(null)
+  const [wide, setWide] = useState(false)
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([e]) => setWide(e.contentRect.width >= 720))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   useEffect(() => setSelected(roomId), [roomId])
 
@@ -305,9 +316,9 @@ export default function ChatBox({
   }
 
   return (
-    <div className="flex h-full min-h-0 bg-white" data-testid="chat-box">
-      <div className={`${selected ? 'hidden md:flex' : 'flex'} w-full md:w-[330px] lg:w-[360px] shrink-0 flex-col border-r border-neutral-200/80 min-h-0`}>{list}</div>
-      <div className={`${selected ? 'flex' : 'hidden md:flex'} flex-1 min-w-0 flex-col min-h-0`}>
+    <div ref={boxRef} className="flex h-full min-h-0 bg-white" data-testid="chat-box" data-wide={wide ? '1' : '0'}>
+      <div className={`${selected && !wide ? 'hidden' : 'flex'} ${wide ? 'w-[340px] xl:w-[370px] border-r border-neutral-200/80' : 'w-full'} shrink-0 flex-col min-h-0`}>{list}</div>
+      <div className={`${selected || wide ? 'flex' : 'hidden'} flex-1 min-w-0 flex-col min-h-0`}>
         {selected && data ? (
           <RoomView
             key={selected}
@@ -316,7 +327,7 @@ export default function ChatBox({
             labels={labels}
             reactions={data.reactions}
             me={me}
-            onBack={() => open(null)}
+            onBack={wide ? undefined : () => open(null)}
             onRead={onRead}
             onRoomsChanged={load}
             onLeft={() => {

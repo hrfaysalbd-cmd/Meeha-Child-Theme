@@ -26,6 +26,10 @@ interface Pending {
   error?: string
 }
 
+const WEBVIEW_MIC = 'এই অ্যাপের ভেতর থেকে মাইক চালু করা যাচ্ছে না (অ্যাপটি ফোনের অনুমতি চায় না)। ভয়েস পাঠাতে Chrome-এ খুলুন বা মিহার নিজস্ব অ্যাপ ব্যবহার করুন।'
+/** Android in-app web views (Facebook, simple "website to app" wrappers…) mark themselves with "; wv)". */
+export const isWebView = () => /; wv\)/.test(navigator.userAgent) || /FBAN|FBAV|Instagram/.test(navigator.userAgent)
+
 const draftKey = (id: number) => `nros_chat_draft_${id}`
 const MAX_REC = 5 * 60
 
@@ -38,7 +42,7 @@ export default function Composer({ room, labels, members, me, replyTo, editing, 
   const [mentions, setMentions] = useState<{ id: number; name: string }[]>([])
   const [mq, setMq] = useState<string | null>(null)
   const [mIndex, setMIndex] = useState(0)
-  const [rec, setRec] = useState<{ secs: number } | null>(null)
+  const [rec, setRec] = useState<{ secs: number; level: number; silent: boolean } | null>(null)
   const [sending, setSending] = useState(false)
   const ta = useRef<HTMLTextAreaElement>(null)
   const fileIn = useRef<HTMLInputElement>(null)
@@ -181,24 +185,53 @@ export default function Composer({ room, labels, members, me, replyTo, editing, 
   // ---- voice note ----
   const startRec = async () => {
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      alert('এই ব্রাউজারে ভয়েস রেকর্ড চলে না।')
+      alert(isWebView() ? WEBVIEW_MIC : 'এই ব্রাউজারে ভয়েস রেকর্ড চলে না। Chrome-এ খুলে চেষ্টা করুন।')
       return
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
-      const type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].find((t) => MediaRecorder.isTypeSupported?.(t)) ?? ''
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+      // MP4/AAC first: it plays on every phone (iPhone too); WebM/Opus where MP4 can't be recorded
+      const type = ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'].find((t) => MediaRecorder.isTypeSupported?.(t)) ?? ''
+      // live level, so a dead microphone is noticed at once
+      let peak = 0
+      let level = 0
+      let meterStop = () => {}
+      try {
+        const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+        if (AC) {
+          const ac = new AC()
+          const an = ac.createAnalyser()
+          an.fftSize = 512
+          ac.createMediaStreamSource(stream).connect(an)
+          const buf = new Uint8Array(an.fftSize)
+          const iv = setInterval(() => {
+            an.getByteTimeDomainData(buf)
+            let sum = 0
+            for (const v of buf) sum += ((v - 128) / 128) ** 2
+            level = Math.min(1, Math.sqrt(sum / buf.length) * 4)
+            peak = Math.max(peak, level)
+          }, 100)
+          meterStop = () => {
+            clearInterval(iv)
+            void ac.close().catch(() => {})
+          }
+        } else peak = 1
+      } catch {
+        peak = 1
+      }
       const r = new MediaRecorder(stream, type ? { mimeType: type, audioBitsPerSecond: 48000 } : undefined)
       chunks.current = []
       cancelRec.current = false
       r.ondataavailable = (e) => e.data.size && chunks.current.push(e.data)
       r.onstop = () => {
         stream.getTracks().forEach((t) => t.stop())
+        meterStop()
         if (recTimer.current) clearInterval(recTimer.current)
         const secs = (Date.now() - recStart.current) / 1000
         setRec(null)
         if (cancelRec.current || secs < 0.8) return
         const mime = r.mimeType || type || 'audio/webm'
-        const ext = mime.includes('mp4') ? 'm4a' : mime.includes('ogg') ? 'ogg' : 'webm'
+        const ext = mime.includes('mp4') ? 'mp4' : mime.includes('ogg') ? 'ogg' : 'webm'
         const blob = new Blob(chunks.current, { type: mime.split(';')[0] })
         const key = `v${Date.now()}`
         const name = `voice-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.${ext}`
@@ -210,14 +243,14 @@ export default function Composer({ room, labels, members, me, replyTo, editing, 
       recorder.current = r
       recStart.current = Date.now()
       r.start(500)
-      setRec({ secs: 0 })
+      setRec({ secs: 0, level: 0, silent: false })
       recTimer.current = setInterval(() => {
         const s = (Date.now() - recStart.current) / 1000
-        setRec({ secs: s })
+        setRec({ secs: s, level, silent: s > 2.5 && peak < 0.02 })
         if (s >= MAX_REC) r.stop()
       }, 250)
     } catch {
-      alert('মাইক্রোফোন চালু করা গেল না। ব্রাউজারে মাইকের অনুমতি দিন।')
+      alert(isWebView() ? WEBVIEW_MIC : 'মাইক্রোফোন চালু করা গেল না। ব্রাউজারের ঠিকানার পাশের 🔒 চেপে মাইকের অনুমতি দিন।')
     }
   }
   const stopRec = (cancel: boolean) => {
@@ -328,9 +361,19 @@ export default function Composer({ room, labels, members, me, replyTo, editing, 
           <button type="button" onClick={() => stopRec(true)} className="w-10 h-10 rounded-full hover:bg-neutral-100 text-[18px]" aria-label="বাতিল">
             🗑️
           </button>
-          <span className="w-3 h-3 rounded-full bg-red-600 animate-pulse" />
+          <span className="w-3 h-3 rounded-full bg-red-600 animate-pulse shrink-0" />
           <span className="text-[15px] font-semibold text-neutral-800 tabular-nums">{duration(rec.secs)}</span>
-          <span className="flex-1 text-[12.5px] text-neutral-500">রেকর্ড হচ্ছে… (সর্বোচ্চ {bnNum(5)} মিনিট)</span>
+          {rec.silent ? (
+            <span className="flex-1 text-[12px] leading-snug text-red-600" data-testid="rec-silent">
+              মাইক থেকে কোনো শব্দ আসছে না। অনুমতি বা মাইক দেখুন।
+            </span>
+          ) : (
+            <span className="flex-1 flex items-center gap-[3px] h-6" title={`সর্বোচ্চ ${bnNum(5)} মিনিট`} data-testid="rec-meter">
+              {Array.from({ length: 18 }, (_, i) => (
+                <span key={i} className="w-[3px] rounded-full bg-brand-500 transition-all" style={{ height: `${Math.max(12, Math.min(100, rec.level * 100 * (0.55 + 0.45 * Math.sin(i * 1.7 + rec.secs * 9))))}%` }} />
+              ))}
+            </span>
+          )}
           <button type="button" onClick={() => stopRec(false)} className="h-10 px-4 rounded-full bg-brand-600 text-white text-[14px] font-semibold" data-testid="rec-done">
             ✓ রাখুন
           </button>
@@ -403,7 +446,8 @@ export default function Composer({ room, labels, members, me, replyTo, editing, 
                 addFiles(fs)
               }
             }}
-            placeholder={label === 'urgent' ? 'জরুরি কী হয়েছে লিখুন…' : room.kind === 'desk' ? 'ডেস্ককে লিখুন… (@ দিয়ে কাউকে ডাকুন)' : 'মেসেজ লিখুন… (@ দিয়ে কাউকে ডাকুন)'}
+            placeholder={label === 'urgent' ? 'জরুরি কী হয়েছে লিখুন…' : room.kind === 'desk' ? 'ডেস্ককে লিখুন…' : 'মেসেজ লিখুন… @ দিয়ে ডাকুন'}
+            title="@ লিখে নাম বাছলে তিনি আলাদা করে জানবেন"
             className="flex-1 min-w-0 resize-none rounded-2xl bg-neutral-100 px-4 py-2.5 text-[14.5px] leading-[1.45] outline-none focus:bg-white focus:ring-2 focus:ring-brand-200 max-h-40"
             data-testid="composer-input"
           />
