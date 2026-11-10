@@ -161,6 +161,9 @@ jobs:
             adb shell dumpsys package news.meeha.correspondent | grep -E "permission|granted" > check/permissions.txt || true
             adb logcat -d > check/logcat.txt || true
             grep -E "Capacitor|chromium|nros|Firebase|FCM" check/logcat.txt | tail -300 > check/logcat-app.txt || true
+            echo "===== FOCUS (first start, then after one tap) ====="; cat check/focus-1.txt check/focus-2.txt || true
+            echo "===== PERMISSIONS ====="; grep -E "RECORD_AUDIO|CAMERA|POST_NOTIFICATIONS" check/permissions.txt || true
+            echo "===== APP LOG ====="; grep -E "Capacitor|chromium|Firebase|FCM" check/logcat.txt | grep -vE "Loading app at|Registering plugin" | tail -80 || true
 
       - uses: actions/upload-artifact@v4
         if: always()
