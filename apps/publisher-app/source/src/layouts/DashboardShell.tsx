@@ -28,6 +28,7 @@ import {
 import { NotificationsProvider, useNotifications } from '../lib/notifications'
 import NotificationBell, { NotificationToasts } from '../components/NotificationBell'
 import InboxButton from '../components/InboxBox'
+import { ChatProvider, ChatToast, useChat } from '../chat/ChatContext'
 import type { NotificationCounts } from '../lib/api'
 import { IconAddressBook } from '../components/profileDesk/icons'
 import CommandPalette from '../components/profileDesk/CommandPalette'
@@ -102,7 +103,9 @@ export default function DashboardShell() {
   const navigate = useNavigate()
   return (
     <NotificationsProvider enabled onOpen={(n) => n.link && navigate(n.link)}>
-      <Shell />
+      <ChatProvider>
+        <Shell />
+      </ChatProvider>
     </NotificationsProvider>
   )
 }
@@ -110,8 +113,10 @@ export default function DashboardShell() {
 function Shell() {
   const { profile, logout, isPublisher } = useAuth()
   const { counts: liveCounts, unreadInbox } = useNotifications()
-  // r35: the ইনবক্স item shows its unread count next to the live counters.
-  const counts = { ...(liveCounts ?? {}), inbox: unreadInbox } as Partial<Record<keyof NotificationCounts | 'inbox', number>>
+  const chat = useChat()
+  // r35: the ইনবক্স item shows its unread count next to the live counters
+  // (r36: chat messages count too).
+  const counts = { ...(liveCounts ?? {}), inbox: unreadInbox + chat.unread } as Partial<Record<keyof NotificationCounts | 'inbox', number>>
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -183,6 +188,7 @@ function Shell() {
 
   return (
     <div className="min-h-screen flex bg-neutral-50">
+      <ChatToast onOpen={(id) => navigate(`/app/inbox?tab=chat&room=${id}`)} />
       <div className="lg:hidden">
         <NotificationToasts position="top" />
       </div>

@@ -4,24 +4,28 @@
  *   inbox — soft two-note "ding-dong": something waits in the ইনবক্স (queue, approvals…)
  *   post  — three quick bright pings: a watched profile posted (পোস্ট এলার্ট)
  *   video — a rising "whoosh" and a deep two-tone bell: a watched profile posted a video
+ *   chat  — r36: a soft rising "pop-pop": a new chat message
+ *   urgent — r36: a firm two-tone call, twice: a জরুরি chat message (plays even in a muted room)
  *
  * Browsers only allow sound after the person has clicked or tapped the page
  * once, so `unlockSounds()` is called on the first click. Each sound can be
  * switched off; the choice is kept on this device.
  */
 
-export type SoundKind = 'inbox' | 'post' | 'video'
+export type SoundKind = 'inbox' | 'post' | 'video' | 'chat' | 'urgent'
 
 export interface SoundPrefs {
   inbox: boolean
   post: boolean
   video: boolean
+  chat: boolean
+  urgent: boolean
   /** 0..1 */
   volume: number
 }
 
 const KEY = 'nros_sound_prefs'
-const DEFAULTS: SoundPrefs = { inbox: true, post: true, video: true, volume: 0.8 }
+const DEFAULTS: SoundPrefs = { inbox: true, post: true, video: true, chat: true, urgent: true, volume: 0.8 }
 
 export function loadSoundPrefs(): SoundPrefs {
   try {
@@ -32,6 +36,8 @@ export function loadSoundPrefs(): SoundPrefs {
       inbox: p.inbox !== false,
       post: p.post !== false,
       video: p.video !== false,
+      chat: p.chat !== false,
+      urgent: p.urgent !== false,
       volume: typeof p.volume === 'number' ? Math.min(1, Math.max(0, p.volume)) : DEFAULTS.volume,
     }
   } catch {
@@ -112,6 +118,18 @@ export function playSound(kind: SoundKind, volume = loadSoundPrefs().volume) {
     } else if (kind === 'post') {
       // ping-ping-ping (A6), bright and short
       for (let i = 0; i < 3; i++) bell(c, out, t + i * 0.11, 93, 0.35, 0.16, 'triangle', 3.0)
+    } else if (kind === 'chat') {
+      // pop-pop (C6 → G6), short and friendly
+      bell(c, out, t, 84, 0.22, 0.18, 'sine', 2.0)
+      bell(c, out, t + 0.09, 91, 0.32, 0.18, 'sine', 2.0)
+    } else if (kind === 'urgent') {
+      // two-tone call (A5 / E6), played twice — hard to miss
+      for (let r = 0; r < 2; r++) {
+        const b = t + r * 0.62
+        bell(c, out, b, 81, 0.26, 0.2, 'triangle', 2.0)
+        bell(c, out, b + 0.16, 88, 0.26, 0.2, 'triangle', 2.0)
+        bell(c, out, b + 0.32, 81, 0.3, 0.2, 'triangle', 2.0)
+      }
     } else {
       // rising whoosh, then a deep two-tone bell (G4 + D5)
       const len = 0.38
@@ -144,4 +162,6 @@ export const SOUND_LABEL: Record<SoundKind, string> = {
   inbox: 'ইনবক্স (কিউ, অনুমোদন, আবেদন…)',
   post: 'পোস্ট এলার্ট',
   video: 'ভিডিও এলার্ট',
+  chat: 'চ্যাট মেসেজ',
+  urgent: 'জরুরি চ্যাট মেসেজ',
 }

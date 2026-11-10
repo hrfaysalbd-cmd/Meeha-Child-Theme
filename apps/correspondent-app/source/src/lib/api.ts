@@ -351,6 +351,11 @@ function parseApiResponse<T>(status: number, text: string, path: string): T {
  * code · snippet) shown in small print — enough for one screenshot to say
  * whether it was the phone's connection, the server, or the session.
  */
+/** r36 — the chat module (src/chat) calls the API through this. */
+export function apiRequest<T>(path: string, opts: RequestOpts = {}) {
+  return request<T>(path, opts)
+}
+
 export function describeError(err: unknown): { message: string; detail: string } {
   if (err instanceof ApiError) {
     const kindLabel: Record<ApiErrorKind, string> = {

@@ -13,6 +13,7 @@ import VideoEditor from './pages/VideoEditor'
 import Earn from './pages/Earn'
 import Profile from './pages/Profile'
 import Live from './pages/Live'
+import Chat from './pages/Chat'
 
 function Root() {
   const { profile, loading } = useAuth()
@@ -75,6 +76,7 @@ export default function App() {
         <Route path="profile" element={<Profile />} />
         <Route path="live" element={<Live />} />
         <Route path="live/:id" element={<Live />} />
+        <Route path="chat" element={<Chat />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,6 +1,7 @@
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
-import { IconEdit, IconHome, IconNews, IconUser, IconWallet } from '../components/Icon'
+import { IconChat, IconEdit, IconHome, IconNews, IconUser, IconWallet } from '../components/Icon'
+import { ChatProvider, ChatToast, useChat } from '../chat/ChatContext'
 import { Spinner } from '../components/ui'
 import { NotificationsProvider } from '../lib/notifications'
 import { NotificationToasts } from '../components/NotificationBell'
@@ -9,6 +10,7 @@ const tabs = [
   { to: '/app', label: 'হোম', icon: IconHome, end: true },
   { to: '/app/write', label: 'লিখুন', icon: IconEdit },
   { to: '/app/news', label: 'আমার সংবাদ', icon: IconNews },
+  { to: '/app/chat', label: 'চ্যাট', icon: IconChat },
   { to: '/app/earn', label: 'আয়', icon: IconWallet },
   { to: '/app/profile', label: 'প্রোফাইল', icon: IconUser },
 ]
@@ -36,7 +38,9 @@ export default function AppShell() {
   // logged-in app — the bell sits on হোম and আমার সংবাদ, toasts show anywhere.
   return (
     <NotificationsProvider enabled onOpen={(n) => n.link && navigate(n.link)}>
+    <ChatProvider>
     <NotificationToasts position="top" />
+    {!pathname.startsWith('/app/chat') && <ChatToast onOpen={(id) => navigate(`/app/chat?room=${id}`)} />}
     <div className="flex-1 flex flex-col min-h-0">
       <div className="flex-1 overflow-y-auto pb-[calc(64px+env(safe-area-inset-bottom))]">
         <Outlet />
@@ -55,13 +59,29 @@ export default function AppShell() {
                 }`
               }
             >
-              <Icon className="w-[22px] h-[22px]" />
+              <span className="relative">
+                <Icon className="w-[22px] h-[22px]" />
+                {to === '/app/chat' && <ChatBadge />}
+              </span>
               {label}
             </NavLink>
           ))}
         </div>
       </nav>
     </div>
+    </ChatProvider>
     </NotificationsProvider>
+  )
+}
+
+/** r36 — unread chat messages on the চ্যাট tab (red when something is জরুরি). */
+function ChatBadge() {
+  const { unread, summary } = useChat()
+  const n = unread || summary?.urgent || 0
+  if (!n) return null
+  return (
+    <span className={`absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] px-1 rounded-full ${summary?.urgent ? 'bg-red-600' : 'bg-brand-600'} text-white text-[10px] font-bold leading-[17px] text-center ring-2 ring-white`}>
+      {n > 99 ? '৯৯+' : String(n).replace(/\d/g, (d) => '০১২৩৪৫৬৭৮৯'[Number(d)])}
+    </span>
   )
 }

@@ -463,6 +463,13 @@ class NROS_Core {
 		if ( class_exists( 'NROS_VI' ) ) {
 			dbDelta( NROS_VI::schema( $charset_collate ) );
 		}
+
+		// 1.19.0 — চ্যাট বক্স (rooms, members, messages, files).
+		if ( class_exists( 'NROS_Chat' ) ) {
+			foreach ( NROS_Chat::schema( $charset_collate ) as $chat_sql ) {
+				dbDelta( $chat_sql );
+			}
+		}
 	}
 
 	/**

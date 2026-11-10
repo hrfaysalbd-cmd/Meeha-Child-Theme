@@ -4,13 +4,16 @@ import { useNotifications } from '../lib/notifications'
 import type { AppNotification } from '../lib/api'
 import { Badge, bn, HeaderPopover, NoteRow, SoundSettings, SystemPermissionHint } from './NotificationBell'
 import { IconInbox } from './Icon'
+import ChatBox from '../chat/ChatBox'
+import { useChat } from '../chat/ChatContext'
 
 // r35 — ইনবক্স: two boxes.
 //   কিউ বক্স  — the editorial queue and everything sent to the desk
 //               (new articles/videos to review, applications, edit
 //               requests, withdrawals, tasks, live updates waiting …).
-//   চ্যাট বক্স — conversations between correspondents and the desk. Coming
-//               with the চ্যাট ও রুম module; for now it says so.
+//   চ্যাট বক্স — r36: rooms (মিহা পরিবার, ডেস্ক, বিভাগ, নিজের রুম) and
+//               each correspondent's direct line to the desk. In the pop-up
+//               it lists the rooms; a room opens on the full ইনবক্স page.
 
 export type InboxTab = 'queue' | 'chat'
 
@@ -35,21 +38,21 @@ function QueueCounts({ onGo }: { onGo?: () => void }) {
   )
 }
 
-function ChatSoon() {
-  return (
-    <div className="px-5 py-8 text-center" data-testid="chat-box">
-      <div className="mx-auto w-12 h-12 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center text-[22px]">💬</div>
-      <p className="mt-3 text-[14.5px] font-semibold text-neutral-800">চ্যাট বক্স শীঘ্রই আসছে</p>
-      <p className="mt-1.5 text-[12.5px] text-neutral-500 leading-relaxed">
-        এখানে সাংবাদিকরা এডিটর ও পাবলিশারের সঙ্গে সরাসরি কথা বলতে ও মেসেজ দিতে পারবেন, ডেস্কও তাঁদের লিখতে পারবে। প্রতিটি সংবাদের নিজের আলাপ, জেলা/টিমের রুম আর জরুরি
-        নিরাপত্তা রুম থাকবে।
-      </p>
-    </div>
-  )
-}
-
-export function InboxPanel({ onClose, full = false, initialTab = 'queue' }: { onClose?: () => void; full?: boolean; initialTab?: InboxTab }) {
+export function InboxPanel({
+  onClose,
+  full = false,
+  initialTab = 'queue',
+  roomId = null,
+  onRoomChange,
+}: {
+  onClose?: () => void
+  full?: boolean
+  initialTab?: InboxTab
+  roomId?: number | null
+  onRoomChange?: (id: number | null) => void
+}) {
   const { inboxItems, unreadInbox, loaded, markRead, markAllRead } = useNotifications()
+  const chat = useChat()
   const navigate = useNavigate()
   const [tab, setTab] = useState<InboxTab>(initialTab)
   const [onlyUnread, setOnlyUnread] = useState(false)
@@ -69,6 +72,11 @@ export function InboxPanel({ onClose, full = false, initialTab = 'queue' }: { on
         <button type="button" onClick={() => setShowSound((v) => !v)} className="text-[12.5px] text-neutral-500" aria-label="সাউন্ড">
           🔊
         </button>
+        {tab === 'chat' && !full && (
+          <Link to="/app/inbox?tab=chat" onClick={onClose} className="text-[12.5px] font-medium text-brand-600">
+            পুরো চ্যাট →
+          </Link>
+        )}
         {tab === 'queue' && unreadInbox > 0 && (
           <button type="button" onClick={() => markAllRead('inbox')} className="text-[12.5px] font-medium text-brand-600">
             সব পড়া হয়েছে
@@ -79,7 +87,7 @@ export function InboxPanel({ onClose, full = false, initialTab = 'queue' }: { on
         {(
           [
             ['queue', 'কিউ বক্স', unreadInbox],
-            ['chat', 'চ্যাট বক্স', 0],
+            ['chat', 'চ্যাট বক্স', chat.unread],
           ] as [InboxTab, string, number][]
         ).map(([k, l, n]) => (
           <button
@@ -94,9 +102,21 @@ export function InboxPanel({ onClose, full = false, initialTab = 'queue' }: { on
           </button>
         ))}
       </div>
-      {showSound && <SoundSettings kinds={['inbox']} />}
+      {showSound && <SoundSettings kinds={tab === 'chat' ? ['chat', 'urgent'] : ['inbox']} />}
       {tab === 'chat' ? (
-        <ChatSoon />
+        full ? (
+          <div className="h-[calc(100dvh-250px)] lg:h-[calc(100dvh-190px)] min-h-[440px]">
+            <ChatBox variant="page" roomId={roomId} onRoomChange={onRoomChange} />
+          </div>
+        ) : (
+          <ChatBox
+            variant="compact"
+            onOpenRoom={(id) => {
+              onClose?.()
+              navigate(`/app/inbox?tab=chat&room=${id}`)
+            }}
+          />
+        )
       ) : (
         <>
           <QueueCounts onGo={onClose} />
@@ -129,6 +149,8 @@ export function InboxPanel({ onClose, full = false, initialTab = 'queue' }: { on
 /** Header tray button with the inbox's unread count. */
 export default function InboxButton({ placement = 'dropdown', className = '' }: { placement?: 'sheet' | 'dropdown'; className?: string }) {
   const { unreadInbox } = useNotifications()
+  const chat = useChat()
+  const total = unreadInbox + chat.unread
   return (
     <HeaderPopover
       placement={placement}
@@ -139,11 +161,11 @@ export default function InboxButton({ placement = 'dropdown', className = '' }: 
           onClick={toggle}
           data-testid="inbox-button"
           title="ইনবক্স"
-          aria-label={unreadInbox ? `ইনবক্স, ${bn(unreadInbox)}টি নতুন` : 'ইনবক্স'}
+          aria-label={total ? `ইনবক্স, ${bn(total)}টি নতুন` : 'ইনবক্স'}
           className="relative p-2 rounded-full text-neutral-600 hover:bg-neutral-100 active:scale-95"
         >
           <IconInbox className="w-[22px] h-[22px]" />
-          <Badge n={unreadInbox} tone="bg-brand-600" />
+          <Badge n={total} tone={chat.summary?.urgent ? 'bg-red-600' : 'bg-brand-600'} />
         </button>
       )}
     >
