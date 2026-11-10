@@ -9,6 +9,7 @@ export default function PeoplePicker({
   multi = false,
   onlyCorrespondents = false,
   exclude = [],
+  already = [],
   onPick,
   onClose,
 }: {
@@ -16,6 +17,8 @@ export default function PeoplePicker({
   multi?: boolean
   onlyCorrespondents?: boolean
   exclude?: number[]
+  /** shown, but marked “আছেন” and not pickable (already in the room) */
+  already?: number[]
   onPick: (ids: number[]) => void
   onClose: () => void
 }) {
@@ -34,6 +37,7 @@ export default function PeoplePicker({
 
   const list = (people ?? []).filter((p) => !exclude.includes(p.id) && (!onlyCorrespondents || p.role === 'সংবাদদাতা'))
   const toggle = (p: Person) => {
+    if (already.includes(p.id)) return
     if (!multi) return onPick([p.id])
     setPicked((x) => (x.some((y) => y.id === p.id) ? x.filter((y) => y.id !== p.id) : [...x, p]))
   }
@@ -62,8 +66,9 @@ export default function PeoplePicker({
         ) : (
           list.map((p) => {
             const on = picked.some((x) => x.id === p.id)
+            const inside = already.includes(p.id)
             return (
-              <button key={p.id} type="button" onClick={() => toggle(p)} className={`w-full flex items-center gap-3 px-5 py-2.5 text-left ${on ? 'bg-brand-50/60' : 'hover:bg-neutral-50'}`} data-testid={`person-${p.id}`}>
+              <button key={p.id} type="button" onClick={() => toggle(p)} className={`w-full flex items-center gap-3 px-5 py-2.5 text-left ${inside ? 'cursor-default' : on ? 'bg-brand-50/60' : 'hover:bg-neutral-50'}`} data-testid={`person-${p.id}`}>
                 <Avatar p={p} size={38} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[14px] font-medium text-neutral-900">{p.name}</span>
@@ -72,7 +77,9 @@ export default function PeoplePicker({
                     {p.area ? ` · ${p.area}` : ''}
                   </span>
                 </span>
-                {multi && <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-[11px] ${on ? 'bg-brand-600 border-brand-600 text-white' : 'border-neutral-300'}`}>{on ? '✓' : ''}</span>}
+                {inside ? (
+                  <span className="shrink-0 rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[11.5px] font-semibold">✓ রুমে আছেন</span>
+                ) : multi && <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-[11px] ${on ? 'bg-brand-600 border-brand-600 text-white' : 'border-neutral-300'}`}>{on ? '✓' : ''}</span>}
               </button>
             )
           })

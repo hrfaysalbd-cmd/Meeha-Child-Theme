@@ -1,9 +1,10 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ChatApi, type ChatFile, type ChatLabel, type LabelKey, type Member, type Message, type Room } from './api'
+import { ChatApi, type ChatFile, type ChatLabel, type LabelKey, type Member, type Message, type Room, type Task } from './api'
 import { useChat } from './ChatContext'
 import { Avatar, LabelChip, RoomIcon, Sheet, Spinner, useConfirm } from './bits'
 import Composer from './Composer'
 import RoomInfo from './RoomInfo'
+import { DueChip, TasksPanel, type TaskDraft } from './TasksPanel'
 import { bnNum, clock, dayKey, dayLabel, fileSize, fullWhen, duration as fmtDur, isTouch, LABEL_ICON, meetingIcs, until } from './util'
 
 export type LocalMsg = Message & { tempId?: number; pending?: boolean; failed?: boolean; retry?: () => void }
@@ -18,6 +19,8 @@ interface Props {
   onRead: (roomId: number) => void
   onRoomsChanged: () => void
   onLeft: () => void
+  /** open the টু-ডু at once (a reminder notice was tapped) */
+  openTasks?: boolean
 }
 
 const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"।])/g
@@ -188,7 +191,34 @@ function MeetingCard({ m, roomName, mine }: { m: Message; roomName: string; mine
   )
 }
 
-export default function RoomView({ roomId, initial, labels, reactions, me, onBack, onRead, onRoomsChanged, onLeft }: Props) {
+/** Tasks made from a message, under its bubble: tick them right there. */
+function MsgTasks({ tasks, mine, onToggle, onOpen }: { tasks: Task[]; mine: boolean; onToggle: (t: Task) => void; onOpen: () => void }) {
+  return (
+    <div className={`mt-1.5 rounded-xl ${mine ? 'bg-white/15' : 'bg-amber-50 ring-1 ring-amber-200/70'} px-2 py-1.5 space-y-1`} data-testid="msg-tasks">
+      {tasks.map((t) => (
+        <div key={t.id} className="flex items-center gap-2 text-[12.5px]">
+          <button
+            type="button"
+            disabled={!t.can_done}
+            onClick={() => onToggle(t)}
+            className={`w-5 h-5 shrink-0 rounded-full border-2 flex items-center justify-center text-[11px] ${t.done ? 'bg-emerald-500 border-emerald-500 text-white' : mine ? 'border-white/70' : 'border-amber-400 bg-white'}`}
+            aria-label={t.done ? 'আবার খুলুন' : 'শেষ হয়েছে'}
+            data-testid={`msg-task-${t.id}`}
+          >
+            {t.done ? '✓' : ''}
+          </button>
+          <button type="button" onClick={onOpen} className={`min-w-0 flex-1 text-left truncate ${t.done ? 'line-through opacity-70' : 'font-medium'}`}>
+            {t.assignee ? (t.mine ? 'আপনার কাজ' : t.assignee.name) : 'রুমের যে কেউ'}
+            {t.done ? ' · শেষ' : ''}
+          </button>
+          {!t.done && t.due_at && <DueChip t={t} small />}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export default function RoomView({ roomId, initial, labels, reactions, me, onBack, onRead, onRoomsChanged, onLeft, openTasks = false }: Props) {
   const chat = useChat()
   const [room, setRoom] = useState<Room | undefined>(initial)
   const [msgs, setMsgs] = useState<LocalMsg[]>([])
@@ -208,6 +238,10 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
   const [picker, setPicker] = useState<number | null>(null)
   const [lightbox, setLightbox] = useState<ChatFile | null>(null)
   const [info, setInfo] = useState(false)
+  const [tasksOpen, setTasksOpen] = useState(openTasks)
+  const [taskDraft, setTaskDraft] = useState<TaskDraft | null>(null)
+  const [taskCount, setTaskCount] = useState(initial?.tasks ?? 0)
+  const [tasksTick, setTasksTick] = useState(0)
   const [find, setFind] = useState<{ open: boolean; q: string; label: string; pinned: boolean }>({ open: false, q: '', label: '', pinned: false })
   const [results, setResults] = useState<Message[] | null>(null)
   const [resBusy, setResBusy] = useState(false)
@@ -271,6 +305,7 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
     ChatApi.members(roomId)
       .then((r) => live.current && setMembers(r.members))
       .catch(() => {})
+    setTasksOpen(openTasks)
     return () => {
       live.current = false
       chat.setActiveRoom(null)
@@ -440,8 +475,39 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
     }, 60)
   }
 
+  // ---- টু-ডু count ----
+  useEffect(() => {
+    let on = true
+    ChatApi.tasks(roomId)
+      .then((r) => on && setTaskCount(r.open.length))
+      .catch(() => {})
+    return () => {
+      on = false
+    }
+  }, [roomId, tasksTick])
+
+  const toggleMsgTask = async (m: LocalMsg, t: Task) => {
+    const flip = (done: boolean) => setMsgs((p) => p.map((x) => (x.id === m.id ? { ...x, tasks: (x.tasks ?? []).map((y) => (y.id === t.id ? { ...y, done } : y)) } : x)))
+    flip(!t.done)
+    try {
+      const r = await ChatApi.updateTask(t.id, { done: !t.done })
+      setMsgs((p) => p.map((x) => (x.id === m.id ? { ...x, tasks: (x.tasks ?? []).map((y) => (y.id === t.id ? { ...r } : y)) } : x)))
+      setTasksTick((n) => n + 1)
+    } catch (e) {
+      flip(t.done)
+      alert((e as Error).message)
+    }
+  }
+
+  const taskFrom = (m: LocalMsg) => {
+    setMenu(null)
+    const title = m.body.replace(/@[\p{L}\p{M}\p{N}_.]+/gu, '').replace(/\s+/g, ' ').trim().slice(0, 200) || m.body.slice(0, 200)
+    setTaskDraft({ title, msg_id: m.id })
+    setTasksOpen(true)
+  }
+
   // ---- sending ----
-  const send = async (input: { body: string; label: LabelKey | ''; files: ChatFile[]; mentions: number[]; meeting_at: string }) => {
+  const send = async (input: { body: string; label: LabelKey | ''; files: ChatFile[]; mentions: number[]; meeting_at: string; due_at?: string }) => {
     if (editing) {
       const m = editing
       setEditing(null)
@@ -492,7 +558,10 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
           file_ids: input.files.map((f) => f.id),
           mentions: input.mentions,
           meeting_at: input.meeting_at || undefined,
+          due_at: input.due_at || undefined,
         })
+        // a “কাজ” message made tasks: refresh the counts
+        if (input.label === 'task') setTasksTick((n) => n + 1)
         setMsgs((p) => {
           const rest = p.filter((x) => x.tempId !== tempId)
           return rest.some((x) => x.id === r.id) ? rest : [...rest, r]
@@ -683,9 +752,11 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
         ? `bg-brand-600 text-white ${urgent ? 'ring-2 ring-red-300' : ''}`
         : urgent
           ? 'bg-red-50 text-neutral-900 ring-2 ring-red-400'
-          : m.mentions_me
-            ? 'bg-amber-50 text-neutral-900 ring-1 ring-amber-300'
-            : 'bg-white text-neutral-900 ring-1 ring-neutral-200/90'
+          : m.bot
+            ? `bg-gradient-to-br from-rose-50 via-white to-orange-50 text-neutral-900 ring-1 ${m.mentions_me ? 'ring-amber-300' : 'ring-brand-100'}`
+            : m.mentions_me
+              ? 'bg-amber-50 text-neutral-900 ring-1 ring-amber-300'
+              : 'bg-white text-neutral-900 ring-1 ring-neutral-200/90'
     rows.push(
       <div
         key={m.tempId ?? m.id}
@@ -746,6 +817,7 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
                     </div>
                   )}
                   {m.label === 'meeting' && <MeetingCard m={m} roomName={title} mine={mine} />}
+                  {!!m.tasks?.length && <MsgTasks tasks={m.tasks} mine={mine} onToggle={(t) => void toggleMsgTask(m, t)} onOpen={() => setTasksOpen(true)} />}
                 </>
               )}
               <div className={`flex items-center justify-end gap-1 mt-0.5 text-[10.5px] ${mine && !m.deleted ? 'text-white/75' : 'text-neutral-400'}`}>
@@ -844,6 +916,16 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
               {typing.length ? <span className="text-emerald-600 font-medium">{typing.slice(0, 2).join(', ')} লিখছেন…</span> : sub}
             </span>
           </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => (setTaskDraft(null), setTasksOpen(true))}
+          className="relative h-9 px-2 rounded-full hover:bg-neutral-100 text-[15px] text-neutral-700 shrink-0 flex items-center gap-1"
+          title="টু-ডু (এই রুমের কাজ)"
+          aria-label="টু-ডু"
+          data-testid="room-tasks"
+        >
+          ✅{taskCount > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10.5px] font-bold flex items-center justify-center">{bnNum(taskCount)}</span>}
         </button>
         <button
           type="button"
@@ -1014,6 +1096,7 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
               [
                 ['↩', 'উত্তর দিন', () => (setReplyTo(menu), setMenu(null)), true],
                 ['📋', 'কপি করুন', () => copy(menu), !!menu.body],
+                ['✅', 'টু-ডু তে কাজ বানান', () => taskFrom(menu), !!menu.body && !!room && (room.can_post || room.is_admin)],
                 ['✏️', 'সম্পাদনা করুন', () => (setEditing(menu), setReplyTo(null), setMenu(null)), menu.can_edit],
                 ['📌', menu.pinned ? 'পিন সরান' : 'পিন করুন (সবার উপরে থাকবে)', () => doPin(menu), !!room?.is_admin],
                 ['🗑️', 'মুছুন', () => doDelete(menu), menu.can_delete],
@@ -1069,6 +1152,24 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
           onShowPinned={() => {
             setInfo(false)
             setFind({ open: true, q: '', label: '', pinned: true })
+          }}
+        />
+      )}
+      {tasksOpen && (
+        <TasksPanel
+          roomId={roomId}
+          roomName={title}
+          members={members}
+          meId={me.id}
+          draft={taskDraft}
+          onClose={() => (setTasksOpen(false), setTaskDraft(null))}
+          onChanged={() => {
+            setTasksTick((n) => n + 1)
+            onRoomsChanged()
+          }}
+          onJump={(id) => {
+            setTasksOpen(false)
+            void jumpTo(id)
           }}
         />
       )}

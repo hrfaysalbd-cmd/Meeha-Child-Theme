@@ -61,11 +61,19 @@ class NROS_Chat {
 		add_action( 'set_user_role', array( __CLASS__, 'on_role_change' ), 20, 1 );
 		add_action( 'add_user_role', array( __CLASS__, 'on_role_change' ), 20, 1 );
 		add_action( 'user_register', array( __CLASS__, 'on_role_change' ), 20, 1 );
-		add_action( 'nros_chat_sync', array( __CLASS__, 'sync_all' ) );
-		if ( ! wp_next_scheduled( 'nros_chat_sync' ) ) {
-			wp_schedule_event( time() + 600, 'daily', 'nros_chat_sync' );
+		// 1.23.0 — a changed division moves the correspondent to the right area room
+		add_action( 'added_user_meta', array( __CLASS__, 'on_meta' ), 20, 3 );
+		add_action( 'updated_user_meta', array( __CLASS__, 'on_meta' ), 20, 3 );
+		add_action( 'nros_chat_sync', array( __CLASS__, 'sync_cron' ) );
+		// 1.23.0 — hourly instead of daily, so nobody waits a day for মিহা পরিবার
+		if ( 'hourly' !== wp_get_schedule( 'nros_chat_sync' ) ) {
+			wp_clear_scheduled_hook( 'nros_chat_sync' );
+			wp_schedule_event( time() + 120, 'hourly', 'nros_chat_sync' );
 		}
 	}
+
+	/** Bot sender id (মিহা সহকারী). */
+	const BOT = 0;
 
 	/**
 	 * Table name.
@@ -89,7 +97,28 @@ class NROS_Chat {
 		$m = self::t( 'members' );
 		$g = self::t( 'messages' );
 		$f = self::t( 'files' );
+		$k = self::t( 'tasks' );
 		return array(
+			// 1.23.0 — টু-ডু (a room's task list)
+			"CREATE TABLE {$k} (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				room_id BIGINT UNSIGNED NOT NULL,
+				msg_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+				title VARCHAR(255) NOT NULL,
+				assignee_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+				created_by BIGINT UNSIGNED NOT NULL DEFAULT 0,
+				urgent TINYINT(1) NOT NULL DEFAULT 0,
+				due_at DATETIME DEFAULT NULL,
+				done_at DATETIME DEFAULT NULL,
+				done_by BIGINT UNSIGNED NOT NULL DEFAULT 0,
+				reminded TINYINT(1) NOT NULL DEFAULT 0,
+				created_at DATETIME NOT NULL,
+				PRIMARY KEY  (id),
+				KEY room_done (room_id,done_at),
+				KEY assignee_done (assignee_id,done_at),
+				KEY msg_id (msg_id),
+				KEY due_at (due_at)
+			) {$c};",
 			"CREATE TABLE {$r} (
 				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 				kind VARCHAR(12) NOT NULL DEFAULT 'room',
@@ -133,6 +162,7 @@ class NROS_Chat {
 				mentions VARCHAR(255) NOT NULL DEFAULT '',
 				reactions TEXT,
 				pinned TINYINT(1) NOT NULL DEFAULT 0,
+				reminded TINYINT(1) NOT NULL DEFAULT 0,
 				edited_at DATETIME DEFAULT NULL,
 				deleted_at DATETIME DEFAULT NULL,
 				created_at DATETIME NOT NULL,
@@ -209,6 +239,9 @@ class NROS_Chat {
 		if ( isset( $cache[ $uid ] ) ) {
 			return $cache[ $uid ];
 		}
+		if ( self::BOT === $uid ) {
+			return $cache[ $uid ] = array( 'id' => 0, 'name' => 'মিহা সহকারী', 'avatar' => NROS_URL . 'assets/landing/app-icon.png', 'role' => 'স্বয়ংক্রিয় বার্তা', 'area' => '', 'online' => false, 'bot' => true );
+		}
 		$u = get_userdata( $uid );
 		if ( ! $u ) {
 			return $cache[ $uid ] = array( 'id' => $uid, 'name' => 'সাবেক সদস্য', 'avatar' => '', 'role' => '', 'area' => '', 'online' => false );
@@ -248,7 +281,9 @@ class NROS_Chat {
 			self::ensure_room( 'area', 'area-' . md5( $div ), 'বিভাগ: ' . $div, $div . ' বিভাগের সংবাদদাতা ও ডেস্ক।', '📍' );
 		}
 		update_option( self::SCHEMA_OPTION, self::SCHEMA_REV, false );
-		self::sync_all();
+		// the first fill: everyone already on the team, so no welcome lines
+		self::sync_all( false );
+		update_option( 'nros_chat_welcome_from', time(), false );
 	}
 
 	/**
@@ -326,40 +361,145 @@ class NROS_Chat {
 	/**
 	 * Adds everyone who belongs to the auto rooms (never re-adds someone an
 	 * admin removed). Publishers are admins of the auto rooms.
+	 *
+	 * @param bool $welcome Greet the newcomers in the room.
+	 * @return int How many were added.
 	 */
-	public static function sync_all() {
+	public static function sync_all( $welcome = true ) {
 		global $wpdb;
 		$rooms = $wpdb->get_results( 'SELECT * FROM ' . self::t( 'rooms' ) . " WHERE kind IN ('family','staff','area')", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$n     = 0;
 		foreach ( (array) $rooms as $room ) {
-			self::sync_room( $room );
+			$n += count( self::sync_room( $room, $welcome ) );
+		}
+		return $n;
+	}
+
+	/** Cron (hourly): the safety net for any way a person got their role. */
+	public static function sync_cron() {
+		if ( self::tables_ready() ) {
+			self::sync_all( true );
 		}
 	}
 
 	/**
-	 * @param array $room Room row.
+	 * @return bool
 	 */
-	protected static function sync_room( $room ) {
+	protected static function tables_ready() {
+		global $wpdb;
+		static $ok = null;
+		if ( null === $ok ) {
+			$ok = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', self::t( 'rooms' ) ) ) === self::t( 'rooms' );
+		}
+		return $ok;
+	}
+
+	/**
+	 * Does this person belong in this auto room?
+	 *
+	 * @param array   $room Room row.
+	 * @param WP_User $u    User.
+	 * @return bool|null null = not an auto room.
+	 */
+	protected static function belongs( $room, $u ) {
+		$staff = self::is_staff( $u ) || array_intersect( array( 'administrator', 'meeha_publisher', 'editor' ), (array) $u->roles );
+		$corr  = self::is_correspondent( $u );
+		switch ( $room['kind'] ) {
+			case 'family':
+				return $staff || $corr;
+			case 'staff':
+				return (bool) $staff;
+			case 'area':
+				if ( $staff ) {
+					return true;
+				}
+				$div = preg_replace( '/^বিভাগ:\s*/u', '', $room['name'] );
+				return $corr && (string) get_user_meta( $u->ID, 'meeha_division', true ) === $div;
+		}
+		return null;
+	}
+
+	/**
+	 * @param array $room    Room row.
+	 * @param bool  $welcome Greet the newcomers.
+	 * @return int[] Ids added now.
+	 */
+	protected static function sync_room( $room, $welcome = true ) {
 		global $wpdb;
 		$want = self::auto_members( $room );
 		if ( null === $want ) {
-			return;
+			return array();
 		}
-		$have = array_map( 'intval', (array) $wpdb->get_col( $wpdb->prepare( 'SELECT user_id FROM ' . self::t( 'members' ) . ' WHERE room_id = %d', $room['id'] ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$now  = current_time( 'mysql' );
+		$have  = array_map( 'intval', (array) $wpdb->get_col( $wpdb->prepare( 'SELECT user_id FROM ' . self::t( 'members' ) . ' WHERE room_id = %d', $room['id'] ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$added = array();
 		foreach ( array_diff( array_unique( $want ), $have ) as $uid ) {
-			$u = get_userdata( $uid );
-			$wpdb->insert(
-				self::t( 'members' ),
-				array(
-					'room_id'   => (int) $room['id'],
-					'user_id'   => (int) $uid,
-					'role'      => self::is_publisher( $u ) ? 'admin' : 'member',
-					'joined_at' => $now,
-					// a newcomer starts "caught up" instead of with the whole history unread
-					'last_read_id' => (int) $room['last_msg_id'],
-				)
-			);
+			if ( self::join( $room, (int) $uid ) ) {
+				$added[] = (int) $uid;
+			}
 		}
+		if ( $added && $welcome ) {
+			self::welcome( $room, $added );
+		}
+		return $added;
+	}
+
+	/**
+	 * Puts one person in a room (no row yet).
+	 *
+	 * @return bool
+	 */
+	protected static function join( $room, $uid ) {
+		global $wpdb;
+		$u = get_userdata( $uid );
+		if ( ! $u ) {
+			return false;
+		}
+		return (bool) $wpdb->insert(
+			self::t( 'members' ),
+			array(
+				'room_id'      => (int) $room['id'],
+				'user_id'      => (int) $uid,
+				'role'         => self::is_publisher( $u ) ? 'admin' : 'member',
+				'joined_at'    => current_time( 'mysql' ),
+				// a newcomer starts "caught up" instead of with the whole history unread
+				'last_read_id' => (int) $room['last_msg_id'],
+			)
+		);
+	}
+
+	/**
+	 * Puts one person in every auto room they belong to (and greets them).
+	 *
+	 * @param int  $uid     User id.
+	 * @param bool $welcome Greet.
+	 * @return int How many rooms they joined.
+	 */
+	public static function sync_user( $uid, $welcome = true ) {
+		global $wpdb;
+		$u = get_userdata( (int) $uid );
+		if ( ! $u || ! self::tables_ready() ) {
+			return 0;
+		}
+		$rooms = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT r.*, m.user_id AS has FROM ' . self::t( 'rooms' ) . ' r LEFT JOIN ' . self::t( 'members' ) . " m ON m.room_id = r.id AND m.user_id = %d WHERE r.kind IN ('family','staff','area')", // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+				$u->ID
+			),
+			ARRAY_A
+		);
+		$n = 0;
+		foreach ( (array) $rooms as $room ) {
+			if ( null !== $room['has'] || ! self::belongs( $room, $u ) ) {
+				continue;
+			}
+			if ( self::join( $room, (int) $u->ID ) ) {
+				++$n;
+				if ( $welcome ) {
+					self::welcome( $room, array( (int) $u->ID ) );
+				}
+			}
+		}
+		return $n;
 	}
 
 	/**
@@ -368,15 +508,166 @@ class NROS_Chat {
 	 * @param int $uid User id.
 	 */
 	public static function on_role_change( $uid ) {
+		$uid = (int) $uid;
+		if ( ! $uid ) {
+			return;
+		}
+		if ( 'user_register' !== current_filter() && 'added_user_meta' !== current_filter() && 'updated_user_meta' !== current_filter() ) {
+			update_user_meta( $uid, 'nros_chat_role_at', time() );
+		}
+		// at the end of the request, once the profile (district, upazila,
+		// division) has been filled in too, so the welcome can name the area
+		if ( ! self::$pending ) {
+			add_action( 'shutdown', array( __CLASS__, 'join_pending' ), 0 );
+		}
+		self::$pending[ $uid ] = true;
+	}
+
+	/** @var array<int,bool> People whose roles/division changed in this request. */
+	protected static $pending = array();
+
+	/** Shutdown: put the people from this request in their rooms. */
+	public static function join_pending() {
+		$ids           = array_keys( self::$pending );
+		self::$pending = array();
+		foreach ( $ids as $uid ) {
+			$u = get_userdata( $uid );
+			if ( ! $u || ( ! self::is_correspondent( $u ) && ! self::is_staff( $u ) ) ) {
+				continue;
+			}
+			self::maybe_defaults();
+			self::sync_user( $uid, true );
+		}
+	}
+
+	/**
+	 * The division was set or changed: join that area room.
+	 */
+	public static function on_meta( $meta_id, $uid, $key ) {
+		if ( 'meeha_division' === $key ) {
+			self::on_role_change( (int) $uid );
+		}
+	}
+
+	/**
+	 * Greets newcomers with a message from মিহা সহকারী that @mentions them.
+	 * The family room greets each person once in their life; an area room
+	 * greets correspondents only. Someone who was on the team long before the
+	 * chat began is not greeted (the hourly safety net would otherwise greet
+	 * old hands).
+	 *
+	 * @param array $room Room row.
+	 * @param int[] $ids  Newcomers.
+	 */
+	protected static function welcome( $room, $ids, $force = false ) {
+		if ( ! in_array( $room['kind'], array( 'family', 'area' ), true ) || ! apply_filters( 'nros_chat_welcome', true, $room, $ids ) ) {
+			return;
+		}
+		$from  = (int) get_option( 'nros_chat_welcome_from', 0 );
+		$greet = array();
+		foreach ( $ids as $uid ) {
+			$u = get_userdata( $uid );
+			if ( ! $u ) {
+				continue;
+			}
+			$key = 'family' === $room['kind'] ? 'nros_chat_welcomed' : 'nros_chat_welcomed_' . (int) $room['id'];
+			if ( get_user_meta( $uid, $key, true ) ) {
+				continue;
+			}
+			update_user_meta( $uid, $key, time() );
+			if ( 'area' === $room['kind'] && ! self::is_correspondent( $u ) ) {
+				continue;
+			}
+			// joined the team before the chat existed: no fuss
+			if ( ! $force && $from && strtotime( $u->user_registered . ' UTC' ) < $from - DAY_IN_SECONDS && ! self::recent_role( $uid ) ) {
+				continue;
+			}
+			$greet[] = $u;
+		}
+		if ( ! $greet ) {
+			return;
+		}
+		$tags  = array();
+		$roles = array();
+		foreach ( array_slice( $greet, 0, 12 ) as $u ) {
+			$p       = self::person( $u->ID );
+			$tags[]  = '@' . preg_replace( '/\s+/u', '_', $u->display_name );
+			$roles[] = $p;
+		}
+		$who = implode( ', ', $tags ) . ( count( $greet ) > 12 ? ' ও আরও ' . NROS_Core::bn_digits( count( $greet ) - 12 ) . ' জন' : '' );
+		if ( 'family' === $room['kind'] ) {
+			if ( 1 === count( $greet ) ) {
+				$p    = $roles[0];
+				$what = 'সংবাদদাতা' === $p['role'] ? ( $p['area'] ? $p['area'] . ' থেকে মিহা নিউজের সংবাদদাতা' : 'মিহা নিউজের সংবাদদাতা' ) : 'মিহা নিউজের ' . ( $p['role'] ? $p['role'] : 'সদস্য' );
+				$body = "🎉 মিহা পরিবারে স্বাগতম {$who}!\nআজ থেকে আপনি {$what} হিসেবে আমাদের সঙ্গে আছেন। সবাই মিলে শুভেচ্ছা জানাই 👋\n\n" .
+					( self::is_correspondent( $greet[0] ) ? "• ডেস্কে সরাসরি কিছু জানাতে চ্যাটের “ডেস্ক” আলাপে লিখুন\n• জরুরি খবরে “জরুরি” লেবেল দিন, ডেস্ক সঙ্গে সঙ্গে জানবে\n• আপনার কাজগুলো পাবেন “✅ কাজ” তালিকায়" : '• ডেস্কের কাজ ভাগ করতে “✅ কাজ” তালিকা আর “কাজ” লেবেল ব্যবহার করুন' );
+			} else {
+				$body = "🎉 মিহা পরিবারে নতুন মুখ: {$who}! সবাইকে স্বাগতম, শুভেচ্ছা জানাই 👋";
+			}
+		} else {
+			$body = "📍 {$room['name']} রুমে স্বাগতম {$who}! এই বিভাগের খবর, মিটিং আর জরুরি বার্তা এখানে পাবেন।";
+		}
+		self::bot_say( $room, $body, wp_list_pluck( $greet, 'ID' ) );
+	}
+
+	/** The role came within the last two days (approval of an old account). */
+	protected static function recent_role( $uid ) {
+		$t = (int) get_user_meta( $uid, 'nros_chat_role_at', true );
+		return $t && time() - $t < 2 * DAY_IN_SECONDS;
+	}
+
+	/**
+	 * A message from মিহা সহকারী (counts as unread, can carry @mentions).
+	 *
+	 * @param array  $room     Room row.
+	 * @param string $body     Text.
+	 * @param int[]  $mentions Mentioned ids (they get a phone notice).
+	 * @param string $label    Label key.
+	 * @return int Message id.
+	 */
+	public static function bot_say( $room, $body, $mentions = array(), $label = '' ) {
 		global $wpdb;
-		$u = get_userdata( (int) $uid );
-		if ( ! $u || ( ! self::is_correspondent( $u ) && ! self::is_staff( $u ) ) ) {
-			return;
+		$now = current_time( 'mysql' );
+		$wpdb->insert(
+			self::t( 'messages' ),
+			array(
+				'room_id'    => (int) $room['id'],
+				'user_id'    => self::BOT,
+				'kind'       => 'text',
+				'body'       => $body,
+				'label'      => $label,
+				'mentions'   => implode( ',', array_map( 'intval', $mentions ) ),
+				'reminded'   => 1,
+				'created_at' => $now,
+			)
+		);
+		$id = (int) $wpdb->insert_id;
+		if ( ! $id ) {
+			return 0;
 		}
-		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', self::t( 'rooms' ) ) ) !== self::t( 'rooms' ) ) {
-			return;
+		$wpdb->update( self::t( 'rooms' ), array( 'last_msg_id' => $id, 'last_at' => $now ), array( 'id' => (int) $room['id'] ) );
+		if ( $mentions && class_exists( 'NROS_Push' ) ) {
+			$rid  = (int) $room['id'];
+			$icon = $room['icon'] ? $room['icon'] : '💬';
+			$name = 'desk' === $room['kind'] ? 'ডেস্ক' : $room['name'];
+			$text = wp_html_excerpt( str_replace( "\n", ' ', $body ), 150, '…' );
+			$urg  = 'urgent' === $label;
+			NROS_Push::to_users(
+				$mentions,
+				function ( $sub ) use ( $rid, $icon, $name, $text, $urg ) {
+					return array(
+						'title'  => '@ ' . $icon . ' ' . $name,
+						'body'   => 'মিহা সহকারী: ' . $text,
+						'url'    => 'correspondent' === $sub['app'] ? '/app/chat?room=' . $rid : '/app/inbox?tab=chat&room=' . $rid,
+						'tag'    => 'chat-' . $rid,
+						'urgent' => $urg,
+						'kind'   => 'chat',
+					);
+				},
+				array( 'topic' => 'chat-' . $rid, 'urgency' => $urg ? 'high' : 'normal', 'ttl' => DAY_IN_SECONDS )
+			);
 		}
-		self::sync_all();
+		return $id;
 	}
 
 	// ---------------------------------------------------------------------
@@ -506,6 +797,7 @@ class NROS_Chat {
 		$r( '/chat/rooms/(?P<id>\d+)/mute', 'POST', 'mute', $app );
 		$r( '/chat/rooms/(?P<id>\d+)/members', 'GET', 'list_members', $app );
 		$r( '/chat/rooms/(?P<id>\d+)/members', 'POST', 'add_members', $app );
+		$r( '/chat/rooms/(?P<id>\d+)/sync', 'POST', 'sync_now', $app );
 		$r( '/chat/rooms/(?P<id>\d+)/members/(?P<uid>\d+)', 'PATCH', 'update_member', $app );
 		$r( '/chat/rooms/(?P<id>\d+)/members/(?P<uid>\d+)', 'DELETE', 'remove_member', $app );
 		$r( '/chat/messages/(?P<id>\d+)', 'PATCH', 'edit_message', $app );
@@ -634,7 +926,7 @@ class NROS_Chat {
 				);
 			}
 		}
-		return rest_ensure_response( array( 'unread' => $total, 'mentions' => $men, 'urgent' => $urg, 'latest_id' => $last, 'latest' => $latest ) );
+		return rest_ensure_response( array( 'unread' => $total, 'mentions' => $men, 'urgent' => $urg, 'latest_id' => $last, 'latest' => $latest, 'tasks' => class_exists( 'NROS_Chat_Tasks' ) ? NROS_Chat_Tasks::mine_count( $u->ID ) : null ) );
 	}
 
 	/**
@@ -721,10 +1013,21 @@ class NROS_Chat {
 	 */
 	public static function list_rooms( $request ) {
 		self::maybe_defaults();
-		$u   = self::me( $request );
-		$out = array();
+		$u = self::me( $request );
+		// 1.23.0 — self-heal: someone whose role came by a path that skipped
+		// the hooks still lands in মিহা পরিবার and their area room (checked
+		// at most every 10 minutes per person; the list is polled)
+		$chk = (int) get_user_meta( $u->ID, 'nros_chat_sync_at', true );
+		if ( time() - $chk > 600 ) {
+			update_user_meta( $u->ID, 'nros_chat_sync_at', time() );
+			self::sync_user( $u->ID, true );
+		}
+		$out   = array();
+		$open  = class_exists( 'NROS_Chat_Tasks' ) ? NROS_Chat_Tasks::open_counts() : array();
 		foreach ( self::rooms_for( $u ) as $row ) {
-			$out[] = self::shape_room( $row, $u );
+			$r          = self::shape_room( $row, $u );
+			$r['tasks'] = isset( $open[ $r['id'] ] ) ? $open[ $r['id'] ] : 0;
+			$out[]      = $r;
 		}
 		// pinned order: family first, then unread, then latest
 		usort(
@@ -755,6 +1058,7 @@ class NROS_Chat {
 					'staff'        => self::is_staff( $u ),
 					'publisher'    => self::is_publisher( $u ),
 				),
+				'my_tasks'  => class_exists( 'NROS_Chat_Tasks' ) ? NROS_Chat_Tasks::mine_count( $u->ID ) : array( 'open' => 0, 'late' => 0 ),
 			)
 		);
 	}
@@ -823,7 +1127,7 @@ class NROS_Chat {
 			'id'         => (int) $m['id'],
 			'kind'       => $m['kind'],
 			'author'     => 'system' === $m['kind'] ? null : $p,
-			'mine'       => $mine,
+			'mine'       => $mine && self::BOT !== (int) $m['user_id'],
 			'body'       => $del ? '' : (string) $m['body'],
 			'label'      => $del ? '' : (string) $m['label'],
 			'meeting_at' => $m['meeting_at'] && ! $del ? self::iso( $m['meeting_at'] ) : null,
@@ -837,6 +1141,8 @@ class NROS_Chat {
 			'can_edit'   => ! $del && $mine && 'text' === $m['kind'] && $age_min <= self::EDIT_MINUTES,
 			'can_delete' => ! $del && 'text' === $m['kind'] && ( $mine || self::is_admin( $room, $u ) ),
 			'can_purge'  => self::is_publisher( $u ),
+			'bot'        => self::BOT === (int) $m['user_id'] && 'text' === $m['kind'],
+			'tasks'      => ! $del && class_exists( 'NROS_Chat_Tasks' ) ? NROS_Chat_Tasks::for_message( $m, $u, $room ) : array(),
 			'at'         => self::iso( $m['created_at'] ),
 		);
 	}
@@ -1008,6 +1314,10 @@ class NROS_Chat {
 		self::touch_member( $room, $u );
 		$wpdb->update( self::t( 'members' ), array( 'last_read_id' => $id ), array( 'room_id' => $room['id'], 'user_id' => $u->ID ) );
 		self::push_message( $room, $u, $id, $body, $label, $request->get_param( 'mentions' ), count( $files ) );
+		// 1.23.0 — “কাজ” label: the message goes to the room's টু-ডু, one task per @mentioned person
+		if ( 'task' === $label && '' !== $body && class_exists( 'NROS_Chat_Tasks' ) ) {
+			NROS_Chat_Tasks::from_message( $room, $u, $id, $body, $request->get_param( 'mentions' ), (string) $request->get_param( 'due_at' ) );
+		}
 		// stop "typing…"
 		$tp = (array) get_transient( 'nros_chat_typ_' . $room['id'] );
 		unset( $tp[ $u->ID ] );
@@ -1323,7 +1633,8 @@ class NROS_Chat {
 		if ( ! $room || 'desk' === $room['kind'] || ! self::is_admin( $room, $u ) ) {
 			return new WP_Error( 'nros_forbidden', 'সদস্য যোগ করতে পারেন রুমের অ্যাডমিন।', array( 'status' => 403 ) );
 		}
-		$added = array();
+		$added   = array();
+		$new_ids = array();
 		foreach ( array_slice( array_map( 'intval', (array) $request->get_param( 'user_ids' ) ), 0, 500 ) as $id ) {
 			$p = get_userdata( $id );
 			if ( ! $p || ( ! self::is_correspondent( $p ) && ! self::is_staff( $p ) ) ) {
@@ -1338,12 +1649,38 @@ class NROS_Chat {
 			} else {
 				$wpdb->insert( self::t( 'members' ), array( 'room_id' => (int) $room['id'], 'user_id' => $id, 'role' => self::is_publisher( $p ) ? 'admin' : 'member', 'joined_at' => current_time( 'mysql' ), 'last_read_id' => (int) $room['last_msg_id'] ) );
 			}
-			$added[] = $p->display_name;
+			$added[]  = $p->display_name;
+			$new_ids[] = (int) $id;
 		}
 		if ( $added ) {
 			self::system( $room['id'], $u->display_name . ' যোগ করেছেন: ' . implode( ', ', array_slice( $added, 0, 8 ) ) . ( count( $added ) > 8 ? ' ও আরও ' . NROS_Core::bn_digits( count( $added ) - 8 ) . ' জন' : '' ) );
+			self::welcome( self::room( $room['id'] ), $new_ids, true );
 		}
 		return self::list_members( $request );
+	}
+
+	/**
+	 * POST /chat/rooms/{id}/sync — an admin of an auto room: “সবাইকে মিলিয়ে নিন”.
+	 * Adds whoever belongs and is missing (not the people an admin removed).
+	 */
+	public static function sync_now( $request ) {
+		$u    = self::me( $request );
+		$room = self::room( (int) $request['id'] );
+		if ( ! $room || ! in_array( $room['kind'], array( 'family', 'staff', 'area' ), true ) || ! self::is_admin( $room, $u ) ) {
+			return new WP_Error( 'nros_forbidden', 'এটা করতে পারেন রুমের অ্যাডমিন।', array( 'status' => 403 ) );
+		}
+		$ids = self::sync_room( $room, false );
+		if ( $ids ) {
+			$names = array();
+			foreach ( array_slice( $ids, 0, 8 ) as $id ) {
+				$names[] = self::person( $id )['name'];
+			}
+			self::system( $room['id'], 'যোগ হলেন: ' . implode( ', ', $names ) . ( count( $ids ) > 8 ? ' ও আরও ' . NROS_Core::bn_digits( count( $ids ) - 8 ) . ' জন' : '' ) );
+			self::welcome( self::room( $room['id'] ), $ids, true );
+		}
+		$res          = self::list_members( $request )->get_data();
+		$res['added'] = count( $ids );
+		return rest_ensure_response( $res );
 	}
 
 	/**
@@ -1482,7 +1819,7 @@ class NROS_Chat {
 	 * GET /chat/people?q= — correspondents and staff (to add to rooms / start a desk chat).
 	 */
 	public static function people_search( $request ) {
-		$q    = trim( sanitize_text_field( (string) $request->get_param( 'q' ) ) );
+		$q    = trim( str_replace( '_', ' ', ltrim( sanitize_text_field( (string) $request->get_param( 'q' ) ), '@' ) ) );
 		$args = array(
 			'role__in' => array( 'administrator', 'meeha_publisher', 'editor', 'correspondent' ),
 			'number'   => 40,

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChatApi, type ChatLabel, type Room, type RoomsResponse } from './api'
+import { ChatApi, type ChatLabel, type Person, type Room, type RoomsResponse } from './api'
 import { useChat } from './ChatContext'
-import { CountPill, LabelChip, RoomIcon, Sheet, Spinner } from './bits'
+import { Avatar, CountPill, LabelChip, RoomIcon, Sheet, Spinner } from './bits'
 import PeoplePicker from './PeoplePicker'
 import { PushBanner, PushSheet, usePush } from './PushSetup'
 import RoomView from './RoomView'
+import { MyTasks } from './TasksPanel'
 import { bnNum, DEFAULT_LABELS, shortWhen } from './util'
 
 /**
@@ -140,6 +141,10 @@ export default function ChatBox({
   const [pushOpen, setPushOpen] = useState(false)
   const push = usePush()
   const [selected, setSelected] = useState<number | null>(roomId)
+  // a reminder notice opens …?tasks=1 (with a room: that room's টু-ডু)
+  const [tasksAsk] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tasks') === '1')
+  const [myTasks, setMyTasks] = useState(() => tasksAsk && !roomId)
+  const [people, setPeople] = useState<Person[]>([])
   // side by side only when the box itself is wide (the correspondent app is a
   // narrow column even on a computer)
   const boxRef = useRef<HTMLDivElement>(null)
@@ -198,6 +203,30 @@ export default function ChatBox({
     if (filter === 'desk') l = l.filter((r) => r.kind === 'desk')
     return l
   }, [data, q, filter])
+
+  // staff: the search box finds people too (a desk line opens with one tap)
+  const staff = !!data?.me.staff
+  useEffect(() => {
+    const term = q.trim()
+    if (!staff || term.length < 2) return setPeople([])
+    const t = setTimeout(() => {
+      ChatApi.people(term)
+        .then((r) => setPeople(r.people.slice(0, 8)))
+        .catch(() => setPeople([]))
+    }, 300)
+    return () => clearTimeout(t)
+  }, [q, staff])
+
+  const openDesk = async (uid: number) => {
+    try {
+      const r = await ChatApi.openDesk(uid)
+      setQ('')
+      load()
+      open(r.id)
+    } catch (e) {
+      alert((e as Error).message)
+    }
+  }
 
   const labels = data?.labels?.length ? data.labels : (DEFAULT_LABELS as unknown as ChatLabel[])
   const me = data?.me ?? { id: 0, staff: false, publisher: false }
@@ -268,6 +297,25 @@ export default function ChatBox({
         </div>
       </div>
       <PushBanner key={String(push.state)} onOpen={() => setPushOpen(true)} />
+      {data && (
+        <button
+          type="button"
+          onClick={() => setMyTasks(true)}
+          className="mx-3 mb-1.5 flex items-center gap-2.5 rounded-xl bg-amber-50 ring-1 ring-amber-200/80 px-3 py-2 text-left"
+          data-testid="my-tasks-btn"
+        >
+          <span className="text-[18px]">✅</span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-[13.5px] font-semibold text-neutral-900">আমার কাজ</span>
+            <span className="block truncate text-[11.5px] text-neutral-600">
+              {data.my_tasks?.open
+                ? `${bnNum(data.my_tasks.open)}টি বাকি${data.my_tasks.late ? ` · ${bnNum(data.my_tasks.late)}টির সময় পেরিয়েছে` : ''}`
+                : 'সব রুমের টু-ডু এক জায়গায়'}
+            </span>
+          </span>
+          {!!data.my_tasks?.open && <CountPill n={data.my_tasks.open} tone={data.my_tasks.late ? 'bg-red-600' : 'bg-amber-500'} />}
+        </button>
+      )}
       <div className="flex-1 min-h-0 overflow-y-auto px-1.5 pb-2">
         {!data && !err ? (
           <div className="p-8 flex justify-center">
@@ -281,9 +329,33 @@ export default function ChatBox({
             </button>
           </div>
         ) : rooms.length === 0 ? (
-          <p className="p-8 text-center text-[13.5px] text-neutral-500">{filter === 'all' && !q ? 'কোনো রুম নেই' : 'এমন কিছু নেই'}</p>
+          people.length === 0 && <p className="p-8 text-center text-[13.5px] text-neutral-500">{filter === 'all' && !q ? 'কোনো রুম নেই' : 'এমন কোনো রুম নেই'}</p>
         ) : (
           rooms.map((r) => <RoomRow key={r.id} r={r} active={variant === 'page' && r.id === selected} labels={labels} onClick={() => open(r.id)} />)
+        )}
+        {people.length > 0 && (
+          <div className="mt-2" data-testid="people-results">
+            <div className="px-3 pb-1 text-[11.5px] font-semibold text-neutral-500">👤 মানুষ</div>
+            {people.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                disabled={p.role !== 'সংবাদদাতা'}
+                onClick={() => void openDesk(p.id)}
+                className="w-full flex items-center gap-3 px-3 py-2 text-left rounded-xl hover:bg-neutral-50 disabled:hover:bg-transparent"
+              >
+                <Avatar p={p} size={38} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[14px] font-medium text-neutral-900">{p.name}</span>
+                  <span className="block truncate text-[11.5px] text-neutral-500">
+                    {p.role}
+                    {p.area ? ` · ${p.area}` : ''}
+                  </span>
+                </span>
+                {p.role === 'সংবাদদাতা' && <span className="shrink-0 text-[12px] font-semibold text-brand-600">✉️ লিখুন</span>}
+              </button>
+            ))}
+          </div>
         )}
       </div>
     </div>
@@ -291,6 +363,18 @@ export default function ChatBox({
 
   const dialogs = (
     <>
+      {myTasks && (
+        <MyTasks
+          onClose={() => {
+            setMyTasks(false)
+            load()
+          }}
+          onOpenRoom={(id) => {
+            setMyTasks(false)
+            open(id)
+          }}
+        />
+      )}
       <PushSheet
         open={pushOpen}
         onClose={() => {
@@ -352,6 +436,7 @@ export default function ChatBox({
             onBack={wide ? undefined : () => open(null)}
             onRead={onRead}
             onRoomsChanged={load}
+            openTasks={tasksAsk && selected === roomId}
             onLeft={() => {
               open(null)
               load()

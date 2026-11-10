@@ -9,7 +9,7 @@
  *                     and area (division/upazila) lookups. Reuses the active theme's
  *                     existing data (engagement meta, area helpers, edit-request CPT,
  *                     submission safety-net) wherever possible instead of duplicating it.
- * Version:           1.22.0
+ * Version:           1.23.0
  * Author:             Meeha News
  * Text Domain:        newsroom-os
  *
@@ -24,11 +24,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Core constants
 // ---------------------------------------------------------------------------
 
-define( 'NROS_VERSION', '1.22.0' );
+define( 'NROS_VERSION', '1.23.0' );
 // Bumped whenever create_tables()/register_roles() need to re-run on an
 // already-active install (see NROS_Core::maybe_upgrade()) — bump this any
 // time a future change adds/changes a table or role.
-define( 'NROS_DB_VERSION', '11' );
+define( 'NROS_DB_VERSION', '12' );
 define( 'NROS_DIR', plugin_dir_path( __FILE__ ) );
 define( 'NROS_URL', plugin_dir_url( __FILE__ ) );
 define( 'NROS_PRIVATE_DIR', WP_CONTENT_DIR . '/nros-private' );
@@ -73,6 +73,7 @@ require_once NROS_DIR . 'includes/class-nros-vi-providers.php';
 require_once NROS_DIR . 'includes/class-nros-chat.php';
 require_once NROS_DIR . 'includes/class-nros-push.php';
 require_once NROS_DIR . 'includes/class-nros-app-landing.php'; // 1.22.0 [meeha_app_landing]
+require_once NROS_DIR . 'includes/class-nros-chat-tasks.php'; // 1.23.0 টু-ডু + chat automation
 
 // Round 10 — public reels/carousel shortcodes and the /video/{slug}/ page
 // live in their own class, shipped separately; guarded so the plugin keeps
@@ -129,6 +130,7 @@ add_action(
 		NROS_Chat::init();
 		NROS_Push::init();
 		NROS_App_Landing::init();
+		NROS_Chat_Tasks::init();
 		if ( class_exists( 'NROS_Video_Frontend' ) ) {
 			NROS_Video_Frontend::init();
 		}

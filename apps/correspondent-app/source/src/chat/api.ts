@@ -22,6 +22,43 @@ export interface Person {
   role: string
   area: string
   online: boolean
+  /** মিহা সহকারী (automatic messages) */
+  bot?: boolean
+}
+
+/** 1.23.0 — টু-ডু */
+export interface Task {
+  id: number
+  room_id: number
+  msg_id: number
+  title: string
+  assignee: Person | null
+  by: Person
+  urgent: boolean
+  due_at: string | null
+  late: boolean
+  done: boolean
+  done_at: string | null
+  done_by: string
+  mine: boolean
+  can_done: boolean
+  can_edit: boolean
+  created_at: string
+  room?: { id: number; name: string; icon: string }
+}
+
+export interface TaskInput {
+  title?: string
+  assignee_id?: number
+  due_at?: string | null
+  urgent?: boolean
+  msg_id?: number
+  done?: boolean
+}
+
+export interface TaskCount {
+  open: number
+  late: number
 }
 
 export interface Member extends Person {
@@ -56,6 +93,8 @@ export interface Room {
   urgent: number
   last: RoomLast | null
   last_at: string | null
+  /** open tasks in the room (1.23.0) */
+  tasks?: number
 }
 
 export interface ChatFile {
@@ -94,6 +133,8 @@ export interface Message {
   can_edit: boolean
   can_delete: boolean
   can_purge: boolean
+  bot?: boolean
+  tasks?: Task[]
   at: string
 }
 
@@ -102,6 +143,7 @@ export interface RoomsResponse {
   labels: ChatLabel[]
   reactions: string[]
   me: { id: number; staff: boolean; publisher: boolean }
+  my_tasks?: TaskCount
 }
 
 export interface MessagesResponse {
@@ -131,6 +173,7 @@ export interface ChatSummary {
     label: string
     mention: boolean
   } | null
+  tasks?: TaskCount | null
 }
 
 export interface MembersResponse {
@@ -146,6 +189,7 @@ export interface SendInput {
   file_ids?: number[]
   mentions?: number[]
   meeting_at?: string
+  due_at?: string
 }
 
 export interface MessageQuery {
@@ -184,6 +228,12 @@ export const ChatApi = {
     apiRequest<{ id: number }>('/chat/rooms', { method: 'POST', body: input }),
   updateRoom: (room: number, input: Partial<{ name: string; about: string; icon: string; posting: 'all' | 'admins'; archived: boolean }>) =>
     apiRequest<{ ok: true }>(`/chat/rooms/${room}`, { method: 'PATCH', body: input }),
+  syncRoom: (room: number) => apiRequest<MembersResponse & { added: number }>(`/chat/rooms/${room}/sync`, { method: 'POST', body: {} }),
+  tasks: (room: number) => apiRequest<{ open: Task[]; done: Task[]; can_add: boolean }>(`/chat/rooms/${room}/tasks`),
+  myTasks: (scope: 'mine' | 'made' = 'mine') => apiRequest<{ open: Task[]; done: Task[]; count: TaskCount }>(`/chat/tasks${qs({ scope: scope === 'made' ? 'made' : '' })}`),
+  addTask: (room: number, input: TaskInput) => apiRequest<Task>(`/chat/rooms/${room}/tasks`, { method: 'POST', body: input as Record<string, unknown> }),
+  updateTask: (id: number, input: TaskInput) => apiRequest<Task>(`/chat/tasks/${id}`, { method: 'PATCH', body: input as Record<string, unknown> }),
+  deleteTask: (id: number) => apiRequest<{ deleted: true; id: number }>(`/chat/tasks/${id}`, { method: 'DELETE' }),
   openDesk: (user_id?: number) => apiRequest<{ id: number }>('/chat/desk', { method: 'POST', body: user_id ? { user_id } : {} }),
   people: (q: string) => apiRequest<{ people: Person[] }>(`/chat/people${qs({ q })}`),
   upload: (room: number, file: Blob, name: string, duration = 0) => {

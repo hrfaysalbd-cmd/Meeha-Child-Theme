@@ -3,7 +3,14 @@ import type { ChatLabel, Person } from './api'
 import { initials, LABEL_ICON, tint } from './util'
 
 /** Round picture: initials on a soft colour (gravatar's grey default face is skipped). */
-export function Avatar({ p, size = 40, ring = false }: { p: Pick<Person, 'id' | 'name' | 'avatar'> & { online?: boolean }; size?: number; ring?: boolean }) {
+export function Avatar({ p, size = 40, ring = false }: { p: Pick<Person, 'id' | 'name' | 'avatar'> & { online?: boolean; bot?: boolean }; size?: number; ring?: boolean }) {
+  // মিহা সহকারী: the Meeha mark, drawn here so it never depends on a file
+  if (p.bot)
+    return (
+      <span className={`inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-red-600 to-red-800 text-white font-bold ${ring ? 'ring-2 ring-white' : ''}`} style={{ width: size, height: size, fontSize: size * 0.42 }} aria-label="মিহা সহকারী">
+        মি
+      </span>
+    )
   const own = p.avatar && !/gravatar\.com/.test(p.avatar)
   return (
     <span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>

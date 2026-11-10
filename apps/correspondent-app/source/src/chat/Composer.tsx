@@ -13,7 +13,7 @@ interface Props {
   editing: LocalMsg | null
   onCancelReply: () => void
   onCancelEdit: () => void
-  onSend: (x: { body: string; label: LabelKey | ''; files: ChatFile[]; mentions: number[]; meeting_at: string }) => Promise<void>
+  onSend: (x: { body: string; label: LabelKey | ''; files: ChatFile[]; mentions: number[]; meeting_at: string; due_at?: string }) => Promise<void>
   dropRef: MutableRefObject<(files: File[]) => void>
 }
 
@@ -149,7 +149,7 @@ export default function Composer({ room, labels, members, me, replyTo, editing, 
     const body = text.trim()
     const ids = mentions.filter((m) => body.includes('@' + m.name.replace(/\s+/g, '_'))).map((m) => m.id)
     setSending(true)
-    const payload = { body, label, files: ready.map((f) => f.file!), mentions: ids, meeting_at: label === 'meeting' ? localToIso(meeting) : '' }
+    const payload = { body, label, files: ready.map((f) => f.file!), mentions: ids, meeting_at: label === 'meeting' ? localToIso(meeting) : '', due_at: label === 'task' ? localToIso(meeting) : '' }
     setText('')
     setFiles([])
     setMentions([])
@@ -351,6 +351,15 @@ export default function Composer({ room, labels, members, me, replyTo, editing, 
               সময়:
               <input type="datetime-local" value={meeting} onChange={(e) => setMeeting(e.target.value)} className="rounded-lg border border-violet-200 px-2 py-1 text-[12.5px]" data-testid="meeting-at" />
             </label>
+          )}
+          {label === 'task' && (
+            <>
+              <label className="flex items-center gap-1.5 text-[12.5px] text-amber-800">
+                শেষ সময়:
+                <input type="datetime-local" value={meeting} onChange={(e) => setMeeting(e.target.value)} className="rounded-lg border border-amber-200 px-2 py-1 text-[12.5px]" data-testid="task-due-at" />
+              </label>
+              <span className="text-[11.5px] text-amber-700">যাঁকে @ দিয়ে ডাকবেন, কাজটা তাঁর টু-ডু তে যাবে</span>
+            </>
           )}
           {label === 'urgent' && <span className="text-[11.5px] text-red-600">সবাই জোরালো শব্দে জানবেন, নিঃশব্দ রুমেও</span>}
           <button type="button" onClick={() => setLabel('')} className="text-[12px] text-neutral-400">

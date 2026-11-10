@@ -38,6 +38,8 @@ export default function RoomInfo({ room, me, onClose, onChanged, onLeft, onShowP
   const { confirm, node: confirmNode } = useConfirm()
   const isDesk = room.kind === 'desk'
   const admin = room.is_admin && !isDesk
+  const auto = room.kind === 'family' || room.kind === 'staff' || room.kind === 'area'
+  const [note, setNote] = useState('')
 
   const load = () =>
     ChatApi.members(room.id)
@@ -78,7 +80,8 @@ export default function RoomInfo({ room, me, onClose, onChanged, onLeft, onShowP
     }
   }
 
-  const list = (members ?? []).filter((m) => !q || m.name.toLowerCase().includes(q.toLowerCase()) || m.area.includes(q))
+  const qq = q.trim().toLowerCase().replace(/_/g, ' ')
+  const list = (members ?? []).filter((m) => !qq || m.name.toLowerCase().includes(qq) || m.area.toLowerCase().includes(qq) || m.role.includes(qq))
 
   return (
     <div className="absolute inset-0 z-[20] flex justify-end" data-testid="room-info">
@@ -195,15 +198,40 @@ export default function RoomInfo({ room, me, onClose, onChanged, onLeft, onShowP
           {/* members */}
           <div className="px-4 pt-3 pb-1 flex items-center gap-2">
             <span className="flex-1 text-[12px] font-semibold text-neutral-500">👥 {isDesk ? 'আলাপে আছেন' : `সদস্য (${bnNum(members?.length ?? room.members)})`}</span>
-            {admin && me.staff && (
-              <button type="button" onClick={() => setAdding(true)} className="text-[13px] font-semibold text-brand-600" data-testid="add-members">
-                + সদস্য যোগ
-              </button>
-            )}
           </div>
-          {(members?.length ?? 0) > 8 && (
+          {admin && me.staff && (
+            <div className="px-4 pb-2 flex flex-wrap gap-2">
+              <button type="button" onClick={() => setAdding(true)} className="flex-1 min-w-[140px] rounded-xl bg-brand-600 text-white px-3 py-2 text-[13px] font-semibold" data-testid="add-members">
+                + সদস্য যোগ করুন
+              </button>
+              {auto && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={async () => {
+                    setNote('')
+                    let n = 0
+                    const ok = await act(async () => {
+                      const r = await ChatApi.syncRoom(room.id)
+                      n = r.added
+                      return r
+                    })
+                    if (ok) setNote(n ? `${bnNum(n)} জন নতুন যোগ হলেন, স্বাগত বার্তাও গেছে।` : 'সবাই আগে থেকেই আছেন।')
+                  }}
+                  className="flex-1 min-w-[140px] rounded-xl border border-neutral-300 px-3 py-2 text-[13px] font-semibold text-neutral-700"
+                  data-testid="sync-members"
+                  title="যাঁদের এই রুমে থাকার কথা কিন্তু নেই, তাঁদের যোগ করে"
+                >
+                  🔄 সবাইকে মিলিয়ে নিন
+                </button>
+              )}
+              {auto && <p className="w-full text-[11.5px] text-neutral-400">নতুন সংবাদদাতা অনুমোদন পেলেই নিজে থেকে এই রুমে যোগ হন, মিহা সহকারী @ দিয়ে স্বাগত জানায়।</p>}
+              {note && <p className="w-full text-[12px] text-emerald-700">{note}</p>}
+            </div>
+          )}
+          {!isDesk && (
             <div className="px-4 pb-1">
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="সদস্য খুঁজুন…" className="w-full rounded-xl bg-neutral-100 px-3 py-2 text-[13.5px] outline-none" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="সদস্য খুঁজুন (নাম বা এলাকা)…" className="w-full rounded-xl bg-neutral-100 px-3 py-2 text-[13.5px] outline-none" data-testid="member-search" />
             </div>
           )}
           {!members ? (
@@ -307,7 +335,7 @@ export default function RoomInfo({ room, me, onClose, onChanged, onLeft, onShowP
         <PeoplePicker
           title="সদস্য যোগ করুন"
           multi
-          exclude={(members ?? []).map((m) => m.id)}
+          already={(members ?? []).map((m) => m.id)}
           onClose={() => setAdding(false)}
           onPick={async (ids) => {
             setAdding(false)
