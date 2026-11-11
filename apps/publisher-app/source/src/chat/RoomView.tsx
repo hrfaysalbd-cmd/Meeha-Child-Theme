@@ -703,7 +703,7 @@ export default function RoomView({ roomId, initial, labels, reactions, me, onBac
     if (headRef.current) setFindTop(headRef.current.offsetHeight)
   }, [find.open, showResults])
   const title = room?.name ?? initial?.name ?? ''
-  const isDesk = room?.kind === 'desk'
+  const isDesk = room?.kind === 'desk' || room?.kind === 'dm'
   const sub = isDesk
     ? room?.about
     : typing.length

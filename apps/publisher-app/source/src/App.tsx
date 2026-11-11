@@ -34,6 +34,9 @@ import Inbox from './pages/Inbox'
 const VideoStudio = lazy(() => import('./pages/VideoStudio'))
 // Round 24 — ফটোকার্ড স্টুডিও (its renderer loads only when it opens).
 const PhotocardStudio = lazy(() => import('./pages/PhotocardStudio'))
+// r43 — স্টেশনারি (designs + PDF writer in its own chunk).
+const Stationery = lazy(() => import('./pages/Stationery'))
+const IdCards = lazy(() => import('./pages/IdCards'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
@@ -126,6 +129,22 @@ export default function App() {
           element={
             <Suspense fallback={<Spinner className="mt-10" />}>
               <PhotocardStudio />
+            </Suspense>
+          }
+        />
+        <Route
+          path="stationery"
+          element={
+            <Suspense fallback={<Spinner className="mt-10" />}>
+              <Stationery />
+            </Suspense>
+          }
+        />
+        <Route
+          path="id-cards"
+          element={
+            <Suspense fallback={<Spinner className="mt-10" />}>
+              <IdCards />
             </Suspense>
           }
         />

@@ -722,6 +722,11 @@ class NROS_Chat {
 	 * @return bool
 	 */
 	protected static function can_read( $room, $u ) {
+		if ( 'dm' === $room['kind'] ) {
+			// r43 — person-to-person: only the two people, not even the Publisher
+			$m = self::member( $room['id'], $u->ID );
+			return $m && ! (int) $m['removed'];
+		}
 		if ( 'desk' === $room['kind'] ) {
 			return (int) $room['owner_id'] === (int) $u->ID || self::is_staff( $u );
 		}
@@ -737,6 +742,9 @@ class NROS_Chat {
 	 * room every staff member is.
 	 */
 	protected static function is_admin( $room, $u ) {
+		if ( 'dm' === $room['kind'] ) {
+			return false; // r43 — nobody manages a private line
+		}
 		if ( self::is_publisher( $u ) ) {
 			return true;
 		}
@@ -826,6 +834,7 @@ class NROS_Chat {
 		$r( '/chat/messages/(?P<id>\d+)/react', 'POST', 'react', $app );
 		$r( '/chat/messages/(?P<id>\d+)/pin', 'POST', 'pin', $app );
 		$r( '/chat/desk', 'POST', 'open_desk', $app );
+		$r( '/chat/dm', 'POST', 'open_dm', $stf ); // r43 — person to person (Editors & Publishers)
 		$r( '/chat/people', 'GET', 'people_search', $stf );
 		$r( '/chat/files', 'POST', 'upload', $app );
 		register_rest_route(
@@ -852,7 +861,7 @@ class NROS_Chat {
 		$uid = (int) $u->ID;
 		if ( self::is_staff( $u ) ) {
 			// everything I'm in + every desk room that has messages (+ for Publishers, every room)
-			$extra = self::is_publisher( $u ) ? "r.kind <> 'desk' OR " : '';
+			$extra = self::is_publisher( $u ) ? "r.kind NOT IN ('desk','dm') OR " : '';
 			$sql   = "SELECT r.*, m.role AS my_role, m.removed AS my_removed, m.last_read_id AS my_read, m.muted_until AS my_muted
 				FROM {$rt} r LEFT JOIN {$mt} m ON m.room_id = r.id AND m.user_id = %d
 				WHERE ( {$extra}(m.user_id IS NOT NULL AND m.removed = 0) OR (r.kind = 'desk' AND r.last_msg_id > 0) )";
@@ -990,6 +999,16 @@ class NROS_Chat {
 				$online = $p['online'];
 			}
 		}
+		$dm_peer = null;
+		if ( 'dm' === $row['kind'] ) {
+			$other   = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT user_id FROM ' . self::t( 'members' ) . ' WHERE room_id = %d AND user_id <> %d LIMIT 1', $row['id'], $u->ID ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			$dm_peer = self::person( $other );
+			$name    = $dm_peer['name'];
+			$avatar  = $dm_peer['avatar'];
+			$sub     = trim( $dm_peer['role'] . ' · ব্যক্তিগত মেসেজ', ' ·' );
+			$online  = $dm_peer['online'];
+			$members = 2;
+		}
 		return array(
 			'id'       => (int) $row['id'],
 			'kind'     => $row['kind'],
@@ -1011,7 +1030,7 @@ class NROS_Chat {
 			'last'     => $last,
 			'last_at'  => $row['last_at'] ? self::iso( $row['last_at'] ) : null,
 			// 1.24.0 — who a desk line is with (templates fill {নাম}, “/” shows their news first)
-			'peer'     => 'desk' === $row['kind'] && (int) $row['owner_id'] !== (int) $u->ID ? self::person( $row['owner_id'] ) : null,
+			'peer'     => 'desk' === $row['kind'] && (int) $row['owner_id'] !== (int) $u->ID ? self::person( $row['owner_id'] ) : $dm_peer,
 		);
 	}
 
@@ -1397,10 +1416,11 @@ class NROS_Chat {
 			$to,
 			function ( $sub ) use ( $rid, $owner, $name, $icon, $text, $lab, $u, $urgent, $mentions, $room ) {
 				$is_owner = 'desk' === $room['kind'] && (int) $sub['user_id'] === $owner;
-				$title    = 'desk' === $room['kind'] ? ( $is_owner ? '💬 ডেস্ক (এডিটর ও পাবলিশার)' : '✉️ ' . $u->display_name ) : $icon . ' ' . $name;
+				$title    = 'desk' === $room['kind'] ? ( $is_owner ? '💬 ডেস্ক (এডিটর ও পাবলিশার)' : '✉️ ' . $u->display_name ) : ( 'dm' === $room['kind'] ? '✉️ ' . $u->display_name : $icon . ' ' . $name );
+				$solo     = ( 'desk' === $room['kind'] && ! $is_owner ) || 'dm' === $room['kind'];
 				return array(
 					'title'  => ( $urgent ? '🚨 জরুরি · ' : ( in_array( (int) $sub['user_id'], $mentions, true ) ? '@ ' : '' ) ) . $title,
-					'body'   => ( 'desk' === $room['kind'] && ! $is_owner ? '' : $u->display_name . ': ' ) . $lab . $text,
+					'body'   => ( $solo ? '' : $u->display_name . ': ' ) . $lab . $text,
 					'url'    => 'correspondent' === $sub['app'] ? '/app/chat?room=' . $rid : '/app/inbox?tab=chat&room=' . $rid,
 					'tag'    => 'chat-' . $rid,
 					'urgent' => $urgent,
@@ -1662,7 +1682,7 @@ class NROS_Chat {
 		global $wpdb;
 		$u    = self::me( $request );
 		$room = self::room( (int) $request['id'] );
-		if ( ! $room || 'desk' === $room['kind'] || ! self::is_admin( $room, $u ) ) {
+		if ( ! $room || in_array( $room['kind'], array( 'desk', 'dm' ), true ) || ! self::is_admin( $room, $u ) ) {
 			return new WP_Error( 'nros_forbidden', 'সদস্য যোগ করতে পারেন রুমের অ্যাডমিন।', array( 'status' => 403 ) );
 		}
 		$added   = array();
@@ -1739,7 +1759,7 @@ class NROS_Chat {
 		$u    = self::me( $request );
 		$room = self::room( (int) $request['id'] );
 		$uid  = (int) $request['uid'];
-		if ( ! $room || 'desk' === $room['kind'] ) {
+		if ( ! $room || in_array( $room['kind'], array( 'desk', 'dm' ), true ) ) {
 			return new WP_Error( 'nros_forbidden', 'এখান থেকে কাউকে বাদ দেওয়া যায় না।', array( 'status' => 403 ) );
 		}
 		$self  = $uid === (int) $u->ID;
@@ -1797,7 +1817,7 @@ class NROS_Chat {
 		global $wpdb;
 		$u    = self::me( $request );
 		$room = self::room( (int) $request['id'] );
-		if ( ! $room || 'desk' === $room['kind'] || ! self::is_admin( $room, $u ) ) {
+		if ( ! $room || in_array( $room['kind'], array( 'desk', 'dm' ), true ) || ! self::is_admin( $room, $u ) ) {
 			return new WP_Error( 'nros_forbidden', 'রুম বদলাতে পারেন অ্যাডমিন।', array( 'status' => 403 ) );
 		}
 		$data = array();
@@ -1828,6 +1848,52 @@ class NROS_Chat {
 	 * POST /chat/desk — { user_id? }: a correspondent opens their desk room;
 	 * staff open (or start) the one of a correspondent.
 	 */
+	/**
+	 * r43 — POST /chat/dm {user_id}: a private line between two staff
+	 * members (Editor ⇄ Publisher, Editor ⇄ Editor). Hafiz (2026-11-11):
+	 * "এডিটর ও পাবলিশাররা একে অন্যকে ম্যাসেজ করতে পারবে। পার্সন টু পার্সন।"
+	 * Correspondents still talk only through the desk (his r36 rule).
+	 * Only the two people can read it — not even other Publishers.
+	 */
+	public static function open_dm( $request ) {
+		global $wpdb;
+		$u     = self::me( $request );
+		$other = get_userdata( (int) $request->get_param( 'user_id' ) );
+		if ( ! $other || (int) $other->ID === (int) $u->ID || ! self::is_staff( $other ) ) {
+			return new WP_Error( 'nros_bad', 'ব্যক্তিগত মেসেজ শুধু এডিটর ও পাবলিশারদের মধ্যে।', array( 'status' => 400 ) );
+		}
+		$a    = min( (int) $u->ID, (int) $other->ID );
+		$b    = max( (int) $u->ID, (int) $other->ID );
+		$id   = self::ensure_room( 'dm', 'dm-' . $a . '-' . $b, 'ব্যক্তিগত', '', '✉️', 0 );
+		$room = self::room( $id );
+		foreach ( array( $a, $b ) as $uid ) {
+			$m = self::member( $id, $uid );
+			if ( ! $m ) {
+				$wpdb->insert( self::t( 'members' ), array( 'room_id' => $id, 'user_id' => $uid, 'role' => 'member', 'joined_at' => current_time( 'mysql' ), 'last_read_id' => (int) $room['last_msg_id'] ) );
+			} elseif ( (int) $m['removed'] ) {
+				$wpdb->update( self::t( 'members' ), array( 'removed' => 0 ), array( 'room_id' => $id, 'user_id' => $uid ) );
+			}
+		}
+		return rest_ensure_response( array( 'id' => $id ) );
+	}
+
+	/**
+	 * r43 — a bot line in a correspondent's desk room (ID card news etc.).
+	 *
+	 * @param int    $uid  Correspondent.
+	 * @param string $text Message.
+	 */
+	public static function bot_to_desk( $uid, $text ) {
+		$u = get_userdata( (int) $uid );
+		if ( ! $u || ! self::is_correspondent( $u ) || ! self::tables_ready() ) {
+			return;
+		}
+		$room = self::room( self::desk_room( (int) $uid ) );
+		if ( $room ) {
+			self::bot_say( $room, $text, array( (int) $uid ) );
+		}
+	}
+
 	public static function open_desk( $request ) {
 		$u = self::me( $request );
 		if ( self::is_staff( $u ) ) {
@@ -1862,8 +1928,13 @@ class NROS_Chat {
 			$args['search']         = '*' . $q . '*';
 			$args['search_columns'] = array( 'display_name', 'user_login', 'user_email' );
 		}
+		// r43 — ?staff=1: only Editors/Publishers (the ব্যক্তিগত মেসেজ picker)
+		$staff_only = (bool) $request->get_param( 'staff' );
+		if ( $staff_only ) {
+			$args['role__in'] = array( 'administrator', 'meeha_publisher', 'editor' );
+		}
 		$ids = get_users( $args );
-		if ( '' !== $q && count( $ids ) < 40 ) {
+		if ( '' !== $q && count( $ids ) < 40 && ! $staff_only ) {
 			// district / upazila too
 			$more = get_users(
 				array(

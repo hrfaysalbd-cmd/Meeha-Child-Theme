@@ -8,6 +8,7 @@ export default function PeoplePicker({
   title,
   multi = false,
   onlyCorrespondents = false,
+  onlyStaff = false,
   exclude = [],
   already = [],
   onPick,
@@ -16,6 +17,8 @@ export default function PeoplePicker({
   title: string
   multi?: boolean
   onlyCorrespondents?: boolean
+  /** only Editors/Publishers (ব্যক্তিগত মেসেজ, 1.26.0) */
+  onlyStaff?: boolean
   exclude?: number[]
   /** shown, but marked “আছেন” and not pickable (already in the room) */
   already?: number[]
@@ -28,14 +31,14 @@ export default function PeoplePicker({
 
   useEffect(() => {
     const t = setTimeout(() => {
-      ChatApi.people(q.trim())
+      ChatApi.people(q.trim(), onlyStaff)
         .then((r) => setPeople(r.people))
         .catch(() => setPeople([]))
     }, 250)
     return () => clearTimeout(t)
-  }, [q])
+  }, [q, onlyStaff])
 
-  const list = (people ?? []).filter((p) => !exclude.includes(p.id) && (!onlyCorrespondents || p.role === 'সংবাদদাতা'))
+  const list = (people ?? []).filter((p) => !exclude.includes(p.id) && (!onlyCorrespondents || p.role === 'সংবাদদাতা') && (!onlyStaff || p.role === 'এডিটর' || p.role === 'পাবলিশার'))
   const toggle = (p: Person) => {
     if (already.includes(p.id)) return
     if (!multi) return onPick([p.id])

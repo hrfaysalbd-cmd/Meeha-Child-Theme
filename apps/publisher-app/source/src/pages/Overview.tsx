@@ -34,6 +34,7 @@ import {
   IconWalletCoins,
 } from '../components/Icon'
 import ReporterProductivity from '../components/ReporterProductivity'
+import IdCardWidget from '../components/brand/IdCardWidget'
 import {
   bnDigits,
   bnInt,
@@ -213,6 +214,9 @@ export default function Overview() {
         <ReadingNow live={live} className="lg:col-span-4" />
         <NeedsAttention ops={ops} onGo={navigate} className="lg:col-span-3" />
       </div>
+
+      {/* r43 — আইডি কার্ড orders (hidden on servers without the module) */}
+      <IdCardWidget />
 
       {/* Row 2 — publishing by period (the tiles also choose the period below) */}
       <section>

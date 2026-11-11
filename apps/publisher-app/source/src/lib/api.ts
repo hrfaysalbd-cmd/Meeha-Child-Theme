@@ -365,6 +365,8 @@ export interface NotificationCounts {
   withdrawals?: number
   /** r30 — new posts/videos on the profiles this person watches (প্রোফাইল ডেস্ক). */
   profile_desk?: number
+  /** r43 — ID card orders waiting for the desk (newsroom-os 1.26.0). */
+  idcards?: number
 }
 
 export interface NotificationsPoll {

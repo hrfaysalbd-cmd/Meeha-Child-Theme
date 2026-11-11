@@ -485,6 +485,9 @@ class NROS_Notifications {
 		if ( class_exists( 'NROS_Profile_Desk' ) && NROS_Profile_Desk::can_access( $user ) ) {
 			$counts['profile_desk'] = class_exists( 'NROS_PD_Work' ) ? NROS_PD_Work::badge( $user ) : NROS_PD_Feeds::unseen_total( $user );
 		}
+		if ( class_exists( 'NROS_ID_Cards' ) ) {
+			$counts['idcards'] = NROS_ID_Cards::badge();
+		}
 		if ( NROS_Core::financial_visible_to( $user ) ) {
 			$counts['withdrawals'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}nros_withdraw_requests WHERE status = 'pending'" );
 		}

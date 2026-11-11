@@ -6,7 +6,8 @@
  */
 import { apiRequest } from '../lib/api'
 
-export type RoomKind = 'family' | 'staff' | 'area' | 'desk' | 'room'
+/** 'dm' (1.26.0) — one Editor/Publisher to another, person to person */
+export type RoomKind = 'family' | 'staff' | 'area' | 'desk' | 'room' | 'dm'
 export type LabelKey = 'urgent' | 'meeting' | 'notice' | 'task' | 'info' | 'general'
 
 export interface ChatLabel {
@@ -303,7 +304,10 @@ export const ChatApi = {
   posts: (room: number, q = '') => apiRequest<{ posts: NewsItem[]; focus: Person | null }>(`/chat/posts${qs({ room, q })}`),
   setFb: (postId: number, url: string) => apiRequest<NewsItem>(`/chat/posts/${postId}/fb`, { method: 'POST', body: { url } }),
   openDesk: (user_id?: number) => apiRequest<{ id: number }>('/chat/desk', { method: 'POST', body: user_id ? { user_id } : {} }),
-  people: (q: string) => apiRequest<{ people: Person[] }>(`/chat/people${qs({ q })}`),
+  /** staff=true → only Editors/Publishers (1.26.0) */
+  people: (q: string, staff = false) => apiRequest<{ people: Person[] }>(`/chat/people${qs({ q, staff: staff ? 1 : undefined })}`),
+  /** ব্যক্তিগত মেসেজ — Editor/Publisher ↔ Editor/Publisher (1.26.0) */
+  openDm: (user_id: number) => apiRequest<{ id: number }>('/chat/dm', { method: 'POST', body: { user_id } }),
   upload: (room: number, file: Blob, name: string, duration = 0) => {
     const fd = new FormData()
     fd.append('file', file, name)

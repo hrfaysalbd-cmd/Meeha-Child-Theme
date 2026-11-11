@@ -324,3 +324,10 @@ export const IconBrandTiktok = (p: Props) => (
 export const IconWorld = (p: Props) => (
   <svg {...base} {...p}><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M3.6 9h16.8" /><path d="M3.6 15h16.8" /><path d="M11.5 3a17 17 0 0 0 0 18" /><path d="M12.5 3a17 17 0 0 1 0 18" /></svg>
 )
+// r43 — আইডি কার্ড ও স্টেশনারি
+export const IconIdBadge = (p: Props) => (
+  <svg {...base} {...p}><path d="M5 5m0 3a3 3 0 0 1 3 -3h8a3 3 0 0 1 3 3v10a3 3 0 0 1 -3 3h-8a3 3 0 0 1 -3 -3z" /><path d="M12 13m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M10 6h4" /><path d="M9 18h6" /></svg>
+)
+export const IconStationery = (p: Props) => (
+  <svg {...base} {...p}><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M9 9h1" /><path d="M9 13h6" /><path d="M9 17h6" /></svg>
+)

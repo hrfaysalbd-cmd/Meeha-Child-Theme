@@ -15,6 +15,9 @@ import Profile from './pages/Profile'
 import Live from './pages/Live'
 import Chat from './pages/Chat'
 import NotificationSettings from './pages/NotificationSettings'
+import { Suspense, lazy } from 'react'
+// r43 — আইডি কার্ড (design + PDF code loads only when it opens)
+const IdCard = lazy(() => import('./pages/IdCard'))
 
 function Root() {
   const { profile, loading } = useAuth()
@@ -79,6 +82,14 @@ export default function App() {
         <Route path="live" element={<Live />} />
         <Route path="live/:id" element={<Live />} />
         <Route path="chat" element={<Chat />} />
+        <Route
+          path="idcard"
+          element={
+            <Suspense fallback={<div className="py-16 flex justify-center"><Spinner /></div>}>
+              <IdCard />
+            </Suspense>
+          }
+        />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

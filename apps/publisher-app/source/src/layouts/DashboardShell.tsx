@@ -24,6 +24,8 @@ import {
   IconWalletCoins,
   IconX,
   IconChartBar,
+  IconIdBadge,
+  IconStationery,
 } from '../components/Icon'
 import { NotificationsProvider, useNotifications } from '../lib/notifications'
 import NotificationBell, { NotificationToasts } from '../components/NotificationBell'
@@ -59,6 +61,8 @@ const NAV: NavItem[] = [
   { to: '/app/photocard', label: 'ফটোকার্ড', icon: IconPhoto },
   { to: '/app/deshchitro', label: 'দেশচিত্র', icon: IconMapStats },
   { to: '/app/profile-desk', label: 'প্রোফাইল ডেস্ক', icon: IconAddressBook, count: 'profile_desk', profileDesk: true },
+  { to: '/app/id-cards', label: 'আইডি কার্ড', icon: IconIdBadge, count: 'idcards' },
+  { to: '/app/stationery', label: 'স্টেশনারি', icon: IconStationery },
   { to: '/app/correspondents', label: 'সংবাদদাতা', icon: IconUsers },
   { to: '/app/applications', label: 'আবেদন', icon: IconFileCheck, count: 'applications' },
   { to: '/app/ad-clients', label: 'বিজ্ঞাপনদাতা', icon: IconBuildingStore },

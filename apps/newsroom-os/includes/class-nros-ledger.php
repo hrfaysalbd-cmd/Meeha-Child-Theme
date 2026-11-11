@@ -107,6 +107,7 @@ class NROS_Ledger {
 			'video_payment' => 'ভিডিও পেমেন্ট',
 			'view_bonus'    => 'ভিউ-স্ল্যাব বোনাস',
 			'salary'        => 'মাসিক স্যালারি',
+			'idcard_fee'    => 'আইডি কার্ড ফি',
 		);
 	}
 

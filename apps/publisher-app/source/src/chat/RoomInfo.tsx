@@ -36,7 +36,8 @@ export default function RoomInfo({ room, me, onClose, onChanged, onLeft, onShowP
   const [showRemoved, setShowRemoved] = useState(false)
   const [rowMenu, setRowMenu] = useState<Member | null>(null)
   const { confirm, node: confirmNode } = useConfirm()
-  const isDesk = room.kind === 'desk'
+  // a desk line and a ব্যক্তিগত মেসেজ are both 1:1 talks: no member management
+  const isDesk = room.kind === 'desk' || room.kind === 'dm'
   const admin = room.is_admin && !isDesk
   const auto = room.kind === 'family' || room.kind === 'staff' || room.kind === 'area'
   const [note, setNote] = useState('')
@@ -129,7 +130,7 @@ export default function RoomInfo({ room, me, onClose, onChanged, onLeft, onShowP
                 <div className="mt-2.5 text-[17px] font-bold text-neutral-900">{room.name}</div>
                 {room.about && <div className="mt-0.5 text-[13px] text-neutral-500">{room.about}</div>}
                 {!isDesk && <div className="mt-1 text-[12px] text-neutral-400">{bnNum(room.members)} জন সদস্য</div>}
-                {isDesk && <div className="mt-2 text-[12px] text-neutral-500 bg-neutral-50 rounded-xl px-3 py-2">🔒 এই আলাপ শুধু সংবাদদাতা নিজে এবং ডেস্কের এডিটর ও পাবলিশাররা দেখতে পান।</div>}
+                {isDesk && <div className="mt-2 text-[12px] text-neutral-500 bg-neutral-50 rounded-xl px-3 py-2">{room.kind === 'dm' ? '🔒 ব্যক্তিগত মেসেজ — শুধু আপনারা দুজন দেখতে পান।' : '🔒 এই আলাপ শুধু সংবাদদাতা নিজে এবং ডেস্কের এডিটর ও পাবলিশাররা দেখতে পান।'}</div>}
               </>
             )}
           </div>

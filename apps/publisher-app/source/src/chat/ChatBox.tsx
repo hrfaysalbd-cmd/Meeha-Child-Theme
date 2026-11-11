@@ -17,7 +17,7 @@ import { bnNum, DEFAULT_LABELS, shortWhen } from './util'
  *                        one at a time on a phone.
  */
 
-type Filter = 'all' | 'unread' | 'urgent' | 'desk'
+type Filter = 'all' | 'unread' | 'urgent' | 'desk' | 'dm'
 
 const ICONS = ['👥', '📸', '🎥', '⚽', '🏛️', '💼', '📢', '🗳️', '🌾', '🏥', '🎓', '⚖️']
 
@@ -87,7 +87,7 @@ function NewRoom({ onClose, onCreated }: { onClose: () => void; onCreated: (id: 
 
 function RoomRow({ r, active, labels, onClick }: { r: Room; active: boolean; labels: ChatLabel[]; onClick: () => void }) {
   const unread = r.unread > 0
-  const deskAvatar = r.kind === 'desk' && r.avatar ? { id: r.id, name: r.name, avatar: r.avatar } : undefined
+  const deskAvatar = (r.kind === 'desk' || r.kind === 'dm') && r.avatar ? { id: r.id, name: r.name, avatar: r.avatar } : undefined
   return (
     <button
       type="button"
@@ -138,6 +138,7 @@ export default function ChatBox({
   const [newMenu, setNewMenu] = useState(false)
   const [newRoom, setNewRoom] = useState(false)
   const [deskPick, setDeskPick] = useState(false)
+  const [dmPick, setDmPick] = useState(false)
   const [pushOpen, setPushOpen] = useState(false)
   const push = usePush()
   const [selected, setSelected] = useState<number | null>(roomId)
@@ -201,6 +202,7 @@ export default function ChatBox({
     if (filter === 'unread') l = l.filter((r) => r.unread > 0)
     if (filter === 'urgent') l = l.filter((r) => r.urgent > 0 || r.last?.label === 'urgent')
     if (filter === 'desk') l = l.filter((r) => r.kind === 'desk')
+    if (filter === 'dm') l = l.filter((r) => r.kind === 'dm')
     return l
   }, [data, q, filter])
 
@@ -217,9 +219,9 @@ export default function ChatBox({
     return () => clearTimeout(t)
   }, [q, staff])
 
-  const openDesk = async (uid: number) => {
+  const openDesk = async (uid: number, dm = false) => {
     try {
-      const r = await ChatApi.openDesk(uid)
+      const r = await (dm ? ChatApi.openDm(uid) : ChatApi.openDesk(uid))
       setQ('')
       load()
       open(r.id)
@@ -265,6 +267,10 @@ export default function ChatBox({
                       <span className="block text-[14px] font-medium">✉️ সংবাদদাতাকে লিখুন</span>
                       <span className="block text-[11.5px] text-neutral-500">তাঁর সঙ্গে ডেস্কের সরাসরি আলাপ</span>
                     </button>
+                    <button type="button" onClick={() => (setNewMenu(false), setDmPick(true))} className="w-full text-left rounded-xl px-3 py-2.5 hover:bg-neutral-50" data-testid="chat-new-dm">
+                      <span className="block text-[14px] font-medium">💬 ব্যক্তিগত মেসেজ</span>
+                      <span className="block text-[11.5px] text-neutral-500">এডিটর বা পাবলিশারকে একান্তে লিখুন</span>
+                    </button>
                     <button type="button" onClick={() => (setNewMenu(false), setNewRoom(true))} className="w-full text-left rounded-xl px-3 py-2.5 hover:bg-neutral-50" data-testid="chat-new-room">
                       <span className="block text-[14px] font-medium">👥 নতুন রুম</span>
                       <span className="block text-[11.5px] text-neutral-500">টিম, বিট বা ঘটনার জন্য আলাদা রুম</span>
@@ -281,7 +287,7 @@ export default function ChatBox({
               ['all', 'সব'],
               ['unread', unreadRooms ? `অপঠিত (${unreadRooms})` : 'অপঠিত'],
               ['urgent', '🚨 জরুরি'],
-              ...(me.staff ? ([['desk', '✉️ সংবাদদাতা']] as [Filter, string][]) : []),
+              ...(me.staff ? ([['desk', '✉️ সংবাদদাতা'], ['dm', '💬 ব্যক্তিগত']] as [Filter, string][]) : []),
             ] as [Filter, string][]
           ).map(([k, l]) => (
             <button
@@ -340,8 +346,8 @@ export default function ChatBox({
               <button
                 key={p.id}
                 type="button"
-                disabled={p.role !== 'সংবাদদাতা'}
-                onClick={() => void openDesk(p.id)}
+                disabled={!p.role || p.id === me.id}
+                onClick={() => void openDesk(p.id, p.role !== 'সংবাদদাতা')}
                 className="w-full flex items-center gap-3 px-3 py-2 text-left rounded-xl hover:bg-neutral-50 disabled:hover:bg-transparent"
               >
                 <Avatar p={p} size={38} />
@@ -352,7 +358,7 @@ export default function ChatBox({
                     {p.area ? ` · ${p.area}` : ''}
                   </span>
                 </span>
-                {p.role === 'সংবাদদাতা' && <span className="shrink-0 text-[12px] font-semibold text-brand-600">✉️ লিখুন</span>}
+                {!!p.role && p.id !== me.id && <span className="shrink-0 text-[12px] font-semibold text-brand-600">{p.role === 'সংবাদদাতা' ? '✉️ লিখুন' : '💬 মেসেজ'}</span>}
               </button>
             ))}
           </div>
@@ -389,6 +395,18 @@ export default function ChatBox({
             setNewRoom(false)
             load()
             open(id)
+          }}
+        />
+      )}
+      {dmPick && (
+        <PeoplePicker
+          title="কাকে ব্যক্তিগত মেসেজ দেবেন?"
+          onlyStaff
+          exclude={[me.id]}
+          onClose={() => setDmPick(false)}
+          onPick={async ([uid]) => {
+            setDmPick(false)
+            await openDesk(uid, true)
           }}
         />
       )}

@@ -475,6 +475,16 @@ class NROS_Core {
 		if ( class_exists( 'NROS_Push' ) ) {
 			dbDelta( NROS_Push::schema( $charset_collate ) );
 		}
+
+		// 1.26.0 — স্টেশনারি (saved designs) + আইডি কার্ড (orders, cards).
+		if ( class_exists( 'NROS_Brand' ) ) {
+			dbDelta( NROS_Brand::schema( $charset_collate ) );
+		}
+		if ( class_exists( 'NROS_ID_Cards' ) ) {
+			foreach ( NROS_ID_Cards::schema( $charset_collate ) as $idc_sql ) {
+				dbDelta( $idc_sql );
+			}
+		}
 	}
 
 	/**

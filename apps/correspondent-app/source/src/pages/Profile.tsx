@@ -251,6 +251,21 @@ export default function Profile() {
 
       {notice && <Banner kind="success">{notice}</Banner>}
 
+      {/* r43 — মিহা আইডি কার্ড */}
+      <button
+        type="button"
+        onClick={() => navigate('/app/idcard')}
+        className="w-full flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#071a36] to-[#0d3a78] text-white px-4 py-3.5 mb-6 text-left shadow-sm active:scale-[0.99] transition"
+        data-testid="idcard-entry"
+      >
+        <span className="w-11 h-11 rounded-xl bg-white/10 ring-1 ring-[#C9A54C]/60 flex items-center justify-center text-[22px]">🪪</span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-[15px] font-bold">মিহা আইডি কার্ড</span>
+          <span className="block text-[12px] text-white/75">আবেদন, আপনার কার্ড, ভিজিটিং কার্ড ও নিয়োগপত্র</span>
+        </span>
+        <span className="text-[#e6cf8f] text-[18px]">›</span>
+      </button>
+
       <p className="text-[13px] font-semibold text-neutral-700 mb-2">প্রোফাইল তথ্য</p>
       <div className="rounded-2xl border border-neutral-100 px-4 mb-6">
         <InfoRow label="ইমেইল" value={profile?.email ?? ''} />

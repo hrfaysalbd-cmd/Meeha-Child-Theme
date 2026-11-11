@@ -136,6 +136,16 @@ export default function Settings() {
       {error && <Banner kind="error">{error}</Banner>}
       {success && <Banner kind="success">{success}</Banner>}
 
+      {/* r43 — মিহার তথ্য is saved once and used by every card, letter and print file */}
+      <Link to="/app/stationery?tab=org" className="flex items-center gap-3 p-4 mb-5 max-w-xl rounded-2xl bg-gradient-to-r from-brand-600 to-brand-700 text-white shadow-sm">
+        <span className="text-[22px]">🏢</span>
+        <span className="flex-1">
+          <span className="block text-[14px] font-bold">মিহার তথ্য (যোগাযোগ, অফিস, স্বাক্ষর, সিল)</span>
+          <span className="block text-[12px] text-white/80">একবার লিখুন — আইডি কার্ড, প্যাড, লেটারহেড, নিয়োগপত্রসহ সব ডিজাইনে বসবে।</span>
+        </span>
+        <span>→</span>
+      </Link>
+
       <Card className="p-5 mb-5 max-w-xl">
         <p className="text-[14px] font-semibold text-neutral-800 mb-4">আপনার প্রোফাইল ছবি</p>
         <input
