@@ -772,6 +772,13 @@ class NROS_Core {
 			NROS_Prompts::migrate_legacy_options();
 		}
 
+		// r42 — one-time: copy photos changed in the app onto the website
+		// (own flag, so a later db bump never re-runs it).
+		if ( class_exists( 'NROS_Media' ) && ! get_option( 'nros_avatar_sync_v1' ) ) {
+			update_option( 'nros_avatar_sync_v1', time(), false );
+			NROS_Media::backfill_site_avatars();
+		}
+
 		update_option( 'nros_db_version', NROS_DB_VERSION );
 	}
 

@@ -49,6 +49,9 @@ class NROS_Media {
 	 */
 	public static function init() {
 		add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
+		// r42: one profile photo for the app AND the website (see site_avatar_src()).
+		add_filter( 'get_avatar_url', array( __CLASS__, 'filter_avatar_url' ), 20, 2 );
+		add_action( 'meeha_avatar_saved', array( __CLASS__, 'on_site_avatar_saved' ), 10, 1 );
 	}
 
 	/**
@@ -137,25 +140,256 @@ class NROS_Media {
 	}
 
 	/**
-	 * Resolves a user's avatar URL: a custom-uploaded photo if one was set
-	 * via POST /me/avatar, falling back to WordPress's own Gravatar lookup
-	 * otherwise — so a user who never uploads a photo sees the exact same
-	 * behavior as before this feature existed.
+	 * User meta that the website (theme) reads for a person's photo: every
+	 * byline, author box, comment and photocard goes through the theme's
+	 * get_avatar_url filter, which returns this URL. It is THE one source of
+	 * truth for "this person's photo" (r42). Uploads from the app write it
+	 * too (sync_site_avatar()), so the app and the website can never again
+	 * show two different photos.
+	 */
+	const SITE_AVATAR_META = 'meeha_avatar';
+	const SITE_AVATAR_FILE = 'meeha_avatar_file';
+	const SITE_AVATAR_DIR  = 'meeha-avatars';
+
+	/**
+	 * Resolves a user's avatar URL from the one shared source: the site
+	 * photo (meeha_avatar), else the app-uploaded attachment (only until it
+	 * has been synced), else WordPress's own Gravatar lookup — so a user who
+	 * never uploads a photo sees the exact same behavior as before.
 	 *
 	 * @param int $user_id User id.
 	 * @return string
 	 */
 	public static function avatar_url( $user_id ) {
-		$attachment_id = (int) get_user_meta( $user_id, '_nros_avatar_id', true );
+		$src = self::site_avatar_src( (int) $user_id );
+		if ( '' !== $src ) {
+			return $src;
+		}
+		return get_avatar_url( $user_id, array( 'size' => 128 ) );
+	}
 
+	/**
+	 * The custom photo URL for a user, or '' when they have none.
+	 *
+	 * @param int $user_id User id.
+	 * @return string
+	 */
+	public static function site_avatar_src( $user_id ) {
+		if ( ! $user_id ) {
+			return '';
+		}
+		$site = (string) get_user_meta( $user_id, self::SITE_AVATAR_META, true );
+		if ( '' !== $site && wp_http_validate_url( $site ) ) {
+			return $site;
+		}
+		$attachment_id = (int) get_user_meta( $user_id, '_nros_avatar_id', true );
 		if ( $attachment_id && wp_attachment_is_image( $attachment_id ) ) {
 			$url = wp_get_attachment_image_url( $attachment_id, 'thumbnail' );
 			if ( $url ) {
-				return $url;
+				return (string) $url;
 			}
 		}
+		return '';
+	}
 
-		return get_avatar_url( $user_id, array( 'size' => 128 ) );
+	/**
+	 * get_avatar_url filter (priority 20, after the theme's): the same
+	 * shared photo everywhere WordPress shows an avatar — bylines, chat,
+	 * comments — even if the theme filter is missing.
+	 *
+	 * @param string $url         URL so far.
+	 * @param mixed  $id_or_email User id, WP_User, WP_Post, comment or email.
+	 * @return string
+	 */
+	public static function filter_avatar_url( $url, $id_or_email ) {
+		$user_id = 0;
+		if ( is_numeric( $id_or_email ) ) {
+			$user_id = (int) $id_or_email;
+		} elseif ( $id_or_email instanceof WP_User ) {
+			$user_id = (int) $id_or_email->ID;
+		} elseif ( $id_or_email instanceof WP_Post ) {
+			$user_id = (int) $id_or_email->post_author;
+		} elseif ( $id_or_email instanceof WP_Comment ) {
+			$user_id = (int) $id_or_email->user_id;
+		} elseif ( is_string( $id_or_email ) && is_email( $id_or_email ) ) {
+			$u       = get_user_by( 'email', $id_or_email );
+			$user_id = $u ? (int) $u->ID : 0;
+		}
+		$src = self::site_avatar_src( $user_id );
+		return '' !== $src ? $src : $url;
+	}
+
+	/**
+	 * Copies an app-uploaded avatar attachment into the website's photo
+	 * slot: a 256×256 centre crop in uploads/meeha-avatars (the same place
+	 * and size the website's own "ছবি বদলান" uses), then points meeha_avatar
+	 * at it. The new file has a random name, so page caches and browsers
+	 * pick up the new photo instead of a cached old one.
+	 *
+	 * @param int  $user_id         User id.
+	 * @param int  $attachment_id   App avatar attachment.
+	 * @param bool $delete_previous Delete the previous site photo file.
+	 * @return string New URL ('' on failure).
+	 */
+	public static function sync_site_avatar( $user_id, $attachment_id, $delete_previous = true ) {
+		$user_id       = (int) $user_id;
+		$attachment_id = (int) $attachment_id;
+		if ( ! $user_id || ! $attachment_id || ! wp_attachment_is_image( $attachment_id ) ) {
+			return '';
+		}
+		$prev_path = (string) get_user_meta( $user_id, self::SITE_AVATAR_FILE, true );
+		$url       = '';
+		$path      = '';
+
+		$source = get_attached_file( $attachment_id );
+		$up     = wp_upload_dir( null, false );
+		if ( $source && is_readable( $source ) && empty( $up['error'] ) ) {
+			$dir = trailingslashit( $up['basedir'] ) . self::SITE_AVATAR_DIR;
+			if ( wp_mkdir_p( $dir ) ) {
+				if ( ! file_exists( $dir . '/index.php' ) ) {
+					@file_put_contents( $dir . '/index.php', "<?php\n// Silence is golden.\n" ); // phpcs:ignore
+				}
+				$editor = wp_get_image_editor( $source );
+				if ( ! is_wp_error( $editor ) ) {
+					$size = $editor->get_size();
+					$side = min( (int) $size['width'], (int) $size['height'] );
+					if ( $side > 0 ) {
+						$editor->crop(
+							(int) floor( ( $size['width'] - $side ) / 2 ),
+							(int) floor( ( $size['height'] - $side ) / 2 ),
+							$side,
+							$side,
+							min( 256, $side ),
+							min( 256, $side )
+						);
+					}
+					$mime  = (string) get_post_mime_type( $attachment_id );
+					$ext   = 'image/png' === $mime ? 'png' : ( 'image/webp' === $mime ? 'webp' : 'jpg' );
+					$saved = $editor->save( $dir . '/' . bin2hex( random_bytes( 12 ) ) . '.' . $ext );
+					if ( ! is_wp_error( $saved ) && ! empty( $saved['path'] ) ) {
+						$path = (string) $saved['path'];
+						$url  = trailingslashit( $up['baseurl'] ) . self::SITE_AVATAR_DIR . '/' . basename( $path );
+					}
+				}
+			}
+		}
+		if ( '' === $url ) {
+			// No image editor on this host: point at the attachment itself.
+			$url = (string) wp_get_attachment_image_url( $attachment_id, 'medium' );
+		}
+		if ( '' === $url ) {
+			return '';
+		}
+
+		update_user_meta( $user_id, self::SITE_AVATAR_META, esc_url_raw( $url ) );
+		if ( '' !== $path ) {
+			update_user_meta( $user_id, self::SITE_AVATAR_FILE, $path );
+		} else {
+			delete_user_meta( $user_id, self::SITE_AVATAR_FILE );
+		}
+		update_user_meta( $user_id, '_nros_avatar_synced', $attachment_id );
+
+		if ( $delete_previous && $prev_path && $prev_path !== $path ) {
+			self::delete_site_avatar_file( $prev_path );
+		}
+		return $url;
+	}
+
+	/**
+	 * Deletes an old site photo file — only a real image inside
+	 * uploads/meeha-avatars, never an attachment or anything else.
+	 *
+	 * @param string $path File path.
+	 */
+	protected static function delete_site_avatar_file( $path ) {
+		$up = wp_upload_dir( null, false );
+		if ( ! empty( $up['error'] ) || '' === (string) $path ) {
+			return;
+		}
+		$base = wp_normalize_path( trailingslashit( $up['basedir'] ) . self::SITE_AVATAR_DIR . '/' );
+		$file = wp_normalize_path( (string) $path );
+		if ( 0 === strpos( $file, $base ) && false === strpos( $file, '..' ) && is_file( $file ) && preg_match( '/\.(jpe?g|png|webp|gif)$/i', $file ) ) {
+			wp_delete_file( $file );
+		}
+	}
+
+	/**
+	 * The website's own photo upload (theme action meeha_avatar_saved) is
+	 * now the newest photo: drop the older app attachment so nothing can
+	 * ever fall back to it.
+	 *
+	 * @param int $user_id User id.
+	 */
+	public static function on_site_avatar_saved( $user_id ) {
+		$user_id = (int) $user_id;
+		$old     = (int) get_user_meta( $user_id, '_nros_avatar_id', true );
+		delete_user_meta( $user_id, '_nros_avatar_id' );
+		delete_user_meta( $user_id, '_nros_avatar_synced' );
+		if ( $old ) {
+			wp_delete_attachment( $old, true );
+		}
+	}
+
+	/**
+	 * One-time backfill (r42): people who changed their photo in the app
+	 * before this fix only have it as an attachment, while the website kept
+	 * showing their old subscriber photo (or none). For each of them, the
+	 * NEWER of the two photos becomes the shared one. Old photo files are
+	 * kept on disk here (never deleted by the backfill).
+	 *
+	 * @return int Users whose website photo was updated.
+	 */
+	public static function backfill_site_avatars() {
+		$users = get_users(
+			array(
+				'meta_key' => '_nros_avatar_id', // phpcs:ignore WordPress.DB.SlowDBQuery
+				'fields'   => 'ID',
+				'number'   => 5000,
+			)
+		);
+		$done  = 0;
+		foreach ( $users as $user_id ) {
+			$user_id       = (int) $user_id;
+			$attachment_id = (int) get_user_meta( $user_id, '_nros_avatar_id', true );
+			if ( ! $attachment_id || ! wp_attachment_is_image( $attachment_id ) ) {
+				continue;
+			}
+			if ( (int) get_user_meta( $user_id, '_nros_avatar_synced', true ) === $attachment_id ) {
+				continue;
+			}
+			$app_time  = (int) get_post_time( 'U', true, $attachment_id );
+			$site_time = self::site_avatar_time( $user_id );
+			if ( $site_time > $app_time ) {
+				// The website photo is newer: it already is the shared one.
+				update_user_meta( $user_id, '_nros_avatar_synced', $attachment_id );
+				continue;
+			}
+			if ( '' !== self::sync_site_avatar( $user_id, $attachment_id, false ) ) {
+				++$done;
+			}
+		}
+		return $done;
+	}
+
+	/**
+	 * When the current website photo was saved (file time), 0 if none/unknown.
+	 *
+	 * @param int $user_id User id.
+	 * @return int
+	 */
+	protected static function site_avatar_time( $user_id ) {
+		$url = (string) get_user_meta( $user_id, self::SITE_AVATAR_META, true );
+		if ( '' === $url ) {
+			return 0;
+		}
+		$path = (string) get_user_meta( $user_id, self::SITE_AVATAR_FILE, true );
+		if ( '' === $path ) {
+			$up = wp_upload_dir( null, false );
+			if ( empty( $up['error'] ) && 0 === strpos( $url, $up['baseurl'] ) ) {
+				$path = $up['basedir'] . substr( $url, strlen( $up['baseurl'] ) );
+			}
+		}
+		return ( '' !== $path && false === strpos( $path, '..' ) && is_file( $path ) ) ? (int) filemtime( $path ) : 0;
 	}
 
 	/**
@@ -550,6 +784,9 @@ class NROS_Media {
 			wp_delete_attachment( $previous_id, true );
 		}
 
+		// r42: the website shows this same new photo under the person's news.
+		self::sync_site_avatar( $user->ID, $attachment_id, true );
+
 		return new WP_REST_Response(
 			array(
 				'ok'     => true,
@@ -572,9 +809,18 @@ class NROS_Media {
 		$previous_id = (int) get_user_meta( $user->ID, '_nros_avatar_id', true );
 
 		delete_user_meta( $user->ID, '_nros_avatar_id' );
+		delete_user_meta( $user->ID, '_nros_avatar_synced' );
 
 		if ( $previous_id ) {
 			wp_delete_attachment( $previous_id, true );
+		}
+
+		// r42: removing the photo in the app removes it on the website too.
+		$site_file = (string) get_user_meta( $user->ID, self::SITE_AVATAR_FILE, true );
+		delete_user_meta( $user->ID, self::SITE_AVATAR_META );
+		delete_user_meta( $user->ID, self::SITE_AVATAR_FILE );
+		if ( $site_file ) {
+			self::delete_site_avatar_file( $site_file );
 		}
 
 		return new WP_REST_Response(

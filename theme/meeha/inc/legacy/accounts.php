@@ -495,6 +495,11 @@ function meeha_save_user_avatar( $user_id, $file, $check_uploaded = true ) {
 	}
 	update_user_meta( $user_id, 'meeha_avatar', esc_url_raw( $stored['url'] ) );
 	update_user_meta( $user_id, 'meeha_avatar_file', $stored['path'] );
+	/**
+	 * The website photo changed — newsroom-os drops the older app photo so
+	 * the app and the website keep showing one and the same photo.
+	 */
+	do_action( 'meeha_avatar_saved', $user_id, $stored['url'] );
 	return $stored['url'];
 }
 
