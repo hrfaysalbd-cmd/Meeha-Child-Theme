@@ -14,6 +14,9 @@ const typeLabel: Record<string, string> = {
   video: 'ভিডিও পেমেন্ট',
   view_bonus: 'ভিউ-স্ল্যাব বোনাস',
   salary: 'মাসিক স্যালারি',
+  idcard_fee: 'আইডি কার্ড ফি',
+  assignment: 'কাজের সম্মানী',
+  travel: 'যাতায়াত ভাতা',
 }
 
 const wStatusLabel: Record<string, { label: string; cls: string }> = {

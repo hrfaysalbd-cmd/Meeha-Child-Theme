@@ -108,6 +108,8 @@ class NROS_Ledger {
 			'view_bonus'    => 'ভিউ-স্ল্যাব বোনাস',
 			'salary'        => 'মাসিক স্যালারি',
 			'idcard_fee'    => 'আইডি কার্ড ফি',
+			'assignment'    => 'কাজের সম্মানী',
+			'travel'        => 'যাতায়াত ভাতা',
 		);
 	}
 

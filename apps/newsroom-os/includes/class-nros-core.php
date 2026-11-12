@@ -485,6 +485,13 @@ class NROS_Core {
 				dbDelta( $idc_sql );
 			}
 		}
+
+		// 1.27.0 — মাঠ (assignments, claims, safety, RTI).
+		if ( class_exists( 'NROS_Field' ) ) {
+			foreach ( NROS_Field::schema( $charset_collate ) as $field_sql ) {
+				dbDelta( $field_sql );
+			}
+		}
 	}
 
 	/**

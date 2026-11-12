@@ -488,6 +488,9 @@ class NROS_Notifications {
 		if ( class_exists( 'NROS_ID_Cards' ) ) {
 			$counts['idcards'] = NROS_ID_Cards::badge();
 		}
+		if ( class_exists( 'NROS_Field' ) ) {
+			$counts['field'] = NROS_Field::badge();
+		}
 		if ( NROS_Core::financial_visible_to( $user ) ) {
 			$counts['withdrawals'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}nros_withdraw_requests WHERE status = 'pending'" );
 		}

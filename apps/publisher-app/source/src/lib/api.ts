@@ -367,6 +367,8 @@ export interface NotificationCounts {
   profile_desk?: number
   /** r43 — ID card orders waiting for the desk (newsroom-os 1.26.0). */
   idcards?: number
+  /** r44 — মাঠ ডেস্ক: SOS / late check-ins + work to accept */
+  field?: number
 }
 
 export interface NotificationsPoll {

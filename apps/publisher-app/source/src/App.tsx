@@ -37,6 +37,8 @@ const PhotocardStudio = lazy(() => import('./pages/PhotocardStudio'))
 // r43 — স্টেশনারি (designs + PDF writer in its own chunk).
 const Stationery = lazy(() => import('./pages/Stationery'))
 const IdCards = lazy(() => import('./pages/IdCards'))
+// r44 — মাঠ ডেস্ক: paid jobs, field safety, coverage
+const FieldDesk = lazy(() => import('./pages/FieldDesk'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
@@ -137,6 +139,14 @@ export default function App() {
           element={
             <Suspense fallback={<Spinner className="mt-10" />}>
               <Stationery />
+            </Suspense>
+          }
+        />
+        <Route
+          path="field"
+          element={
+            <Suspense fallback={<Spinner className="mt-10" />}>
+              <FieldDesk />
             </Suspense>
           }
         />

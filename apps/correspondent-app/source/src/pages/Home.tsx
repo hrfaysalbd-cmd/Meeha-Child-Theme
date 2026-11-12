@@ -525,6 +525,8 @@ export default function Home() {
         নতুন সংবাদ লিখুন
       </button>
 
+      <FieldStrip onOpen={(t) => navigate(`/app/field?tab=${t}`)} />
+
       <NeedsFixCard items={submissions.filter((s) => statusGroup(s) === 'rejected')} onOpen={(id) => navigate(`/app/write/${id}`)} />
 
       <StatusOverview submissions={submissions} onOpen={(f) => navigate(`/app/news?status=${f}`)} />
@@ -718,6 +720,47 @@ export default function Home() {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * r44 — মাঠ: open paid jobs for this person's area + a straight way to
+ * safety (SOS / check-in) and the RTI helper.
+ */
+function FieldStrip({ onOpen }: { onOpen: (tab: 'jobs' | 'safety' | 'rti') => void }) {
+  const [info, setInfo] = useState<{ jobs: number; money: number; alert: boolean } | null>(null)
+  useEffect(() => {
+    let live = true
+    import('./Field')
+      .then(({ FieldApi }) => FieldApi.board())
+      .then((b) => {
+        if (!live) return
+        const mine = b.board.filter((a) => a.mine)
+        setInfo({ jobs: mine.length, money: mine.reduce((m, a) => Math.max(m, a.fee + a.travel), 0), alert: b.safety.some((s) => s.status === 'overdue' || s.kind === 'sos') })
+      })
+      .catch(() => undefined)
+    return () => {
+      live = false
+    }
+  }, [])
+  return (
+    <div className="grid grid-cols-[1fr_auto_auto] gap-2 mb-5" data-testid="field-strip">
+      <button type="button" onClick={() => onOpen('jobs')} className="rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white px-3.5 py-3 text-left active:scale-[0.99] transition">
+        <span className="block text-[12px] opacity-85">মাঠের কাজ · টাকাসহ</span>
+        <span className="block text-[15px] font-bold leading-snug">
+          {info && info.jobs > 0 ? `${bnNumber(info.jobs)}টি কাজ আপনার এলাকায়` : 'কাজের বোর্ড'}
+        </span>
+        {info && info.money > 0 && <span className="block text-[11.5px] opacity-90">সর্বোচ্চ ৳{bnNumber(Math.round(info.money))}</span>}
+      </button>
+      <button type="button" onClick={() => onOpen('safety')} className={`rounded-2xl px-3 py-3 text-center active:scale-[0.98] transition ${info?.alert ? 'bg-red-600 text-white animate-pulse' : 'bg-red-50 text-red-700'}`} aria-label="নিরাপত্তা">
+        <span className="block text-[20px] leading-none">🛡️</span>
+        <span className="block text-[11.5px] font-bold mt-1">নিরাপত্তা</span>
+      </button>
+      <button type="button" onClick={() => onOpen('rti')} className="rounded-2xl bg-blue-50 text-blue-800 px-3 py-3 text-center active:scale-[0.98] transition" aria-label="তথ্য অধিকার">
+        <span className="block text-[20px] leading-none">📜</span>
+        <span className="block text-[11.5px] font-bold mt-1">তথ্য অধিকার</span>
+      </button>
     </div>
   )
 }

@@ -181,9 +181,19 @@ function SavedList({ saved, onOpen, onDelete }: { saved: SavedDoc[] | null; onOp
 
 function Editor({ design, ctx, doc, cardId, saved, onBack, onSaved }: { design: Design; ctx: Ctx; doc?: SavedDoc; cardId: number; saved: SavedDoc[]; onBack: () => void; onSaved: (d: SavedDoc) => void }) {
   const navigate = useNavigate()
+  const [sp] = useSearchParams()
   const start = useMemo<Values>(() => {
     const base = design.defaults(ctx.org)
     if (doc) return { ...base, ...doc.data }
+    // r44 — opened from মাঠ ডেস্ক › কভারেজ: a preset plus a few filled lines
+    const p = Number(sp.get('p') ?? -1)
+    if (p >= 0 && design.presets?.[p]) Object.assign(base, design.presets[p].values)
+    try {
+      const fill = JSON.parse(sp.get('fill') || '{}') as Record<string, unknown>
+      for (const [k, x] of Object.entries(fill)) if (typeof x === 'string' && design.fields.some((f) => f.key === k)) base[k] = x.slice(0, 300)
+    } catch {
+      // a broken link just opens the plain design
+    }
     // a running number for স্মারক নং (count of saved letters of this kind + 1)
     if (base.ref && base.ref.endsWith('/')) {
       const n = saved.filter((s) => s.kind === design.kind).length + 1

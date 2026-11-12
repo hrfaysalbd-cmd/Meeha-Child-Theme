@@ -59,6 +59,9 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- r35: the app downloads its own update and opens Android's installer -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- r44: SOS and check-in send the place to the desk (asked only when used) -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />

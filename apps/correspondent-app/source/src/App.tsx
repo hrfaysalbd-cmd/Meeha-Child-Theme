@@ -18,6 +18,8 @@ import NotificationSettings from './pages/NotificationSettings'
 import { Suspense, lazy } from 'react'
 // r43 — আইডি কার্ড (design + PDF code loads only when it opens)
 const IdCard = lazy(() => import('./pages/IdCard'))
+// r44 — মাঠ: কাজের বোর্ড, নিরাপত্তা, তথ্য অধিকার
+const FieldPage = lazy(() => import('./pages/Field'))
 
 function Root() {
   const { profile, loading } = useAuth()
@@ -82,6 +84,14 @@ export default function App() {
         <Route path="live" element={<Live />} />
         <Route path="live/:id" element={<Live />} />
         <Route path="chat" element={<Chat />} />
+        <Route
+          path="field"
+          element={
+            <Suspense fallback={<div className="py-16 flex justify-center"><Spinner /></div>}>
+              <FieldPage />
+            </Suspense>
+          }
+        />
         <Route
           path="idcard"
           element={
