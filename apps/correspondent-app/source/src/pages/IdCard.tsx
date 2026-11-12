@@ -34,7 +34,7 @@ import {
 import { cardBack, cardFront, cardPages, type CardContext, type CardData } from '../brand/idcard'
 import { exportPages } from '../brand/export'
 import { ExportBar, FlipCard, SvgBox, fileToDataUrl, useBrandFonts } from '../brand/ui'
-import { ORG_FALLBACK, bnDate, bnDigits } from '../brand/util'
+import { withOrg, bnDate, bnDigits } from '../brand/util'
 import { VC_TEMPLATES, visitingFront, visitingPages } from '../brand/visiting'
 import { designOf } from '../brand/stationery'
 import { MediaApi } from '../lib/api'
@@ -100,7 +100,7 @@ export default function IdCardPage() {
   const load = useCallback(() => {
     IdCardApi.me()
       .then((r) => {
-        setMe({ ...r, org: { ...ORG_FALLBACK, ...r.org } })
+        setMe({ ...r, org: withOrg(r.org) })
         setErr('')
       })
       .catch((e: Error) => setErr(e.message || 'লোড করা গেল না'))

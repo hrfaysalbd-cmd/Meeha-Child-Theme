@@ -30,7 +30,7 @@ import {
 import { cardBack, cardFront, cardPages, cardSheet, ID_TEMPLATES, type CardData } from '../brand/idcard'
 import { exportPages, printPages } from '../brand/export'
 import { ExportBar, FlipCard, SvgBox, useBrandFonts } from '../brand/ui'
-import { ORG_FALLBACK, bnDate, bnDigits, type BrandAssets, type OrgInfo } from '../brand/util'
+import { ORG_FALLBACK, withOrg, bnDate, bnDigits, type BrandAssets, type OrgInfo } from '../brand/util'
 import { visitingPages } from '../brand/visiting'
 import { useAuth } from '../lib/AuthContext'
 import { Badge, Banner, Button, Card, EmptyState, Field, KpiCard, PageHeader, Spinner, inputClass } from '../components/ui'
@@ -84,7 +84,7 @@ function useBrand(): Brand | null {
   const [b, setB] = useState<Brand | null>(null)
   useEffect(() => {
     Promise.all([BrandApi.org(), IdAdminApi.settings()])
-      .then(([o, s]) => setB({ org: { ...ORG_FALLBACK, ...o.org }, assets: o.assets ?? {}, terms: s.settings.back_terms }))
+      .then(([o, s]) => setB({ org: withOrg(o.org), assets: o.assets ?? {}, terms: s.settings.back_terms }))
       .catch(() => setB({ org: ORG_FALLBACK, assets: {}, terms: [] }))
   }, [])
   return b

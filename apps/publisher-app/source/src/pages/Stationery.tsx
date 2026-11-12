@@ -10,7 +10,7 @@ import { BrandApi, IdAdminApi, appointmentOf, type IdCard, type SavedDoc } from 
 import { DESIGNS, KINDS, designOf, type Ctx, type Design, type Values } from '../brand/stationery'
 import { ExportBar, SvgBox, fileToDataUrl, useBrandFonts } from '../brand/ui'
 import { exportPages } from '../brand/export'
-import { ORG_FALLBACK, bnDigits, type BrandAssets, type OrgInfo } from '../brand/util'
+import { ORG_FALLBACK, withOrg, bnDigits, type BrandAssets, type OrgInfo } from '../brand/util'
 import OrgInfoForm from '../components/brand/OrgInfoForm'
 import { Banner, Button, Card, Field, PageHeader, Spinner, inputClass } from '../components/ui'
 
@@ -29,7 +29,7 @@ export default function Stationery() {
   useEffect(() => {
     BrandApi.org()
       .then((r) => {
-        setOrg({ ...ORG_FALLBACK, ...r.org })
+        setOrg(withOrg(r.org))
         setAssets(r.assets ?? {})
       })
       .catch((e) => {
@@ -89,7 +89,7 @@ export default function Stationery() {
       {tab === 'org' && (
         <OrgInfoForm
           onSaved={(o, a) => {
-            setOrg({ ...ORG_FALLBACK, ...o })
+            setOrg(withOrg(o))
             setAssets(a)
           }}
         />
@@ -369,7 +369,7 @@ function Editor({ design, ctx, doc, cardId, saved, onBack, onSaved }: { design: 
           </Card>
           <Card className="p-4 space-y-3">
             <p className="text-[13px] font-semibold text-neutral-700">ডাউনলোড</p>
-            <ExportBar pages={() => (view === 'mockup' ? [{ svg: mock, w: 300, h: 200, name: 'mockup' }] : pages)} name={view === 'mockup' ? `${fileName}-mockup` : fileName} dpi={view === 'mockup' ? 150 : 300} onError={(m) => setMsg({ kind: 'error', text: m })} />
+            <ExportBar pages={() => (view === 'mockup' ? [{ svg: mock, w: 300, h: 200, name: 'mockup' }] : pages)} name={view === 'mockup' ? `${fileName}-mockup` : fileName} dpi={view === 'mockup' ? 150 : design.dpi ?? 300} onError={(m) => setMsg({ kind: 'error', text: m })} />
             <p className="text-[11.5px] text-neutral-400">PDF/JPG ৩০০ ডিপিআই (প্রেসে দেওয়ার মতো)। একদম ভেক্টর PDF চাইলে “প্রিন্ট” চাপুন → “Save as PDF”।</p>
             <div className="flex flex-wrap gap-2 pt-2 border-t border-neutral-100">
               <input className={`${inputClass} flex-1 min-w-[180px]`} placeholder="নাম দিয়ে সংরক্ষণ (যেমন: ডিসি অফিসে চিঠি)" value={title} onChange={(e) => setTitle(e.target.value)} />

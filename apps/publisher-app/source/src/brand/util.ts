@@ -3,6 +3,7 @@
  * letterheads …). Shared, byte-for-byte, by the publisher and
  * correspondent apps (src/brand/), like src/chat/.
  */
+import { setLogoStyle } from './logo'
 
 /** মিহার তথ্য (GET /brand/org) — saved once, used by every design. */
 export interface OrgInfo {
@@ -31,6 +32,8 @@ export interface OrgInfo {
   signature_url: string
   seal_url: string
   logo_url: string
+  /** r44: 'simple' (Meeha News, rounded) or 'serif' (Meehanews, slab) */
+  logo_style?: string
   color_primary: string
   color_accent: string
   color_gold: string
@@ -71,6 +74,7 @@ export const ORG_FALLBACK: OrgInfo = {
   signature_url: '',
   seal_url: '',
   logo_url: '',
+  logo_style: 'simple',
   color_primary: '#025AB2',
   color_accent: '#C8102E',
   color_gold: '#C9A54C',
@@ -244,3 +248,10 @@ export function guilloche(x: number, y: number, w: number, h: number, color: str
 /** A gold-foil linear gradient definition. */
 export const goldGrad = (id: string, angle = 0) =>
   `<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="${angle}"><stop offset="0" stop-color="#8a6a1f"/><stop offset=".22" stop-color="#e9d38c"/><stop offset=".45" stop-color="#b38a2e"/><stop offset=".7" stop-color="#f6e7ad"/><stop offset="1" stop-color="#9a7524"/></linearGradient>`
+
+/** r44: organisation info with defaults filled in; also sets the logo style the designs draw. */
+export function withOrg(o?: Partial<OrgInfo> | null): OrgInfo {
+  const org = { ...ORG_FALLBACK, ...(o ?? {}) }
+  setLogoStyle(org.logo_style)
+  return org
+}

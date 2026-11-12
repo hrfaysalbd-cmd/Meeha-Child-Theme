@@ -51,6 +51,7 @@ class NROS_Brand {
 			'signature_url'  => '',
 			'seal_url'       => '',
 			'logo_url'       => '',
+			'logo_style'     => 'simple',
 			'color_primary'  => '#025AB2',
 			'color_accent'   => '#C8102E',
 			'color_gold'     => '#C9A54C',
@@ -142,6 +143,8 @@ class NROS_Brand {
 				$v = esc_url_raw( $v );
 			} elseif ( 0 === strpos( $k, 'color_' ) ) {
 				$v = sanitize_hex_color( $v ) ? sanitize_hex_color( $v ) : $def;
+			} elseif ( 'logo_style' === $k ) {
+				$v = in_array( $v, array( 'simple', 'serif' ), true ) ? $v : $def;
 			} elseif ( 0 === strpos( $k, 'address' ) ) {
 				$v = sanitize_textarea_field( $v );
 			} else {

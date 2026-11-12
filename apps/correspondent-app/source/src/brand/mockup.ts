@@ -16,7 +16,7 @@ export function place(svg: string, x: number, y: number, w: number, h: number, r
   return `<g transform="rotate(${rot} ${x + w / 2} ${y + h / 2})"${filter ? ` filter="url(#${filter})"` : ''}>${inner}</g>`
 }
 
-function scene(body: string, defs: string, bg: 'desk' | 'dark' | 'studio' = 'desk', caption = ''): string {
+export function scene(body: string, defs: string, bg: 'desk' | 'dark' | 'studio' = 'desk', caption = ''): string {
   const g = uid('sc')
   const bgs = {
     desk: `<linearGradient id="${g}bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#eef1f6"/><stop offset="1" stop-color="#d5dbe5"/></linearGradient>`,
@@ -29,7 +29,7 @@ function scene(body: string, defs: string, bg: 'desk' | 'dark' | 'studio' = 'des
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${SCENE_W}mm" height="${SCENE_H}mm" viewBox="0 0 ${SCENE_W} ${SCENE_H}"><defs>${bgs[bg]}${defs}</defs><rect width="${SCENE_W}" height="${SCENE_H}" fill="url(#${g}bg)"/>${body}${cap}</svg>`
 }
 
-const shadow = (id: string, blur = 3, dy = 3, op = 0.32) =>
+export const shadow = (id: string, blur = 3, dy = 3, op = 0.32) =>
   `<filter id="${id}" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="${dy}" stdDeviation="${blur}" flood-color="#0b1220" flood-opacity="${op}"/></filter>`
 
 /** A sheet of paper (letterhead, pad, certificate, invitation …) on a desk with a pen. */

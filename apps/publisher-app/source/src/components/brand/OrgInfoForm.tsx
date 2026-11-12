@@ -4,8 +4,9 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { BrandApi } from '../../brand/api'
-import { ORG_FALLBACK, type BrandAssets, type OrgInfo } from '../../brand/util'
+import { withOrg, type BrandAssets, type OrgInfo } from '../../brand/util'
 import { MediaApi } from '../../lib/api'
+import { logo, mark, setLogoStyle } from '../../brand/logo'
 import { useAuth } from '../../lib/AuthContext'
 import { Banner, Button, Card, Field, Spinner, inputClass } from '../ui'
 
@@ -69,7 +70,7 @@ export default function OrgInfoForm({ onSaved }: { onSaved?: (o: OrgInfo, a: Bra
   useEffect(() => {
     BrandApi.org()
       .then((r) => {
-        setOrg({ ...ORG_FALLBACK, ...r.org })
+        setOrg(withOrg(r.org))
         setAssets(r.assets ?? {})
       })
       .catch((e) => setMsg({ kind: 'error', text: e.message }))
@@ -77,7 +78,10 @@ export default function OrgInfoForm({ onSaved }: { onSaved?: (o: OrgInfo, a: Bra
 
   if (!org) return msg ? <Banner kind="error">{msg.text}</Banner> : <Spinner className="mt-6" />
 
-  const set = (k: Key, v: string) => setOrg((o) => (o ? { ...o, [k]: v } : o))
+  const set = (k: Key, v: string) => {
+    if (k === 'logo_style') setLogoStyle(v)
+    setOrg((o) => (o ? { ...o, [k]: v } : o))
+  }
 
   async function save() {
     if (!org) return
@@ -86,7 +90,7 @@ export default function OrgInfoForm({ onSaved }: { onSaved?: (o: OrgInfo, a: Bra
     try {
       await BrandApi.saveOrg(org)
       const r = await BrandApi.org()
-      setOrg({ ...ORG_FALLBACK, ...r.org })
+      setOrg(withOrg(r.org))
       setAssets(r.assets ?? {})
       onSaved?.(r.org, r.assets ?? {})
       setMsg({ kind: 'success', text: 'সংরক্ষিত হয়েছে — এখন থেকে সব কার্ড, চিঠি ও ডিজাইনে এই তথ্য বসবে।' })
@@ -127,6 +131,44 @@ export default function OrgInfoForm({ onSaved }: { onSaved?: (o: OrgInfo, a: Bra
           e.target.value = ''
         }}
       />
+      <Card className="p-4">
+        <p className="text-[14px] font-bold text-neutral-800 mb-1">লোগো</p>
+        <p className="text-[12.5px] text-neutral-500 mb-3">সব কার্ড, প্যাড, চিঠি ও ডিজাইনে এই লোগো বসবে — হালকা জমিনে নীল, গাঢ় জমিনে সাদা।</p>
+        <div className="grid sm:grid-cols-2 gap-3">
+          {(
+            [
+              ['simple', 'Meeha News (গোল অক্ষর)'],
+              ['serif', 'Meehanews (স্ল্যাব অক্ষর)'],
+            ] as const
+          ).map(([k, l]) => {
+            setLogoStyle(k)
+            const light = logo(6, 6, 188, org.color_primary || '#025AB2')
+            const dark = logo(6, 6, 188, '#ffffff')
+            setLogoStyle(org.logo_style)
+            const on = (org.logo_style || 'simple') === k
+            return (
+              <button
+                key={k}
+                type="button"
+                disabled={ro}
+                onClick={() => set('logo_style', k)}
+                className={`rounded-xl p-3 text-left ring-1 transition ${on ? 'ring-2 ring-brand-600 bg-brand-50/40' : 'ring-neutral-200 bg-white'}`}
+              >
+                <svg viewBox="0 0 200 46" className="w-full h-auto" dangerouslySetInnerHTML={{ __html: light }} />
+                <svg viewBox="0 0 200 46" className="w-full h-auto mt-2 rounded-lg bg-[#0b2b57]" dangerouslySetInnerHTML={{ __html: dark }} />
+                <span className="block mt-2 text-[12.5px] font-semibold text-neutral-700">
+                  {on ? '✓ ' : ''}
+                  {l}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+        <div className="flex items-center gap-2 mt-3 text-[12px] text-neutral-500">
+          <svg viewBox="0 0 24 24" className="w-6 h-6" dangerouslySetInnerHTML={{ __html: mark(0, 0, 24, org.color_primary || '#025AB2') }} />
+          ছোট জায়গায় (আইকন, সিল, কোণে) গোল “M” চিহ্নটা বসে।
+        </div>
+      </Card>
       {GROUPS.map((g) => (
         <Card key={g.title} className="p-4">
           <p className="text-[14px] font-bold text-neutral-800 mb-3">{g.title}</p>

@@ -13,6 +13,7 @@ import { cardsScene, idScene, paperScene, penScene, SCENE_H, SCENE_W, stickerSce
 import type { Page } from './export'
 import { qr } from './qr'
 import { bnDate, bnDigits, esc, fitSize, goldGrad, guilloche, icon, lines, mix, svgDoc, textWidth, todayIso, uid, wrap, type BrandAssets, type OrgInfo } from './util'
+import { SOCIAL_DESIGNS } from './social'
 import { visitingBack, visitingFront, VC_H, VC_TEMPLATES, VC_W } from './visiting'
 
 export type Values = Record<string, string>
@@ -49,6 +50,8 @@ export interface Design {
   presets?: Preset[]
   render: (v: Values, c: Ctx, bleed?: number) => Page[]
   mockup: (v: Values, c: Ctx) => string
+  /** export resolution (social posts use 254 → 10 px per unit) */
+  dpi?: number
 }
 
 export const KINDS: { key: string; name: string; icon: string }[] = [
@@ -64,6 +67,7 @@ export const KINDS: { key: string; name: string; icon: string }[] = [
   { key: 'tshirt', name: 'টি-শার্ট', icon: '👕' },
   { key: 'sticker', name: 'স্টিকার', icon: '🏷️' },
   { key: 'pen', name: 'কলম', icon: '🖊️' },
+  { key: 'social', name: 'সোশ্যাল মিডিয়া পোস্ট', icon: '📣' },
 ]
 
 const on = (v: string | undefined) => v === '1' || v === 'true'
@@ -997,7 +1001,7 @@ const pen: Design = {
   mockup: (v, c) => penScene(penStrip(v, c.org), 'কলম'),
 }
 
-export const DESIGNS: Design[] = [letterhead, appointment, pad, visiting, idcard, invitation, certificate, envelope, lanyard, tshirt, sticker, pen]
+export const DESIGNS: Design[] = [...SOCIAL_DESIGNS, letterhead, appointment, pad, visiting, idcard, invitation, certificate, envelope, lanyard, tshirt, sticker, pen]
 
 export const designOf = (key: string) => DESIGNS.find((d) => d.key === key) ?? letterhead
 
