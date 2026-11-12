@@ -14,6 +14,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // r35: in-app update (download + Android's installer)
+        registerPlugin(ApkInstallerPlugin.class);
         super.onCreate(savedInstanceState);
         WebView wv = getBridge().getWebView();
         // The login's refresh cookie is set by meeha.news for the app's

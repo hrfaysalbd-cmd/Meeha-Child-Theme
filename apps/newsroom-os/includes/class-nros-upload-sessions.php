@@ -289,11 +289,21 @@ class NROS_Upload_Sessions {
 		}
 
 		self::cleanup();
+		self::drop_abandoned( (int) $user->ID );
+		// r35 (1.27.0): say at once when the disk cannot take the file, instead
+		// of failing on a later piece (the app used to retry that silently)
+		$free = function_exists( 'disk_free_space' ) ? @disk_free_space( self::dir() ) : false; // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		if ( is_numeric( $free ) && $free > 0 && $free < $size * 2 + 64 * MB_IN_BYTES ) {
+			return new WP_Error( 'nros_upload_storage', 'সার্ভারে এখন যথেষ্ট জায়গা নেই। ডেস্ককে জানান।', array( 'status' => 507 ) );
+		}
 		$id = bin2hex( random_bytes( 16 ) );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 		if ( false === @file_put_contents( self::part_path( $id ), '' ) ) {
 			return new WP_Error( 'nros_upload_failed', 'সার্ভারে অস্থায়ী ফাইল তৈরি করা যায়নি।', array( 'status' => 500 ) );
 		}
+		$open   = (array) get_user_meta( (int) $user->ID, 'nros_upsess_open', true );
+		$open[] = $id;
+		update_user_meta( (int) $user->ID, 'nros_upsess_open', array_slice( array_values( array_filter( $open ) ), -10 ) );
 		set_transient(
 			'nros_upsess_' . $id,
 			array(
@@ -560,6 +570,40 @@ class NROS_Upload_Sessions {
 		unset( $s['id'] );
 		set_transient( 'nros_upsess_' . $id, $s, HOUR_IN_SECONDS );
 		return new WP_REST_Response( $result, 201 );
+	}
+
+	/**
+	 * r35 (1.27.0) — a person's earlier uploads that stopped moving more than
+	 * 30 minutes ago are thrown away when they start a new one. Each failed
+	 * try of a big video used to stay on disk for a whole day, which could
+	 * fill the host and make every later upload fail.
+	 *
+	 * @param int $uid User.
+	 */
+	protected static function drop_abandoned( $uid ) {
+		$open = (array) get_user_meta( $uid, 'nros_upsess_open', true );
+		$keep = array();
+		foreach ( $open as $sid ) {
+			$sid = preg_replace( '/[^a-f0-9]/', '', (string) $sid );
+			if ( '' === $sid ) {
+				continue;
+			}
+			$path  = self::part_path( $sid );
+			$state = get_transient( 'nros_upsess_' . $sid );
+			$idle  = ! file_exists( $path ) || filemtime( $path ) < time() - 1800;
+			$done  = is_array( $state ) && ! empty( $state['result'] );
+			if ( $done || ( $idle && ! self::finishing( $sid ) ) ) {
+				if ( file_exists( $path ) ) {
+					wp_delete_file( $path );
+				}
+				if ( ! $done ) {
+					delete_transient( 'nros_upsess_' . $sid );
+				}
+				continue;
+			}
+			$keep[] = $sid;
+		}
+		update_user_meta( $uid, 'nros_upsess_open', $keep );
 	}
 
 	/**

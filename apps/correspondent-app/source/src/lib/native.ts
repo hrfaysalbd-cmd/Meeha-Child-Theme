@@ -244,3 +244,49 @@ export async function installedBuild(): Promise<{ code: number; name: string }> 
   const i = await App.getInfo()
   return { code: Number(i.build) || 0, name: i.version }
 }
+
+// ------------------------------------------------- r35: in-app update
+
+interface ApkInstallerPlugin {
+  canInstall(): Promise<{ allowed: boolean }>
+  openSettings(): Promise<void>
+  download(o: { url: string; versionCode: number }): Promise<{ path: string; versionCode: number }>
+  install(): Promise<{ started?: boolean; needPermission?: boolean }>
+  addListener(ev: 'progress', cb: (p: { loaded: number; total: number }) => void): Promise<{ remove: () => Promise<void> }>
+}
+
+/** Kept inside an object: a Capacitor plugin answers to `then` too (see pushPlugin). */
+async function apkPlugin(): Promise<{ P: ApkInstallerPlugin }> {
+  const { registerPlugin } = await import('@capacitor/core')
+  return { P: registerPlugin<ApkInstallerPlugin>('ApkInstaller') }
+}
+
+/**
+ * Downloads the new APK inside the app and opens Android's installer.
+ * Returns 'permission' when Android first needs "allow from this app";
+ * throws when this APK has no installer (older build) — then the caller
+ * falls back to the browser.
+ */
+export async function updateInApp(rel: AndroidRelease, onProgress: (ratio: number) => void): Promise<'started' | 'permission'> {
+  const { P } = await apkPlugin()
+  const h = await P.addListener('progress', (p) => onProgress(p.total > 0 ? p.loaded / p.total : 0))
+  try {
+    await P.download({ url: rel.url!, versionCode: rel.version_code })
+  } finally {
+    void h.remove()
+  }
+  return installDownloaded()
+}
+
+/** Opens Android's installer for the APK already downloaded. */
+export async function installDownloaded(): Promise<'started' | 'permission'> {
+  const { P } = await apkPlugin()
+  const r = await P.install()
+  return r.needPermission ? 'permission' : 'started'
+}
+
+/** Android's "allow installs from this app" screen. */
+export async function openInstallSettings() {
+  const { P } = await apkPlugin()
+  await P.openSettings()
+}

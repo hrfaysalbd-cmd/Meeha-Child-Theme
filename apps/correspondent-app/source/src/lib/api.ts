@@ -577,6 +577,8 @@ export interface UploadProgress {
   loaded: number
   total: number
   percent: number // 0–100, integer
+  /** r35: what the upload is doing when it is not simply sending (connecting, retrying, saving) */
+  status?: string
 }
 
 export interface AreasResponse {
@@ -855,6 +857,8 @@ function xhrPost(
   onProgress: ((p: UploadProgress) => void) | undefined,
   signal: AbortSignal | undefined,
   timeoutMs: number = VIDEO_UPLOAD_TIMEOUT_MS,
+  /** r35: give up on this request when its upload makes no progress for this long (only once progress was seen) */
+  stallMs = 0,
 ): Promise<{ status: number; text: string }> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -862,9 +866,20 @@ function xhrPost(
       return
     }
     const xhr = new XMLHttpRequest()
+    let stalled = false
+    let watch: ReturnType<typeof setTimeout> | undefined
+    const arm = () => {
+      if (!stallMs) return
+      clearTimeout(watch)
+      watch = setTimeout(() => {
+        stalled = true
+        xhr.abort()
+      }, stallMs)
+    }
     const onAbortSignal = () => xhr.abort()
     const endUpload = trackUpload()
     const done = () => {
+      clearTimeout(watch)
       endUpload()
       signal?.removeEventListener('abort', onAbortSignal)
     }
@@ -877,6 +892,7 @@ function xhrPost(
     if (form instanceof Blob) xhr.setRequestHeader('Content-Type', 'application/octet-stream')
 
     xhr.upload.onprogress = (e) => {
+      arm()
       if (!onProgress || !e.lengthComputable || e.total <= 0) return
       onProgress({ loaded: e.loaded, total: e.total, percent: Math.min(100, Math.floor((e.loaded / e.total) * 100)) })
     }
@@ -894,10 +910,12 @@ function xhrPost(
     }
     xhr.onabort = () => {
       done()
-      reject(cancelledError(path))
+      reject(stalled ? connectionError(new RequestTimeout('stalled'), path) : cancelledError(path))
     }
     signal?.addEventListener('abort', onAbortSignal)
+    xhr.upload.onloadend = () => clearTimeout(watch) // the server is now working on the reply
     xhr.send(form)
+    arm()
   })
 }
 
@@ -1226,8 +1244,8 @@ function worthRetrying(err: unknown) {
 }
 
 /** One piece (raw bytes) with a fresh token on 401. */
-async function sendPiece(path: string, piece: Blob, onProgress: (loaded: number) => void, signal?: AbortSignal) {
-  const go = () => xhrPost(path, piece, (p) => onProgress(p.loaded), signal, 5 * 60_000)
+async function sendPiece(path: string, piece: Blob, onProgress: (loaded: number) => void, signal?: AbortSignal, timeoutMs = 5 * 60_000, stallMs = 0) {
+  const go = () => xhrPost(path, piece, (p) => onProgress(p.loaded), signal, timeoutMs, stallMs)
   let res = await go()
   if (res.status === 401) {
     await renewAfterUnauthorized(path)
@@ -1236,66 +1254,170 @@ async function sendPiece(path: string, piece: Blob, onProgress: (loaded: number)
   return parseApiResponse<{ received: number }>(res.status, res.text, path)
 }
 
+/**
+ * r35: errors no retry can fix — the server's disk is full or it cannot
+ * write its temporary file. Before, these were retried silently for up to
+ * ~25 minutes while the screen sat at "০% · ০ কেবি".
+ */
+function storageError(err: unknown) {
+  return err instanceof ApiError && (err.status === 507 || (err.status >= 500 && err.code === 'nros_upload_failed'))
+}
+
+/** r35: the same file picked again resumes its earlier upload (kept on the phone for 20 hours). */
+const RESUME_KEY = (f: File) => `nros-upsess:${f.name}:${f.size}:${f.lastModified}`
+const RESUME_MS = 20 * 3600_000
+function rememberSession(f: File, id: string | null) {
+  try {
+    if (id) localStorage.setItem(RESUME_KEY(f), JSON.stringify({ id, at: Date.now() }))
+    else localStorage.removeItem(RESUME_KEY(f))
+  } catch {
+    // private mode / full storage: just no resume
+  }
+}
+function earlierSession(f: File): string | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(RESUME_KEY(f)) || 'null') as { id?: string; at?: number } | null
+    return v?.id && v.at && Date.now() - v.at < RESUME_MS ? v.id : null
+  } catch {
+    return null
+  }
+}
+
+const KB = 1024
+const MIN_PIECE = 256 * KB
+const FIRST_PIECE = 1024 * KB
+
 async function uploadVideoInPieces(file: File, chunkMax: number, onProgress?: (p: UploadProgress) => void, signal?: AbortSignal): Promise<VideoUploadResult> {
-  const report = (loaded: number) => onProgress?.({ loaded, total: file.size, percent: Math.min(100, Math.floor((loaded / file.size) * 100)) })
+  let status = ''
+  let loadedNow = 0
+  const report = (loaded: number) => {
+    loadedNow = loaded
+    onProgress?.({ loaded, total: file.size, percent: Math.min(100, Math.floor((loaded / file.size) * 100)), status })
+  }
+  const say = (text: string) => {
+    status = text
+    report(loadedNow)
+  }
   let fails = 0
-  const retry = async <T,>(fn: () => Promise<T>): Promise<T> => {
+  const retry = async <T,>(fn: () => Promise<T>, what: string, max = 60): Promise<T> => {
     for (;;) {
       if (signal?.aborted) throw cancelledError('/media/upload-session')
       try {
-        return await fn()
+        const r = await fn()
+        return r
       } catch (err) {
-        if (!worthRetrying(err) || ++fails > 60) throw err
-        await pauseFor(Math.min(30_000, 2000 * Math.pow(1.6, Math.min(fails, 8))), signal)
+        if (!worthRetrying(err) || storageError(err) || ++fails > max) throw err
+        const wait = Math.min(30_000, 2000 * Math.pow(1.6, Math.min(fails, 8)))
+        say(`${what} — ${navigator.onLine === false ? 'নেট নেই, ফিরলেই আবার শুরু' : `আবার চেষ্টা (${bnDigits(fails)})`}`)
+        await pauseFor(wait, signal)
       }
     }
   }
-  const s = await retry(() => request<{ id: string; chunk_size: number }>('/media/upload-session', { method: 'POST', body: { kind: 'video', name: file.name, size: file.size } }))
-  const full = Math.max(262144, Math.min(s.chunk_size || chunkMax || 4194304, 4 * 1048576))
-  let chunk = full
+
+  say('সার্ভারের সঙ্গে সংযোগ হচ্ছে…')
+  // the same file again: pick up where the last try stopped
+  let id = earlierSession(file)
   let received = 0
-  report(0)
+  if (id) {
+    try {
+      const st = await request<{ received: number; size: number; done: boolean }>(`/media/upload-session/${id}`)
+      if (st.size === file.size && !st.done) received = st.received
+      else id = null
+    } catch {
+      id = null
+    }
+  }
+  let full = Math.max(MIN_PIECE, Math.min(chunkMax || 4194304, 4 * 1048576))
+  if (!id) {
+    // a few quick tries only: when the server keeps failing here, say so
+    const sess = await retry(() => request<{ id: string; chunk_size: number }>('/media/upload-session', { method: 'POST', body: { kind: 'video', name: file.name, size: file.size } }), 'সংযোগ হয়নি', 6)
+    id = sess.id
+    full = Math.max(MIN_PIECE, Math.min(sess.chunk_size || full, 4 * 1048576))
+    rememberSession(file, id)
+  } else if (received > 0) {
+    say(`আগের আপলোড থেকে চলছে (${formatBytes(received)} আগেই পৌঁছেছে)`)
+  }
+  const sid = id
+  fails = 0
+  // start small, so the first bytes show at once even on a weak line; grow when it is fast
+  let chunk = Math.min(full, FIRST_PIECE)
+  let sawProgress = false
+  status = received > 0 ? status : ''
+  report(received)
   while (received < file.size) {
     const from = received
     const piece = file.slice(from, Math.min(file.size, from + chunk))
+    // time allowed: at least 60 s, or what 6 KB/s needs, at most 5 minutes
+    const allow = Math.min(300_000, Math.max(60_000, (piece.size / (6 * KB)) * 1000))
     try {
       const t0 = Date.now()
-      const r = await sendPiece(`/media/upload-session/${s.id}/chunk?offset=${from}`, piece, (l) => report(from + l), signal)
+      const r = await sendPiece(
+        `/media/upload-session/${sid}/chunk?offset=${from}`,
+        piece,
+        (l) => {
+          if (l > 0) sawProgress = true
+          report(from + l)
+        },
+        signal,
+        allow,
+        sawProgress ? 75_000 : 0,
+      )
       received = r.received
+      fails = 0
+      if (status) status = ''
+      report(received)
       const took = Date.now() - t0
-      // r33: a slow line gets smaller pieces (each one finishes well inside
-      // the timeout); a fast one grows back to the full size
-      if (took > 45_000) chunk = Math.max(262144, Math.floor(chunk / 2))
-      else if (chunk < full && took < 15_000) chunk = Math.min(full, chunk * 2)
+      if (took > 40_000) chunk = Math.max(MIN_PIECE, Math.floor(chunk / 2))
+      else if (chunk < full && took < 12_000) chunk = Math.min(full, chunk * 2)
     } catch (err) {
+      if (signal?.aborted) throw cancelledError('/media/upload-session')
+      if (storageError(err)) {
+        rememberSession(file, null)
+        throw new ApiError('সার্ভারে এখন জায়গা নেই বা ফাইল লেখা যাচ্ছে না। আবার চেষ্টা করে লাভ হবে না — ডেস্ককে জানান।', (err as ApiError).status, 'nros_upload_storage', 'server', '/media/upload-session')
+      }
       const conflict = err instanceof ApiError && err.status === 409
+      const gone = err instanceof ApiError && err.status === 404
+      if (gone) {
+        // the server forgot this upload (older than a day): start over
+        rememberSession(file, null)
+        throw new ApiError('আগের আপলোডটি সার্ভারে আর নেই — আবার চেষ্টা করুন, নতুন করে শুরু হবে।', 404, 'nros_upload_session_missing', 'server', '/media/upload-session')
+      }
       if (err instanceof ApiError && err.status === 413) {
-        // the host refuses bodies this big: smaller pieces from now on
-        chunk = Math.max(262144, Math.floor(chunk / 2))
+        chunk = Math.max(MIN_PIECE, Math.floor(chunk / 2))
+        full = chunk
       } else if (!conflict) {
         if (!worthRetrying(err) || ++fails > 60) throw err
-        chunk = Math.max(262144, Math.floor(chunk / 2))
+        chunk = Math.max(MIN_PIECE, Math.floor(chunk / 2))
+        say(`${navigator.onLine === false ? 'নেট নেই — ফিরলেই আবার চলবে' : `লাইন দুর্বল — আবার চেষ্টা (${bnDigits(fails)})`}`)
         await pauseFor(Math.min(30_000, 2000 * Math.pow(1.6, Math.min(fails, 8))), signal)
       }
-      received = (await retry(() => request<{ received: number }>(`/media/upload-session/${s.id}`))).received
+      received = (await retry(() => request<{ received: number }>(`/media/upload-session/${sid}`), 'অবস্থান মিলানো হচ্ছে')).received
       report(received)
     }
   }
   // Saving a big file into the library can outlast one reply: a timeout or a
   // 409 from a second "finish" while the first still runs is not a failure —
   // watch the status until the server says the file is in.
+  status = 'সার্ভারে সংরক্ষণ হচ্ছে…'
   report(file.size)
   for (let round = 0; round < 80; round++) {
     try {
-      const res = await request<VideoUploadResult & { processing?: boolean }>(`/media/upload-session/${s.id}/finish`, { method: 'POST', body: {}, timeoutMs: 330_000 })
-      if (!res.processing && res.id) return res
+      const res = await request<VideoUploadResult & { processing?: boolean }>(`/media/upload-session/${sid}/finish`, { method: 'POST', body: {}, timeoutMs: 330_000 })
+      if (!res.processing && res.id) {
+        rememberSession(file, null)
+        return res
+      }
     } catch (err) {
       const conflict = err instanceof ApiError && err.status === 409
+      if (storageError(err)) {
+        rememberSession(file, null)
+        throw err
+      }
       if (!conflict && (!worthRetrying(err) || ++fails > 60)) throw err
     }
     await pauseFor(round < 6 ? 5000 : 10000, signal)
-    const st = await retry(() => request<{ received: number; size: number; done: boolean; processing?: boolean }>(`/media/upload-session/${s.id}`))
-    if (!st.done && !st.processing && st.received > 0 && st.received < file.size) throw new ApiError('ভিডিওর একটি অংশ সার্ভারে পৌঁছায়নি — আবার আপলোড করুন।', 409, 'nros_upload_incomplete', 'server', `/media/upload-session/${s.id}`)
+    const st = await retry(() => request<{ received: number; size: number; done: boolean; processing?: boolean }>(`/media/upload-session/${sid}`), 'সংরক্ষণের খবর নেওয়া হচ্ছে')
+    if (!st.done && !st.processing && st.received > 0 && st.received < file.size) throw new ApiError('ভিডিওর একটি অংশ সার্ভারে পৌঁছায়নি — আবার আপলোড করুন।', 409, 'nros_upload_incomplete', 'server', `/media/upload-session/${sid}`)
   }
-  throw new ApiError('সার্ভার ভিডিওটি সংরক্ষণ শেষ করেনি — একটু পরে আবার চেষ্টা করুন।', 0, 'nros_finish_slow', 'timeout', `/media/upload-session/${s.id}`)
+  throw new ApiError('সার্ভার ভিডিওটি সংরক্ষণ শেষ করেনি — একটু পরে আবার চেষ্টা করুন।', 0, 'nros_finish_slow', 'timeout', `/media/upload-session/${sid}`)
 }

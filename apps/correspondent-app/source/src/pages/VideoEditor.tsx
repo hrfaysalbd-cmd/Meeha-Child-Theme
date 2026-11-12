@@ -64,6 +64,8 @@ interface UploadState {
   phase?: 'check' | 'shrink' | 'send'
   /** e.g. "৬১২ MB → ৯৮ MB · ৭২০p · প্রায় ৪ মিনিট" */
   note?: string
+  /** r35: connecting / retrying / saving — shown instead of a silent 0% */
+  status?: string
 }
 
 /** r33: keep the screen on while a long shrink/upload runs (where allowed). */
@@ -312,7 +314,8 @@ export default function VideoEditor() {
             if (!live() || (shrinkCancelled && err instanceof shrinkCancelled)) return
             // could not re-encode here: the original still goes if the server takes it
             if (serverMax > 0 && file.size > serverMax) throw new ApiError('এই ফোনে ভিডিওটি ছোট করা গেল না, আর আসল ফাইলটি সার্ভারের সীমার চেয়ে বড়। ভিডিওটি কেটে ছোট করে বা কম রেজোলিউশনে রেকর্ড করে আবার দিন।', 413, 'nros_video_too_large', 'client', '/media/video')
-            note = 'ছোট করা গেল না — আসল ফাইলটিই যাচ্ছে'
+            const why = err instanceof Error && err.message ? err.message : ''
+            note = `ছোট করা গেল না${why ? ` (${why})` : ''} — আসল ফাইলটিই যাচ্ছে`
           }
         }
       }
@@ -731,6 +734,11 @@ export default function VideoEditor() {
                             ? `ফোনে ছোট করা হচ্ছে · ${upload.note ?? ''}`
                             : `${formatBytes(upload.loaded)} / ${formatBytes(upload.total)}${upload.note ? ' · ' + upload.note : ''}`}
                       </p>
+                      {upload.phase === 'send' && upload.status && (
+                        <p className="text-[11.5px] font-medium text-amber-700" data-testid="upload-status">
+                          {upload.status}
+                        </p>
+                      )}
                     </div>
                     <span className="text-[15px] font-bold text-brand-600 tabular-nums">{bnNumber(upload.percent)}%</span>
                     <button
