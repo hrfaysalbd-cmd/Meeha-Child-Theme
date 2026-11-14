@@ -478,6 +478,8 @@ function meeha_news_seo_policy_links() {
 	foreach ( array(
 		'editorial-policy'   => 'সম্পাদকীয় নীতি',
 		'corrections-policy' => 'সংশোধন নীতি',
+		'advertising-policy' => 'বিজ্ঞাপন নীতিমালা',
+		'contact-policy'     => 'যোগাযোগের নীতিমালা',
 	) as $slug => $label ) {
 		$p = get_page_by_path( $slug );
 		if ( $p && 'publish' === $p->post_status ) {
