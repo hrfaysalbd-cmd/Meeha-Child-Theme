@@ -225,7 +225,7 @@ function meeha_single_policy_url() {
 		return (string) $cached;
 	}
 	$url = '';
-	foreach ( array( 'correction-policy', 'corrections', 'songshodhoni-niti' ) as $slug ) {
+	foreach ( array( 'corrections-policy', 'correction-policy', 'corrections', 'songshodhoni-niti' ) as $slug ) {
 		$p = get_page_by_path( $slug );
 		if ( $p && 'publish' === $p->post_status ) {
 			$url = get_permalink( $p );

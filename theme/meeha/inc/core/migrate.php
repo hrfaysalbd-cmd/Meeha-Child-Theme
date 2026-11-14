@@ -232,6 +232,12 @@ function meeha_migrate_run( $trigger = 'manual' ) {
 		$add( 'meeha_publisher রোল', 'warn', 'রোলটি এখনো নেই (newsroom-os প্লাগইন চালু হলে স্বয়ংক্রিয়ভাবে অনুমতি পাবে)' );
 	}
 
+	/* ---- 3b. editorial / corrections policy pages (created once, never overwritten) ---- */
+	if ( function_exists( 'meeha_policy_pages_ensure' ) ) {
+		$made = meeha_policy_pages_ensure();
+		$add( 'নীতি পাতা', 'ok', $made ? 'তৈরি হলো: ' . implode( ', ', $made ) : 'আগে থেকেই আছে (বদলানো হয়নি)' );
+	}
+
 	/* ---- 4. rewrites (deferred to the next init, after every CPT is registered) ---- */
 	update_option( 'meeha_flush_rewrites', 1, false );
 	$add( 'পার্মালিংক', 'ok', 'পরের পাতা-লোডে নতুন করে তৈরি হবে' );

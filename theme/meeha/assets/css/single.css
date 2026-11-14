@@ -121,6 +121,8 @@ html:not(.m-dekjs) .m-dek__toggle { display: none; }
 .m-authorbox { display: grid; grid-template-columns: 72px 1fr; gap: 6px 16px; padding: var(--m-s5) 0; border-block: 1px solid var(--m-line); }
 .m-authorbox__photo { grid-row: span 3; width: 72px; height: 72px; border-radius: 50%; overflow: hidden; }
 .m-authorbox__name { color: var(--m-ink); font: 700 1.125rem/1.4 var(--m-font-head); }
+.m-authorbox__name a { color: inherit; text-decoration: none; }
+.m-authorbox__name a:hover { text-decoration: underline; }
 .m-authorbox__role { color: var(--m-muted); font-size: var(--m-fs-sm); }
 .m-authorbox p { font-size: .9375rem; line-height: 1.7; }
 .m-authorbox__links { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 4px; font-size: var(--m-fs-sm); }

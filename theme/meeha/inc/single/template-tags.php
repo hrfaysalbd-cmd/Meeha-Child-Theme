@@ -453,7 +453,7 @@ function meeha_single_author_box( $post, $variant ) {
 	$count = $uid ? (int) count_user_posts( $uid, 'post', true ) : 0;
 	echo '<div class="m-authorbox' . ( $by['is_guest'] ? ' m-authorbox--guest' : '' ) . '">';
 	echo '<span class="m-authorbox__photo">' . meeha_byline_photo_html( $by, 72 ) . '</span>'; // phpcs:ignore WordPress.Security.EscapeOutput
-	echo '<p class="m-authorbox__name">' . esc_html( $name ) . '</p>';
+	echo '<p class="m-authorbox__name">' . ( $by['url'] ? '<a href="' . esc_url( $by['url'] ) . '" rel="author">' . esc_html( $name ) . '</a>' : esc_html( $name ) ) . '</p>';
 	echo '<p class="m-authorbox__role">' . esc_html( '' !== $role ? $role : ( $by['is_guest'] ? 'অতিথি লেখক' : 'মিহা নিউজ' ) ) . '</p>';
 	echo '<div>';
 	if ( '' !== $bio ) {
@@ -482,8 +482,8 @@ function meeha_single_correction( $post ) {
 	}
 	$html = esc_html( $text );
 	$url  = meeha_single_policy_url();
-	if ( $url && false !== strpos( $html, 'সংশোধনী নীতি' ) ) {
-		$html = preg_replace( '/সংশোধনী নীতি/u', '<a href="' . esc_url( $url ) . '">সংশোধনী নীতি</a>', $html, 1 );
+	if ( $url && preg_match( '/সংশোধনী? নীতি/u', $html ) ) {
+		$html = preg_replace( '/(সংশোধনী? নীতি)/u', '<a href="' . esc_url( $url ) . '">$1</a>', $html, 1 );
 	}
 	echo '<div class="m-correction"><p class="m-correction__text">' . $html . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped above.
 	if ( function_exists( 'meeha_render_report_button' ) ) {

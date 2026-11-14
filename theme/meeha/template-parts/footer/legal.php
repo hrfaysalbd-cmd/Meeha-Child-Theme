@@ -20,6 +20,20 @@ if ( null !== $meeha_tree ) {
 		}
 	}
 }
+// 2.4.11: সম্পাদকীয় নীতি / সংশোধন নীতি always sit beside the other legal links (Google News trust signals).
+if ( function_exists( 'meeha_news_seo_policy_links' ) ) {
+	$meeha_have = array_map(
+		function ( $l ) {
+			return untrailingslashit( (string) wp_parse_url( $l[1], PHP_URL_PATH ) );
+		},
+		$meeha_links
+	);
+	foreach ( meeha_news_seo_policy_links() as $meeha_pl ) {
+		if ( ! in_array( untrailingslashit( (string) wp_parse_url( $meeha_pl[1], PHP_URL_PATH ) ), $meeha_have, true ) ) {
+			$meeha_links[] = $meeha_pl;
+		}
+	}
+}
 $meeha_year = wp_date( 'Y', null, new DateTimeZone( 'Asia/Dhaka' ) );
 $meeha_copy = str_replace( '{year}', meeha_bn_digits( $meeha_year ), (string) meeha_opt( 'footer', 'copyright', '' ) );
 ?>

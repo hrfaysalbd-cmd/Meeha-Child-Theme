@@ -11,7 +11,7 @@
 defined( 'ABSPATH' ) || exit;
 
 if ( ! defined( 'MEEHA_VERSION' ) ) {
-	define( 'MEEHA_VERSION', '2.4.10' );
+	define( 'MEEHA_VERSION', '2.4.11' );
 }
 if ( ! defined( 'MEEHA_DIR' ) ) {
 	define( 'MEEHA_DIR', untrailingslashit( get_template_directory() ) );
@@ -37,6 +37,8 @@ foreach ( array(
 	'assets',
 	'perf',
 	'seo',
+	'news-seo',
+	'policy-pages',
 	'elementor',
 	'setup',
 	'migrate',

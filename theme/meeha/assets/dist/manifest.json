@@ -1,5 +1,5 @@
 {
-    "generated": "2026-11-03T03:34:20+00:00",
+    "generated": "2026-11-14T04:43:51+00:00",
     "bundles": {
         "core": {
             "css": [
@@ -226,8 +226,8 @@
             ],
             "deps": [],
             "css_file": "single.min.css",
-            "css_ver": "f6f7265bbd",
-            "css_bytes": 17432,
+            "css_ver": "6c6794285e",
+            "css_bytes": 17541,
             "js_file": "single.min.js",
             "js_ver": "657cc99513",
             "js_bytes": 11589
@@ -480,8 +480,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/single.css"
             ],
-            "bytes": 61895,
-            "gzip": 12586
+            "bytes": 62004,
+            "gzip": 12605
         },
         "literature": {
             "file": "critical-literature.min.css",
