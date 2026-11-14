@@ -318,8 +318,6 @@ function meeha_policy_pages_ensure() {
 	$pages = array(
 		'editorial-policy'   => array( 'সম্পাদকীয় নীতি', 'meeha_policy_editorial_html' ),
 		'corrections-policy' => array( 'সংশোধন নীতি', 'meeha_policy_corrections_html' ),
-		'advertising-policy' => array( 'বিজ্ঞাপন নীতিমালা', 'meeha_policy_advertising_html' ),
-		'contact-policy'     => array( 'যোগাযোগের নীতিমালা', 'meeha_policy_contact_policy_html' ),
 	);
 	foreach ( $pages as $slug => $def ) {
 		$exists = get_posts(

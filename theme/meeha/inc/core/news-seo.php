@@ -253,23 +253,72 @@ add_filter(
 	}
 );
 
+/*
+ * 2.4.13: Rank Math's own rule `([^/]+?)-sitemap([0-9]+)?\.xml$` also matches news-sitemap.xml and answers 404
+ * (its News Sitemap is not in the free version). So (1) put our rule first in the rewrite table and (2) answer the
+ * request ourselves on wp_loaded — before any plugin parses the request — by looking at the request path.
+ */
+add_filter(
+	'rewrite_rules_array',
+	function ( $rules ) {
+		return array( '^news-sitemap\.xml$' => 'index.php?meeha_news_sitemap=1' ) + (array) $rules;
+	},
+	9999
+);
+
+/**
+ * Whether this request is for /news-sitemap.xml (also below a sub-folder install, or ?meeha_news_sitemap=1).
+ *
+ * @return bool
+ */
+function meeha_news_sitemap_is_request() {
+	if ( is_admin() || wp_doing_ajax() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
+		return false;
+	}
+	if ( isset( $_GET['meeha_news_sitemap'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		return true;
+	}
+	$uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+	$path = (string) wp_parse_url( $uri, PHP_URL_PATH );
+	$base = (string) wp_parse_url( home_url( '/' ), PHP_URL_PATH );
+	return strtolower( untrailingslashit( $path ) ) === strtolower( untrailingslashit( $base ) . '/news-sitemap.xml' );
+}
+
+/**
+ * Send the news sitemap and stop.
+ */
+function meeha_news_sitemap_send() {
+	$xml = meeha_news_sitemap_xml();
+	if ( ! headers_sent() ) {
+		status_header( 200 );
+		header( 'Content-Type: application/xml; charset=UTF-8' );
+		header_remove( 'X-Robots-Tag' );
+		// LiteSpeed Cache: short public TTL so fresh stories show up within ~5 minutes.
+		header( 'X-LiteSpeed-Cache-Control: public,max-age=300' );
+		header( 'Cache-Control: public, max-age=300' );
+	}
+	do_action( 'litespeed_control_set_ttl', 300 );
+	echo $xml; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	exit;
+}
+
+add_action(
+	'wp_loaded',
+	function () {
+		if ( meeha_news_sitemap_is_request() ) {
+			meeha_news_sitemap_send();
+		}
+	},
+	0
+);
+
+// Fallback: the rewrite rule / query var path.
 add_action(
 	'template_redirect',
 	function () {
-		if ( ! get_query_var( 'meeha_news_sitemap' ) ) {
-			return;
+		if ( get_query_var( 'meeha_news_sitemap' ) ) {
+			meeha_news_sitemap_send();
 		}
-		$xml = meeha_news_sitemap_xml();
-		if ( ! headers_sent() ) {
-			status_header( 200 );
-			header( 'Content-Type: application/xml; charset=UTF-8' );
-			// LiteSpeed Cache: short public TTL so fresh stories show up within ~5 minutes.
-			header( 'X-LiteSpeed-Cache-Control: public,max-age=300' );
-			header( 'Cache-Control: public, max-age=300' );
-		}
-		do_action( 'litespeed_control_set_ttl', 300 );
-		echo $xml; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-		exit;
 	},
 	0
 );
@@ -478,8 +527,6 @@ function meeha_news_seo_policy_links() {
 	foreach ( array(
 		'editorial-policy'   => 'সম্পাদকীয় নীতি',
 		'corrections-policy' => 'সংশোধন নীতি',
-		'advertising-policy' => 'বিজ্ঞাপন নীতিমালা',
-		'contact-policy'     => 'যোগাযোগের নীতিমালা',
 	) as $slug => $label ) {
 		$p = get_page_by_path( $slug );
 		if ( $p && 'publish' === $p->post_status ) {
