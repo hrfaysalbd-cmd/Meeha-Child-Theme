@@ -33,6 +33,7 @@ if ( ! $meeha_logged && home_url( '/' ) === $meeha_account ) {
 		<a class="m-masthead__brand" href="<?php echo esc_url( home_url( '/' ) ); ?>" aria-label="<?php echo esc_attr( $meeha_name . ' — প্রথম পাতা' ); ?>"<?php echo is_front_page() ? ' aria-current="page"' : ''; ?>><?php echo meeha_logo( 'main' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><?php if ( $meeha_tagline ) : ?><span class="m-masthead__tagline"><?php echo esc_html( $meeha_tagline ); ?></span><?php endif; ?></a>
 		<div class="m-masthead__actions">
 			<a class="m-searchbtn" href="<?php echo esc_url( home_url( '/?s=' ) ); ?>" data-open="m-search" aria-label="খুঁজুন" aria-haspopup="dialog"><?php echo meeha_icon( 'search' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><span>খবর খুঁজুন</span><kbd>/</kbd></a>
+			<?php do_action( 'meeha_masthead_actions' ); // r46: সংরক্ষিত (পরে পড়ুন) icon. ?>
 			<?php if ( $meeha_h['show_account'] ) : ?>
 				<a class="m-iconbtn m-hide-sm" href="<?php echo esc_url( $meeha_account ); ?>" aria-label="<?php echo esc_attr( $meeha_logged ? 'আমার অ্যাকাউন্ট' : 'লগ ইন' ); ?>"><?php echo meeha_icon( 'user', array( 'size' => 'lg' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></a>
 			<?php endif; ?>

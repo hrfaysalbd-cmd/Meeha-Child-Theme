@@ -375,6 +375,15 @@
 		}
 		var s = w / 252, h = 44 * s;
 		if ( 'right' === align ) { x -= w; } else if ( 'center' === align ) { x -= w / 2; }
+		var bl = BRANDP && ! ( A && A.logoImg ) ? cfg().brandLogo : null;
+		if ( bl && bl.d && bl.w > 0 && bl.h > 0 && root.Path2D ) {
+			/* 2.4.14: the real Meeha wordmark (configure({ brandLogo: { d, w, h } })) on the উক্তি কার্ড */
+			if ( ! brandPath || brandPath.d !== bl.d ) { brandPath = { d: bl.d, p: new Path2D( bl.d ) }; }
+			var bk = Math.min( w / bl.w, h * 1.3 / bl.h ), bw = bl.w * bk, bh = bl.h * bk;
+			var bx = x + ( 'right' === align ? w - bw : ( 'center' === align ? ( w - bw ) / 2 : 0 ) ), by = top + ( h - bh ) / 2;
+			ctx.save(); ctx.translate( bx, by ); ctx.scale( bk, bk ); ctx.fillStyle = color; ctx.fill( brandPath.p, 'evenodd' ); ctx.restore();
+			return;
+		}
 		if ( A && A.logoImg ) {
 			/* site logo image: always on a white rounded plate (clear on white, blue or photo backgrounds); only a
 			   configured light logo on a dark background is drawn without the plate */
@@ -3004,6 +3013,533 @@
 		} }
 	};
 
+	/* ================================================================== 2.4.14 · উক্তি কার্ড (round 46)
+	   Eighteen quote photocards, each with its own way of placing the speaker's photo (circle with a ring, half
+	   split, diagonal cut, arch window, duotone, polaroid, cinema fade, side strip with a name plate, hexagon, blob,
+	   torn paper, newspaper clipping, frosted glass, giant quote glyph, magazine cover, minimal signature, black and
+	   gold, speech bubble). Text: the quote (any length, never cut: the size steps down until every word fits),
+	   speaker, পদবি and an optional source/date line; the Meeha logo and meeha.news on every card. Shades follow
+	   opts.palette (Meeha blue when 'auto'); opts.accent (#rrggbb, e.g. the photo's own colour) replaces the warm
+	   accent. data.speaker_focus {x,y} (0–100) and data.speaker_zoom crop the photo (the studio's smart focus). */
+	var UK_BLUE = { label: 'মিহা নীল', a: '#013A75', b: '#025AB2', deep: '#012448', mid: '#0A6FD1', soft: '#5FA4EA', acc: '#FFC20E', accInk: '#1B1400', tint: '#CFE3F8' };
+	var BRANDP = false, brandPath = null;
+	function ukPal( d, o ) {
+		var P = Object.assign( {}, o.palette && NP[ o.palette ] && 'shok' !== o.palette ? NP[ o.palette ] : UK_BLUE );
+		if ( hexOk( o.accent ) ) { P.acc = o.accent; P.accInk = lum( o.accent ) > 0.33 ? '#141414' : '#FFFFFF'; }
+		return P;
+	}
+	function ukRoles( d, A ) {
+		var q = strKeepNl( d.text ).replace( /^[“"'‘«]+\s*/, '' ).replace( /\s*[”"'’»]+$/, '' );
+		var f = d.speaker_focus && isFinite( d.speaker_focus.x ) ? d.speaker_focus : { x: 50, y: 38 };
+		return { q: q, len: unmark( q ).length, name: str( d.speaker ), role: str( d.role ), src: str( d.source ), tag: str( d.type_label ) || 'উক্তি',
+			img: A.speakerPhoto || null, pf: f, pz: +d.speaker_zoom || 1 };
+	}
+	/* the quote fitted into w × h: as big as it can be, and never cut — below `min` it keeps stepping down */
+	function ukFit( ctx, text, s ) {
+		var long = unmark( text ).length > 230;
+		var base = Object.assign( { maxLines: 40, lh: long ? 1.5 : 1.42, fam: 'serif', weight: 700 }, s );
+		var r = fit( ctx, text, base ), mn = base.min;
+		while ( r.truncated && mn > 16 ) { mn -= 2; r = fit( ctx, text, Object.assign( {}, base, { max: mn, min: mn, fixed: true } ) ); }
+		return r;
+	}
+	function ukText( ctx, R, box, c ) {
+		var mx = c.max || 66; if ( R.len < 110 ) { mx = Math.round( mx * ( R.len < 60 ? 1.32 : 1.15 ) ); }
+		var r = ukFit( ctx, c.wrap ? '“' + R.q + '”' : R.q, { w: box.w, h: box.h, max: mx, min: c.min || 30, fam: c.fam, weight: c.weight, lh: c.lh } );
+		var spec = { x: box.x, y: box.y, w: box.w, h: box.h, valign: c.valign || 'middle', align: c.align || 'left', color: c.ink, hi: c.hi, hiBg: c.hiBg };
+		if ( 'bottom' === c.valign ) { spec.bottom = box.y + box.h; }
+		return drawFit( ctx, r, spec );
+	}
+	function ukWhoH( R, s ) { s = s || 1; return Math.round( ( R.name ? 52 : 0 ) * s + ( R.role ? 38 : 0 ) * s + ( R.src ? 34 : 0 ) * s ); }
+	function ukWho( ctx, R, x, top, maxW, c, align, s ) {
+		s = s || 1;
+		var y = top, al = align || 'left';
+		if ( R.name ) { line( ctx, R.name, { x: x, top: y, lh: 52 * s, size: Math.round( ( c.nameSize || 40 ) * s ), min: 24, weight: c.nameFam === 'lit' ? 400 : 700, fam: c.nameFam || 'serif', color: c.name, maxW: maxW, align: al } ); y += 52 * s; }
+		if ( R.role ) { line( ctx, R.role, { x: x, top: y, lh: 38 * s, size: Math.round( 27 * s ), min: 18, weight: 400, color: c.role, maxW: maxW, align: al } ); y += 38 * s; }
+		if ( R.src ) { line( ctx, R.src, { x: x, top: y, lh: 34 * s, size: Math.round( 22 * s ), min: 17, weight: 400, color: c.src || c.role, maxW: maxW, align: al } ); y += 34 * s; }
+		return y;
+	}
+	function ukPill( ctx, text, x, top, align, o ) {
+		if ( ! str( text ) ) { return 0; }
+		ctx.font = fontStr( 600, 24, 'sans' );
+		var w = Math.round( width( ctx, text ) ) + 56;
+		if ( 'right' === align ) { x -= w; } else if ( 'center' === align ) { x -= w / 2; }
+		pill( ctx, text, x, top, { fill: o.fill, color: o.color, border: o.border, size: 24, h: 48 } );
+		return w;
+	}
+	function ukSite( ctx, x, top, color, align ) { line( ctx, watermark(), { x: x, top: top, lh: 32, size: 22, weight: 600, color: color, align: align || 'left' } ); }
+	function ukMark( ctx, x, top, size, color, align, close ) { line( ctx, close ? '”' : '“', { x: x, top: top, lh: size * 0.86, size: size, weight: 700, fam: 'georgia', color: color, align: align || 'left' } ); }
+	function ukBadge( ctx, cx, cy, r, fill, ink ) {
+		ctx.fillStyle = fill; ctx.beginPath(); ctx.arc( cx, cy, r, 0, Math.PI * 2 ); ctx.fill();
+		line( ctx, '“', { x: cx, top: cy - r * 0.62, lh: r * 2, size: Math.round( r * 2.1 ), weight: 700, fam: 'georgia', color: ink, align: 'center' } );
+	}
+	/* the photo into a box (the caller clips); no photo → the brand gradient and the speaker's initial */
+	function ukImg( ctx, R, P, x, y, w, h, gray ) {
+		x = Math.round( x ); y = Math.round( y ); w = Math.round( w ); h = Math.round( h );
+		if ( R.img && w > 0 && h > 0 ) {
+			if ( gray ) { ctx.drawImage( grayscaleCopy( R.img, w, h, R.pf, R.pz ), x, y, w, h ); } else { cover( ctx, R.img, x, y, w, h, R.pf, R.pz ); }
+			return true;
+		}
+		ctx.fillStyle = cssLinear( ctx, 160, x, y, w, h, [ [ 0, gray ? '#9A9A9A' : P.mid ], [ 1, gray ? '#4A4A4A' : P.deep ] ] ); ctx.fillRect( x, y, w, h );
+		var ini = firstGrapheme( R.name );
+		if ( ini ) {
+			var sz = Math.round( Math.min( w, h ) * 0.46 );
+			ctx.font = fontStr( 700, sz, 'serif' ); ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.textAlign = 'center';
+			ctx.fillText( ini, x + w / 2, baseline( ctx, y + ( h - sz * 1.3 ) / 2, sz * 1.3 ) );
+		}
+		return false;
+	}
+	function ukCircle( ctx, R, P, x, y, D, rings ) {
+		circleImage( ctx, R.img, x, y, D, { rings: rings || [], name: R.name, monoBg: P.mid, monoInk: '#FFFFFF', focus: R.pf, zoom: R.pz } );
+	}
+	function ukRand( seed ) { var s = seed % 2147483647 || 7; return function () { s = ( s * 16807 ) % 2147483647; return ( s - 1 ) / 2147483646; }; }
+	function ukRgb( hex ) { var n = parseInt( hex.slice( 1 ), 16 ); return [ n >> 16, ( n >> 8 ) & 255, n & 255 ]; }
+	function ukDuotone( img, w, h, focus, zoom, dark, light ) {
+		var c = doc.createElement( 'canvas' ); c.width = w; c.height = h;
+		var x = c.getContext( '2d' ); cover( x, img, 0, 0, w, h, focus, zoom );
+		var D = ukRgb( dark ), L = ukRgb( light );
+		try {
+			var id = x.getImageData( 0, 0, w, h ), p = id.data;
+			for ( var i = 0; i < p.length; i += 4 ) {
+				var l = ( 0.2126 * p[ i ] + 0.7152 * p[ i + 1 ] + 0.0722 * p[ i + 2 ] ) / 255;
+				l = Math.max( 0, Math.min( 1, ( l - 0.06 ) * 1.18 ) );
+				p[ i ] = D[ 0 ] + ( L[ 0 ] - D[ 0 ] ) * l; p[ i + 1 ] = D[ 1 ] + ( L[ 1 ] - D[ 1 ] ) * l; p[ i + 2 ] = D[ 2 ] + ( L[ 2 ] - D[ 2 ] ) * l;
+			}
+			x.putImageData( id, 0, 0 );
+		} catch ( e ) { x.globalCompositeOperation = 'color'; x.fillStyle = dark; x.fillRect( 0, 0, w, h ); }
+		return c;
+	}
+	function ukBlur( ctx, R, P, x, y, w, h, px ) {
+		if ( ! R.img ) { nGrad( ctx, P, x, y, w, h, 160 ); return; }
+		ctx.save(); ctx.beginPath(); ctx.rect( x, y, w, h ); ctx.clip();
+		if ( 'filter' in ctx ) { ctx.filter = 'blur(' + ( px || 28 ) + 'px) saturate(1.15)'; }
+		cover( ctx, R.img, x - 60, y - 60, w + 120, h + 120, R.pf, 1 );
+		ctx.filter = 'none';
+		ctx.restore();
+	}
+	function ukPathHex( ctx, cx, cy, r ) {
+		ctx.beginPath();
+		for ( var i = 0; i < 6; i++ ) { var a = Math.PI / 180 * ( 60 * i - 90 ), px = cx + r * Math.cos( a ), py = cy + r * Math.sin( a ); if ( i ) { ctx.lineTo( px, py ); } else { ctx.moveTo( px, py ); } }
+		ctx.closePath();
+	}
+	function ukPathBlob( ctx, cx, cy, r, seed ) {
+		var rnd = ukRand( seed ), n = 7, pts = [];
+		for ( var i = 0; i < n; i++ ) { var a = Math.PI * 2 * i / n, rr = r * ( 0.9 + rnd() * 0.2 ); pts.push( [ cx + rr * Math.cos( a ), cy + rr * Math.sin( a ) ] ); }
+		ctx.beginPath();
+		var mid = function ( p, q ) { return [ ( p[ 0 ] + q[ 0 ] ) / 2, ( p[ 1 ] + q[ 1 ] ) / 2 ]; };
+		var m0 = mid( pts[ n - 1 ], pts[ 0 ] ); ctx.moveTo( m0[ 0 ], m0[ 1 ] );
+		for ( var j = 0; j < n; j++ ) { var p = pts[ j ], m = mid( p, pts[ ( j + 1 ) % n ] ); ctx.quadraticCurveTo( p[ 0 ], p[ 1 ], m[ 0 ], m[ 1 ] ); }
+		ctx.closePath();
+	}
+	function ukPathArch( ctx, x, y, w, h ) {
+		ctx.beginPath(); ctx.moveTo( x, y + h ); ctx.lineTo( x, y + w / 2 ); ctx.arc( x + w / 2, y + w / 2, w / 2, Math.PI, 0 ); ctx.lineTo( x + w, y + h ); ctx.closePath();
+	}
+	/* a jagged ("torn") horizontal edge at y from x0 to x1, then down to `bot` */
+	function ukPathTorn( ctx, x0, x1, y, bot, amp, seed ) {
+		var rnd = ukRand( seed ); ctx.beginPath(); ctx.moveTo( x0, bot ); ctx.lineTo( x0, y );
+		for ( var x = x0; x <= x1; x += 16 ) { ctx.lineTo( x, y + ( rnd() - 0.5 ) * 2 * amp ); }
+		ctx.lineTo( x1, y ); ctx.lineTo( x1, bot ); ctx.closePath();
+	}
+	function ukDots( ctx, W, H, color, step ) { ctx.fillStyle = color; step = step || 36; for ( var y = step / 2; y < H; y += step ) { for ( var x = step / 2; x < W; x += step ) { ctx.fillRect( x, y, 3, 3 ); } } }
+	var UKI = '#0B1E3F', UKM = '#4A5568';
+	function ukLight( P ) { return mixHex( P.tint, '#FFFFFF', 0.62 ); }
+	function ukLong( R ) { return R.len > 220; }
+
+	/* 1 · গোল ছবি ও আলোর রিং */
+	function ukRing( ctx, W, CH, R, P, o, A ) {
+		nGrad( ctx, P, 0, 0, W, CH, 160 );
+		var D = CH < 1000 ? 250 : ( CH > 1200 ? 380 : 310 ); if ( ukLong( R ) ) { D = Math.round( D * 0.78 ); }
+		var top = 112, cx = W / 2, cy = top + D / 2;
+		nGlow( ctx, P, cx, cy, D * 1.5, 0.55 );
+		ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 2;
+		for ( var i = 1; i <= 3; i++ ) { ctx.beginPath(); ctx.arc( cx, cy, D / 2 + 28 + 44 * i, 0, Math.PI * 2 ); ctx.stroke(); }
+		ukCircle( ctx, R, P, cx - D / 2, top, D, [ [ 7, '#FFFFFF' ] ] );
+		ctx.strokeStyle = P.acc; ctx.lineWidth = 12; ctx.lineCap = 'round';
+		ctx.beginPath(); ctx.arc( cx, cy, D / 2 + 26, -Math.PI * 0.92, Math.PI * 0.28 ); ctx.stroke(); ctx.lineCap = 'butt';
+		ukBadge( ctx, cx + D * 0.36, cy + D * 0.36, Math.round( D * 0.13 ), P.acc, P.accInk );
+		logo( ctx, 64, 58, 170, '#FFFFFF', 'left', A );
+		ukPill( ctx, R.tag, W - 64, 48, 'right', { border: 'rgba(255,255,255,.55)', color: '#FFFFFF' } );
+		var whoH = ukWhoH( R ), whoTop = CH - 60 - 32 - 14 - whoH;
+		var y = top + D + 52;
+		ukText( ctx, R, { x: 80, y: y, w: W - 160, h: whoTop - 34 - y }, { align: 'center', ink: '#FFFFFF', hi: P.acc, max: 64, min: 28 } );
+		rect( ctx, cx - 30, whoTop - 18, 60, 4, P.acc );
+		ukWho( ctx, R, cx, whoTop, 900, { name: '#FFFFFF', role: P.tint }, 'center' );
+		ukSite( ctx, cx, CH - 60 - 26, 'rgba(255,255,255,.7)', 'center' );
+	}
+	/* 2 · আধাআধি */
+	function ukSplit( ctx, W, CH, R, P, o, A ) {
+		var pw = 470;
+		ukImg( ctx, R, P, 0, 0, pw, CH );
+		ctx.fillStyle = cssLinear( ctx, 165, pw, 0, W - pw, CH, [ [ 0, P.b ], [ 1, P.deep ] ] ); ctx.fillRect( pw, 0, W - pw, CH );
+		nGlow( ctx, P, W - 80, 120, 360, 0.35 );
+		rect( ctx, pw - 5, 0, 10, CH, P.acc );
+		ukBadge( ctx, pw, 176, 56, P.acc, P.accInk );
+		logo( ctx, W - 64, 58, 168, '#FFFFFF', 'right', A );
+		var tx = pw + 72, tw = W - 60 - tx;
+		ukPill( ctx, R.tag, tx, 250, 'left', { fill: 'rgba(255,255,255,.14)', color: '#FFFFFF' } );
+		var whoH = ukWhoH( R ), whoTop = CH - 56 - 32 - 22 - whoH;
+		ukText( ctx, R, { x: tx, y: 326, w: tw, h: whoTop - 52 - 326 }, { ink: '#FFFFFF', hi: P.acc, max: 60, min: 26 } );
+		rect( ctx, tx, whoTop - 26, 64, 5, P.acc );
+		ukWho( ctx, R, tx, whoTop, tw, { name: '#FFFFFF', role: P.tint } );
+		ukSite( ctx, W - 64, CH - 56 - 28, 'rgba(255,255,255,.7)', 'right' );
+	}
+	/* 3 · তির্যক কাট */
+	function ukSlash( ctx, W, CH, R, P, o, A ) {
+		var xt = Math.round( W * 0.72 ), xb = Math.round( W * 0.55 );
+		ukImg( ctx, R, P, W * 0.6, 0, W * 0.4, CH );
+		nTopShade( ctx, W, 200, 0.4 );
+		ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 30;
+		nPoly( ctx, [ [ 0, 0 ], [ xt, 0 ], [ xb, CH ], [ 0, CH ] ], cssLinear( ctx, 165, 0, 0, W, CH, [ [ 0, P.b ], [ 1, P.deep ] ] ) ); ctx.restore();
+		nPoly( ctx, [ [ xt + 16, 0 ], [ xt + 40, 0 ], [ xb + 40, CH ], [ xb + 16, CH ] ], P.acc );
+		nPoly( ctx, [ [ xt + 58, 0 ], [ xt + 64, 0 ], [ xb + 64, CH ], [ xb + 58, CH ] ], 'rgba(255,255,255,.8)' );
+		logo( ctx, 64, 58, 168, '#FFFFFF', 'left', A );
+		ukPill( ctx, R.tag, W - 56, 48, 'right', { fill: 'rgba(4,10,28,.6)', color: '#FFFFFF' } );
+		ukMark( ctx, 56, 120, 170, P.acc );
+		var whoH = ukWhoH( R ), whoTop = CH - 56 - 32 - 18 - whoH, tw = xb - 64 - 44;
+		ukText( ctx, R, { x: 64, y: 268, w: tw, h: whoTop - 44 - 268 }, { ink: '#FFFFFF', hi: P.acc, max: 62, min: 26 } );
+		rect( ctx, 64, whoTop - 22, 64, 5, P.acc );
+		ukWho( ctx, R, 64, whoTop, tw, { name: '#FFFFFF', role: P.tint } );
+		ukSite( ctx, 64, CH - 56 - 30, 'rgba(255,255,255,.7)' );
+	}
+	/* 4 · খিলান জানালা */
+	function ukArch( ctx, W, CH, R, P, o, A ) {
+		rect( ctx, 0, 0, W, CH, ukLight( P ) );
+		ctx.fillStyle = hexA( P.b, 0.07 ); ctx.beginPath(); ctx.arc( W + 40, CH + 40, 520, 0, Math.PI * 2 ); ctx.fill();
+		var ax = 64, at = 150, aw = 410, ah = CH - at - 120;
+		ctx.strokeStyle = P.b; ctx.lineWidth = 3; ukPathArch( ctx, ax + 24, at - 24, aw, ah ); ctx.stroke();
+		ctx.save(); ukPathArch( ctx, ax, at, aw, ah ); ctx.clip(); ukImg( ctx, R, P, ax, at, aw, ah ); ctx.restore();
+		ctx.fillStyle = P.acc; ctx.beginPath(); ctx.arc( ax + aw - 6, at + ah - 40, 34, 0, Math.PI * 2 ); ctx.fill();
+		ukSite( ctx, ax, CH - 82, P.b );
+		var tx = 540, tw = W - 64 - tx;
+		ukPill( ctx, R.tag, tx, 56, 'left', { fill: P.b, color: '#FFFFFF' } );
+		logo( ctx, W - 64, 66, 160, P.b, 'right', A );
+		ukMark( ctx, tx - 6, 136, 170, hexA( P.b, 0.9 ) );
+		var whoH = ukWhoH( R ), whoTop = CH - 64 - whoH;
+		var hi = nHi( P, true, o );
+		ukText( ctx, R, { x: tx, y: 290, w: tw, h: whoTop - 44 - 290 }, { ink: UKI, hi: hi.hi, hiBg: hi.hiBg, max: 58, min: 26 } );
+		rect( ctx, tx, whoTop - 24, 72, 4, P.b );
+		ukWho( ctx, R, tx, whoTop, tw, { name: P.deep, role: UKM } );
+	}
+	/* 5 · নীল ডুয়োটোন */
+	function ukDuo( ctx, W, CH, R, P, o, A ) {
+		if ( R.img ) { ctx.drawImage( ukDuotone( R.img, W, Math.round( CH ), R.pf, R.pz, P.deep, mixHex( P.soft, '#FFFFFF', 0.45 ) ), 0, 0 ); } else { ukImg( ctx, R, P, 0, 0, W, CH ); }
+		shade( ctx, 0, 0, W, CH, [ [ 0, hexA( P.deep, 0.55 ) ], [ 0.2, hexA( P.deep, 0.05 ) ], [ 0.42, hexA( P.deep, 0.2 ) ], [ 0.7, hexA( P.deep, 0.86 ) ], [ 1, hexA( P.deep, 0.97 ) ] ] );
+		logo( ctx, 64, 58, 170, '#FFFFFF', 'left', A );
+		ukPill( ctx, R.tag, W - 64, 48, 'right', { border: 'rgba(255,255,255,.6)', color: '#FFFFFF' } );
+		var whoH = ukWhoH( R ), whoTop = CH - 60 - whoH, top = Math.round( CH * ( ukLong( R ) ? 0.27 : 0.4 ) );
+		var t = ukText( ctx, R, { x: 64, y: top, w: W - 128, h: whoTop - 46 - top }, { valign: 'bottom', ink: '#FFFFFF', hi: P.acc, max: 76, min: 28 } );
+		ukMark( ctx, 44, Math.max( 100, t.top - 210 ), 300, P.acc );
+		rect( ctx, 64, whoTop + 4, 8, whoH - 8, P.acc );
+		ukWho( ctx, R, 92, whoTop, 640, { name: '#FFFFFF', role: P.tint } );
+		ukSite( ctx, W - 64, CH - 60 - 30, 'rgba(255,255,255,.78)', 'right' );
+	}
+	/* 6 · পোলারয়েড */
+	function ukPolaroid( ctx, W, CH, R, P, o, A ) {
+		nGrad( ctx, P, 0, 0, W, CH, 150 );
+		ukDots( ctx, W, CH, 'rgba(255,255,255,.07)', 34 );
+		var pw = CH < 1000 || ukLong( R ) ? 330 : ( CH > 1200 ? 430 : 390 ), ph = pw + 84, px = 92, py = 92;
+		ctx.save(); ctx.translate( px + pw / 2, py + ph / 2 ); ctx.rotate( -5.5 * Math.PI / 180 );
+		ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = 34; ctx.shadowOffsetY = 14; rfill( ctx, -pw / 2, -ph / 2, pw, ph, 6, '#FFFFFF' ); ctx.restore();
+		ctx.save(); ctx.beginPath(); ctx.rect( -pw / 2 + 20, -ph / 2 + 20, pw - 40, pw - 40 ); ctx.clip(); ukImg( ctx, R, P, -pw / 2 + 20, -ph / 2 + 20, pw - 40, pw - 40 ); ctx.restore();
+		line( ctx, R.name, { x: 0, top: ph / 2 - 72, lh: 60, size: 34, min: 22, weight: 400, fam: 'lit', color: '#2A2A2A', align: 'center', maxW: pw - 40 } );
+		ctx.rotate( 9 * Math.PI / 180 ); ctx.fillStyle = 'rgba(255,236,170,.82)'; ctx.fillRect( -70, -ph / 2 - 18, 140, 40 );
+		ctx.restore();
+		var rx = px + pw + 70, rw = W - 64 - rx;
+		logo( ctx, W - 64, 64, 168, '#FFFFFF', 'right', A );
+		ukPill( ctx, R.tag, rx, 128, 'left', { fill: P.acc, color: P.accInk } );
+		ukMark( ctx, rx - 8, 196, 190, hexA( P.acc, 0.95 ) );
+		var whoH = ukWhoH( R );
+		ukWho( ctx, R, rx, py + ph - whoH, rw, { name: '#FFFFFF', role: P.tint } );
+		var y = py + ph + 64;
+		ukText( ctx, R, { x: 64, y: y, w: W - 128, h: CH - 100 - y }, { ink: '#FFFFFF', hi: P.acc, max: 60, min: 26 } );
+		ukSite( ctx, W - 64, CH - 64, 'rgba(255,255,255,.72)', 'right' );
+	}
+	/* 7 · সিনেমাটিক */
+	function ukCinema( ctx, W, CH, R, P, o, A ) {
+		rect( ctx, 0, 0, W, CH, '#05070B' );
+		var ph = Math.round( CH * ( ukLong( R ) ? 0.5 : 0.64 ) );
+		ukImg( ctx, R, P, 0, 0, W, ph );
+		shade( ctx, 0, ph * 0.4, W, ph * 0.6 + 2, [ [ 0, 'rgba(5,7,11,0)' ], [ 0.7, 'rgba(5,7,11,.82)' ], [ 1, '#05070B' ] ] );
+		nTopShade( ctx, W, 200, 0.55 );
+		rect( ctx, 0, 0, W, 12, '#000000' );
+		logo( ctx, 64, 52, 168, '#FFFFFF', 'left', A );
+		ukPill( ctx, R.tag, W - 64, 42, 'right', { fill: P.acc, color: P.accInk } );
+		var whoH = ukWhoH( R ), whoTop = CH - 56 - 32 - 18 - whoH, y = Math.round( ph * 0.78 );
+		ukText( ctx, R, { x: 80, y: y, w: W - 160, h: whoTop - 40 - y }, { wrap: true, align: 'center', ink: '#FFFFFF', hi: P.acc, max: 62, min: 26 } );
+		rect( ctx, W / 2 - 110, whoTop - 18, 80, 2, P.acc ); rect( ctx, W / 2 + 30, whoTop - 18, 80, 2, P.acc );
+		ctx.fillStyle = P.acc; ctx.beginPath(); ctx.arc( W / 2, whoTop - 17, 5, 0, Math.PI * 2 ); ctx.fill();
+		ukWho( ctx, R, W / 2, whoTop, 900, { name: P.acc, role: '#C9CED8' }, 'center' );
+		ukSite( ctx, W / 2, CH - 56 - 28, 'rgba(255,255,255,.55)', 'center' );
+	}
+	/* 8 · পাশের ফিতা ও নামফলক */
+	function ukStrip( ctx, W, CH, R, P, o, A ) {
+		rect( ctx, 0, 0, W, CH, '#FFFFFF' );
+		ctx.fillStyle = ukLight( P ); ctx.fillRect( 380, 0, W - 380, CH );
+		var sw = 380;
+		ukImg( ctx, R, P, 0, 0, sw, CH );
+		var whoH = ukWhoH( R ), plH = whoH + 60, plT = CH - 64 - plH;
+		ctx.save(); ctx.shadowColor = 'rgba(4,10,28,.35)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 8; rect( ctx, 0, plT, 610, plH, P.b ); ctx.restore();
+		rect( ctx, 0, plT, 14, plH, P.acc );
+		ukWho( ctx, R, 44, plT + 30, 540, { name: '#FFFFFF', role: P.tint } );
+		var tx = 440, tw = W - 64 - tx;
+		logo( ctx, W - 64, 62, 160, P.b, 'right', A );
+		ukMark( ctx, tx - 8, 100, 190, P.b );
+		line( ctx, R.tag, { x: tx + 140, top: 150, lh: 40, size: 26, weight: 700, color: P.b, maxW: tw - 140 } );
+		var hi = nHi( P, true, o );
+		ukText( ctx, R, { x: tx, y: 262, w: tw, h: plT - 44 - 262 }, { ink: UKI, hi: hi.hi, hiBg: hi.hiBg, max: 60, min: 26 } );
+		ukSite( ctx, W - 64, CH - 64 - 28, P.b, 'right' );
+	}
+	/* 9 · ষড়ভুজ */
+	function ukHex( ctx, W, CH, R, P, o, A ) {
+		nGrad( ctx, P, 0, 0, W, CH, 155 );
+		ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.lineWidth = 2;
+		for ( var gy = 0; gy < 6; gy++ ) { for ( var gx = 0; gx < 7; gx++ ) { ukPathHex( ctx, 560 + gx * 78 + ( gy % 2 ) * 39, 40 + gy * 68, 44 ); ctx.stroke(); } }
+		var r = CH < 1000 ? 178 : ( CH > 1200 ? 250 : 215 ); if ( ukLong( R ) ) { r = Math.round( r * 0.82 ); }
+		var cx = W - 72 - r * 0.866, cy = 70 + r;
+		ctx.strokeStyle = P.acc; ctx.lineWidth = 6; ukPathHex( ctx, cx, cy, r + 22 ); ctx.stroke();
+		ctx.save(); ukPathHex( ctx, cx, cy, r ); ctx.clip(); ukImg( ctx, R, P, cx - r, cy - r, 2 * r, 2 * r ); ctx.restore();
+		ctx.fillStyle = P.acc; ukPathHex( ctx, cx - r * 0.86, cy + r * 0.62, 30 ); ctx.fill();
+		logo( ctx, 64, 64, 170, '#FFFFFF', 'left', A );
+		ukPill( ctx, R.tag, 64, 136, 'left', { fill: 'rgba(255,255,255,.14)', color: '#FFFFFF' } );
+		ukMark( ctx, 54, 206, 200, P.acc );
+		var whoH = ukWhoH( R ), whoTop = CH - 60 - whoH, y = cy + r + 52;
+		ukText( ctx, R, { x: 64, y: y, w: W - 128, h: whoTop - 40 - y }, { ink: '#FFFFFF', hi: P.acc, max: 60, min: 26 } );
+		rect( ctx, 64, whoTop + 4, 8, whoH - 8, P.acc );
+		ukWho( ctx, R, 92, whoTop, 640, { name: '#FFFFFF', role: P.tint } );
+		ukSite( ctx, W - 64, CH - 60 - 30, 'rgba(255,255,255,.72)', 'right' );
+	}
+	/* 10 · নরম ব্লব */
+	function ukBlob( ctx, W, CH, R, P, o, A ) {
+		rect( ctx, 0, 0, W, CH, ukLight( P ) );
+		var r = ukLong( R ) ? 270 : 310, cx = W - 160, cy = Math.round( CH * 0.5 );
+		ctx.fillStyle = P.b; ukPathBlob( ctx, cx + 26, cy + 30, r * 1.06, 11 ); ctx.fill();
+		ctx.fillStyle = P.acc; ctx.beginPath(); ctx.arc( cx - r * 0.86, cy - r * 0.7, 26, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = hexA( P.b, 0.25 ); ctx.beginPath(); ctx.arc( cx - r * 0.98, cy + r * 0.5, 14, 0, Math.PI * 2 ); ctx.fill();
+		ctx.save(); ukPathBlob( ctx, cx, cy, r, 5 ); ctx.clip(); ukImg( ctx, R, P, cx - r * 1.1, cy - r * 1.1, r * 2.2, r * 2.2 ); ctx.restore();
+		logo( ctx, 64, 64, 168, P.b, 'left', A );
+		ukMark( ctx, 54, 128, 180, P.b );
+		var tx = 64, tw = cx - r - 40 - tx;
+		ukPill( ctx, R.tag, tx + 150, 160, 'left', { fill: P.b, color: '#FFFFFF' } );
+		var whoH = ukWhoH( R ), whoTop = CH - 56 - 32 - 18 - whoH, hi = nHi( P, true, o );
+		ukText( ctx, R, { x: tx, y: 290, w: tw, h: whoTop - 40 - 290 }, { ink: UKI, hi: hi.hi, hiBg: hi.hiBg, max: 58, min: 26 } );
+		rect( ctx, tx, whoTop - 22, 64, 4, P.b );
+		ukWho( ctx, R, tx, whoTop, cx - r - tx, { name: P.deep, role: UKM } );
+		ukSite( ctx, tx, CH - 56 - 30, P.b );
+	}
+	/* 11 · ছেঁড়া কাগজ */
+	function ukTorn( ctx, W, CH, R, P, o, A ) {
+		var ph = Math.round( CH * ( ukLong( R ) ? 0.36 : 0.46 ) );
+		ukImg( ctx, R, P, 0, 0, W, ph + 60 );
+		nTopShade( ctx, W, 200, 0.5 );
+		ctx.fillStyle = P.b; ukPathTorn( ctx, -10, W + 10, ph - 6, CH + 10, 10, 3 ); ctx.fill();
+		ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = -4;
+		ctx.fillStyle = '#FBF8F2'; ukPathTorn( ctx, -10, W + 10, ph + 14, CH + 10, 8, 9 ); ctx.fill(); ctx.restore();
+		logo( ctx, 64, 58, 168, '#FFFFFF', 'left', A );
+		ukPill( ctx, R.tag, W - 64, 48, 'right', { fill: 'rgba(4,10,28,.6)', color: '#FFFFFF' } );
+		ukBadge( ctx, 64 + 52, ph + 18, 52, P.acc, P.accInk );
+		var whoH = ukWhoH( R ), whoTop = CH - 60 - whoH, y = ph + 96, hi = nHi( P, true, o );
+		ukText( ctx, R, { x: 64, y: y, w: W - 128, h: whoTop - 36 - y }, { ink: UKI, hi: hi.hi, hiBg: hi.hiBg, max: 58, min: 26 } );
+		rect( ctx, 64, whoTop + 4, 6, whoH - 8, P.b );
+		ukWho( ctx, R, 90, whoTop, 640, { name: P.deep, role: UKM } );
+		ukSite( ctx, W - 64, CH - 60 - 30, P.b, 'right' );
+	}
+	/* 12 · খবরের কাগজের কাটিং */
+	function ukClip( ctx, W, CH, R, P, o, A ) {
+		nGrad( ctx, P, 0, 0, W, CH, 160 );
+		ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = 2;
+		for ( var i = -CH; i < W; i += 28 ) { ctx.beginPath(); ctx.moveTo( i, CH ); ctx.lineTo( i + CH, 0 ); ctx.stroke(); }
+		var x = 60, y = 78, w = W - 120, h = CH - 168, rnd = ukRand( 21 );
+		ctx.save(); ctx.translate( W / 2, y + h / 2 ); ctx.rotate( -1.4 * Math.PI / 180 ); ctx.translate( -W / 2, -( y + h / 2 ) );
+		ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 12;
+		ctx.beginPath(); ctx.moveTo( x, y );
+		var k;
+		for ( k = x; k <= x + w; k += 12 ) { ctx.lineTo( k, y + ( rnd() - 0.5 ) * 6 ); }
+		for ( k = y; k <= y + h; k += 12 ) { ctx.lineTo( x + w + ( rnd() - 0.5 ) * 6, k ); }
+		for ( k = x + w; k >= x; k -= 12 ) { ctx.lineTo( k, y + h + ( rnd() - 0.5 ) * 6 ); }
+		for ( k = y + h; k >= y; k -= 12 ) { ctx.lineTo( x + ( rnd() - 0.5 ) * 6, k ); }
+		ctx.closePath(); ctx.fillStyle = '#F3EEE1'; ctx.fill(); ctx.restore();
+		var ink = '#1C1A17', ix = x + 40, iw = w - 80;
+		logo( ctx, ix, y + 34, 170, ink, 'left', A );
+		line( ctx, R.tag, { x: ix + iw, top: y + 30, lh: 40, size: 24, weight: 700, color: P.b, align: 'right', maxW: iw - 260 } );
+		rect( ctx, ix, y + 92, iw, 3, ink ); rect( ctx, ix, y + 100, iw, 1, ink );
+		var pw = 270, phh = Math.min( 340, h - 300 ), pt = y + 134;
+		ctx.save(); ctx.beginPath(); ctx.rect( ix, pt, pw, phh ); ctx.clip(); ukImg( ctx, R, P, ix, pt, pw, phh, true ); ctx.restore();
+		ctx.strokeStyle = ink; ctx.lineWidth = 1.5; ctx.strokeRect( ix + 0.5, pt + 0.5, pw - 1, phh - 1 );
+		var whoH = ukWhoH( R, 0.9 ), whoTop = y + h - 34 - whoH, tx = ix + pw + 36, tw = ix + iw - tx;
+		ukText( ctx, R, { x: tx, y: pt - 4, w: tw, h: whoTop - 30 - pt }, { wrap: true, ink: ink, hi: P.b, max: 52, min: 24, valign: R.len < 140 ? 'middle' : 'top' } );
+		rect( ctx, ix, whoTop - 16, iw, 1, ink );
+		ukWho( ctx, R, ix, whoTop, iw - 200, { name: ink, role: '#4B463E' }, 'left', 0.9 );
+		line( ctx, watermark(), { x: ix + iw, top: whoTop + whoH - 34, lh: 32, size: 22, weight: 600, color: P.b, align: 'right' } );
+		ctx.restore();
+		ctx.fillStyle = 'rgba(255,240,190,.7)';
+		[ [ x + 40, y - 8, -18 ], [ x + w - 40, y - 8, 16 ] ].forEach( function ( t ) { ctx.save(); ctx.translate( t[ 0 ], t[ 1 ] ); ctx.rotate( t[ 2 ] * Math.PI / 180 ); ctx.fillRect( -60, -18, 120, 36 ); ctx.restore(); } );
+		ukSite( ctx, W / 2, CH - 64, 'rgba(255,255,255,.7)', 'center' );
+	}
+	/* 13 · কাচের কার্ড */
+	function ukGlass( ctx, W, CH, R, P, o, A ) {
+		ukBlur( ctx, R, P, 0, 0, W, CH, 30 );
+		shade( ctx, 0, 0, W, CH, [ [ 0, hexA( P.deep, 0.5 ) ], [ 1, hexA( P.deep, 0.78 ) ] ] );
+		nGlow( ctx, P, 120, 160, 420, 0.4 ); nGlow( ctx, P, W - 100, CH - 200, 460, 0.35 );
+		var D = ukLong( R ) ? 170 : 200, cy = 236, x = 64, y = cy, w = W - 128, h = CH - cy - 150;
+		ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 16; rfill( ctx, x, y, w, h, 40, 'rgba(255,255,255,.12)' ); ctx.restore();
+		ctx.save(); rrect( ctx, x, y, w, h, 40 ); ctx.clip(); shade( ctx, x, y, w, h * 0.5, [ [ 0, 'rgba(255,255,255,.14)' ], [ 1, 'rgba(255,255,255,0)' ] ] ); ctx.restore();
+		ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 2; rrect( ctx, x + 1, y + 1, w - 2, h - 2, 39 ); ctx.stroke();
+		ukCircle( ctx, R, P, W / 2 - D / 2, cy - D / 2, D, [ [ 8, 'rgba(255,255,255,.75)' ], [ 14, hexA( P.acc, 0.9 ) ] ] );
+		ukPill( ctx, R.tag, 64, 52, 'left', { border: 'rgba(255,255,255,.6)', color: '#FFFFFF' } );
+		ukSite( ctx, W - 64, 60, 'rgba(255,255,255,.8)', 'right' );
+		var whoH = ukWhoH( R ), whoTop = y + h - 40 - whoH, ty = cy + D / 2 + 40;
+		ukText( ctx, R, { x: x + 56, y: ty, w: w - 112, h: whoTop - 30 - ty }, { align: 'center', ink: '#FFFFFF', hi: P.acc, max: 62, min: 26 } );
+		ukWho( ctx, R, W / 2, whoTop, w - 120, { name: '#FFFFFF', role: P.tint }, 'center' );
+		logo( ctx, W / 2, CH - 104, 190, '#FFFFFF', 'center', A );
+	}
+	/* 14 · বড় উদ্ধৃতিচিহ্ন */
+	function ukGlyph( ctx, W, CH, R, P, o, A ) {
+		ctx.fillStyle = cssLinear( ctx, 160, 0, 0, W, CH, [ [ 0, P.a ], [ 1, P.deep ] ] ); ctx.fillRect( 0, 0, W, CH );
+		var x0 = Math.round( W * 0.56 ), y0 = Math.round( CH * 0.16 ), rr = 240;
+		ctx.save(); ctx.beginPath(); ctx.moveTo( x0, CH ); ctx.lineTo( x0, y0 + rr ); ctx.arcTo( x0, y0, x0 + rr, y0, rr ); ctx.lineTo( W, y0 ); ctx.lineTo( W, CH ); ctx.closePath(); ctx.clip();
+		ukImg( ctx, R, P, x0, y0, W - x0, CH - y0 );
+		ctx.fillStyle = cssLinear( ctx, 90, x0, 0, 220, CH, [ [ 0, hexA( P.deep, 0.75 ) ], [ 1, hexA( P.deep, 0 ) ] ] ); ctx.fillRect( x0, y0, 220, CH - y0 );
+		shade( ctx, x0, CH - 260, W - x0, 260, [ [ 0, hexA( P.deep, 0 ) ], [ 1, hexA( P.deep, 0.7 ) ] ] );
+		ctx.restore();
+		ctx.save(); ctx.font = '700 640px ' + FAM.georgia; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.lineWidth = 5; ctx.strokeStyle = hexA( P.acc, 0.9 );
+		ctx.strokeText( '“', x0 - 14, y0 + 470 ); ctx.restore();
+		logo( ctx, 64, 62, 170, '#FFFFFF', 'left', A );
+		ukPill( ctx, R.tag, 64, 132, 'left', { fill: P.acc, color: P.accInk } );
+		var whoH = ukWhoH( R ), whoTop = CH - 56 - 32 - 18 - whoH, tw = x0 - 64 - 40;
+		ukText( ctx, R, { x: 64, y: 230, w: tw, h: whoTop - 44 - 230 }, { ink: '#FFFFFF', hi: P.acc, max: 60, min: 24 } );
+		rect( ctx, 64, whoTop - 22, 64, 5, P.acc );
+		ukWho( ctx, R, 64, whoTop, tw, { name: '#FFFFFF', role: P.tint } );
+		ukSite( ctx, 64, CH - 56 - 30, 'rgba(255,255,255,.7)' );
+	}
+	/* 15 · ম্যাগাজিন প্রচ্ছদ */
+	function ukMag( ctx, W, CH, R, P, o, A ) {
+		ukImg( ctx, R, P, 0, 0, W, CH );
+		shade( ctx, 0, 0, W, CH, [ [ 0, 'rgba(3,8,22,.6)' ], [ 0.22, 'rgba(3,8,22,.1)' ], [ 0.42, 'rgba(3,8,22,.12)' ], [ 0.7, hexA( P.deep, 0.85 ) ], [ 1, hexA( P.deep, 0.97 ) ] ] );
+		ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 20;
+		line( ctx, 'উক্তি', { x: 56, top: 20, lh: 200, size: 170, weight: 700, fam: 'serif', color: '#FFFFFF' } ); ctx.restore();
+		logo( ctx, W - 64, 62, 170, '#FFFFFF', 'right', A );
+		line( ctx, R.tag && 'উক্তি' !== R.tag ? R.tag : 'বিশেষ সংখ্যা', { x: W - 64, top: 112, lh: 36, size: 24, weight: 700, color: P.acc, align: 'right', maxW: 360 } );
+		rect( ctx, 64, 222, W - 128, 3, P.acc );
+		line( ctx, watermark(), { x: 64, top: 232, lh: 36, size: 22, weight: 600, color: 'rgba(255,255,255,.85)' } );
+		var whoH = ukWhoH( R ), whoTop = CH - 60 - whoH, top = Math.round( CH * ( ukLong( R ) ? 0.36 : 0.5 ) );
+		ukText( ctx, R, { x: 64, y: top, w: W - 128, h: whoTop - 40 - top }, { wrap: true, valign: 'bottom', ink: '#FFFFFF', hi: P.acc, max: 72, min: 26 } );
+		if ( R.name ) {
+			ctx.font = fontStr( 700, 34, 'serif' );
+			var nw = Math.min( 700, width( ctx, R.name ) + 40 );
+			rfill( ctx, 64, whoTop + 2, nw, 50, 6, P.acc );
+			line( ctx, R.name, { x: 84, top: whoTop + 2, lh: 50, size: 34, min: 22, weight: 700, fam: 'serif', color: P.accInk, maxW: nw - 40 } );
+			ukWho( ctx, { role: R.role, src: R.src }, 64, whoTop + 56, 720, { role: '#FFFFFF', src: P.tint } );
+		} else { ukWho( ctx, R, 64, whoTop, 720, { name: '#FFFFFF', role: '#FFFFFF', src: P.tint } ); }
+		ctx.fillStyle = 'rgba(255,255,255,.9)';
+		var bx = W - 64 - 120, by = CH - 60 - 64, bw = [ 3, 1, 2, 1, 3, 2, 1, 1, 3, 1, 2, 3, 1, 2, 1, 3, 1, 2 ];
+		ctx.fillRect( bx - 8, by - 8, 136, 80 ); ctx.fillStyle = '#111111';
+		var cx2 = bx; bw.forEach( function ( b, i ) { if ( i % 2 === 0 ) { ctx.fillRect( cx2, by, b * 2, 52 ); } cx2 += b * 2 + 2; } );
+	}
+	/* 16 · সাদা মিনিমাল ও স্বাক্ষর */
+	function ukMini( ctx, W, CH, R, P, o, A ) {
+		rect( ctx, 0, 0, W, CH, '#FFFFFF' );
+		rect( ctx, 0, 0, W, 10, P.b );
+		ukMark( ctx, 56, 70, 150, P.b );
+		logo( ctx, W - 64, 72, 160, P.b, 'right', A );
+		line( ctx, R.tag, { x: W - 64, top: 120, lh: 36, size: 23, weight: 600, color: UKM, align: 'right', maxW: 400 } );
+		var D = 132, sigTop = CH - 64 - D, hi = nHi( P, true, o );
+		ukText( ctx, R, { x: 64, y: 220, w: W - 128, h: sigTop - 56 - 220 }, { ink: UKI, hi: hi.hi, hiBg: hi.hiBg, max: 64, min: 26 } );
+		ukCircle( ctx, R, P, 64, sigTop, D, [ [ 4, P.b ], [ 10, '#FFFFFF' ], [ 12, hexA( P.b, 0.25 ) ] ] );
+		var sx = 64 + D + 36;
+		line( ctx, R.name, { x: sx, top: sigTop - 8, lh: 70, size: 50, min: 28, weight: 400, fam: 'lit', color: P.deep, maxW: W - 64 - sx - 200 } );
+		rect( ctx, sx, sigTop + 66, 360, 2, P.b );
+		ukWho( ctx, { role: R.role, src: R.src }, sx, sigTop + 76, W - 64 - sx - 200, { role: UKM, src: '#8A94A6' } );
+		ukSite( ctx, W - 64, CH - 64 - 30, P.b, 'right' );
+	}
+	/* 17 · কালো-সোনালি রাজকীয় (its own black and gold; the palette does not apply) */
+	function ukGold( ctx, W, CH, R, P, o, A ) {
+		var g = ctx.createRadialGradient( W / 2, CH * 0.36, 40, W / 2, CH * 0.36, CH * 0.9 ); g.addColorStop( 0, '#2A241B' ); g.addColorStop( 1, '#0A0907' );
+		ctx.fillStyle = g; ctx.fillRect( 0, 0, W, CH );
+		var G = cssLinear( ctx, 120, 0, 0, W, CH, [ [ 0, '#8C6A1F' ], [ 0.3, '#E9CD7A' ], [ 0.55, '#B08A35' ], [ 0.8, '#F3DE96' ], [ 1, '#9C7A2B' ] ] ), gold = '#D9B55B';
+		ctx.strokeStyle = G; ctx.lineWidth = 3; ctx.strokeRect( 34, 34, W - 68, CH - 68 ); ctx.lineWidth = 1; ctx.strokeRect( 48, 48, W - 96, CH - 96 );
+		[ [ 34, 34 ], [ W - 34, 34 ], [ 34, CH - 34 ], [ W - 34, CH - 34 ] ].forEach( function ( c ) { ctx.save(); ctx.translate( c[ 0 ], c[ 1 ] ); ctx.rotate( Math.PI / 4 ); ctx.fillStyle = G; ctx.fillRect( -9, -9, 18, 18 ); ctx.restore(); } );
+		var D = ukLong( R ) ? 160 : ( CH > 1200 ? 240 : 200 ), top = 96;
+		circleImage( ctx, R.img, W / 2 - D / 2, top, D, { rings: [ [ 4, gold ], [ 12, '#0A0907' ], [ 15, gold ] ], name: R.name, monoBg: '#2A241B', monoInk: gold, focus: R.pf, zoom: R.pz } );
+		var y = top + D + 40;
+		rect( ctx, W / 2 - 120, y, 90, 1, gold ); rect( ctx, W / 2 + 30, y, 90, 1, gold );
+		ctx.save(); ctx.translate( W / 2, y ); ctx.rotate( Math.PI / 4 ); ctx.fillStyle = gold; ctx.fillRect( -6, -6, 12, 12 ); ctx.restore();
+		var whoH = ukWhoH( R ), whoTop = CH - 70 - 40 - 32 - 22 - whoH;
+		ukText( ctx, R, { x: 110, y: y + 30, w: W - 220, h: whoTop - 30 - y - 30 }, { wrap: true, align: 'center', ink: '#F5EBD7', hi: '#E9CD7A', max: 60, min: 24 } );
+		ukWho( ctx, R, W / 2, whoTop, 860, { name: '#E2C275', role: '#CFC3A8', src: '#A89C82' }, 'center' );
+		logo( ctx, W / 2, CH - 70 - 40 - 34, 160, gold, 'center', A );
+		ukSite( ctx, W / 2, CH - 70 - 26, '#A89C82', 'center' );
+	}
+	/* 18 · কথার বুদবুদ */
+	function ukBubble( ctx, W, CH, R, P, o, A ) {
+		nGrad( ctx, P, 0, 0, W, CH, 150 ); nGlow( ctx, P, W - 140, 160, 420, 0.4 );
+		var D = 196, pT = CH - 60 - D, bx = 64, by = 116, bw = W - 128, bh = pT - 50 - by;
+		ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.28)'; ctx.shadowBlur = 36; ctx.shadowOffsetY = 12; ctx.fillStyle = '#FFFFFF';
+		rrect( ctx, bx, by, bw, bh, 44 ); ctx.fill();
+		ctx.beginPath(); ctx.moveTo( bx + 150, by + bh - 2 ); ctx.lineTo( bx + 270, by + bh - 2 ); ctx.lineTo( bx + 120, pT + 26 ); ctx.closePath(); ctx.fill(); ctx.restore();
+		ukCircle( ctx, R, P, 64, pT, D, [ [ 8, '#FFFFFF' ], [ 15, P.acc ] ] );
+		logo( ctx, 64, 50, 160, '#FFFFFF', 'left', A );
+		ukPill( ctx, R.tag, W - 64, 40, 'right', { fill: P.acc, color: P.accInk } );
+		ukMark( ctx, bx + 38, by + 30, 130, P.b );
+		var hi = nHi( P, true, o );
+		ukText( ctx, R, { x: bx + 56, y: by + 120, w: bw - 112, h: bh - 120 - 48 }, { ink: UKI, hi: hi.hi, hiBg: hi.hiBg, max: 60, min: 24 } );
+		var whoH = ukWhoH( R ), wx = 64 + D + 44;
+		ukWho( ctx, R, wx, pT + ( D - whoH ) / 2 - 10, W - 64 - wx, { name: '#FFFFFF', role: P.tint } );
+		ukSite( ctx, W - 64, CH - 60 - 30, 'rgba(255,255,255,.75)', 'right' );
+	}
+
+	/* লিংক (1200 × 630): one shared layout, the photo cut the design's way (circle or panel), light/dark/gold */
+	function ukLand( ctx, W, CH, R, P, o, A, spec ) {
+		var tone = spec.tone, gold = 'gold' === tone, light = 'light' === tone;
+		var ink = gold ? '#F5EBD7' : ( light ? UKI : '#FFFFFF' ), sub = gold ? '#CFC3A8' : ( light ? UKM : P.tint ), acc = gold ? '#D9B55B' : P.acc;
+		if ( gold ) { rect( ctx, 0, 0, W, CH, '#0E0C09' ); } else if ( light ) { rect( ctx, 0, 0, W, CH, ukLight( P ) ); } else { nGrad( ctx, P, 0, 0, W, CH, 160 ); }
+		var tx;
+		if ( 'circle' === spec.shape ) {
+			var D = 380; ukCircle( ctx, R, P, 70, ( CH - D ) / 2, D, [ [ 8, gold ? acc : '#FFFFFF' ], [ 16, acc ] ] ); tx = 70 + D + 70;
+		} else {
+			var pw = 460;
+			ctx.save(); ctx.beginPath();
+			if ( 'slash' === spec.shape ) { ctx.moveTo( 0, 0 ); ctx.lineTo( pw + 60, 0 ); ctx.lineTo( pw - 60, CH ); ctx.lineTo( 0, CH ); } else { ctx.rect( 0, 0, pw, CH ); }
+			ctx.closePath(); ctx.clip(); ukImg( ctx, R, P, 0, 0, pw + 60, CH, 'clip' === spec.id ); ctx.restore();
+			rect( ctx, 'slash' === spec.shape ? 0 : pw - 4, 0, 'slash' === spec.shape ? 0 : 8, CH, acc );
+			tx = pw + 80;
+		}
+		var tw = W - 60 - tx;
+		logo( ctx, W - 60, 44, 150, gold ? acc : ( light ? P.b : '#FFFFFF' ), 'right', A );
+		ukMark( ctx, tx - 6, 40, 120, acc );
+		var whoH = ukWhoH( R, 0.85 ), whoTop = CH - 44 - whoH, hi = light ? nHi( P, true, o ) : { hi: acc };
+		ukText( ctx, R, { x: tx, y: 140, w: tw, h: whoTop - 28 - 140 }, { ink: ink, hi: hi.hi, hiBg: hi.hiBg, max: 52, min: 20 } );
+		ukWho( ctx, R, tx, whoTop, tw - 170, { name: gold ? '#E2C275' : ink, role: sub }, 'left', 0.85 );
+		ukSite( ctx, W - 60, CH - 44 - 28, gold ? '#A89C82' : sub, 'right' );
+	}
+
+	/* id → [draw, label, meta]. meta: shape (circle | side | full | top | slash), tone (dark | light | gold),
+	   cap (how much text it holds well: 1 short … 3 long), photo (need: looks bare without one) and wants
+	   (the photo it suits: tall | wide | any). The studio's স্বয়ংক্রিয় কার্ড picks by these. */
+	var UK = {
+		ukring:     [ ukRing, 'গোল ছবি ও আলোর রিং', { shape: 'circle', tone: 'dark', cap: 2, photo: 'opt', wants: 'any' } ],
+		uksplit:    [ ukSplit, 'আধাআধি ভাগ', { shape: 'side', tone: 'dark', cap: 2, photo: 'need', wants: 'tall' } ],
+		ukslash:    [ ukSlash, 'তির্যক কাট', { shape: 'slash', tone: 'dark', cap: 2, photo: 'need', wants: 'any' } ],
+		ukarch:     [ ukArch, 'খিলান জানালা', { shape: 'side', tone: 'light', cap: 2, photo: 'need', wants: 'tall' } ],
+		ukduo:      [ ukDuo, 'নীল ডুয়োটোন', { shape: 'full', tone: 'dark', cap: 2, photo: 'need', wants: 'any' } ],
+		ukpolaroid: [ ukPolaroid, 'পোলারয়েড ছবি', { shape: 'top', tone: 'dark', cap: 2, photo: 'need', wants: 'any' } ],
+		ukcinema:   [ ukCinema, 'সিনেমাটিক', { shape: 'full', tone: 'dark', cap: 2, photo: 'need', wants: 'wide' } ],
+		ukstrip:    [ ukStrip, 'পাশের ফিতা ও নামফলক', { shape: 'side', tone: 'light', cap: 3, photo: 'need', wants: 'tall' } ],
+		ukhex:      [ ukHex, 'ষড়ভুজ ছবি', { shape: 'circle', tone: 'dark', cap: 1, photo: 'opt', wants: 'any' } ],
+		ukblob:     [ ukBlob, 'নরম ব্লব', { shape: 'circle', tone: 'light', cap: 2, photo: 'need', wants: 'any' } ],
+		uktorn:     [ ukTorn, 'ছেঁড়া কাগজ', { shape: 'top', tone: 'light', cap: 2, photo: 'need', wants: 'wide' } ],
+		ukclip:     [ ukClip, 'খবরের কাগজের কাটিং', { shape: 'side', tone: 'light', cap: 3, photo: 'opt', wants: 'tall' } ],
+		ukglass:    [ ukGlass, 'কাচের কার্ড', { shape: 'circle', tone: 'dark', cap: 2, photo: 'need', wants: 'any' } ],
+		ukglyph:    [ ukGlyph, 'বড় উদ্ধৃতিচিহ্ন', { shape: 'side', tone: 'dark', cap: 2, photo: 'need', wants: 'tall' } ],
+		ukmag:      [ ukMag, 'ম্যাগাজিন প্রচ্ছদ', { shape: 'full', tone: 'dark', cap: 1, photo: 'need', wants: 'tall' } ],
+		ukmini:     [ ukMini, 'সাদা মিনিমাল ও স্বাক্ষর', { shape: 'circle', tone: 'light', cap: 3, photo: 'opt', wants: 'any' } ],
+		ukgold:     [ ukGold, 'কালো-সোনালি রাজকীয়', { shape: 'circle', tone: 'gold', cap: 2, photo: 'opt', wants: 'any' } ],
+		ukbubble:   [ ukBubble, 'কথার বুদবুদ', { shape: 'circle', tone: 'dark', cap: 2, photo: 'opt', wants: 'any' } ]
+	};
+	function ukDraw( id, ctx, W, H, d, o, A ) {
+		var CH = H - ( o.ad ? STRIP_H : 0 ), R = ukRoles( d, A ), P = ukPal( d, o ), spec = UK[ id ];
+		if ( 1200 === W ) { ukLand( ctx, W, CH, R, P, o, A, Object.assign( { id: id }, spec[ 2 ] ) ); return; }
+		spec[ 0 ]( ctx, W, CH, R, P, o, A );
+	}
+
 	/* ================================================================== registry */
 	var templates = {
 		morning:    { label: 'শুভ সকাল', ad: true, photo: true, presets: { bhor: 'মিহা ভোর', nilpar: 'নীল পাড়', side: 'পার্শ্ব-ফিতা' },
@@ -3070,7 +3606,7 @@
 		templates[ ty ].presets = pr;
 	} );
 	/* studio sections: which collapsible group a design belongs to */
-	var GROUP_LABELS = { common: 'সাধারণ', minimal: 'মিনিমাল', breaking: 'ব্রেকিং', vibrant: 'উজ্জ্বল ও ভাইব্রেন্ট', collage: 'কোলাজ', circle: 'গোল ছবি ও উক্তি', classic: 'আগের নকশা', readymade: 'রেডিমেড', own: 'নিজের ফ্রেম' };
+	var GROUP_LABELS = { common: 'সাধারণ', minimal: 'মিনিমাল', breaking: 'ব্রেকিং', vibrant: 'উজ্জ্বল ও ভাইব্রেন্ট', collage: 'কোলাজ', circle: 'গোল ছবি ও উক্তি', ukti: 'উক্তি কার্ড', classic: 'আগের নকশা', readymade: 'রেডিমেড', own: 'নিজের ফ্রেম' };
 	var OLD_GROUP = {
 		news: { classic: 'common', overlay: 'common', band: 'common', dheu: 'common', chobi: 'common', frame: 'minimal', headline: 'minimal', dheubreaking: 'breaking', collage: 'collage' },
 		breaking: { breaking: 'common', latest: 'common' },
@@ -3083,12 +3619,24 @@
 	var OPEN_TYPES = { quote: 1, morning: 1, day: 1, birthday: 1, condolence: 1 };
 	function groupOf( type, preset ) {
 		type = ALIASES[ type ] || type;
+		if ( 'quote' === type && UK[ preset ] ) { return 'ukti'; }
 		if ( decoOf( type, preset ) ) { return 'readymade'; }
 		if ( NIL[ preset ] && NIL_FOR[ type ] && NIL_FOR[ type ].indexOf( preset ) > -1 ) { return NIL_COMMON[ type ] && NIL_COMMON[ type ][ preset ] ? 'common' : NIL[ preset ][ 2 ]; }
 		if ( OPEN_TYPES[ type ] ) { return 'common'; }
 		var g = OLD_GROUP[ type ] && OLD_GROUP[ type ][ preset ];
 		return g || 'classic';
 	}
+	/* 2.4.14 উক্তি কার্ড: after every older quote design, in their own section */
+	( function () {
+		var pr = Object.assign( {}, templates.quote.presets );
+		XDRAW.quote = XDRAW.quote || {};
+		Object.keys( UK ).forEach( function ( id ) {
+			pr[ id ] = UK[ id ][ 1 ];
+			XDRAW.quote[ id ] = function ( c, W, H, d, o, A ) { ukDraw( id, c, W, H, d, o, A ); };
+		} );
+		templates.quote.presets = pr;
+		templates.quote.fields = templates.quote.fields.concat( [ 'source', 'speaker_focus{x,y}', 'speaker_zoom' ] );
+	}() );
 
 	function frameUrl( key, W, H ) {
 		var c = cfg(), sfx = 1080 === W && 1080 === H ? '' : '-' + W + 'x' + H;
@@ -3118,7 +3666,7 @@
 		var sz = SIZES[ opts.size ] || SIZES[ '1080x1080' ], W = sz[ 0 ], H = sz[ 1 ];
 		if ( 1920 === H && ! soloMode( type, opts ) ) { return story( type, data, opts ); }
 		var land = 1200 === W;
-		var o = { preset: opts.preset, ad: !! opts.ad && t.ad && ! land, cta: opts.cta, type: type, palette: opts.palette, hiStyle: opts.hiStyle };
+		var o = { preset: opts.preset, ad: !! opts.ad && t.ad && ! land, cta: opts.cta, type: type, palette: opts.palette, hiStyle: opts.hiStyle, accent: opts.accent };
 		var solo = soloMode( type, opts ); /* own frame on a full-artwork type → the frame is the whole design */
 		if ( 'condolence' === type || ( 'day' === type && ! solo && DAY[ dayTheme( data, o ) ].noAd ) ) { o.ad = false; } /* dignity rule */
 		if ( solo && o.ad && ! adAllowed( type, data, opts ) ) { o.ad = false; }
@@ -3165,6 +3713,7 @@
 			REG = []; CUR = cv; MAINS = [ A.image ].concat( A.gallery || [] ).filter( Boolean );
 			TSC = Math.max( 0.6, Math.min( 1.5, +opts.titleScale || 1 ) );
 			LOGO = 'auto' !== pos || 1 !== lsc ? { pos: pos, scale: lsc, seen: null, style: opts.logoStyle } : null;
+			BRANDP = 'quote' === type && !! UK[ o.preset ];
 			try {
 				ctx.save();
 				if ( off ) { ctx.beginPath(); ctx.rect( 0, off, W, H - off - ( botAd ? STRIP_H : 0 ) ); ctx.clip(); ctx.translate( 0, off ); }
@@ -3185,7 +3734,7 @@
 				if ( topAd ) { adStrip( ctx, W, 0, A.adTopImg, adTopDesc ); }
 				if ( botAd ) { adStrip( ctx, W, H - STRIP_H, A.adImg, opts.ad ); }
 				cv.__regions = REG; cv.__content = { x: 0, y: off, w: W, h: CH };
-			} finally { REG = null; CUR = null; MAINS = null; TSC = 1; LOGO = null; }
+			} finally { REG = null; CUR = null; MAINS = null; TSC = 1; LOGO = null; BRANDP = false; }
 			cv.setAttribute( 'data-card-type', type );
 			if ( solo ) { cv.setAttribute( 'data-frame-mode', 'standalone' ); cv.setAttribute( 'data-ink', ink ); } else { cv.removeAttribute( 'data-frame-mode' ); cv.removeAttribute( 'data-ink' ); }
 			return cv;
@@ -3217,7 +3766,8 @@
 			ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 50; ctx.shadowOffsetY = 18; ctx.fillStyle = '#FFFFFF';
 			rrect( ctx, cx, cy, cw, ch, 28 ); ctx.fill(); ctx.restore();
 			ctx.save(); rrect( ctx, cx, cy, cw, ch, 28 ); ctx.clip(); ctx.drawImage( card, cx, cy, cw, ch ); ctx.restore();
-			logo( ctx, W / 2, cy - 104, 230, mourn ? '#E8E2D6' : C.white, 'center', A );
+			BRANDP = 'quote' === type && !! UK[ opts.preset ];
+			try { logo( ctx, W / 2, cy - 104, 230, mourn ? '#E8E2D6' : C.white, 'center', A ); } finally { BRANDP = false; }
 			var foot = undefined !== data.story_cta && null !== data.story_cta ? str( data.story_cta ) : str( cfg().storyCta );
 			if ( mourn ) { foot = ''; }
 			if ( foot && CTA_TYPES[ type ] ) {
@@ -3426,6 +3976,7 @@
 		/* 2.4.4 */
 		groupOf: groupOf,
 		isNil: function ( preset ) { return !! NIL[ preset ]; },
+		quoteDesigns: ( function () { var m = {}; Object.keys( UK ).forEach( function ( k ) { m[ k ] = Object.assign( { label: UK[ k ][ 1 ] }, UK[ k ][ 2 ] ); } ); return m; }() ),
 		groupLabels: GROUP_LABELS,
 		palettes: ( function () { var o = {}; Object.keys( NP ).forEach( function ( k ) { if ( 'shok' !== k ) { o[ k ] = NP[ k ].label; } } ); return o; }() ),
 		houseAds: HOUSE,

@@ -65,6 +65,10 @@ foreach ( array(
 	'campus',
 	'push',
 	'deshchitro',
+	'assistant',
+	'factcheck', // r46 ফ্যাক্টচেক
+	'saved',     // r46 পরে পড়ুন
+	'tips',      // r46 গোপন তথ্য পাঠান
 ) as $meeha_module ) {
 	$meeha_module_file = MEEHA_DIR . '/inc/' . $meeha_module . '/bootstrap.php';
 	if ( ! is_readable( $meeha_module_file ) ) {

@@ -526,6 +526,15 @@ export default function Home() {
       </button>
 
       <FieldStrip onOpen={(t) => navigate(`/app/field?tab=${t}`)} />
+      {/* r46: readers' secret tips routed to my district */}
+      <button type="button" onClick={() => navigate('/app/tips')} className="mx-5 mt-3 w-[calc(100%-40px)] flex items-center gap-3 rounded-xl ring-1 ring-neutral-200 bg-white px-3 py-2.5 text-left" data-testid="tips-entry">
+        <span className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-[18px]">🕵️</span>
+        <span className="flex-1">
+          <span className="block text-[13.5px] font-semibold text-neutral-900">গোপন তথ্য (টিপস)</span>
+          <span className="block text-[11.5px] text-neutral-500">পাঠকের পাঠানো তথ্য, আপনার এলাকার — যাচাই করে ডেস্ককে জানান</span>
+        </span>
+        <span className="text-neutral-400">›</span>
+      </button>
 
       <NeedsFixCard items={submissions.filter((s) => statusGroup(s) === 'rejected')} onOpen={(id) => navigate(`/app/write/${id}`)} />
 

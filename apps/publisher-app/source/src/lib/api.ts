@@ -2406,7 +2406,7 @@ async function uploadResumable(file: File, o: ResumableOpts): Promise<UploadedFi
       }
     }
   }
-  type Status = { received: number; size: number; done: boolean; processing?: boolean }
+  type Status = { received: number; size: number; done: boolean; processing?: boolean; have?: number[]; piece_size?: number; parallel?: number }
   const status = (sid: string) => withRetry(() => request<Status>(`/media/upload-session/${sid}`), 'সংযোগ')
 
   // 1 — the session (a fresh one, or the earlier one of this file)
@@ -2422,7 +2422,8 @@ async function uploadResumable(file: File, o: ResumableOpts): Promise<UploadedFi
   if (!session) {
     try {
       const s = await withRetry(
-        () => request<{ id: string; chunk_size: number; received: number }>('/media/upload-session', { method: 'POST', body: { kind, name: file.name, size: file.size, ...(o.extra ?? {}) }, headers: o.headers }),
+        // r46: several pieces at once (newsroom-os 1.28.0; an older plugin ignores it)
+        () => request<{ id: string; chunk_size: number; received: number }>('/media/upload-session', { method: 'POST', body: { kind, name: file.name, size: file.size, parallel: true, ...(o.extra ?? {}) }, headers: o.headers }),
         'সংযোগ',
       )
       session = { id: s.id, chunk: Math.max(262144, Math.min(s.chunk_size || 4194304, 8 * 1048576)) }
@@ -2445,6 +2446,66 @@ async function uploadResumable(file: File, o: ResumableOpts): Promise<UploadedFi
   let st = await status(id)
   let received = st.received
   report(received)
+
+  // 2 (r46) — several pieces at once, any order, when the server allows it
+  if (!st.done && !st.processing && st.have && st.piece_size) {
+    const piece = st.piece_size
+    const have = new Set(st.have)
+    const queue: number[] = []
+    for (let off = 0; off < file.size; off += piece) if (!have.has(off)) queue.push(off)
+    let doneBytes = 0
+    for (let off = 0; off < file.size; off += piece) if (have.has(off)) doneBytes += Math.min(piece, file.size - off)
+    const flying = new Map<number, number>()
+    const show = () => {
+      let f = 0
+      for (const v of flying.values()) f += v
+      report(Math.min(file.size, doneBytes + f))
+    }
+    let streams = Math.max(1, Math.min(6, st.parallel || 4))
+    let active = 0
+    const worker = async (): Promise<void> => {
+      active++
+      try {
+        for (;;) {
+          if (active > streams) return
+          const off = queue.shift()
+          if (off === undefined) return
+          const blob = file.slice(off, Math.min(file.size, off + piece))
+          try {
+            await waitOnline(signal, onStatus)
+            flying.set(off, 0)
+            await uploadWithProgress<{ received: number }>(`/media/upload-session/${id}/chunk?offset=${off}`, blob, {
+              onProgress: (p) => {
+                flying.set(off, p.loaded)
+                show()
+              },
+              signal,
+            })
+            flying.delete(off)
+            doneBytes += blob.size
+            fails = Math.max(0, fails - 1)
+            onStatus?.(null)
+            show()
+          } catch (err) {
+            flying.delete(off)
+            queue.unshift(off)
+            show()
+            if (err instanceof ApiError && err.status === 404) throw err
+            bump(err)
+            if (streams > 1) streams--
+            const wait = backoff()
+            onStatus?.(`নেটওয়ার্ক দুর্বল — ${bnSeconds(Math.round(wait))} পরে আবার চলবে (আগের অংশ হারায়নি)…`)
+            await pause(wait * 1000, signal)
+          }
+        }
+      } finally {
+        active--
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(streams, Math.max(1, queue.length)) }, () => worker()))
+    while (queue.length) await worker()
+    received = file.size
+  }
 
   // 2 — the pieces (skipped when the server already has them all)
   while (!st.done && !st.processing && received < file.size) {
@@ -2518,3 +2579,99 @@ async function uploadResumable(file: File, o: ResumableOpts): Promise<UploadedFi
 }
 
 const bnSeconds = (n: number) => `${String(n).replace(/[0-9]/g, (d) => '০১২৩৪৫৬৭৮৯'[Number(d)])} সেকেন্ড`
+
+// ---- r46: গোপন তথ্য (টিপস) — newsroom-os NROS_Tips (DB 17) ----
+
+// Interface merging: the sidebar badge count from GET /notifications.
+export interface NotificationCounts {
+  /** r46 — unread tips (new + tipster follow-ups) */
+  tips?: number
+}
+
+export type TipStatus = 'new' | 'verifying' | 'assigned' | 'rejected' | 'published'
+export type TipCategory = 'corruption' | 'crime' | 'health' | 'education' | 'environment' | 'other'
+
+export interface TipPerson {
+  id: number
+  name: string
+  role: string
+  district: string
+  avatar: string
+}
+export interface TipFile {
+  id: number
+  name: string
+  mime: string
+  kind: 'image' | 'audio' | 'video' | 'pdf' | 'file'
+  size: number
+  /** EXIF/GPS removed on the server */
+  stripped: boolean
+  /** signed links (2 h) */
+  url: string
+  download: string
+}
+export interface TipNote {
+  id: number
+  kind: 'note' | 'reply' | 'tipster' | 'system'
+  body: string
+  who: string
+  at: string
+}
+export interface Tip {
+  id: number
+  code: string
+  excerpt: string
+  category: TipCategory
+  category_label: string
+  district: string
+  status: TipStatus
+  status_label: string
+  auto_closed: boolean
+  close_reason: string
+  urgent: boolean
+  unread: boolean
+  has_contact: boolean
+  files_count: number
+  routed: '' | 'district' | 'editor' | 'manual'
+  assignee: TipPerson | null
+  published_url: string
+  created_at: string
+  updated_at: string
+}
+export interface TipDetail extends Tip {
+  body: string
+  files: TipFile[]
+  contact: { name?: string; phone?: string; email?: string } | null
+  notes: TipNote[]
+}
+export interface TipList {
+  items: Tip[]
+  total: number
+  pages: number
+  counts: Record<TipStatus, number>
+  unread: number
+  statuses: Record<TipStatus, string>
+  categories: Record<TipCategory, string>
+}
+
+export const TipsApi = {
+  list: (q: { status?: string; q?: string; category?: string; urgent?: boolean; mine?: boolean; page?: number } = {}) => {
+    const p = new URLSearchParams()
+    if (q.status) p.set('status', q.status)
+    if (q.q) p.set('q', q.q)
+    if (q.category) p.set('category', q.category)
+    if (q.urgent) p.set('urgent', '1')
+    if (q.mine) p.set('mine', '1')
+    if (q.page && q.page > 1) p.set('page', String(q.page))
+    const s = p.toString()
+    return request<TipList>(`/admin/tips${s ? `?${s}` : ''}`)
+  },
+  get: (id: number) => request<TipDetail>(`/admin/tips/${id}`),
+  update: (id: number, body: { status?: TipStatus; assignee_id?: number; published_url?: string; urgent?: boolean }) =>
+    request<TipDetail>(`/admin/tips/${id}`, { method: 'PATCH', body }),
+  note: (id: number, kind: 'note' | 'reply', body: string) =>
+    request<TipDetail>(`/admin/tips/${id}/notes`, { method: 'POST', body: { kind, body } }),
+  remove: (id: number) => request<{ ok: true }>(`/admin/tips/${id}`, { method: 'DELETE' }),
+  people: (q = '', district = '') =>
+    request<{ items: TipPerson[] }>(`/admin/tips/people?q=${encodeURIComponent(q)}&district=${encodeURIComponent(district)}`),
+}

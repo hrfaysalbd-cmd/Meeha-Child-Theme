@@ -10,11 +10,13 @@
  * post; the original file and the settings are kept on the post so the
  * edit can be reopened or undone (NROS_Videos `edit`).
  */
+import { applyAutoStyle } from '../lib/videoEdit/autostyle'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   AdminVideosApi,
   ApiError,
+  CategoriesApi,
   MediaApi,
   PhotocardApi,
   VideoKitApi,
@@ -322,6 +324,9 @@ export default function VideoStudio() {
           const style = readJson(STYLE_KEY)
           initial = style ? normalizeConfig(style) : { ...DEFAULT_CONFIG }
           initial = { ...initial, frame: { ...initial.frame, ticker: kitRes?.ticker ?? '', adText: initial.frame.adText || kitRes?.ad_text || '' } }
+          // r46: a first edit gets music, frame, intro, outro and name plate picked from its category and title
+          const catName = video.category_id ? ((await CategoriesApi.list().catch(() => [])) as { id: number; name: string }[]).find((c) => c.id === video.category_id)?.name ?? '' : ''
+          initial = applyAutoStyle(initial, catName, video.title)
         }
         if (cancelled) return
         setKit(kitRes)

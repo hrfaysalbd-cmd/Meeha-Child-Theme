@@ -20,6 +20,7 @@ import { Suspense, lazy } from 'react'
 const IdCard = lazy(() => import('./pages/IdCard'))
 // r44 — মাঠ: কাজের বোর্ড, নিরাপত্তা, তথ্য অধিকার
 const FieldPage = lazy(() => import('./pages/Field'))
+const TipsPage = lazy(() => import('./pages/Tips'))
 
 function Root() {
   const { profile, loading } = useAuth()
@@ -84,6 +85,14 @@ export default function App() {
         <Route path="live" element={<Live />} />
         <Route path="live/:id" element={<Live />} />
         <Route path="chat" element={<Chat />} />
+        <Route
+          path="tips"
+          element={
+            <Suspense fallback={<div className="py-16 flex justify-center"><Spinner /></div>}>
+              <TipsPage />
+            </Suspense>
+          }
+        />
         <Route
           path="field"
           element={

@@ -8,10 +8,10 @@
  * preview is exactly what gets rendered.
  */
 import { houseAdDur, type HouseAdId } from './houseads'
-import { AD_IN_CARD, AD_OUT_CARD, FRAME_SIZES, INTROS, OUTROS, keptRanges, type EditConfig } from './config'
+import { AD_IN_CARD, AD_OUT_CARD, FRAME_SIZES, INTROS, OUTROS, keptRanges, type EditConfig, type PackIntroId, type PackOutroId } from './config'
 
 export type ClipKey = 'main' | 'intro' | 'outro' | 'pip' | `ad${number}`
-export type SceneId = 'breaking' | 'headline' | 'special' | 'swipe' | 'live' | 'countdown' | 'thanks' | 'follow' | 'ad-in' | 'ad-out' | 'nil-reveal' | 'tv-open' | 'investigation' | 'sports' | 'showbiz' | 'nil-end' | 'endscreen' | 'credits' | 'shatter' | 'globe' | 'kinetic' | 'split' | 'subscribe' | 'staytuned' | 'thanks-burst' | `house-${HouseAdId}`
+export type SceneId = 'breaking' | 'headline' | 'special' | 'swipe' | 'live' | 'countdown' | 'thanks' | 'follow' | 'ad-in' | 'ad-out' | 'nil-reveal' | 'tv-open' | 'investigation' | 'sports' | 'showbiz' | 'nil-end' | 'endscreen' | 'credits' | 'shatter' | 'globe' | 'kinetic' | 'split' | 'subscribe' | 'staytuned' | 'thanks-burst' | PackIntroId | PackOutroId | `house-${HouseAdId}`
 
 export interface Segment {
   kind: 'intro' | 'outro' | 'main' | 'ad' | 'card'

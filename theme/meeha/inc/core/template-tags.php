@@ -273,7 +273,7 @@ function meeha_breadcrumb( $args = array() ) {
 				'@type'           => 'BreadcrumbList',
 				'itemListElement' => $list,
 			),
-			JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+			JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG
 		) . '</script>';
 	}
 }

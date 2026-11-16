@@ -751,6 +751,9 @@ function meeha_handle_ajax_register() {
 add_action( 'wp_ajax_nopriv_meeha_ajax_register', 'meeha_handle_ajax_register' );
 
 function meeha_handle_ajax_lost_password() {
+	if ( ! meeha_legacy_same_origin() ) { // 2.4.14: the REST route checked this; the legacy wrapper did not.
+		wp_send_json_error( array( 'message' => 'অনুরোধ গ্রহণযোগ্য নয়।' ), 403 );
+	}
 	meeha_legacy_ajax_send( meeha_account_do_lost_password( wp_unslash( $_POST ) ) );
 }
 add_action( 'wp_ajax_nopriv_meeha_ajax_lost_password', 'meeha_handle_ajax_lost_password' );

@@ -460,12 +460,18 @@ function meeha_handle_ajax_login() {
 add_action( 'wp_ajax_nopriv_meeha_ajax_login', 'meeha_handle_ajax_login' );
 
 function meeha_handle_ajax_login_otp() {
+	if ( ! meeha_legacy_same_origin() ) { // 2.4.14: same guard as the password step.
+		wp_send_json_error( array( 'message' => 'অনুরোধ গ্রহণযোগ্য নয়।' ), 403 );
+	}
 	// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput
 	meeha_legacy_ajax_send( meeha_login_step_otp( isset( $_POST['token'] ) ? wp_unslash( $_POST['token'] ) : '', isset( $_POST['code'] ) ? wp_unslash( $_POST['code'] ) : '' ) );
 }
 add_action( 'wp_ajax_nopriv_meeha_ajax_login_otp', 'meeha_handle_ajax_login_otp' );
 
 function meeha_handle_ajax_login_otp_resend() {
+	if ( ! meeha_legacy_same_origin() ) { // 2.4.14: an OTP resend sends an SMS/e-mail — no cross-site triggering.
+		wp_send_json_error( array( 'message' => 'অনুরোধ গ্রহণযোগ্য নয়।' ), 403 );
+	}
 	// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput
 	meeha_legacy_ajax_send( meeha_login_step_otp_resend( isset( $_POST['token'] ) ? wp_unslash( $_POST['token'] ) : '' ) );
 }

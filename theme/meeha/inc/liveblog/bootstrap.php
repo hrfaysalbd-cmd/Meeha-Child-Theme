@@ -132,10 +132,27 @@ add_action(
 		if ( 'ended' === $cfg['status'] && $cfg['ended'] ) {
 			$ld['coverageEndTime'] = gmdate( 'c', $cfg['ended'] );
 		}
-		if ( has_post_thumbnail( $p ) ) {
+		// 2.4.14: the fields Google's article report asks for (language, description, author, publisher logo, a big image).
+		$ld['mainEntityOfPage'] = get_permalink( $p );
+		$ld['inLanguage']       = 'bn-BD';
+		$desc                   = function_exists( 'meeha_get_summary' ) ? trim( (string) meeha_get_summary( $p->ID ) ) : '';
+		$ld['description']      = '' !== $desc ? $desc : wp_trim_words( wp_strip_all_tags( strip_shortcodes( $p->post_content ) ), 30, '…' );
+		$ld['author']           = array(
+			'@type' => 'Person',
+			'name'  => get_the_author_meta( 'display_name', (int) $p->post_author ),
+			'url'   => get_author_posts_url( (int) $p->post_author ),
+		);
+		$ld['publisher']['url'] = home_url( '/' );
+		if ( function_exists( 'meeha_news_seo_logo' ) && meeha_news_seo_logo() ) {
+			$ld['publisher']['logo'] = meeha_news_seo_logo();
+		}
+		$img = function_exists( 'meeha_seo_image' ) ? meeha_seo_image( $p ) : null;
+		if ( $img ) {
+			$ld['image'] = array( $img );
+		} elseif ( has_post_thumbnail( $p ) ) {
 			$ld['image'] = get_the_post_thumbnail_url( $p, 'full' );
 		}
-		echo '<script type="application/ld+json">' . wp_json_encode( $ld, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) . "</script>\n";
+		echo '<script type="application/ld+json">' . wp_json_encode( $ld, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG ) . "</script>\n";
 	},
 	30
 );

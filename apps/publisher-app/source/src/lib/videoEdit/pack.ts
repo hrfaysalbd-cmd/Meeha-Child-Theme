@@ -991,7 +991,7 @@ function introBudget(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
   // coin
   const cy = H * (port ? 0.27 : 0.27)
   const cr = (port ? 95 : 82) * s
-  const spin = Math.cos(Math.min(t, 1.2) * Math.PI * 3)
+  const spin = Math.cos(win(t, 0.1, 1.2) * Math.PI * 4)
   const ap = ease.outBack(win(t, 0.1, 0.55))
   ctx.save()
   ctx.translate(W / 2, cy)
@@ -1422,12 +1422,6 @@ function introMourn(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
   const u = (port ? 90 : 75) * s
   const base = H * (port ? 0.42 : 0.46)
   candle(ctx, W / 2, base, u, t, ease.outCubic(win(t, 0.3, 1.0)))
-  // black ribbon in the corner
-  ctx.save()
-  ctx.translate(W - 70 * s, 70 * s)
-  ctx.rotate(Math.PI / 4)
-  fill(ctx, { x: -140 * s, y: -18 * s, w: 280 * s, h: 36 * s }, '#1F1F1F')
-  ctx.restore()
   ctx.save()
   ctx.globalAlpha = win(t, 0.8, 1.4)
   ctx.font = bodyFont(500, 34 * s)
@@ -1447,6 +1441,29 @@ function introMourn(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
 // ---------------------------------------------------------------------------
 
 const NETS = ['facebook', 'youtube', 'instagram', 'web'] as const
+
+/** Social icon, plus a globe for the website (houseads has no web icon). */
+function siteIcon(ctx: Ctx, net: string, cx: number, cy: number, r: number) {
+  if (net !== 'web') return netIcon(ctx, net, cx, cy, r)
+  ctx.save()
+  ctx.fillStyle = '#0B2746'
+  ctx.beginPath()
+  ctx.arc(cx, cy, r, 0, TAU)
+  ctx.fill()
+  ctx.strokeStyle = '#FFFFFF'
+  ctx.lineWidth = r * 0.09
+  ctx.beginPath()
+  ctx.arc(cx, cy, r * 0.62, 0, TAU)
+  ctx.moveTo(cx - r * 0.62, cy)
+  ctx.lineTo(cx + r * 0.62, cy)
+  ctx.moveTo(cx, cy - r * 0.62)
+  ctx.lineTo(cx, cy + r * 0.62)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.ellipse(cx, cy, r * 0.28, r * 0.62, 0, 0, TAU)
+  ctx.stroke()
+  ctx.restore()
+}
 const NET_NAMES: Record<(typeof NETS)[number], string> = { facebook: 'ফেসবুক', youtube: 'ইউটিউব', instagram: 'ইনস্টাগ্রাম', web: 'ওয়েবসাইট' }
 
 function outroTri(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
@@ -1482,7 +1499,7 @@ function outroTri(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
     ctx.save()
     ctx.translate(W / 2 + (i - 1.5) * gap, iy)
     ctx.scale(a, a)
-    netIcon(ctx, n, 0, 0, 40 * s)
+    siteIcon(ctx, n, 0, 0, 40 * s)
     ctx.restore()
   })
   footLine(ctx, env, t, 1.8, '#0B2746', H * (port ? 0.85 : 0.92))
@@ -1599,13 +1616,13 @@ function outroNext(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
   ctx.restore()
   // three "video" cards with play buttons
   const n = 3
-  const cw = port ? W * 0.78 : W * 0.26
+  const cw = port ? W * 0.56 : W * 0.26
   const ch = cw * 9 / 16
   for (let i = 0; i < n; i++) {
     const a = ease.outBack(win(t, 0.6 + i * 0.15, 1.0 + i * 0.15))
     if (a <= 0) continue
     const x = port ? (W - cw) / 2 : W / 2 + (i - 1) * (cw + 40 * s) - cw / 2
-    const y = port ? H * 0.36 + i * (ch + 30 * s) : H * 0.42
+    const y = port ? H * 0.34 + i * (ch + 24 * s) : H * 0.42
     ctx.save()
     ctx.translate(x + cw / 2, y + ch / 2)
     ctx.scale(a, a)
@@ -1624,7 +1641,7 @@ function outroNext(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
     fillRoundRect(ctx, -cw / 2 + 18 * s, ch / 2 - 40 * s, cw * 0.55, 16 * s, 8 * s, 'rgba(255,255,255,0.55)')
     ctx.restore()
   }
-  logoPill(ctx, env, W / 2, H * (port ? 0.9 : 0.84), 50 * s, win(t, 1.3, 1.7))
+  logoPill(ctx, env, W / 2, H * (port ? 0.93 : 0.84), 50 * s, win(t, 1.3, 1.7))
   black(ctx, env, 1 - win(t, 0, 0.12))
   black(ctx, env, ease.inCubic(win(t, dur - 0.35, dur)))
 }
@@ -1656,7 +1673,7 @@ function outroSocialGrid(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
     fillRoundRect(ctx, -tw / 2, -th / 2, tw, th, 22 * s, '#FFFFFF')
     fill(ctx, { x: -tw / 2, y: th / 2 - 10 * s, w: tw, h: 10 * s }, colors[n])
     const r = Math.min(th * 0.24, 46 * s)
-    netIcon(ctx, n, 0, -th * 0.12, r)
+    siteIcon(ctx, n, 0, -th * 0.12, r)
     ctx.font = bodyFont(700, Math.min(30 * s, th * 0.15))
     ctx.fillStyle = '#111827'
     ctx.textAlign = 'center'
@@ -1728,7 +1745,7 @@ function outroSignoff(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
   // date plate
   const dp = ease.outCubic(win(t, 1.2, 1.6))
   const pw = Math.min(W * 0.7, 560 * s)
-  const py = H * (port ? 0.7 : 0.75)
+  const py = H * (port ? 0.56 : 0.75)
   fillRoundRect(ctx, W / 2 - (pw * dp) / 2, py, pw * dp, 64 * s, 32 * s, '#FFC20E')
   if (dp > 0.8) {
     ctx.font = bodyFont(700, 30 * s)
@@ -2013,7 +2030,7 @@ export function drawLowerThird(ctx: Ctx, env: DrawEnv, c: Caption, local: number
         ctx.fill()
       }
       para(x, y, w, 64 * s, '#065F46')
-      if (role) para(x - sk * 0.6, y + 64 * s, w * 0.85, h - 64 * s, '#A3E635')
+      if (role) para(x - sk * 0.6, y + 64 * s, w, h - 64 * s, '#A3E635')
       para(x - 20 * s, y, 12 * s, 64 * s, '#A3E635')
       textAt(tx + 6 * s, nameY, '#FFFFFF', tx - 4 * s, roleY - 2 * s, '#14280F', w - padX * 2)
       break
@@ -2113,9 +2130,9 @@ export function drawStinger(ctx: Ctx, id: StingerId, p: number, r: Rect, s: numb
   if (id === 'st-tri') {
     // three slanted bars sweep across in a row; the middle one covers all at 0.5
     const slant = r.h * 0.45
-    const bw = r.w + slant
+    const bw = r.w + slant * 2.5
     TRI.forEach((c, i) => {
-      const q = clamp(p * 1.25 - i * 0.06)
+      const q = clamp((p - 0.5) * 1.25 + 0.5 + (2 - i) * 0.06)
       const left = lerp(r.x - bw - slant - i * 40 * s, r.x + r.w + slant, ease.inOutCubic(q))
       ctx.fillStyle = c
       ctx.beginPath()
@@ -2131,10 +2148,6 @@ export function drawStinger(ctx: Ctx, id: StingerId, p: number, r: Rect, s: numb
     ctx.fillStyle = BRAND.blue
     ctx.beginPath()
     ctx.arc(cx, cy, Math.hypot(r.w, r.h) * 0.55 * k, 0, TAU)
-    ctx.fill()
-    ctx.fillStyle = '#FFFFFF'
-    ctx.beginPath()
-    ctx.arc(cx, cy, Math.hypot(r.w, r.h) * 0.55 * k * 0.08 + (cover > 0.6 ? Math.min(r.w, r.h) * 0.12 : 0), 0, TAU)
     ctx.fill()
     const la = win(cover, 0.6, 0.85)
     if (la > 0) {
@@ -2165,7 +2178,7 @@ export function drawStinger(ctx: Ctx, id: StingerId, p: number, r: Rect, s: numb
       ctx.scale(k, k)
       ctx.fillText('সর্বশেষ', 0, px * 0.06, r.w * 0.9)
     }
-    ctx.fillStyle = `rgba(255,255,255,${Math.pow(cover, 6) * 0.6})`
+    ctx.fillStyle = `rgba(255,255,255,${Math.pow(cover, 10) * 0.18})`
     ctx.fillRect(r.x - r.w, r.y - r.h, r.w * 3, r.h * 3)
   } else if (id === 'st-glitch') {
     const fr = Math.floor(p * 30)

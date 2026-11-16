@@ -487,10 +487,10 @@ export function synthLib(ctx: BaseAudioContext, out: AudioNode, kind: SfxId, whe
       const r = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff)
       for (let i = 0; i < 14; i++) {
         const t = when + i * 0.055 + r() * 0.02
-        if (r() > 0.45) tone(ctx, g, 200 + Math.floor(r() * 12) * 300, t, 0.06, 0.001, 0.035, 'square')
-        else burst(ctx, g, t, 0.03, 'bandpass', 1500 + r() * 6000, 2, 0.14, 0.001, 272 + i)
+        if (r() > 0.45) tone(ctx, g, 200 + Math.floor(r() * 12) * 300, t, 0.2, 0.001, 0.035, 'square')
+        else burst(ctx, g, t, 0.03, 'bandpass', 1500 + r() * 6000, 2, 0.5, 0.001, 272 + i)
       }
-      tone(ctx, g, 2093, when + 0.8, 0.05, 0.001, 0.08, 'square')
+      tone(ctx, g, 2093, when + 0.8, 0.15, 0.001, 0.08, 'square')
       return true
     }
     case 'magic': {
@@ -552,8 +552,8 @@ export function synthLib(ctx: BaseAudioContext, out: AudioNode, kind: SfxId, whe
       lp.frequency.value = 1400
       const og = ctx.createGain()
       og.gain.setValueAtTime(0.0001, when)
-      og.gain.linearRampToValueAtTime(0.07, when + 0.6)
-      og.gain.setValueAtTime(0.07, when + 1.8)
+      og.gain.linearRampToValueAtTime(0.2, when + 0.6)
+      og.gain.setValueAtTime(0.2, when + 1.8)
       og.gain.linearRampToValueAtTime(0.0001, when + 2.5)
       o.connect(lp).connect(og).connect(g)
       o.start(when)
@@ -592,8 +592,8 @@ export function synthLib(ctx: BaseAudioContext, out: AudioNode, kind: SfxId, whe
         vg.gain.setValueAtTime(0.0001, when)
         for (let k = 0; k < 12; k++) {
           const t = when + 0.1 + k * 0.25 + ((v * 37 + k * 13) % 10) * 0.012
-          vg.gain.linearRampToValueAtTime(0.06 + ((v + k) % 3) * 0.03, t)
-          vg.gain.linearRampToValueAtTime(0.02, t + 0.12)
+          vg.gain.linearRampToValueAtTime(0.3 + ((v + k) % 3) * 0.12, t)
+          vg.gain.linearRampToValueAtTime(0.1, t + 0.12)
         }
         vg.gain.linearRampToValueAtTime(0.0001, when + 3.2)
         const pan = ctx.createStereoPanner()

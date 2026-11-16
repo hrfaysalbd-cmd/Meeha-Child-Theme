@@ -6,7 +6,8 @@
  * the export match.
  */
 import type { EditConfig, Sticker, TransitionId } from './config'
-import { BRAND, FONT_BODY, FONT_DISPLAY } from './assets'
+import { BRAND, FONT_BODY, FONT_DISPLAY, type LogoAsset } from './assets'
+import { drawStinger, isStinger } from './pack'
 import { clamp, ease, fillRoundRect, fitText, lerp, win, type Ctx } from './motion'
 import { segSourceEnd, type Layout, type Rect, type Timeline } from './timeline'
 
@@ -276,7 +277,8 @@ export function transitionTimes(tl: Timeline, cfg: EditConfig): number[] {
  * Paints the transition over `r`. The zoom style re-draws what is already
  * on the canvas (scaled), using `scratch` as a copy.
  */
-export function drawTransition(ctx: Ctx, id: TransitionId, p: number, r: Rect, s: number, scratch: HTMLCanvasElement | OffscreenCanvas) {
+export function drawTransition(ctx: Ctx, id: TransitionId, p: number, r: Rect, s: number, scratch: HTMLCanvasElement | OffscreenCanvas, logo?: LogoAsset) {
+  if (isStinger(id)) return drawStinger(ctx, id, p, r, s, logo)
   const cover = 1 - Math.abs(2 * p - 1) // 0 → 1 → 0
   ctx.save()
   ctx.beginPath()

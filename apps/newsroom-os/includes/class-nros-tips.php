@@ -859,7 +859,7 @@ class NROS_Tips {
 			if ( $assignee ) {
 				$who = get_userdata( $assignee );
 				self::note( $id, 0, 'system', 'স্বয়ংক্রিয় রাউটিং: ' . ( 'district' === $routed ? self::label_of_district( $district ) . ' জেলার সংবাদদাতা ' : 'সম্পাদক ' ) . ( $who ? $who->display_name : '' ) . '-কে ডিফল্ট দায়িত্ব দেওয়া হলো।' );
-				$link = 'district' === $routed ? '/tips/' . $id : '/app/tips?id=' . $id;
+				$link = 'district' === $routed ? '/app/tips?id=' . $id : '/app/tips?id=' . $id;
 				self::notify( array( $assignee ), 'tip_assigned', 'নতুন গোপন তথ্য আপনার কাছে: ' . $cat . ' · ' . self::label_of_district( $district ), 'বিস্তারিত অ্যাপে দেখুন। তথ্যদাতার পরিচয় গোপন রাখুন।', $link, $id );
 			}
 			if ( $urgent ) {
@@ -1213,7 +1213,7 @@ class NROS_Tips {
 				$data['routed']      = $aid ? 'manual' : '';
 				$log[]               = $aid ? 'দায়িত্ব: ' . $u->display_name : 'দায়িত্ব সরানো হলো';
 				if ( $aid && $aid !== (int) $me->ID ) {
-					$link = in_array( 'correspondent', (array) $u->roles, true ) ? '/tips/' . (int) $row['id'] : '/app/tips?id=' . (int) $row['id'];
+					$link = in_array( 'correspondent', (array) $u->roles, true ) ? '/app/tips?id=' . (int) $row['id'] : '/app/tips?id=' . (int) $row['id'];
 					self::notify( array( $aid ), 'tip_assigned', 'আপনাকে একটি গোপন তথ্য দেওয়া হলো: ' . ( self::CATEGORIES[ $row['category'] ] ?? '' ) . ' · ' . self::label_of_district( $row['district'] ), 'দিয়েছেন ' . $me->display_name . '। তথ্যদাতার পরিচয় গোপন রাখুন।', $link, (int) $row['id'] );
 				}
 				if ( $aid && null === $st && 'new' === $row['status'] ) {

@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   PhotocardApi,
+  QuotesApi,
   describeError,
   type CardDates,
   type CardFrame,
@@ -48,6 +49,8 @@ import {
 import { imageById, imageByUrl, imageFromFile, loadImageElement } from '../lib/photocard/images'
 import { applyLook, NO_LOOK } from '../lib/photocard/look'
 import { smartFocus } from '../lib/photocard/smartFocus'
+import { photoAccent, pickQuoteDesigns } from '../lib/photocard/quoteAuto'
+import { logo as brandLogoSvg, logoH as brandLogoH } from '../brand/logo'
 import {
   CTA_TYPES,
   FIELDS,
@@ -72,6 +75,7 @@ import PhotoPanel, { type PhotoItem } from '../components/photocard/PhotoPanel'
 import DesignGrid, { type DesignRow } from '../components/photocard/DesignGrid'
 import CardPreview from '../components/photocard/CardPreview'
 import QuotePicker from '../components/photocard/QuotePicker'
+import QuoteKit, { type AutoCard } from '../components/photocard/QuoteKit'
 import MadeCards from '../components/photocard/MadeCards'
 import StylePanel from '../components/photocard/StylePanel'
 import LayerPanel from '../components/photocard/LayerPanel'
@@ -96,6 +100,16 @@ type Look = { style: CardStyle; layers: Layer[] }
 type Snap = { looks: Partial<Record<CardType, Look>>; design: Partial<Record<CardType, string>> }
 const EMPTY_LOOK: Look = { style: DEFAULT_STYLE, layers: [] }
 type Status = { kind: 'ok' | 'err' | 'info'; text: string } | null
+
+/** Round 46: the real Meeha wordmark (src/brand/logo.ts) as path data for the renderer's উক্তি কার্ড. */
+function brandLogoShape(): { d: string; w: number; h: number } | null {
+  const svg = brandLogoSvg(0, 0, 1000, '#000')
+  const d = /\sd="([^"]+)"/.exec(svg)?.[1]
+  const k = Number(/scale\(([^)]+)\)/.exec(svg)?.[1])
+  if (!d || !k) return null
+  const w = 1000 / k
+  return { d, w, h: brandLogoH(w) }
+}
 
 /** A config built from the renderer alone (another theme, or an older plugin). */
 function fallbackConfig(MC: MeehaCardsApi): StudioConfig {
@@ -175,6 +189,15 @@ export default function PhotocardStudio() {
   const [quoteId, setQuoteId] = useState<number | null>(null)
   const [authorPhoto, setAuthorPhoto] = useState('')
   const [speakerPhoto, setSpeakerPhoto] = useState('')
+  // round 46: the speaker's crop, the photo's own accent and the automatic set
+  const [speakerFocus, setSpeakerFocus] = useState<{ x: number; y: number }>({ x: 50, y: 38 })
+  const [speakerZoom, setSpeakerZoom] = useState(1)
+  const [speakerAspect, setSpeakerAspect] = useState(0)
+  const [speakerNote, setSpeakerNote] = useState('')
+  const [accentOn, setAccentOn] = useState(false)
+  const [accent, setAccent] = useState<string | null>(null)
+  const [autoCards, setAutoCards] = useState<AutoCard[]>([])
+  const [autoBusy, setAutoBusy] = useState(false)
   const [dayTheme, setDayTheme] = useState('generic')
   const [dates, setDates] = useState<CardDates>({ weekday: '', gregorian: '', bangla: '', hijri: '' })
   const [dateYmd, setDateYmd] = useState('')
@@ -185,7 +208,7 @@ export default function PhotocardStudio() {
   const [renderBusy, setRenderBusy] = useState(false)
   const [renderErr, setRenderErr] = useState('')
   const [madeRefresh, setMadeRefresh] = useState(0)
-  const [library, setLibrary] = useState<null | 'photo' | 'author'>(null)
+  const [library, setLibrary] = useState<null | 'photo' | 'author' | 'speaker'>(null)
   const [smartBusy, setSmartBusy] = useState(false)
   const [smartNote, setSmartNote] = useState('')
   const [working, setWorking] = useState('')
@@ -219,8 +242,10 @@ export default function PhotocardStudio() {
           const [u, l] = await Promise.all([imageByUrl(logo.url), logo.light?.url ? imageByUrl(logo.light.url) : Promise.resolve(null)])
           logoCfg = u ? { mode: 'image', url: u, ...(l ? { light: { url: l } } : {}) } : { mode: 'vector' }
         }
+        const bl = brandLogoShape()
         mc.configure({
           logo: logoCfg,
+          ...(bl ? { brandLogo: bl } : {}),
           ...(c?.brand ? { brand: c.brand } : {}),
           ...(c?.watermark !== undefined ? { watermark: c.watermark } : {}),
           ...(c?.cta !== undefined ? { cta: c.cta } : {}),
@@ -321,9 +346,51 @@ export default function PhotocardStudio() {
     setFields((prev) => ({ ...prev, quote: { ...prev.quote, text: q.text, speaker: q.speaker, role: q.role, type_label: q.type_label, year: q.year } }))
     setQuoteFrame(q.frame || 'opinion')
     setDesign((d) => ({ ...d, quote: `b:${q.frame || 'opinion'}` }))
-    if (q.photo) imageByUrl(q.photo).then((u) => setSpeakerPhoto(u || ''))
-    else setSpeakerPhoto('')
+    if (q.photo) imageByUrl(q.photo).then((u) => applySpeakerPhoto(u || ''))
+    else applySpeakerPhoto('')
   }
+
+  /** A new speaker photo: smart focus finds the face, its shape guides the automatic designs. */
+  async function applySpeakerPhoto(u: string) {
+    setSpeakerPhoto(u)
+    setSpeakerZoom(1)
+    setSpeakerFocus({ x: 50, y: 38 })
+    setSpeakerNote('')
+    setAutoCards([])
+    setAccent(null)
+    if (!u) return
+    try {
+      const im = await loadImageElement(u)
+      setSpeakerAspect(im.naturalWidth / Math.max(1, im.naturalHeight))
+    } catch {
+      setSpeakerAspect(0)
+    }
+    const g = await smartFocus(u).catch(() => null)
+    if (g) {
+      // a portrait's subject sits in the upper part: keep the face, not the chest, in round crops
+      setSpeakerFocus({ x: g.x, y: g.how === 'face' ? g.y : Math.min(g.y, 45) })
+      setSpeakerNote(g.how === 'face' ? 'মুখ পাওয়া গেছে — সব নকশায় মুখটি মাঝখানে থাকবে।' : 'ছবির মূল অংশ মাঝখানে রাখা হয়েছে; দরকার হলে নিচের স্লাইডারে সরান।')
+    }
+    photoAccent(u).then(setAccent).catch(() => setAccent(null))
+  }
+
+  // Deep link from উক্তি: /app/photocard?type=quote&quote=123
+  const bootQuote = useRef(false)
+  useEffect(() => {
+    if (!cfg || bootQuote.current) return
+    bootQuote.current = true
+    const id = Number(params.get('quote'))
+    if (!id) return
+    QuotesApi.get(id)
+      .then((q) => {
+        setType('quote')
+        pickQuote({ id: q.id, text: q.text, speaker: q.speaker, role: q.role, type_label: q.type_name, frame: q.frame, photo: q.photo_url, year: q.year })
+        const src = [q.source, q.source_year].filter(Boolean).join(', ')
+        if (src) setFields((prev) => ({ ...prev, quote: { ...prev.quote, source: src } }))
+      })
+      .catch((e) => setStatus({ kind: 'err', text: describeError(e).message }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg, params])
 
   // ---------------------------------------------------------------- derived
   const typeInfo = cfg?.types[type]
@@ -337,10 +404,12 @@ export default function PhotocardStudio() {
     for (const id of NEW_PRESETS[type] || []) if (!presets[id] && MC.templates[type]?.presets[id]) presets[id] = MC.templates[type].presets[id]
     // Round 25: the blue set comes with the renderer, even when the site's theme is older.
     for (const [id, label] of Object.entries(MC.templates[type]?.presets || {})) if (!presets[id] && MC.isNil?.(id)) presets[id] = label
+    // Round 46: the উক্তি কার্ড come with the renderer too.
+    if (type === 'quote') for (const id of Object.keys(MC.quoteDesigns || {})) if (!presets[id]) presets[id] = MC.quoteDesigns![id].label
     const out: DesignRow[] = Object.entries(presets).map(([p, label]) => ({
       key: `b:${p}`,
       label,
-      isNew: (NEW_PRESETS[type] || []).includes(p),
+      isNew: (NEW_PRESETS[type] || []).includes(p) || (type === 'quote' && !!MC.quoteDesigns?.[p]),
       tag: MC.isDeco(type, p) ? 'রেডিমেড' : undefined,
       group: MC.groupOf ? MC.groupOf(type, p) : undefined,
     }))
@@ -460,6 +529,7 @@ export default function PhotocardStudio() {
       if (st.logoStyle !== 'auto') o.logoStyle = st.logoStyle
       if (st.border !== 'none') o.border = BORDERS[st.border]
       if (st.credit.trim() && ph) o.credit = st.credit.trim()
+      if (t === 'quote' && accentOn && accent) o.accent = accent
       if (lk.layers.length) {
         o.layers = await Promise.all(
           lk.layers.map(async (l) => {
@@ -481,12 +551,14 @@ export default function PhotocardStudio() {
         quoteFrame,
         authorPhoto,
         speakerPhoto,
+        speakerFocus,
+        speakerZoom,
         cta: CTA_TYPES.includes(t) ? (ctaOn ? ctaText : '') : null,
         storyCta: sz === '1080x1920' ? storyCta : null,
       })
       return { data, opts: o }
     },
-    [cfg, MC, photos, photoSel, galleryKeys, framePreset, frameText, adOn, adId, adPos, adBottom, adTop, looks, fields, dates, dayTheme, quoteFrame, authorPhoto, speakerPhoto, ctaOn, ctaText, storyCta, resolvePhoto],
+    [cfg, MC, photos, photoSel, galleryKeys, framePreset, frameText, adOn, adId, adPos, adBottom, adTop, looks, fields, dates, dayTheme, quoteFrame, authorPhoto, speakerPhoto, speakerFocus, speakerZoom, accentOn, accent, ctaOn, ctaText, storyCta, resolvePhoto],
   )
 
   const renderCard = useCallback(
@@ -525,8 +597,8 @@ export default function PhotocardStudio() {
     const f = fields[type]
     const lk = looks[type] || EMPTY_LOOK
     const lay = lk.layers.map((l) => [l.t, l.s, l.text, l.hidden, Math.round(l.x / 5), Math.round(l.y / 5), Math.round((l.size || 0) / 10)])
-    return JSON.stringify([size, photo?.key, photo?.look, Math.round((photo?.focus.x || 0) / 5), Math.round((photo?.focus.y || 0) / 5), photo?.zoom, f, galleryKeys, adOn, adPos, adBottom, adTop, quoteFrame, dayTheme, authorPhoto, speakerPhoto, ctaOn && ctaText, lk.style, lay])
-  }, [fields, type, size, photo, galleryKeys, adOn, adPos, adBottom, adTop, looks, quoteFrame, dayTheme, authorPhoto, speakerPhoto, ctaOn, ctaText])
+    return JSON.stringify([size, photo?.key, photo?.look, Math.round((photo?.focus.x || 0) / 5), Math.round((photo?.focus.y || 0) / 5), photo?.zoom, f, galleryKeys, adOn, adPos, adBottom, adTop, quoteFrame, dayTheme, authorPhoto, speakerPhoto, speakerFocus, speakerZoom, accentOn && accent, ctaOn && ctaText, lk.style, lay])
+  }, [fields, type, size, photo, galleryKeys, adOn, adPos, adBottom, adTop, looks, quoteFrame, dayTheme, authorPhoto, speakerPhoto, speakerFocus, speakerZoom, accentOn, accent, ctaOn, ctaText])
   const drawThumb = useCallback((key: string) => renderCard(type, size, key), [renderCard, type, size])
 
   // ---------------------------------------------------------------- photo edits
@@ -900,6 +972,58 @@ export default function PhotocardStudio() {
     }
   }
 
+  // ---------------------------------------------------------------- round 46: স্বয়ংক্রিয় উক্তি কার্ড
+  async function makeAutoCards() {
+    if (!MC?.quoteDesigns) return
+    const fq = fields.quote
+    const text = String(fq.text || '').replace(/\*\*/g, '').trim()
+    if (!text) {
+      setStatus({ kind: 'info', text: 'আগে উক্তির লেখা দিন (অথবা ওপরে একটি উক্তি বাছুন)।' })
+      return
+    }
+    setAutoBusy(true)
+    try {
+      const hasPhoto = !!speakerPhoto && !!fq.show_speaker
+      const ids = pickQuoteDesigns(MC.quoteDesigns, { len: text.length, hasPhoto, aspect: hasPhoto ? speakerAspect : 0, faceX: speakerFocus.x }, 6)
+      const out: AutoCard[] = []
+      for (const [i, id] of ids.entries()) {
+        setWorking(`স্বয়ংক্রিয় কার্ড… ${bnNumber(i + 1)}/${bnNumber(ids.length)}`)
+        const cv = await renderCard('quote', size, `b:${id}`)
+        const t = document.createElement('canvas')
+        t.width = 360
+        t.height = Math.round((360 * cv.height) / cv.width)
+        t.getContext('2d')!.drawImage(cv, 0, 0, t.width, t.height)
+        out.push({ id, label: MC.quoteDesigns[id]?.label || id, url: t.toDataURL('image/jpeg', 0.86), canvas: cv })
+      }
+      setAutoCards(out)
+      setStatus({ kind: 'ok', text: `${bnNumber(out.length)}টি মানানসই নকশা তৈরি — পছন্দেরটিতে চাপুন বা সরাসরি ডাউনলোড করুন।` })
+    } catch (e) {
+      setStatus({ kind: 'err', text: e instanceof Error ? e.message : 'স্বয়ংক্রিয় কার্ড তৈরি করা যায়নি।' })
+    } finally {
+      setWorking('')
+      setAutoBusy(false)
+    }
+  }
+
+  async function saveAutoCard(c: AutoCard) {
+    if (!MC) return
+    saveBlob(await MC.toBlob(c.canvas, 'image/png'), fileName('png', size, `-${c.id}`))
+  }
+
+  async function saveAllAutoCards() {
+    if (!MC || !autoCards.length) return
+    setWorking('জিপ তৈরি হচ্ছে…')
+    try {
+      const files = await Promise.all(autoCards.map(async (c) => ({ name: fileName('png', size, `-${c.id}`), blob: await MC.toBlob(c.canvas, 'image/png') })))
+      saveBlob(await makeZip(files), fileName('zip').replace(/\.zip$/, '-ukti.zip'))
+      setStatus({ kind: 'ok', text: `${bnNumber(files.length)}টি কার্ড একটি জিপে ডাউনলোড হয়েছে।` })
+    } catch (e) {
+      setStatus({ kind: 'err', text: e instanceof Error ? e.message : 'জিপ তৈরি করা যায়নি।' })
+    } finally {
+      setWorking('')
+    }
+  }
+
   async function downloadAllSizes() {
     if (!MC || !cfg) return
     const sizes = Object.keys(cfg.sizes)
@@ -1180,6 +1304,41 @@ export default function PhotocardStudio() {
           {type === 'quote' && (
             <Section n={sectionNo()} title="উক্তি বাছুন" note="বাছলে লেখা, বক্তা, পরিচয় ও ধরন অনুযায়ী ফ্রেম বসে যাবে; নিচে নিজেও লেখা যায়।">
               <QuotePicker pickedId={quoteId} onPick={pickQuote} />
+            </Section>
+          )}
+
+          {type === 'quote' && (
+            <Section n={sectionNo()} title="বক্তার ছবি ও স্বয়ংক্রিয় কার্ড" note="ছবি দিলে মুখ খুঁজে প্রতিটি উক্তি কার্ডে ঠিক জায়গায় বসে; একটিতে চাপেই মানানসই কয়েকটি নকশা।">
+              <QuoteKit
+                photo={speakerPhoto}
+                focus={speakerFocus}
+                zoom={speakerZoom}
+                note={speakerNote}
+                onLibrary={() => setLibrary('speaker')}
+                onUpload={(file) => {
+                  applySpeakerPhoto(imageFromFile(file))
+                  setFields((prev) => ({ ...prev, quote: { ...prev.quote, show_speaker: true } }))
+                }}
+                onRemove={() => applySpeakerPhoto('')}
+                onFocus={setSpeakerFocus}
+                onZoom={setSpeakerZoom}
+                accentOn={accentOn}
+                accent={accent}
+                onAccent={(on) => {
+                  setAccentOn(on)
+                  if (on && !accent && speakerPhoto) photoAccent(speakerPhoto).then(setAccent).catch(() => setAccent(null))
+                }}
+                onAuto={makeAutoCards}
+                autoBusy={autoBusy}
+                cards={autoCards}
+                selected={designKey.startsWith('b:') ? designKey.slice(2) : ''}
+                onUse={(id) => {
+                  snapshot()
+                  setDesign((d) => ({ ...d, quote: `b:${id}` }))
+                }}
+                onSave={saveAutoCard}
+                onSaveAll={saveAllAutoCards}
+              />
             </Section>
           )}
 
@@ -1526,10 +1685,15 @@ export default function PhotocardStudio() {
 
       {library && (
         <MediaGallery
-          title={library === 'author' ? 'লেখকের ছবি বাছুন' : 'কার্ডের ছবি বাছুন'}
+          title={library === 'author' ? 'লেখকের ছবি বাছুন' : library === 'speaker' ? 'বক্তার ছবি বাছুন' : 'কার্ডের ছবি বাছুন'}
           onClose={() => setLibrary(null)}
           onSelect={(img) => {
-            if (library === 'author') {
+            if (library === 'speaker') {
+              imageById(img.id, 'large').then((u) => {
+                applySpeakerPhoto(u || '')
+                setFields((prev) => ({ ...prev, quote: { ...prev.quote, show_speaker: true } }))
+              })
+            } else if (library === 'author') {
               imageById(img.id, 'medium').then((u) => {
                 setAuthorPhoto(u || '')
                 setFields((prev) => ({ ...prev, opinion: { ...prev.opinion, show_photo: true } }))

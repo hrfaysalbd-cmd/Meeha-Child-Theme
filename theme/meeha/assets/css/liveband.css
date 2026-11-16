@@ -16,7 +16,8 @@
 /* track: one card = full width; several = a snap scroller (2 or 3 visible on desktop) */
 .m-liveband__track { display: grid; grid-auto-flow: column; grid-auto-columns: 100%; gap: var(--m-s3); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scroll-padding-inline: var(--m-gutter); scrollbar-width: none; margin-inline: calc(-1 * var(--m-gutter)); padding: 2px var(--m-gutter) 4px; }
 .m-liveband__track::-webkit-scrollbar { display: none; }
-.m-liveband--two .m-liveband__track, .m-liveband--many .m-liveband__track { grid-auto-columns: min(86%, 400px); }
+.m-liveband--two .m-liveband__track, .m-liveband--many .m-liveband__track { grid-auto-columns: min(86%, 400px); align-items: start; }
+@media (min-width: 768px) { .m-liveband__track { align-items: stretch; } }
 @media (min-width: 768px) {
   .m-liveband--two .m-liveband__track { grid-auto-columns: calc((100% - var(--m-s3)) / 2); }
   .m-liveband--many .m-liveband__track { grid-auto-columns: calc((100% - var(--m-s3)) / 2.15); }

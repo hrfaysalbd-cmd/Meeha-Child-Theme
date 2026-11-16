@@ -3,7 +3,8 @@
  * fast motion, freeze frames with a line of text, arrow / circle stickers
  * and a second video (picture-in-picture or side by side).
  */
-import { LIMITS, SPEED_RATES, STICKERS, STICKER_COLORS, TRANSITIONS, type EditConfig, type Freeze, type Pip, type SpeedRange, type Sticker } from '../../lib/videoEdit/config'
+import { LIMITS, SPEED_RATES, STICKERS, STICKER_COLORS, TRANSITIONS, type EditConfig, type Freeze, type Pip, type SpeedRange, type Sticker, type TransitionId } from '../../lib/videoEdit/config'
+import AssetBrowser from './AssetBrowser'
 import { bnNumber } from '../ui'
 import { IconPlus, IconTrash, IconVideo } from '../Icon'
 import { Section, Segmented, Slider, SwitchRow, TextInput, TimeField } from './StudioFields'
@@ -96,21 +97,18 @@ export default function EffectsPanel({
   return (
     <div>
       <Section title="ক্লিপের মাঝে ট্রানজিশন" hint="ইন্ট্রো, বিজ্ঞাপন ও আউট্রোর জোড়ায় — মীহার নীল-লাল রঙে।">
-        <div className="grid grid-cols-2 gap-1.5">
-          {TRANSITIONS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => set((c) => ({ ...c, transition: { ...c.transition, id: t.id } }))}
-              aria-pressed={tr.id === t.id}
-              data-testid={`transition-${t.id}`}
-              className={`text-left rounded-xl border px-2.5 py-2 ${tr.id === t.id ? 'border-brand-500 ring-2 ring-brand-500/20 bg-brand-50/40' : 'border-neutral-200 hover:border-neutral-300'}`}
-            >
-              <span className={`block text-[12.5px] font-semibold ${tr.id === t.id ? 'text-brand-700' : 'text-neutral-800'}`}>{t.name}</span>
-              <span className="block text-[11px] text-neutral-400 leading-snug">{t.hint}</span>
-            </button>
-          ))}
-        </div>
+        <AssetBrowser
+          kind="transition"
+          items={TRANSITIONS.filter((t) => t.id !== 'none').map((t) => ({ ...t, group: t.id.startsWith('st-') ? 'stinger' : 'basic', isNew: t.id.startsWith('st-') }))}
+          groups={[
+            { id: 'stinger', name: 'ব্র্যান্ড স্টিংগার' },
+            { id: 'basic', name: 'সাধারণ' },
+          ]}
+          current={tr.id}
+          onPick={(id) => set((c) => ({ ...c, transition: { ...c.transition, id: id as TransitionId, dur: id.startsWith('st-') && c.transition.dur < 0.8 ? 1 : c.transition.dur } }))}
+          none={{ label: 'সরাসরি কাট', hint: 'কোনো ট্রানজিশন নেই' }}
+          searchPlaceholder="ট্রানজিশন খুঁজুন…"
+        />
         {tr.id !== 'none' && (
           <div className="mt-2">
             <Slider

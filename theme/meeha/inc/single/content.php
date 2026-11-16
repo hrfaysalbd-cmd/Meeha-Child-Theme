@@ -334,6 +334,10 @@ function meeha_single_plan_inserts( $segs, $args ) {
 		}
 		if ( ! $manual ) {
 			$hit = $find( (int) $args['readalso'], 1 );
+			if ( ! $hit && $total >= 3 ) {
+				// 2.4.14: short story (fewer paragraphs than the setting) — still one automatic internal link, mid-way.
+				$hit = $find( max( 2, (int) ceil( $total / 2 ) ), 1 );
+			}
 			if ( $hit ) {
 				$taken[ $hit[1] ]  = true;
 				$plan[ $hit[1] ][] = 'readalso';
@@ -376,6 +380,94 @@ function meeha_single_toc_ids( &$segs ) {
 }
 
 /**
+ * Internal links from the post's own tags (2.4.14): the first mention of a tag in the body paragraphs links to the
+ * tag's archive — at most 3 links, each tag once, never inside an existing link or a heading, and never when the
+ * editor already linked to that archive. A Bengali suffix stays inside the link (নির্বাচন|ের).
+ *
+ * @param array   $segs Segments (modified).
+ * @param WP_Post $post Post.
+ */
+function meeha_single_tag_autolink( &$segs, $post ) {
+	$tags = get_the_tags( $post->ID );
+	if ( ! $tags || is_wp_error( $tags ) ) {
+		return;
+	}
+	$todo = array();
+	foreach ( $tags as $t ) {
+		$name = trim( html_entity_decode( $t->name, ENT_QUOTES, 'UTF-8' ) );
+		if ( mb_strlen( $name ) >= 3 && 'post' !== $t->slug ) {
+			$todo[] = array( $name, get_tag_link( $t ) );
+		}
+	}
+	if ( ! $todo ) {
+		return;
+	}
+	usort(
+		$todo,
+		function ( $a, $b ) {
+			return mb_strlen( $b[0] ) - mb_strlen( $a[0] );
+		}
+	);
+	$all = '';
+	foreach ( $segs as $s ) {
+		$all .= $s['html'];
+	}
+	$done = 0;
+	foreach ( $todo as $t ) {
+		if ( $done >= 3 ) {
+			break;
+		}
+		if ( false !== strpos( $all, 'href="' . esc_url( $t[1] ) . '"' ) ) {
+			continue;
+		}
+		$re = '/(?<![\p{L}\p{M}])' . preg_quote( $t[0], '/' ) . '[\p{L}\p{M}]*/u';
+		foreach ( $segs as $i => $s ) {
+			if ( 'p' !== $s['type'] || 'p' !== $s['tag'] || false === mb_strpos( $s['text'], $t[0] ) ) {
+				continue;
+			}
+			$parts = preg_split( '/(<[^>]*>)/', $s['html'], -1, PREG_SPLIT_DELIM_CAPTURE );
+			$in_a  = 0;
+			$hit   = false;
+			foreach ( $parts as $k => $part ) {
+				if ( '' === $part ) {
+					continue;
+				}
+				if ( '<' === $part[0] ) {
+					if ( preg_match( '#^<a[\s>]#i', $part ) ) {
+						++$in_a;
+					} elseif ( preg_match( '#^</a\s*>#i', $part ) ) {
+						$in_a = max( 0, $in_a - 1 );
+					}
+					continue;
+				}
+				if ( $in_a ) {
+					continue;
+				}
+				$new = preg_replace_callback(
+					$re,
+					function ( $m ) use ( $t ) {
+						return '<a class="m-taglink" href="' . esc_url( $t[1] ) . '">' . $m[0] . '</a>';
+					},
+					$part,
+					1,
+					$n
+				);
+				if ( $n ) {
+					$parts[ $k ] = $new;
+					$hit         = true;
+					break;
+				}
+			}
+			if ( $hit ) {
+				$segs[ $i ]['html'] = implode( '', $parts );
+				++$done;
+				break;
+			}
+		}
+	}
+}
+
+/**
  * Process an article body: TOC ids, in-article ads, read-also card.
  *
  * @param string  $html    Rendered content (after the_content).
@@ -394,6 +486,9 @@ function meeha_single_process_content( $html, $post, $args = array() ) {
 	);
 	$segs    = meeha_html_segments( $html );
 	$toc     = meeha_single_toc_ids( $segs );
+	if ( 'literature' !== $args['variant'] && meeha_single_opt( 'tag_autolink', 1 ) ) {
+		meeha_single_tag_autolink( $segs, $post );
+	}
 	$plan    = meeha_single_plan_inserts(
 		$segs,
 		array(
@@ -506,3 +601,29 @@ function meeha_lit_stanzas_from( $inner ) {
 	}
 	return $out;
 }
+
+/**
+ * YouTube facade (2.4.14): an embedded YouTube video in an article becomes a lightweight poster link (thumbnail from
+ * i.ytimg.com, lazy, fixed 16:9 box); single.js swaps in the privacy-enhanced player on click. Saves ~1 MB of player
+ * JS on every article with a video and keeps the page interactive sooner. Feeds, REST and the editor are untouched.
+ *
+ * @param string $html Embed HTML.
+ * @param string $url  Embedded URL.
+ * @return string
+ */
+function meeha_single_youtube_facade( $html, $url ) {
+	if ( is_admin() || is_feed() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) || ! is_singular() || ! apply_filters( 'meeha_youtube_facade', true ) ) {
+		return $html;
+	}
+	if ( ! preg_match( '~(?:youtu\.be/|youtube(?:-nocookie)?\.com/(?:watch\?(?:.*&)?v=|embed/|shorts/|live/))([A-Za-z0-9_-]{11})~', (string) $url . ' ' . $html, $m ) ) {
+		return $html;
+	}
+	$id    = $m[1];
+	$title = preg_match( '/\stitle\s*=\s*"([^"]*)"/i', $html, $t ) ? html_entity_decode( $t[1], ENT_QUOTES, 'UTF-8' ) : '';
+	return '<a class="m-yt" href="' . esc_url( 'https://www.youtube.com/watch?v=' . $id ) . '" data-yt="' . esc_attr( $id ) . '" data-title="' . esc_attr( $title ) . '" aria-label="' . esc_attr( 'ভিডিও চালান' . ( '' !== $title ? ': ' . $title : '' ) ) . '">'
+		. '<img src="' . esc_url( 'https://i.ytimg.com/vi/' . $id . '/hqdefault.jpg' ) . '" alt="" width="480" height="360" loading="lazy" decoding="async">'
+		. '<span class="m-yt__play" aria-hidden="true"></span>'
+		. ( '' !== $title ? '<span class="m-yt__t" aria-hidden="true">' . esc_html( $title ) . '</span>' : '' )
+		. '</a>';
+}
+add_filter( 'embed_oembed_html', 'meeha_single_youtube_facade', 20, 2 );

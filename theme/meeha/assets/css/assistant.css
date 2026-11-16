@@ -1,0 +1,51 @@
+/* =====================================================================
+   মিহা সহকারী — bubble, floating questions, live badge (assistant.css)
+   Loaded non-blocking on every public page. The element is created by
+   assistant.js with inline `opacity:0`, so it stays invisible until this
+   sheet arrives (no unstyled flash, no layout shift: position fixed).
+   The chat panel's styles live in assistant-panel.css (loaded on open).
+   ===================================================================== */
+.m-as { position: fixed !important; right: max(16px, env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 9980; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; opacity: 1 !important; font-family: var(--m-font-body); pointer-events: none; transition: transform .2s var(--m-ease, ease); }
+.m-as > * { pointer-events: auto; }
+/* campus pages have a bottom tab bar */
+body:has(.mc-nav) .m-as { bottom: calc(76px + env(safe-area-inset-bottom)); }
+
+.m-as__btn { position: relative; display: inline-flex; align-items: center; gap: 10px; height: 56px; min-width: 56px; padding: 0 18px 0 16px; border: 0; border-radius: var(--m-r-pill, 999px); background: #025AB2; color: #fff; font: 700 15px/1 var(--m-font-body); box-shadow: 0 10px 28px rgba(2, 90, 178, .35), 0 2px 6px rgba(11, 39, 70, .18); cursor: pointer; transition: transform .2s var(--m-ease, ease), box-shadow .2s, background .2s; }
+.m-as__btn:hover { background: #01468C; transform: translateY(-2px); }
+.m-as__btn:focus-visible { outline: 3px solid #8DC1F8; outline-offset: 3px; }
+.m-as__btn svg { flex: none; width: 26px; height: 26px; }
+.m-as__lbl { white-space: nowrap; }
+.m-as--open .m-as__btn { background: #01468C; }
+.m-as__live { position: absolute; top: -7px; left: -6px; display: none; align-items: center; gap: 4px; padding: 3px 8px 3px 6px; border: 2px solid var(--m-paper, #fff); border-radius: 999px; background: #CC2A1F; color: #fff; font: 700 11px/1.1 var(--m-font-body); letter-spacing: .02em; }
+.m-as__live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: m-as-pulse 1.4s ease-in-out infinite; }
+.m-as--live .m-as__live { display: inline-flex; }
+.m-as--live .m-as__btn { box-shadow: 0 0 0 0 rgba(204, 42, 31, .5), 0 10px 28px rgba(2, 90, 178, .35); animation: m-as-ring 2s ease-out infinite; }
+
+/* floating preset questions */
+.m-as__float { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; max-width: min(320px, calc(100vw - 32px)); transition: opacity .2s, transform .25s var(--m-ease, ease); }
+.m-as__float[hidden] { display: none; }
+.m-as--away .m-as__float, .m-as--open .m-as__float { opacity: 0; transform: translateY(12px); pointer-events: none; visibility: hidden; transition: opacity .2s, transform .25s, visibility 0s .25s; }
+.m-as__chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 8px 14px; border: 1px solid var(--m-line, #DFE4EA); border-radius: 999px; background: var(--m-paper, #fff); color: var(--m-ink, #142030); font: 600 14px/1.3 var(--m-font-body); text-align: left; text-decoration: none; box-shadow: 0 6px 18px rgba(11, 39, 70, .14); cursor: pointer; animation: m-as-in .3s var(--m-ease, ease) both; }
+.m-as__chip:hover { border-color: #025AB2; color: #025AB2; }
+.m-as__chip:focus-visible { outline: 2px solid var(--m-focus, #025AB2); outline-offset: 2px; }
+.m-as__chip--live { border-color: rgba(204, 42, 31, .35); background: var(--m-paper, #fff); }
+.m-as__chip--live b { color: var(--m-red, #CC2A1F); font-weight: 700; white-space: nowrap; }
+.m-as__chip--live span:last-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.m-as__dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: #CC2A1F; box-shadow: 0 0 0 0 rgba(204, 42, 31, .6); animation: m-as-dot 1.4s ease-out infinite; }
+.m-as__x { display: inline-grid; place-items: center; width: 26px; height: 26px; margin-right: 2px; padding: 0; border: 1px solid var(--m-line, #DFE4EA); border-radius: 50%; background: var(--m-paper, #fff); color: var(--m-muted, #5B6676); font: 400 16px/1 system-ui, sans-serif; box-shadow: 0 4px 12px rgba(11, 39, 70, .12); cursor: pointer; }
+.m-as__x:hover { color: var(--m-ink, #142030); }
+.m-as__chip:nth-child(2) { animation-delay: .06s; } .m-as__chip:nth-child(3) { animation-delay: .12s; } .m-as__chip:nth-child(4) { animation-delay: .18s; }
+
+@media (max-width: 600px) {
+  .m-as { right: max(12px, env(safe-area-inset-right)); bottom: calc(12px + env(safe-area-inset-bottom)); gap: 8px; }
+  .m-as__btn { width: 52px; min-width: 52px; height: 52px; padding: 0; justify-content: center; }
+  .m-as__lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .m-as__float { max-width: min(250px, calc(100vw - 88px)); gap: 6px; }
+  .m-as__chip { padding: 6px 12px; font-size: 13px; }
+}
+@keyframes m-as-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes m-as-pulse { 50% { opacity: .35; } }
+@keyframes m-as-dot { 70% { box-shadow: 0 0 0 7px rgba(204, 42, 31, 0); } 100% { box-shadow: 0 0 0 0 rgba(204, 42, 31, 0); } }
+@keyframes m-as-ring { 70% { box-shadow: 0 0 0 10px rgba(204, 42, 31, 0), 0 10px 28px rgba(2, 90, 178, .35); } 100% { box-shadow: 0 0 0 0 rgba(204, 42, 31, 0), 0 10px 28px rgba(2, 90, 178, .35); } }
+@media (prefers-reduced-motion: reduce) { .m-as *, .m-as { animation: none !important; transition: none !important; } }
+@media print { .m-as { display: none !important; } }

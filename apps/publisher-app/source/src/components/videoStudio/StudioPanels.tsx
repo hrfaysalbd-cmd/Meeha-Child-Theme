@@ -15,6 +15,8 @@ import {
   FRAME_SIZES,
   INTROS,
   LIMITS,
+  LOWER_THIRDS,
+  MUSIC,
   LOGO_STYLES,
   QUICK_LOOKS,
   WATERMARK_STYLES,
@@ -34,6 +36,8 @@ import { IconPlus, IconTrash, IconUsers, IconX } from '../Icon'
 import PeoplePicker from './StudioPeople'
 import { ChoiceCard, Group, Section, Segmented, Slider, SwitchRow, TextInput, TimeField, useGroups } from './StudioFields'
 import { HOUSE_ADS, type HouseAdId } from '../../lib/videoEdit/houseads'
+import { AUTO_LOOKS, applyAutoStyle, detectTopic } from '../../lib/videoEdit/autostyle'
+import AssetBrowser from './AssetBrowser'
 
 export type Setter = (fn: (c: EditConfig) => EditConfig) => void
 
@@ -72,9 +76,28 @@ export function FramePanel({
 }) {
   const f = cfg.frame
   const setF = (patch: Partial<EditConfig['frame']>) => set((c) => ({ ...c, frame: { ...c.frame, ...patch } }))
-  const frameGroups = useGroups('nil', FRAMES.find((o) => o.id === f.id)?.group)
   return (
     <div>
+      <Section title="অটো স্টাইল" hint="শিরোনাম ও ক্যাটেগরি পড়ে খবরের ধরন বুঝে মিলিয়ে দেয় — মিউজিক, ফ্রেম, ইন্ট্রো, আউট্রো ও নাম-পট্টি, আর কথার সময় মিউজিক নিচু। লেখা ও কাটা অংশ বদলায় না।">
+        {(() => {
+          const cat = f.kicker
+          const ttl = f.title || postTitle
+          const look = AUTO_LOOKS[detectTopic(cat, ttl)]
+          return (
+            <div className="flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50/50 px-3 py-2.5">
+              <div className="flex-1 min-w-0">
+                <p className="text-[12.5px] font-semibold text-neutral-800">ধরন: {look.name}</p>
+                <p className="text-[11px] text-neutral-500 truncate">
+                  {MUSIC.find((m) => m.id === look.music)?.name} · {FRAMES.find((x) => x.id === look.frame)?.name} · {INTROS.find((x) => x.id === look.intro)?.name}
+                </p>
+              </div>
+              <button type="button" onClick={() => set((c) => applyAutoStyle(c, c.frame.kicker, c.frame.title || postTitle))} className="shrink-0 rounded-lg bg-brand-600 text-white text-[12.5px] font-semibold px-3 py-1.5" data-testid="auto-style">
+                অটো স্টাইল দিন
+              </button>
+            </div>
+          )
+        })()}
+      </Section>
       <Section title="এক ক্লিকে সাজান" hint="ফ্রেম, ইন্ট্রো, আউট্রো ও মাপ একসাথে বসে। আপনার লেখা, কাটা অংশ ও ক্যাপশন যেমন আছে থাকবে; পরে যেকোনোটা বদলানো যায়।">
         <div className="grid grid-cols-2 gap-2" data-testid="quick-looks">
           {QUICK_LOOKS.map((q) => (
@@ -92,32 +115,15 @@ export function FramePanel({
         </div>
       </Section>
       <Section title="এনিমেটেড ফ্রেম" hint="ক্লিক করলে পুরো ভিডিওর উপরে ও নিচে ফ্রেমের অংশ যোগ হবে। নকশাগুলো ভাগ করে সাজানো — শিরোনামে চাপ দিলে খোলে।">
-        <div className="mb-2.5">
-          <ChoiceCard active={f.id === 'none'} onClick={() => setF({ id: 'none' })} title="ফ্রেম নেই" hint="শুধু ভিডিও" testId="frame-none" />
-        </div>
-        <div className="space-y-2">
-          {DESIGN_GROUPS.filter((g) => FRAMES.some((o) => o.group === g.id)).map((g) => {
-            const items = FRAMES.filter((o) => o.group === g.id)
-            return (
-              <Group key={g.id} title={g.name} hint={g.hint} count={items.length} open={frameGroups.isOpen(g.id)} onToggle={() => frameGroups.toggle(g.id)} hasSelected={items.some((o) => o.id === f.id)} testId={`frame-group-${g.id}`}>
-                <div className="grid grid-cols-2 gap-2.5">
-                  {items.map((o) => (
-                    <ChoiceCard
-                      key={o.id}
-                      active={f.id === o.id}
-                      onClick={() => setF({ id: o.id })}
-                      title={o.name}
-                      hint={o.hint}
-                      badge={o.isNew ? 'নতুন' : undefined}
-                      testId={`frame-${o.id}`}
-                      preview={<Thumb paint={thumb('frame', o.id) ?? (() => {})} ratio={thumbRatio} deps={[thumbKey, o.id]} />}
-                    />
-                  ))}
-                </div>
-              </Group>
-            )
-          })}
-        </div>
+        <AssetBrowser
+          kind="frame"
+          items={FRAMES}
+          groups={DESIGN_GROUPS}
+          current={f.id}
+          onPick={(id) => setF({ id })}
+          none={{ label: 'ফ্রেম নেই', hint: 'শুধু ভিডিও' }}
+          preview={(o) => <Thumb paint={thumb('frame', o.id) ?? (() => {})} ratio={thumbRatio} deps={[thumbKey, o.id]} />}
+        />
       </Section>
 
       {f.id !== 'none' && (
@@ -343,9 +349,9 @@ export function IntroOutroPanel({
 }) {
   const intro = cfg.intro
   const outro = cfg.outro
-  const introGroups = useGroups('nil', INTROS.find((o) => o.id === intro.id)?.group)
-  const outroGroups = useGroups('nil', OUTROS.find((o) => o.id === outro.id)?.group)
-  const textIntro = ['breaking', 'headline', 'special', 'swipe', 'live', 'countdown', 'nil-reveal', 'tv-open', 'investigation', 'sports', 'showbiz'].includes(intro.id)
+  const introGroups = null
+  const outroGroups = null
+  const textIntro = ['breaking', 'headline', 'special', 'swipe', 'live', 'countdown', 'nil-reveal', 'tv-open', 'investigation', 'sports', 'showbiz', 'shatter', 'globe', 'kinetic', 'split'].includes(intro.id) || intro.id.startsWith('i-')
   const pickIntro = (id: IntroId) => {
     set((c) => ({ ...c, intro: { ...c.intro, id, clip: id === 'custom' ? c.intro.clip ?? kit?.intro ?? null : c.intro.clip } }))
     if (id === 'custom' && !intro.clip && !kit?.intro) onPick('intro')
@@ -358,33 +364,10 @@ export function IntroOutroPanel({
     kind: 'intro' | 'outro',
     list: T[],
     current: string,
-    groups: ReturnType<typeof useGroups>,
+    _groups: unknown,
     pick: (id: T['id']) => void,
   ) => (
-    <div className="space-y-2">
-      <ChoiceCard active={current === 'none'} onClick={() => pick('none' as T['id'])} title={kind === 'intro' ? 'ইন্ট্রো নেই' : 'আউট্রো নেই'} testId={`${kind}-none`} />
-      {DESIGN_GROUPS.filter((g) => list.some((o) => o.group === g.id)).map((g) => {
-        const items = list.filter((o) => o.group === g.id)
-        return (
-          <Group key={g.id} title={g.name} hint={g.hint} count={items.length} open={groups.isOpen(g.id)} onToggle={() => groups.toggle(g.id)} hasSelected={items.some((o) => o.id === current)} testId={`${kind}-group-${g.id}`}>
-            <div className="grid grid-cols-2 gap-2.5">
-              {items.map((o) => (
-                <ChoiceCard
-                  key={o.id}
-                  active={current === o.id}
-                  testId={`${kind}-${o.id}`}
-                  onClick={() => pick(o.id)}
-                  title={o.name}
-                  hint={o.hint}
-                  badge={o.isNew ? 'নতুন' : undefined}
-                  preview={preview(kind, o.id)}
-                />
-              ))}
-            </div>
-          </Group>
-        )
-      })}
-    </div>
+    <AssetBrowser kind={kind} items={list} groups={DESIGN_GROUPS} current={current} onPick={pick} none={{ label: kind === 'intro' ? 'ইন্ট্রো নেই' : 'আউট্রো নেই' }} preview={(o) => preview(kind, o.id)} />
   )
   const preview = (kind: 'intro' | 'outro', id: string): ReactNode => {
     const p = id === 'none' ? null : thumb(kind, id)
@@ -636,13 +619,42 @@ export function CaptionsPanel({
           {cfg.captions.map((c, i) => (
             <div key={i} className="rounded-xl border border-neutral-200 p-3" data-testid="caption-row">
               <div className="flex items-center justify-between gap-2 mb-2">
-                <Segmented value={c.style} options={CAPTION_STYLES} onChange={(v) => update(i, { style: v, pos: v === 'subtitle' || v === 'quote' ? 'bc' : c.pos === 'bc' ? 'bl' : c.pos })} size="sm" />
+                <Segmented
+                  value={c.style.startsWith('lt-') ? 'nameplate' : c.style}
+                  options={CAPTION_STYLES}
+                  onChange={(v) => update(i, { style: v === 'nameplate' && c.style.startsWith('lt-') ? c.style : v, pos: v === 'subtitle' || v === 'quote' ? 'bc' : c.pos === 'bc' ? 'bl' : c.pos })}
+                  size="sm"
+                />
                 <button type="button" onClick={() => remove(i)} aria-label="সরান" className="text-red-500 hover:text-red-700 shrink-0">
                   <IconTrash className="w-4 h-4" />
                 </button>
               </div>
+              {(c.style === 'nameplate' || c.style.startsWith('lt-')) && (
+                <div className="mb-2" data-testid="lower-thirds">
+                  <p className="text-[11.5px] text-neutral-500 mb-1">নাম-পট্টির নকশা ({bnNumber(LOWER_THIRDS.length + 1)}টি)</p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[{ id: 'nameplate' as const, name: 'ক্লাসিক', hint: 'সাদা নাম, নীল পদবি', swatch: ['#FFFFFF', '#025AB2'] as [string, string] }, ...LOWER_THIRDS].map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        title={d.hint}
+                        onClick={() => update(i, { style: d.id })}
+                        aria-pressed={c.style === d.id}
+                        data-testid={`lt-${d.id}`}
+                        className={`group text-left rounded-lg border overflow-hidden ${c.style === d.id ? 'border-brand-500 ring-2 ring-brand-500/25' : 'border-neutral-200 hover:border-neutral-300'}`}
+                      >
+                        <span className="flex h-6 bg-neutral-700/90 items-end px-1.5 pb-1">
+                          <span className="h-2.5 rounded-sm transition-all duration-500 w-1/3 group-hover:w-2/3" style={{ background: d.swatch[0] }} />
+                          <span className="h-1.5 ml-0.5 rounded-sm transition-all duration-700 w-1/5 group-hover:w-1/4" style={{ background: d.swatch[1] }} />
+                        </span>
+                        <span className="block px-1.5 py-1 text-[11px] font-medium text-neutral-700 truncate">{d.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <TextInput
-                label={c.style === 'nameplate' ? 'নাম' : c.style === 'location' ? 'স্থান' : c.style === 'quote' ? 'বক্তব্য' : 'লেখা'}
+                label={c.style === 'nameplate' || c.style.startsWith('lt-') ? 'নাম' : c.style === 'location' ? 'স্থান' : c.style === 'quote' ? 'বক্তব্য' : 'লেখা'}
                 value={c.text}
                 onChange={(v) => update(i, { text: v })}
                 max={LIMITS.capText}
@@ -651,7 +663,7 @@ export function CaptionsPanel({
                   c.style === 'nameplate' ? 'যেমন: আসিফ মাহমুদ' : c.style === 'location' ? 'যেমন: শাহবাগ, ঢাকা' : c.style === 'quote' ? 'যেমন: আমরা দ্রুত ব্যবস্থা নেব' : 'যেমন: ভিডিও: সংগৃহীত'
                 }
               />
-              {(c.style === 'nameplate' || c.style === 'quote') && (
+              {(c.style === 'nameplate' || c.style === 'quote' || c.style.startsWith('lt-')) && (
                 <TextInput
                   label={c.style === 'quote' ? 'বক্তার নাম ও পরিচয়' : 'পদবি / পরিচয়'}
                   value={c.sub}

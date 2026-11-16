@@ -34,6 +34,7 @@ if ( ! defined( 'MEEHA_LEGACY_DIR' ) ) {
 foreach ( array(
 	'util',
 	'security',
+	'hardening',
 	'accounts',
 	'correspondent',
 	'newsroom-sync',

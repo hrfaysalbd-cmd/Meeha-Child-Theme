@@ -1,0 +1,266 @@
+/* assistant-panel.js — মিহা সহকারী chat panel. Loaded by assistant.js on first open (never enqueued with the page).
+   Dialog semantics: role=dialog + aria-modal, focus trapped inside, Esc closes, focus returns to the bubble.
+   Messages go to a role=log (aria-live polite) list; history lives in sessionStorage (this tab only).
+   The remembered district for "আমার জেলার খবর" is kept in localStorage (meeha_as_district). */
+(() => {
+  if (window.MeehaAssistantPanel) return;
+  const HKEY = 'meeha_as_hist', DKEY = 'meeha_as_district';
+  const BN = '০১২৩৪৫৬৭৮৯';
+  const bn = s => String(s).replace(/[0-9]/g, d => BN[d]);
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  const store = {
+    get: () => { try { return JSON.parse(sessionStorage.getItem(HKEY)) || []; } catch (e) { return []; } },
+    set: h => { try { sessionStorage.setItem(HKEY, JSON.stringify(h.slice(-30))); } catch (e) {} }
+  };
+  const district = {
+    get: () => { try { return localStorage.getItem(DKEY) || ''; } catch (e) { return ''; } },
+    set: d => { try { localStorage.setItem(DKEY, d); } catch (e) {} }
+  };
+  const ICON = {
+    send: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12 20 4l-6.5 16-2.6-6.9L4 12Z" fill="currentColor"/></svg>',
+    close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
+    reset: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4v4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    bot: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.2 3.6c-.5.4-1.3.1-1.3-.6V16A2.5 2.5 0 0 1 4 13.5v-8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8.5 9.5h.01M12 9.5h.01M15.5 9.5h.01" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>'
+  };
+
+  let C = null, opts = null, root, log, form, input, sendBtn, liveBar, hist = [], busy = false, live = [], prevFocus = null;
+
+  /* ---------- rendering ---------- */
+  const textWithCites = (text, cards) => {
+    const p = el('div', 'm-asp__text');
+    String(text || '').split('\n').forEach((line, i) => {
+      if (i) p.appendChild(document.createElement('br'));
+      line.split(/(\[\d{1,2}\])/).forEach(part => {
+        const m = part.match(/^\[(\d{1,2})\]$/);
+        const card = m && cards && cards[+m[1] - 1];
+        if (card) {
+          const a = el('a', 'm-asp__cite', bn(m[1])); a.href = card.url;
+          a.title = card.title; a.setAttribute('aria-label', 'সূত্র ' + bn(m[1]) + ': ' + card.title);
+          p.appendChild(a);
+        } else if (part) {
+          p.appendChild(document.createTextNode(part));
+        }
+      });
+    });
+    return p;
+  };
+
+  const cardEl = (c, n) => {
+    const a = el('a', 'm-asp__card'); a.href = c.url;
+    if (n) a.appendChild(el('span', 'm-asp__num', bn(n)));
+    if (c.thumb) {
+      const img = el('img', 'm-asp__thumb'); img.src = c.thumb; img.alt = ''; img.loading = 'lazy'; img.decoding = 'async'; img.width = 64; img.height = 64;
+      a.appendChild(img);
+    } else {
+      a.appendChild(el('span', 'm-asp__thumb m-asp__thumb--none'));
+    }
+    const b = el('span', 'm-asp__cbody');
+    const meta = el('span', 'm-asp__meta');
+    if (c.live) meta.appendChild(el('span', 'm-asp__livetag', 'লাইভ'));
+    if (c.kicker) meta.appendChild(el('span', 'm-asp__kicker', c.kicker));
+    if (meta.children.length) b.appendChild(meta);
+    b.appendChild(el('span', 'm-asp__ctitle', c.title));
+    if (c.time) b.appendChild(el('span', 'm-asp__time', c.time));
+    a.appendChild(b);
+    return a;
+  };
+
+  const chipsEl = chips => {
+    const w = el('div', 'm-asp__chips');
+    (chips || []).forEach(q => {
+      const b = el('button', 'm-asp__chip' + (q === 'লাইভ' && live.length ? ' m-asp__chip--live' : ''), q); b.type = 'button';
+      b.addEventListener('click', () => ask(q));
+      w.appendChild(b);
+    });
+    return w;
+  };
+
+  const districtPicker = options => {
+    const f = el('form', 'm-asp__pick');
+    const id = 'm-asp-d-' + Date.now();
+    const lab = el('label', 'm-asp__sr', 'জেলা বেছে নিন'); lab.htmlFor = id;
+    const s = el('select'); s.id = id;
+    s.appendChild(el('option', '', 'জেলা বেছে নিন…')).value = '';
+    (options || []).slice().sort((a, b) => a.localeCompare(b, 'bn')).forEach(d => { const o = el('option', '', d); o.value = d; s.appendChild(o); });
+    const b = el('button', 'm-asp__chip m-asp__chip--solid', 'দেখুন'); b.type = 'submit';
+    f.append(lab, s, b);
+    f.addEventListener('submit', e => {
+      e.preventDefault();
+      if (!s.value) return s.focus();
+      district.set(s.value);
+      ask('আমার জেলার খবর');
+    });
+    return f;
+  };
+
+  const renderMsg = (m, isNew) => {
+    const row = el('div', 'm-asp__msg m-asp__msg--' + (m.r === 'u' ? 'user' : 'bot'));
+    if (m.r === 'u') {
+      row.appendChild(el('div', 'm-asp__bubble', m.text));
+    } else {
+      const box = el('div', 'm-asp__bubble');
+      box.appendChild(textWithCites(m.text, m.mode === 'ai' ? m.cards : null));
+      if (m.mode === 'ai') box.appendChild(el('span', 'm-asp__badge', 'AI সারাংশ'));
+      row.appendChild(box);
+      if (m.cards && m.cards.length) {
+        const list = el('div', 'm-asp__cards');
+        m.cards.forEach((c, i) => list.appendChild(cardEl(c, m.mode === 'ai' ? i + 1 : 0)));
+        row.appendChild(list);
+      }
+      if (m.ask === 'district' && isNew) row.appendChild(districtPicker(m.options));
+      if (m.chips && m.chips.length) row.appendChild(chipsEl(m.chips));
+    }
+    log.appendChild(row);
+    return row;
+  };
+
+  const scrollEnd = () => { log.scrollTop = log.scrollHeight; };
+
+  const greet = () => {
+    const g = { r: 'b', text: C.greeting || 'কী জানতে চান?', chips: C.chips };
+    renderMsg(g, true);
+  };
+
+  const renderAll = () => {
+    log.textContent = '';
+    greet();
+    hist.forEach((m, i) => renderMsg(m, i === hist.length - 1));
+    scrollEnd();
+  };
+
+  const typing = () => {
+    const row = el('div', 'm-asp__msg m-asp__msg--bot m-asp__msg--typing');
+    const b = el('div', 'm-asp__bubble');
+    b.setAttribute('aria-label', 'উত্তর খোঁজা হচ্ছে');
+    b.setAttribute('role', 'status');
+    b.append(el('i'), el('i'), el('i'));
+    row.appendChild(b);
+    log.appendChild(row);
+    scrollEnd();
+    return row;
+  };
+
+  /* ---------- asking ---------- */
+  const ask = q => {
+    q = String(q || '').trim().slice(0, C.max || 300);
+    if (!q || busy) return;
+    busy = true; sendBtn.disabled = true;
+    const u = { r: 'u', text: q };
+    hist.push(u); renderMsg(u, true); store.set(hist);
+    const t = typing();
+    const body = { q };
+    const d = district.get();
+    if (d) body.district = d;
+    fetch(C.rest, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'omit', cache: 'no-store' })
+      .then(r => r.json().catch(() => ({})).then(j => ({ ok: r.ok, status: r.status, j })))
+      .then(({ ok, status, j }) => {
+        let m;
+        if (j && j.text) {
+          m = { r: 'b', text: j.text, cards: j.cards || [], chips: j.chips || [], mode: j.mode || 'basic', ask: j.ask || '', options: j.options || null };
+        } else {
+          m = { r: 'b', text: status === 403 ? 'এই মুহূর্তে সহকারী উত্তর দিতে পারছে না।' : (j && j.message) || 'দুঃখিত, উত্তর আনা যায়নি। আবার চেষ্টা করুন।', chips: [] };
+        }
+        return m;
+      })
+      .catch(() => ({ r: 'b', text: 'সংযোগে সমস্যা হয়েছে। ইন্টারনেট দেখে আবার চেষ্টা করুন।', chips: [q] }))
+      .then(m => {
+        t.remove();
+        // keep the district list only on the latest message (it is large)
+        hist.forEach(h => { delete h.options; });
+        hist.push(m); store.set(hist);
+        const row = renderMsg(m, true);
+        busy = false; sendBtn.disabled = false;
+        log.scrollTop = Math.max(0, row.offsetTop - 8);
+        const pick = row.querySelector('select');
+        if (pick) pick.focus();
+      });
+  };
+
+  /* ---------- live bar ---------- */
+  const setLive = list => {
+    live = Array.isArray(list) ? list : [];
+    if (!liveBar) return;
+    liveBar.textContent = '';
+    liveBar.hidden = !(C.liveOn && live.length);
+    if (liveBar.hidden) return;
+    const a = el('a', 'm-asp__livebar-link'); a.href = live[0].url;
+    a.append(el('span', 'm-asp__livedot'), el('b', '', 'এখন লাইভ:'), el('span', '', live[0].title));
+    liveBar.appendChild(a);
+  };
+
+  /* ---------- dialog ---------- */
+  const focusables = () => Array.from(root.querySelectorAll('a[href], button:not([disabled]), input, select, textarea')).filter(n => n.offsetParent !== null || n === document.activeElement);
+
+  const onKey = e => {
+    if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+    if (e.key !== 'Tab') return;
+    const f = focusables();
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
+
+  const build = () => {
+    root = el('div', 'm-asp');
+    root.id = 'm-asp';
+    root.setAttribute('role', 'dialog');
+    root.setAttribute('aria-modal', 'true');
+    root.setAttribute('aria-labelledby', 'm-asp-title');
+    root.hidden = true;
+
+    const head = el('div', 'm-asp__head');
+    const av = el('span', 'm-asp__avatar'); av.innerHTML = ICON.bot;
+    const tt = el('div', 'm-asp__titles');
+    const h = el('h2', 'm-asp__title', C.name); h.id = 'm-asp-title';
+    tt.append(h, el('span', 'm-asp__sub', 'মিহা নিউজের খবর থেকে উত্তর'));
+    const reset = el('button', 'm-asp__icon'); reset.type = 'button'; reset.innerHTML = ICON.reset; reset.setAttribute('aria-label', 'নতুন করে শুরু করুন'); reset.title = 'নতুন করে শুরু';
+    reset.addEventListener('click', () => { hist = []; store.set(hist); renderAll(); input.focus(); });
+    const x = el('button', 'm-asp__icon'); x.type = 'button'; x.innerHTML = ICON.close; x.setAttribute('aria-label', 'বন্ধ করুন');
+    x.addEventListener('click', () => close());
+    head.append(av, tt, reset, x);
+
+    liveBar = el('div', 'm-asp__livebar'); liveBar.hidden = true;
+
+    log = el('div', 'm-asp__log');
+    log.setAttribute('role', 'log'); log.setAttribute('aria-live', 'polite'); log.setAttribute('aria-label', 'কথোপকথন');
+    log.tabIndex = 0;
+
+    form = el('form', 'm-asp__form');
+    const lab = el('label', 'm-asp__sr', 'আপনার প্রশ্ন'); lab.htmlFor = 'm-asp-q';
+    input = el('input'); input.id = 'm-asp-q'; input.type = 'text'; input.maxLength = C.max || 300;
+    input.placeholder = 'প্রশ্ন লিখুন… যেমন "আজ কুমিল্লায় কী হচ্ছে"'; input.autocomplete = 'off'; input.enterKeyHint = 'send';
+    sendBtn = el('button', 'm-asp__send'); sendBtn.type = 'submit'; sendBtn.innerHTML = ICON.send; sendBtn.setAttribute('aria-label', 'পাঠান');
+    form.append(lab, input, sendBtn);
+    form.addEventListener('submit', e => { e.preventDefault(); const v = input.value; input.value = ''; ask(v); });
+
+    const note = el('p', 'm-asp__note', C.disclaimer || '');
+
+    root.append(head, liveBar, log, form, note);
+    root.addEventListener('keydown', onKey);
+    document.body.appendChild(root);
+  };
+
+  const open = o => {
+    opts = o || {};
+    if (!root) { C = opts.config; build(); hist = store.get(); renderAll(); }
+    setLive(opts.live || []);
+    prevFocus = document.activeElement;
+    root.hidden = false;
+    requestAnimationFrame(() => root.classList.add('m-asp--in'));
+    document.documentElement.classList.add('m-asp-lock');
+    scrollEnd();
+    if (opts.question) ask(opts.question);
+    setTimeout(() => input.focus({ preventScroll: true }), 30);
+  };
+
+  const close = () => {
+    if (!root || root.hidden) return;
+    root.classList.remove('m-asp--in');
+    root.hidden = true;
+    document.documentElement.classList.remove('m-asp-lock');
+    if (opts && opts.onClose) opts.onClose(); else if (prevFocus && prevFocus.focus) prevFocus.focus();
+  };
+
+  window.MeehaAssistantPanel = { open, close, setLive };
+})();

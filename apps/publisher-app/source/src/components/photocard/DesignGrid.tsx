@@ -18,10 +18,10 @@ export interface DesignRow {
   group?: string
 }
 
-const ORDER = ['common', 'breaking', 'minimal', 'vibrant', 'collage', 'circle', 'readymade', 'classic', 'own']
+const ORDER = ['ukti', 'common', 'breaking', 'minimal', 'vibrant', 'collage', 'circle', 'readymade', 'classic', 'own']
 const FALLBACK_LABELS: Record<string, string> = {
   common: 'সাধারণ', minimal: 'মিনিমাল', breaking: 'ব্রেকিং', vibrant: 'উজ্জ্বল ও ভাইব্রেন্ট', collage: 'কোলাজ',
-  circle: 'গোল ছবি ও উক্তি', classic: 'আগের নকশা', readymade: 'রেডিমেড', own: 'নিজের ফ্রেম',
+  circle: 'গোল ছবি ও উক্তি', ukti: 'উক্তি কার্ড', classic: 'আগের নকশা', readymade: 'রেডিমেড', own: 'নিজের ফ্রেম',
 }
 const HINTS: Record<string, string> = {
   common: 'বেশি ব্যবহৃত নীল নকশা',
@@ -30,6 +30,7 @@ const HINTS: Record<string, string> = {
   vibrant: 'উজ্জ্বল গ্রেডিয়েন্ট, পপ রঙ',
   collage: '২, ৩ বা ৪টি ছবি এক কার্ডে',
   circle: 'গোল ছবি, উদ্ধৃতি, পাশে ছবি',
+  ukti: 'বক্তার ছবি নানা কাটে — গোল, খিলান, ষড়ভুজ, পোলারয়েড…',
   readymade: 'বাঁধানো ফ্রেমসহ নকশা',
   classic: 'আগের রাউন্ডের নকশা',
   own: 'আপলোড করা ফ্রেম',
@@ -107,7 +108,7 @@ export default function DesignGrid({
   // A new card type: only "সাধারণ" (and the section of the chosen design) open.
   if (openScope !== scope) {
     setOpenScope(scope)
-    setOpen({ common: true, [selGroup]: true })
+    setOpen({ common: true, ukti: true, [selGroup]: true })
   }
   const groups = ORDER.filter((g) => rows.some((r) => (r.group || 'common') === g) || (g === 'own' && canUpload))
   const labels = { ...FALLBACK_LABELS, ...(groupLabels || {}) }

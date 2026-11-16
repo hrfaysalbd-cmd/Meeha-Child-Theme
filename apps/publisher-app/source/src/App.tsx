@@ -39,6 +39,8 @@ const Stationery = lazy(() => import('./pages/Stationery'))
 const IdCards = lazy(() => import('./pages/IdCards'))
 // r44 — মাঠ ডেস্ক: paid jobs, field safety, coverage
 const FieldDesk = lazy(() => import('./pages/FieldDesk'))
+// r46 — টিপস: গোপন তথ্য from the website's tipline
+const Tips = lazy(() => import('./pages/Tips'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
@@ -147,6 +149,14 @@ export default function App() {
           element={
             <Suspense fallback={<Spinner className="mt-10" />}>
               <FieldDesk />
+            </Suspense>
+          }
+        />
+        <Route
+          path="tips"
+          element={
+            <Suspense fallback={<Spinner className="mt-10" />}>
+              <Tips />
             </Suspense>
           }
         />

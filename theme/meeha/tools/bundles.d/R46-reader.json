@@ -1,0 +1,14 @@
+{
+  "_comment": "r46 reader modules (inc/factcheck, inc/saved, inc/tips). `reader` loads on every page (পরে পড়ুন + ফ্যাক্টচেক chip on cards); `factcheck` on fact-check articles and /factcheck/; `tips` on the [meeha_tips] page.",
+  "reader": {
+    "css": ["assets/css/reader.css"],
+    "js": ["assets/js/saved.js"]
+  },
+  "factcheck": {
+    "css": ["assets/css/factcheck.css"]
+  },
+  "tips": {
+    "css": ["assets/css/tips.css"],
+    "js": ["assets/js/tips.js"]
+  }
+}

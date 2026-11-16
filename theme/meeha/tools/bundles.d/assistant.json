@@ -1,0 +1,11 @@
+{
+	"_comment": "মিহা সহকারী (inc/assistant): `assistant` = bubble + floating questions + live badge, on every public page (tiny). `assistant-panel` = chat panel; never enqueued — assistant.js loads it on first open (URLs passed in MeehaAssistantConfig.panel).",
+	"assistant": {
+		"css": [ "assets/css/assistant.css" ],
+		"js": [ "assets/js/assistant.js" ]
+	},
+	"assistant-panel": {
+		"css": [ "assets/css/assistant-panel.css" ],
+		"js": [ "assets/js/assistant-panel.js" ]
+	}
+}

@@ -535,3 +535,208 @@ function meeha_news_seo_policy_links() {
 	}
 	return $out;
 }
+
+/* ---------------------------------------------------------------------------
+ * 7. Article schema completeness (2.4.14)
+ *    - Rank Math active: NewsArticle/Article nodes get dateModified, a ≥1200 px image and the author url when missing.
+ *    - No SEO plugin: the theme prints its own NewsArticle (Google News needs one).
+ *    - Posts with an embedded YouTube video: VideoObject (via Rank Math's graph when active).
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Whether an SEO plugin prints the article schema.
+ *
+ * @return bool
+ */
+function meeha_seo_plugin_active() {
+	return defined( 'WPSEO_VERSION' ) || class_exists( 'RankMath' ) || defined( 'AIOSEO_VERSION' );
+}
+
+/**
+ * The best schema image of a post: ImageObject of the full-size featured image (Google wants ≥1200 px wide), or null.
+ *
+ * @param WP_Post $post Post.
+ * @return array|null
+ */
+function meeha_seo_image( $post ) {
+	$id = (int) get_post_thumbnail_id( $post );
+	if ( ! $id ) {
+		$og = (int) meeha_opt( 'social', 'og_image', 0 );
+		$id = $og ? $og : 0;
+	}
+	if ( ! $id ) {
+		return null;
+	}
+	$src = wp_get_attachment_image_src( $id, 'full' );
+	if ( ! $src ) {
+		return null;
+	}
+	return array(
+		'@type'  => 'ImageObject',
+		'url'    => $src[0],
+		'width'  => (int) $src[1],
+		'height' => (int) $src[2],
+	);
+}
+
+/**
+ * Plain 30-word description of a post (block tags become spaces, so paragraphs do not run together).
+ *
+ * @param WP_Post $post Post.
+ * @return string
+ */
+function meeha_seo_plain( $post ) {
+	$raw = has_excerpt( $post ) ? $post->post_excerpt : $post->post_content;
+	$raw = preg_replace( '/<[^>]+>/', ' ', strip_shortcodes( (string) $raw ) );
+	return wp_trim_words( trim( preg_replace( '/\s+/u', ' ', wp_strip_all_tags( $raw ) ) ), 30, '…' );
+}
+
+/**
+ * YouTube id of the first video embedded in a post ('' when none).
+ *
+ * @param WP_Post $post Post.
+ * @return string
+ */
+function meeha_seo_youtube_id( $post ) {
+	if ( post_password_required( $post ) ) {
+		return '';
+	}
+	return preg_match( '~(?:youtu\.be/|youtube(?:-nocookie)?\.com/(?:watch\?(?:[^"\s<]*&(?:amp;)?)?v=|embed/|shorts/|live/))([A-Za-z0-9_-]{11})~', (string) $post->post_content, $m ) ? $m[1] : '';
+}
+
+/**
+ * VideoObject for a post's embedded YouTube video, or null.
+ *
+ * @param WP_Post $post Post.
+ * @return array|null
+ */
+function meeha_seo_video_node( $post ) {
+	$yt = meeha_seo_youtube_id( $post );
+	if ( '' === $yt ) {
+		return null;
+	}
+	$desc = trim( (string) meeha_get_summary( $post->ID ) );
+	if ( '' === $desc ) {
+		$desc = meeha_seo_plain( $post );
+	}
+	return array(
+		'@type'        => 'VideoObject',
+		'@id'          => get_permalink( $post ) . '#video',
+		'name'         => wp_strip_all_tags( get_the_title( $post ) ),
+		'description'  => '' !== $desc ? $desc : wp_strip_all_tags( get_the_title( $post ) ),
+		'thumbnailUrl' => array( 'https://i.ytimg.com/vi/' . $yt . '/maxresdefault.jpg', 'https://i.ytimg.com/vi/' . $yt . '/hqdefault.jpg' ),
+		'uploadDate'   => get_post_time( 'c', true, $post ),
+		'embedUrl'     => 'https://www.youtube.com/embed/' . $yt,
+		'contentUrl'   => 'https://www.youtube.com/watch?v=' . $yt,
+		'inLanguage'   => 'bn-BD',
+	);
+}
+
+add_filter(
+	'rank_math/json_ld',
+	function ( $data ) {
+		if ( ! is_array( $data ) || ! is_singular( 'post' ) ) {
+			return $data;
+		}
+		$post = get_queried_object();
+		if ( ! $post instanceof WP_Post ) {
+			return $data;
+		}
+		$img = meeha_seo_image( $post );
+		foreach ( $data as $k => $node ) {
+			if ( ! is_array( $node ) || ! array_intersect( isset( $node['@type'] ) ? (array) $node['@type'] : array(), array( 'NewsArticle', 'Article', 'BlogPosting' ) ) ) {
+				continue;
+			}
+			if ( empty( $node['dateModified'] ) ) {
+				$data[ $k ]['dateModified'] = get_post_modified_time( 'c', true, $post );
+			}
+			if ( $img && $img['width'] >= 1200 ) {
+				$have = isset( $node['image'] ) ? $node['image'] : null;
+				$w    = is_array( $have ) && isset( $have['width'] ) ? (int) $have['width'] : 0;
+				if ( ! $have || ( is_array( $have ) && isset( $have['@type'] ) && $w && $w < 1200 ) ) {
+					$data[ $k ]['image'] = $img;
+				}
+			}
+		}
+		$video = meeha_seo_video_node( $post );
+		if ( $video && ! isset( $data['meehaVideo'] ) ) {
+			$data['meehaVideo'] = $video;
+		}
+		return $data;
+	},
+	100
+);
+
+add_action(
+	'wp_head',
+	function () {
+		if ( meeha_seo_plugin_active() || ! is_singular( 'post' ) ) {
+			return;
+		}
+		$post = get_queried_object();
+		if ( ! $post instanceof WP_Post || post_password_required( $post ) ) {
+			return;
+		}
+		$url   = get_permalink( $post );
+		$cat   = function_exists( 'meeha_primary_category' ) ? meeha_primary_category( $post ) : null;
+		$desc  = trim( (string) meeha_get_summary( $post->ID ) );
+		$desc  = '' !== $desc ? $desc : meeha_seo_plain( $post );
+		$guest = function_exists( 'meeha_guest_author' ) ? meeha_guest_author( $post ) : null;
+		$name  = is_array( $guest ) && ! empty( $guest['name'] ) ? $guest['name'] : get_the_author_meta( 'display_name', (int) $post->post_author );
+		$auth  = array(
+			'@type' => 'Person',
+			'name'  => $name,
+		);
+		if ( ! $guest ) {
+			$auth['url'] = get_author_posts_url( (int) $post->post_author );
+			$same        = meeha_news_seo_author_same_as( (int) $post->post_author );
+			if ( $same ) {
+				$auth['sameAs'] = $same;
+			}
+		}
+		$pub = array(
+			'@type' => 'NewsMediaOrganization',
+			'name'  => get_bloginfo( 'name' ),
+			'url'   => home_url( '/' ),
+		);
+		$logo = meeha_news_seo_logo();
+		if ( $logo ) {
+			$pub['logo'] = $logo;
+		}
+		$ld = array(
+			'@context'         => 'https://schema.org',
+			'@type'            => 'NewsArticle',
+			'@id'              => $url . '#article',
+			'mainEntityOfPage' => $url,
+			'url'              => $url,
+			'headline'         => wp_html_excerpt( wp_strip_all_tags( get_the_title( $post ) ), 110 ),
+			'description'      => $desc,
+			'datePublished'    => get_post_time( 'c', true, $post ),
+			'dateModified'     => get_post_modified_time( 'c', true, $post ),
+			'inLanguage'       => 'bn-BD',
+			'author'           => array( $auth ),
+			'publisher'        => $pub,
+			'isAccessibleForFree' => true,
+		);
+		if ( $cat ) {
+			$ld['articleSection'] = $cat->name;
+		}
+		$tags = get_the_tags( $post->ID );
+		if ( $tags && ! is_wp_error( $tags ) ) {
+			$ld['keywords'] = implode( ', ', wp_list_pluck( $tags, 'name' ) );
+		}
+		$img = meeha_seo_image( $post );
+		if ( $img ) {
+			$ld['image'] = array( $img );
+		}
+		$out   = array( $ld );
+		$video = meeha_seo_video_node( $post );
+		if ( $video ) {
+			$out[] = array( '@context' => 'https://schema.org' ) + $video;
+		}
+		foreach ( $out as $node ) {
+			echo '<script type="application/ld+json">' . wp_json_encode( $node, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG ) . "</script>\n";
+		}
+	},
+	25
+);

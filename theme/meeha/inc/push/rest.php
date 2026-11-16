@@ -34,8 +34,10 @@ function meeha_push_read_sub( $req ) {
  * @return bool true when allowed
  */
 function meeha_push_rate_ok() {
-	$ip  = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
-	$key = 'meeha_push_rl_' . md5( $ip );
+	// 2.4.14: the real visitor behind LiteSpeed/Cloudflare (trusted-proxy aware), hashed — not REMOTE_ADDR, which
+	// behind a proxy put every visitor into one shared bucket.
+	$ip  = function_exists( 'meeha_ip_bucket' ) ? meeha_ip_bucket() : ( isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '' );
+	$key = 'meeha_push_rl_' . md5( wp_salt( 'nonce' ) . $ip );
 	$n   = (int) get_transient( $key );
 	if ( $n >= 20 ) {
 		return false;
@@ -56,6 +58,9 @@ add_action(
 				'callback'            => function ( WP_REST_Request $req ) {
 					if ( ! meeha_opt( 'alerts', 'enabled', 1 ) || ! meeha_push_supported() ) {
 						return new WP_Error( 'meeha_push_off', 'নিউজ এলার্ট এখন বন্ধ।', array( 'status' => 403 ) );
+					}
+					if ( function_exists( 'meeha_legacy_same_origin' ) && ! meeha_legacy_same_origin() ) {
+						return new WP_Error( 'meeha_push_origin', 'অনুরোধ গ্রহণযোগ্য নয়।', array( 'status' => 403 ) );
 					}
 					if ( ! meeha_push_rate_ok() ) {
 						return new WP_Error( 'meeha_push_rate', 'একটু পরে আবার চেষ্টা করুন।', array( 'status' => 429 ) );

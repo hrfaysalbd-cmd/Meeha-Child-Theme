@@ -80,6 +80,7 @@ export const FIELDS: Record<CardType, FieldDef[]> = {
     { k: 'text', label: 'উক্তি', kind: 'textarea', rows: 4, max: 400, mark: true },
     { k: 'speaker', label: 'বক্তা', kind: 'text', half: true },
     { k: 'role', label: 'পরিচয়/উপাধি', kind: 'text', half: true },
+    { k: 'source', label: 'উৎস ও তারিখ (ঐচ্ছিক)', kind: 'text', max: 80, placeholder: 'যেমন: সংবাদ সম্মেলন, ১৫ নভেম্বর ২০২৬' },
     { k: 'type_label', label: 'ধরনের লেবেল', kind: 'text', max: 30, half: true },
     { k: 'year', label: 'সাল (ইতিহাস ফ্রেমে জলছাপ)', kind: 'text', max: 8, half: true },
     { k: 'show_speaker', label: 'বক্তার ছবি দেখান', kind: 'check' },
@@ -139,7 +140,7 @@ export function initialFields(cfg: StudioConfig | null): Record<CardType, FieldV
     feature: { kicker: d.feature_kicker || 'মিহা স্পেশাল', title: '' },
     category: { category_id: cfg?.categories?.[0] ? String(cfg.categories[0].id) : '', title: '' },
     opinion: { title: '', author_name: '', author_title: '', show_photo: true, label: d.opinion_label || 'মতামত' },
-    quote: { text: '', speaker: '', role: '', type_label: '', year: '', show_speaker: true },
+    quote: { text: '', speaker: '', role: '', source: '', type_label: '', year: '', show_speaker: true },
     literature: { label: cfg?.litLabel || 'সাহিত্য', author: '', title: '', excerpt: '' },
     poem: { label: 'কবিতা', author: '', title: '', poem: '' },
     morning: { title: cfg?.titles?.[0] || 'শুভ সকাল', caption: '', credit: d.credit || 'মিহা নিউজ' },
@@ -202,6 +203,9 @@ export function buildData(
     quoteFrame: string
     authorPhoto: string
     speakerPhoto: string
+    /** Round 46: where the speaker's face is (smart focus), for the উক্তি কার্ড crops. */
+    speakerFocus?: { x: number; y: number } | null
+    speakerZoom?: number
     cta: string | null
     storyCta: string | null
   },
@@ -228,7 +232,9 @@ export function buildData(
       d = { title: s(f.title), author_name: s(f.author_name), author_title: s(f.author_title), author_photo: ctx.authorPhoto, show_photo: !!f.show_photo, label: s(f.label) }
       break
     case 'quote':
-      d = { text: s(f.text), speaker: s(f.speaker), role: s(f.role), type_label: s(f.type_label), year: s(f.year), frame: ctx.quoteFrame, speaker_photo: f.show_speaker ? ctx.speakerPhoto : '' }
+      d = { text: s(f.text), speaker: s(f.speaker), role: s(f.role), type_label: s(f.type_label), year: s(f.year), frame: ctx.quoteFrame, speaker_photo: f.show_speaker ? ctx.speakerPhoto : '', source: s(f.source) }
+      if (ctx.speakerFocus) d.speaker_focus = ctx.speakerFocus
+      if (ctx.speakerZoom && ctx.speakerZoom !== 1) d.speaker_zoom = ctx.speakerZoom
       break
     case 'literature':
       d = { ...ph, label: s(f.label), title: s(f.title), author: s(f.author), excerpt: s(f.excerpt) }

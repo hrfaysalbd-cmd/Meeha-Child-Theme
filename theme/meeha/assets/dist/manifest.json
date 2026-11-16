@@ -1,5 +1,5 @@
 {
-    "generated": "2026-11-16T13:39:01+00:00",
+    "generated": "2026-11-16T14:37:26+00:00",
     "bundles": {
         "core": {
             "css": [
@@ -163,8 +163,8 @@
             ],
             "deps": [],
             "css_file": "home.min.css",
-            "css_ver": "ce27ebe442",
-            "css_bytes": 14272,
+            "css_ver": "82b33ff63d",
+            "css_bytes": 14355,
             "js_file": "home.min.js",
             "js_ver": "fdea147781",
             "js_bytes": 2821
@@ -228,11 +228,11 @@
             ],
             "deps": [],
             "css_file": "single.min.css",
-            "css_ver": "6c6794285e",
-            "css_bytes": 17541,
+            "css_ver": "bec287df01",
+            "css_bytes": 18753,
             "js_file": "single.min.js",
-            "js_ver": "657cc99513",
-            "js_bytes": 11589
+            "js_ver": "7d11af41c9",
+            "js_bytes": 12913
         },
         "literature": {
             "css": [
@@ -313,8 +313,8 @@
             "critical": [],
             "deps": [],
             "js_file": "cards.min.js",
-            "js_ver": "9155a88c60",
-            "js_bytes": 266550
+            "js_ver": "c1aaccc1b5",
+            "js_bytes": 266661
         },
         "campus": {
             "css": [
@@ -390,6 +390,81 @@
             "js_file": "liveband.min.js",
             "js_ver": "d525f7d62a",
             "js_bytes": 4637
+        },
+        "reader": {
+            "css": [
+                "assets/css/reader.css"
+            ],
+            "js": [
+                "assets/js/saved.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "reader.min.css",
+            "css_ver": "c59e4da6cc",
+            "css_bytes": 2939,
+            "js_file": "reader.min.js",
+            "js_ver": "1b8b35f815",
+            "js_bytes": 5501
+        },
+        "factcheck": {
+            "css": [
+                "assets/css/factcheck.css"
+            ],
+            "js": [],
+            "critical": [],
+            "deps": [],
+            "css_file": "factcheck.min.css",
+            "css_ver": "7dbffd3fae",
+            "css_bytes": 2876
+        },
+        "tips": {
+            "css": [
+                "assets/css/tips.css"
+            ],
+            "js": [
+                "assets/js/tips.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "tips.min.css",
+            "css_ver": "942160e2f4",
+            "css_bytes": 4577,
+            "js_file": "tips.min.js",
+            "js_ver": "bb754eeb0a",
+            "js_bytes": 8213
+        },
+        "assistant": {
+            "css": [
+                "assets/css/assistant.css"
+            ],
+            "js": [
+                "assets/js/assistant.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "assistant.min.css",
+            "css_ver": "2d40904c73",
+            "css_bytes": 4396,
+            "js_file": "assistant.min.js",
+            "js_ver": "07f9ad5cd3",
+            "js_bytes": 7082
+        },
+        "assistant-panel": {
+            "css": [
+                "assets/css/assistant-panel.css"
+            ],
+            "js": [
+                "assets/js/assistant-panel.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "assistant-panel.min.css",
+            "css_ver": "452f203f4e",
+            "css_bytes": 8253,
+            "js_file": "assistant-panel.min.js",
+            "js_ver": "64fe7392bd",
+            "js_bytes": 11262
         }
     },
     "critical": {
@@ -455,8 +530,8 @@
                 "assets/css/home.css",
                 "assets/css/liveband.css"
             ],
-            "bytes": 59845,
-            "gzip": 11889
+            "bytes": 59928,
+            "gzip": 11904
         },
         "archive": {
             "file": "critical-archive.min.css",
@@ -494,8 +569,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/single.css"
             ],
-            "bytes": 63114,
-            "gzip": 12765
+            "bytes": 64326,
+            "gzip": 13027
         },
         "literature": {
             "file": "critical-literature.min.css",

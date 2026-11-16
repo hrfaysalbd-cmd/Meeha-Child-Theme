@@ -67,6 +67,7 @@ $meeha_h = 'h' . (int) $meeha_a['heading_level'];
 		}
 	}
 	$meeha_live = function_exists( 'meeha_lb_card_badge' ) ? meeha_lb_card_badge( $meeha_p ) : ''; // 2.4.8: "● লাইভ" on running live posts.
+	$meeha_live .= (string) apply_filters( 'meeha_card_title_badges', '', $meeha_p, $meeha_a ); // r46: ফ্যাক্টচেক verdict chip etc.
 	printf( '<%1$s class="m-story__title">%4$s<a href="%2$s">%3$s</a></%1$s>', $meeha_h, esc_url( $meeha_url ), esc_html( $meeha_title ), $meeha_live ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	if ( $meeha_a['show_dek'] ) {
 		$meeha_dek = meeha_post_dek( $meeha_p, (int) $meeha_a['dek_words'] );
@@ -84,4 +85,5 @@ $meeha_h = 'h' . (int) $meeha_a['heading_level'];
 	}
 	?>
 	</div>
+	<?php do_action( 'meeha_card_end', $meeha_p, $meeha_a ); // r46: পরে পড়ুন button. ?>
 </article>

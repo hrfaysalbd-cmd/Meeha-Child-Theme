@@ -262,3 +262,20 @@ html:not(.m-dekjs) .m-dek__toggle { display: none; }
 .m-aside-trend__title:hover { color: var(--m-blue); }
 .m-aside-trend__item .m-trend__rate { grid-area: r; }
 .m-article__aside .m-area { margin: 0; }
+
+/* ---------- 2.4.14: reading progress bar (single.js) ---------- */
+.m-progress { position: fixed; inset: 0 0 auto; z-index: 70; height: 3px; pointer-events: none; opacity: 0; transition: opacity .2s; }
+.m-progress.is-on { opacity: 1; }
+.m-progress i { display: block; height: 100%; background: var(--m-blue); transform: scaleX(0); transform-origin: 0 50%; }
+.admin-bar .m-progress { top: var(--wp-admin--admin-bar--height, 0px); }
+@media (prefers-reduced-motion: reduce) { .m-progress { transition: none; } }
+
+/* ---------- 2.4.14: YouTube facade (inc/single/content.php) — same 16:9 box before and after the click (no CLS) ---------- */
+.m-yt { position: relative; display: block; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--m-r-sm); background: #000; color: #fff; }
+.m-yt img { width: 100%; height: 100%; object-fit: cover; opacity: .92; transition: opacity .2s; }
+.m-yt:hover img { opacity: 1; }
+.m-yt__play { position: absolute; inset: 0; margin: auto; display: grid; place-items: center; width: 68px; height: 48px; border-radius: 12px; background: rgba(204, 42, 31, .92); }
+.m-yt__play::before { content: ""; border-style: solid; border-width: 10px 0 10px 17px; border-color: transparent transparent transparent #fff; margin-left: 4px; }
+.m-yt__t { position: absolute; inset: auto 0 0; padding: 28px 14px 10px; background: linear-gradient(transparent, rgba(0, 0, 0, .7)); color: #fff; font-size: var(--m-fs-sm); line-height: 1.5; }
+.m-yt iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.m-prose a.m-yt { text-decoration: none; }

@@ -22,7 +22,7 @@ function meeha_fc_card_html( $post ) {
 	}
 	$vs  = meeha_fc_verdicts();
 	$vk  = isset( $vs[ $fc['verdict'] ] ) ? $fc['verdict'] : '';
-	$v   = $vk ? $vs[ $vk ] : array( 'যাচাই চলছে', '#5B6676', 0, 'রায় এখনো চূড়ান្ত হয়নি।' );
+	$v   = $vk ? $vs[ $vk ] : array( 'যাচাই চলছে', '#5B6676', 0, 'রায় এখনো চূড়ান্ত হয়নি।' );
 	$id  = 'm-fc-' . (int) $post->ID;
 	$out = '<aside class="m-fc" id="' . esc_attr( $id ) . '" style="--fc:' . esc_attr( $v[1] ) . '" aria-labelledby="' . esc_attr( $id ) . '-h" data-verdict="' . esc_attr( $vk ) . '">';
 	$out .= '<header class="m-fc__head"><p class="m-fc__label" id="' . esc_attr( $id ) . '-h">' . meeha_icon( 'check', array( 'size' => 'sm' ) ) . 'ফ্যাক্টচেক</p>';

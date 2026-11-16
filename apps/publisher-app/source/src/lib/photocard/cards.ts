@@ -40,6 +40,18 @@ export interface MeehaCardsApi {
   stickers?: Record<string, string>
   marks?: Record<string, string>
   collageNeed?: (type: string, preset: string) => number
+  /* round 46 (theme 2.4.14) — the উক্তি কার্ড and what each one suits (auto pick) */
+  quoteDesigns?: Record<string, QuoteDesignMeta>
+}
+
+export interface QuoteDesignMeta {
+  label: string
+  shape: 'circle' | 'side' | 'full' | 'top' | 'slash'
+  tone: 'dark' | 'light' | 'gold'
+  /** how much text it holds well: 1 short … 3 long */
+  cap: number
+  photo: 'need' | 'opt'
+  wants: 'tall' | 'wide' | 'any'
 }
 
 /** Hit regions the renderer leaves on a card (canvas pixels). */

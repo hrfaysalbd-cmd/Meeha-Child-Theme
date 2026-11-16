@@ -7,6 +7,7 @@
  * form. Deleting needs the same right as deleting an article.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   MediaApi,
   QUOTE_TEXT_MAX,
@@ -22,7 +23,7 @@ import {
 import { useAuth } from '../lib/AuthContext'
 import MediaGallery from '../components/MediaGallery'
 import { Badge, Banner, Button, Card, EmptyState, Field, Modal, PageHeader, Spinner, bnDate, bnNumber, inputClass } from '../components/ui'
-import { IconExternalLink, IconLibraryPhoto, IconPhotoPlus, IconPlus, IconQuote, IconSearch, IconX } from '../components/Icon'
+import { IconExternalLink, IconLibraryPhoto, IconPhoto, IconPhotoPlus, IconPlus, IconQuote, IconSearch, IconX } from '../components/Icon'
 
 const SEARCH_DEBOUNCE_MS = 350
 
@@ -264,6 +265,12 @@ export default function Quotes() {
                         >
                           সম্পাদনা
                         </Button>
+                        <Link
+                          to={`/app/photocard?type=quote&quote=${q.id}`}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12.5px] font-semibold text-white bg-brand-600 hover:bg-brand-700"
+                        >
+                          <IconPhoto className="w-3.5 h-3.5" /> কার্ড বানান
+                        </Link>
                         {q.url && (
                           <a
                             href={q.url}

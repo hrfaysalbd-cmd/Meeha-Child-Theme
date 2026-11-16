@@ -1547,3 +1547,28 @@ async function sendPiecesParallel(
   while (queue.length) await worker()
   report(file.size)
 }
+
+
+// ---- r46 (newsroom-os 1.28.0): tips from readers routed to me (no tipster contact) ----
+export interface TipFile { id: number; name: string; mime: string; kind: string; size: number; url: string; download: string }
+export interface TipNote { id: number; kind: string; body: string; who: string; at: string }
+export interface AssignedTip {
+  id: number
+  code: string
+  excerpt: string
+  category_label: string
+  district: string
+  status: string
+  status_label: string
+  urgent: boolean
+  files_count: number
+  created_at: string
+  body?: string
+  files?: TipFile[]
+  notes?: TipNote[]
+}
+export const TipsApi = {
+  mine: () => request<{ items: AssignedTip[] }>('/tips/assigned'),
+  get: (id: number) => request<AssignedTip>(`/tips/assigned/${id}`),
+  note: (id: number, body: string) => request<unknown>(`/tips/assigned/${id}/notes`, { method: 'POST', body: { body } }),
+}

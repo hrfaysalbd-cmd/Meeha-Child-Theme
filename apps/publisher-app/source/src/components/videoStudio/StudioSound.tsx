@@ -5,16 +5,17 @@
  * controls, and "শুনে দেখুন", which plays the exact mix the export will
  * make.
  */
-import { useEffect, useRef, useState } from 'react'
-import { LIMITS, MUSIC, MUSIC_GROUPS, type EditConfig, type MusicId } from '../../lib/videoEdit/config'
-import { musicBuffer } from '../../lib/videoEdit/music'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { LIMITS, MUSIC, MUSIC_GROUPS, MUSIC_MOODS, MUSIC_MOOD_OF, type EditConfig, type MusicId, type MusicMood } from '../../lib/videoEdit/config'
+import { musicBpm, musicBuffer, musicLength } from '../../lib/videoEdit/music'
 import { sfxBuffer } from '../../lib/videoEdit/audio'
 import { SFX, SFX_GROUPS, type SfxId } from '../../lib/videoEdit/sfxlib'
 import { downloadBlob, wavBlob } from '../../lib/videoEdit/wav'
 import { bnClock } from '../../lib/videoEdit/motion'
 import { bnNumber } from '../ui'
 import { IconDownload, IconPlayerPause, IconPlayerPlay, IconPlus, IconTrash, IconVolume } from '../Icon'
-import { Group, Section, Segmented, Slider, SwitchRow, TimeField, useGroups } from './StudioFields'
+import { Section, Segmented, Slider, SwitchRow, TimeField } from './StudioFields'
+import { Chip, SearchBox, StarButton, useAssetMemory } from './AssetBrowser'
 import type { Setter } from './StudioPanels'
 
 type SampleId = MusicId | `sfx:${SfxId}`
@@ -23,6 +24,57 @@ const fileName = (id: SampleId) => `meeha-${id.replace(':', '-')}.wav`
 const pct = (v: number) => `${bnNumber(Math.round(v * 100))}%`
 
 export type AuditionState = null | { stage: 'loading'; label: string } | { stage: 'playing'; from: number; seconds: number }
+
+/** Round 46: peaks of a buffer for the little waveform (cached per buffer). */
+const peakCache = new WeakMap<AudioBuffer, number[]>()
+function peaks(buf: AudioBuffer, n = 72) {
+  let p = peakCache.get(buf)
+  if (p) return p
+  const d = buf.getChannelData(0)
+  const step = Math.max(1, Math.floor(d.length / n))
+  p = []
+  let max = 0
+  for (let i = 0; i < n; i++) {
+    let m = 0
+    for (let j = i * step; j < Math.min(d.length, (i + 1) * step); j += 16) m = Math.max(m, Math.abs(d[j]))
+    p.push(m)
+    max = Math.max(max, m)
+  }
+  p = p.map((v) => v / (max || 1))
+  peakCache.set(buf, p)
+  return p
+}
+
+/** Waveform with a moving play head (the sample that is playing). */
+function Waveform({ buf, ctx, startedAt }: { buf: AudioBuffer; ctx: AudioContext | null; startedAt: number }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const cv = ref.current
+    if (!cv) return
+    const pk = peaks(buf)
+    let raf = 0
+    const draw = () => {
+      const w = (cv.width = cv.clientWidth * 2)
+      const h = (cv.height = 56)
+      const g = cv.getContext('2d')!
+      const prog = ctx ? Math.min(1, Math.max(0, (ctx.currentTime - startedAt) / buf.duration)) : 0
+      const bw = w / pk.length
+      pk.forEach((v, i) => {
+        const bh = Math.max(3, v * (h - 6))
+        g.fillStyle = i / pk.length <= prog ? '#025AB2' : '#CBD5E1'
+        g.fillRect(i * bw + 1, (h - bh) / 2, Math.max(1, bw - 2), bh)
+      })
+      g.fillStyle = '#CC2A1F'
+      g.fillRect(prog * w - 1, 0, 2, h)
+      if (prog < 1) raf = requestAnimationFrame(draw)
+    }
+    draw()
+    return () => cancelAnimationFrame(raf)
+  }, [buf, ctx, startedAt])
+  return <canvas ref={ref} className="block w-full h-7 mt-1.5" data-testid="sample-waveform" />
+}
+
+const secs = (n: number) => `${bnNumber(Math.round(n))} সে.`
 
 export default function SoundPanel({
   cfg,
@@ -48,11 +100,36 @@ export default function SoundPanel({
 }) {
   const a = cfg.audio
   const setAudio = (patch: Partial<EditConfig['audio']>) => set((c) => ({ ...c, audio: { ...c.audio, ...patch } }))
-  const [sample, setSample] = useState<{ id: SampleId; ready: boolean } | null>(null)
+  const [sample, setSample] = useState<{ id: SampleId; ready: boolean; buf?: AudioBuffer; at?: number } | null>(null)
   const sampleSrc = useRef<AudioBufferSourceNode | null>(null)
   const wanted = useRef<SampleId | null>(null)
-  const musicGroups = useGroups('talk', MUSIC.find((m) => m.id === a.music)?.group)
-  const sfxGroups = useGroups('brand')
+  const musicMem = useAssetMemory('music')
+  const sfxMem = useAssetMemory('sfx')
+  const [mq, setMq] = useState('')
+  const [mCat, setMCat] = useState<'all' | 'fav' | 'recent' | 'new' | MusicMood | `g:${string}`>('all')
+  const [sq, setSq] = useState('')
+  const [sCat, setSCat] = useState<string>('all')
+  const musicList = useMemo(() => {
+    const q = mq.trim().toLowerCase()
+    let l = MUSIC
+    if (mCat === 'fav') l = musicMem.fav.map((id) => MUSIC.find((m) => m.id === id)).filter((m): m is (typeof MUSIC)[number] => !!m)
+    else if (mCat === 'recent') l = musicMem.recent.map((id) => MUSIC.find((m) => m.id === id)).filter((m): m is (typeof MUSIC)[number] => !!m)
+    else if (mCat === 'new') l = MUSIC.filter((m) => m.isNew)
+    else if (mCat.startsWith('g:')) l = MUSIC.filter((m) => m.group === mCat.slice(2))
+    else if (mCat !== 'all') l = MUSIC.filter((m) => MUSIC_MOOD_OF[m.id].includes(mCat as MusicMood))
+    if (q) l = l.filter((m) => `${m.name} ${m.hint} ${m.id} ${MUSIC_MOOD_OF[m.id].map((x) => MUSIC_MOODS.find((y) => y.id === x)?.name).join(' ')}`.toLowerCase().includes(q))
+    return l
+  }, [mq, mCat, musicMem.fav, musicMem.recent])
+  const sfxList = useMemo(() => {
+    const q = sq.trim().toLowerCase()
+    let l = SFX
+    if (sCat === 'fav') l = sfxMem.fav.map((id) => SFX.find((x) => x.id === id)).filter((x): x is (typeof SFX)[number] => !!x)
+    else if (sCat === 'recent') l = sfxMem.recent.map((id) => SFX.find((x) => x.id === id)).filter((x): x is (typeof SFX)[number] => !!x)
+    else if (sCat === 'new') l = SFX.filter((x) => x.isNew)
+    else if (sCat !== 'all') l = SFX.filter((x) => x.group === sCat)
+    if (q) l = l.filter((x) => `${x.name} ${x.hint} ${x.id}`.toLowerCase().includes(q))
+    return l
+  }, [sq, sCat, sfxMem.fav, sfxMem.recent])
   const bufferOf = (id: SampleId) => (id.startsWith('sfx:') ? sfxBuffer(id.slice(4) as SfxId) : musicBuffer(id as MusicId))
   async function download(id: SampleId) {
     const buf = await bufferOf(id)
@@ -62,7 +139,10 @@ export default function SoundPanel({
     const p = playhead()
     return Math.round(Math.min(range.end, Math.max(range.start, p ?? range.start)) * 10) / 10
   }
-  const placeSound = (id: SfxId) => set((c) => ({ ...c, sounds: [...c.sounds, { id, at: here(), vol: 0.8 }].slice(0, LIMITS.sounds) }))
+  const placeSound = (id: SfxId) => {
+    sfxMem.used(id)
+    set((c) => ({ ...c, sounds: [...c.sounds, { id, at: here(), vol: 0.8 }].slice(0, LIMITS.sounds) }))
+  }
   const updateSound = (i: number, patch: Partial<EditConfig['sounds'][number]>) => set((c) => ({ ...c, sounds: c.sounds.map((x, j) => (j === i ? { ...x, ...patch } : x)) }))
 
   const stopSample = () => {
@@ -101,7 +181,7 @@ export default function SoundPanel({
     }
     src.start()
     sampleSrc.current = src
-    setSample({ id, ready: true })
+    setSample({ id, ready: true, buf, at: ctx.currentTime })
   }
 
   const playBtn = (id: SampleId, label: string, testId?: string) => {
@@ -124,37 +204,85 @@ export default function SoundPanel({
       <IconDownload className="w-3.5 h-3.5" />
     </button>
   )
+  const wave = (id: SampleId) =>
+    sample?.id === id && sample.ready && sample.buf ? <Waveform buf={sample.buf} ctx={audioContext()} startedAt={sample.at ?? 0} /> : null
   const musicRow = (m: { id: MusicId | 'none'; name: string; hint: string; isNew?: boolean }) => {
     const on = a.music === m.id
+    const group = m.id === 'none' ? null : MUSIC_GROUPS.find((g) => g.id === MUSIC.find((x) => x.id === m.id)?.group)
     return (
-      <div key={m.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${on ? 'border-brand-600 bg-brand-50' : 'border-neutral-200 hover:border-neutral-300'}`}>
-        <button type="button" role="radio" aria-checked={on} onClick={() => setAudio({ music: m.id })} className="flex-1 min-w-0 text-left" data-testid={`music-${m.id}`}>
-          <span className={`block text-[13px] font-semibold ${on ? 'text-brand-700' : 'text-neutral-800'}`}>
-            {m.name}
-            {m.id === 'signature' && <span className="ml-1.5 text-[10.5px] font-medium text-neutral-400">ডিফল্ট</span>}
-            {m.isNew && <span className="ml-1.5 text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-amber-400 text-amber-950">নতুন</span>}
-          </span>
-          <span className="block text-[11.5px] text-neutral-500 truncate">{m.hint}</span>
-        </button>
-        {m.id !== 'none' && playBtn(m.id, m.name, `music-sample-${m.id}`)}
-        {m.id !== 'none' && dlBtn(m.id, m.name)}
+      <div key={m.id} className={`rounded-xl border px-3 py-2 ${on ? 'border-brand-600 bg-brand-50' : 'border-neutral-200 hover:border-neutral-300'}`}>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => {
+              if (m.id !== 'none') musicMem.used(m.id)
+              setAudio({ music: m.id })
+            }}
+            className="flex-1 min-w-0 text-left"
+            data-testid={`music-${m.id}`}
+          >
+            <span className={`block text-[13px] font-semibold ${on ? 'text-brand-700' : 'text-neutral-800'}`}>
+              {m.name}
+              {m.id === 'signature' && <span className="ml-1.5 text-[10.5px] font-medium text-neutral-400">ডিফল্ট</span>}
+              {m.isNew && <span className="ml-1.5 text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-amber-400 text-amber-950">নতুন</span>}
+            </span>
+            <span className="block text-[11.5px] text-neutral-500 truncate">{m.hint}</span>
+            {m.id !== 'none' && (
+              <span className="block text-[10.5px] text-neutral-400 mt-0.5">
+                {bnNumber(musicBpm(m.id))} BPM · লুপ {secs(musicLength(m.id))}
+                {group ? ` · ${group.name}` : ''}
+              </span>
+            )}
+          </button>
+          {m.id !== 'none' && <StarButton on={musicMem.isFav(m.id)} onClick={() => musicMem.toggleFav(m.id)} label={m.name} />}
+          {m.id !== 'none' && playBtn(m.id, m.name, `music-sample-${m.id}`)}
+          {m.id !== 'none' && dlBtn(m.id, m.name)}
+        </div>
+        {m.id !== 'none' && wave(m.id)}
       </div>
     )
   }
 
   return (
     <div>
-      <Section title="মিউজিক লাইব্রেরি" hint="মীহা নিউজের নিজস্ব ২৬টি সুর — এই অ্যাপের ভেতরেই তৈরি, কারও রেকর্ডিং বা স্যাম্পল নেই। ভিডিও যত বড়ই হোক, পুরোটা জুড়ে নিচু ভলিউমে বারবার বাজবে। প্রতিটি সুর শুরু হয় মীহার চার-নোটের সিগনেচার সুর দিয়ে। ⤓ দিয়ে WAV ফাইল নামানো যায়।">
-        <div className="space-y-1.5" role="radiogroup" aria-label="ব্র্যান্ড মিউজিক">
-          {musicRow({ id: 'none', name: 'মিউজিক নেই', hint: 'শুধু ভিডিওর নিজের শব্দ' })}
-          {MUSIC_GROUPS.map((g) => {
-            const list = MUSIC.filter((m) => m.group === g.id)
-            return (
-              <Group key={g.id} title={g.name} hint={g.hint} count={list.length} open={musicGroups.isOpen(g.id)} onToggle={() => musicGroups.toggle(g.id)} hasSelected={list.some((m) => m.id === a.music)} testId={`music-group-${g.id}`}>
-                <div className="space-y-1.5">{list.map((m) => musicRow(m))}</div>
-              </Group>
-            )
-          })}
+      <Section title="মিউজিক লাইব্রেরি" hint="মীহা নিউজের নিজস্ব ৪০টি সুর — এই অ্যাপের ভেতরেই তৈরি, কারও রেকর্ডিং বা স্যাম্পল নেই। ভিডিও যত বড়ই হোক, পুরোটা জুড়ে নিচু ভলিউমে বারবার বাজবে। প্রতিটি সুর শুরু হয় মীহার চার-নোটের সিগনেচার সুর দিয়ে। ⤓ দিয়ে WAV ফাইল নামানো যায়।">
+        <div className="space-y-2 mb-2">
+          <SearchBox value={mq} onChange={setMq} placeholder="সুর খুঁজুন — যেমন শোক, খেলা, ব্যবসা…" testId="music-search" />
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+            <Chip on={mCat === 'all'} onClick={() => setMCat('all')}>
+              সব ({bnNumber(MUSIC.length)})
+            </Chip>
+            <Chip on={mCat === 'new'} onClick={() => setMCat('new')}>
+              নতুন
+            </Chip>
+            <Chip on={mCat === 'fav'} onClick={() => setMCat('fav')} testId="music-fav">
+              ★ প্রিয়
+            </Chip>
+            <Chip on={mCat === 'recent'} onClick={() => setMCat('recent')}>
+              সাম্প্রতিক
+            </Chip>
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5" data-testid="music-moods">
+            {MUSIC_MOODS.map((md) => (
+              <Chip key={md.id} on={mCat === md.id} onClick={() => setMCat(mCat === md.id ? 'all' : md.id)} testId={`music-mood-${md.id}`}>
+                {md.name}
+              </Chip>
+            ))}
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+            {MUSIC_GROUPS.map((g) => (
+              <Chip key={g.id} on={mCat === `g:${g.id}`} onClick={() => setMCat(mCat === `g:${g.id}` ? 'all' : `g:${g.id}`)} testId={`music-group-${g.id}`}>
+                {g.name}
+              </Chip>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-1.5 max-h-[460px] overflow-y-auto pr-0.5" role="radiogroup" aria-label="ব্র্যান্ড মিউজিক">
+          {mCat === 'all' && !mq && musicRow({ id: 'none', name: 'মিউজিক নেই', hint: 'শুধু ভিডিওর নিজের শব্দ' })}
+          {musicList.map((m) => musicRow(m))}
+          {musicList.length === 0 && <p className="text-[12px] text-neutral-500 text-center py-3">{mCat === 'fav' ? 'এখনও কোনো সুর প্রিয়তে নেই — ☆ চাপুন।' : 'কিছু পাওয়া যায়নি।'}</p>}
         </div>
         {a.music !== 'none' && (
           <div className="mt-3">
@@ -175,38 +303,60 @@ export default function SoundPanel({
       </Section>
 
       <Section title="সাউন্ড লাইব্রেরি" hint="প্রিভিউ থামিয়ে যে মুহূর্তে শব্দ চান সেখানে “+ বসান” দিন। সব শব্দ মিহার নিজস্ব, অ্যাপেই তৈরি।">
-        <div className="space-y-1.5">
-          {SFX_GROUPS.map((g) => {
-            const list = SFX.filter((x) => x.group === g.id)
-            return (
-              <Group key={g.id} title={g.name} hint={g.hint} count={list.length} open={sfxGroups.isOpen(g.id)} onToggle={() => sfxGroups.toggle(g.id)} testId={`sfx-group-${g.id}`}>
-                <div className="space-y-1.5">
-                  {list.map((x) => (
-                    <div key={x.id} className="flex items-center gap-2 rounded-xl border border-neutral-200 px-3 py-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-neutral-800">{x.name}
-                          {x.isNew && <span className="ml-1.5 text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-amber-400 text-amber-950">নতুন</span>}
-                        </p>
-                        <p className="text-[11.5px] text-neutral-500 truncate">{x.hint}</p>
-                      </div>
-                      {playBtn(`sfx:${x.id}`, x.name, `sfx-sample-${x.id}`)}
-                      <button
-                        type="button"
-                        onClick={() => placeSound(x.id)}
-                        disabled={cfg.sounds.length >= LIMITS.sounds}
-                        data-testid={`sfx-place-${x.id}`}
-                        className="shrink-0 flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold bg-brand-600 text-white disabled:opacity-40"
-                      >
-                        <IconPlus className="w-3.5 h-3.5" />
-                        বসান
-                      </button>
-                      {dlBtn(`sfx:${x.id}`, x.name)}
-                    </div>
-                  ))}
+        <div className="space-y-2 mb-2">
+          <SearchBox value={sq} onChange={setSq} placeholder="শব্দ খুঁজুন — হুশ, ঘড়ি, ভিড়…" testId="sfx-search" />
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+            <Chip on={sCat === 'all'} onClick={() => setSCat('all')}>
+              সব ({bnNumber(SFX.length)})
+            </Chip>
+            <Chip on={sCat === 'new'} onClick={() => setSCat('new')}>
+              নতুন
+            </Chip>
+            <Chip on={sCat === 'fav'} onClick={() => setSCat('fav')} testId="sfx-fav">
+              ★ প্রিয়
+            </Chip>
+            <Chip on={sCat === 'recent'} onClick={() => setSCat('recent')}>
+              সাম্প্রতিক
+            </Chip>
+            {SFX_GROUPS.map((g) => (
+              <Chip key={g.id} on={sCat === g.id} onClick={() => setSCat(sCat === g.id ? 'all' : g.id)} testId={`sfx-group-${g.id}`}>
+                {g.name}
+              </Chip>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-0.5">
+          {sfxList.map((x) => (
+            <div key={x.id} className="rounded-xl border border-neutral-200 px-3 py-2">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-neutral-800">
+                    {x.name}
+                    {x.isNew && <span className="ml-1.5 text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-amber-400 text-amber-950">নতুন</span>}
+                  </p>
+                  <p className="text-[11.5px] text-neutral-500 truncate">{x.hint}</p>
+                  <p className="text-[10.5px] text-neutral-400">
+                    {bnNumber(x.len.toFixed(1))} সে. · {SFX_GROUPS.find((g) => g.id === x.group)?.name}
+                  </p>
                 </div>
-              </Group>
-            )
-          })}
+                <StarButton on={sfxMem.isFav(x.id)} onClick={() => sfxMem.toggleFav(x.id)} label={x.name} />
+                {playBtn(`sfx:${x.id}`, x.name, `sfx-sample-${x.id}`)}
+                <button
+                  type="button"
+                  onClick={() => placeSound(x.id)}
+                  disabled={cfg.sounds.length >= LIMITS.sounds}
+                  data-testid={`sfx-place-${x.id}`}
+                  className="shrink-0 flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold bg-brand-600 text-white disabled:opacity-40"
+                >
+                  <IconPlus className="w-3.5 h-3.5" />
+                  বসান
+                </button>
+                {dlBtn(`sfx:${x.id}`, x.name)}
+              </div>
+              {wave(`sfx:${x.id}`)}
+            </div>
+          ))}
+          {sfxList.length === 0 && <p className="text-[12px] text-neutral-500 text-center py-3">{sCat === 'fav' ? 'এখনও কোনো শব্দ প্রিয়তে নেই — ☆ চাপুন।' : 'কিছু পাওয়া যায়নি।'}</p>}
         </div>
         {cfg.sounds.length > 0 && (
           <div className="mt-3 flex flex-col gap-2">
