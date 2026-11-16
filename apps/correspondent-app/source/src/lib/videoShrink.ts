@@ -32,7 +32,14 @@ export interface ShrinkPlan {
 const AUDIO_BPS = 128_000
 
 /** What a shrink to `targetBytes` would do (no encoding). */
-export async function planShrink(file: Blob, targetBytes: number): Promise<ShrinkPlan | null> {
+export interface ShrinkOpts {
+  /** r46: the quick copy — at most this short side (720 = HD-ready, 480 = SD). */
+  maxShort?: number
+  /** r46: at most this many video bits a second. */
+  maxBitrate?: number
+}
+
+export async function planShrink(file: Blob, targetBytes: number, o: ShrinkOpts = {}): Promise<ShrinkPlan | null> {
   const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS })
   try {
     const v = await input.getPrimaryVideoTrack()
@@ -41,10 +48,10 @@ export async function planShrink(file: Blob, targetBytes: number): Promise<Shrin
     if (!(duration > 0)) return null
     const width = v.displayWidth
     const height = v.displayHeight
-    const bitrate = Math.round(Math.max(350_000, Math.min(8_000_000, (targetBytes * 0.9 * 8) / duration - AUDIO_BPS)))
+    const bitrate = Math.round(Math.max(350_000, Math.min(o.maxBitrate ?? 8_000_000, (targetBytes * 0.9 * 8) / duration - AUDIO_BPS)))
     const srcShort = Math.min(width, height)
     // bits per pixel per frame stays watchable (~0.05) by lowering the size
-    const short = Math.min(srcShort, bitrate >= 3_000_000 ? 1080 : bitrate >= 1_300_000 ? 720 : bitrate >= 650_000 ? 540 : 480)
+    const short = Math.min(srcShort, o.maxShort ?? 4000, bitrate >= 3_000_000 ? 1080 : bitrate >= 1_300_000 ? 720 : bitrate >= 650_000 ? 540 : 480)
     return { duration, width, height, bitrate, short, estimate: Math.round(((bitrate + AUDIO_BPS) * duration) / 8) }
   } finally {
     input.dispose()
@@ -69,8 +76,8 @@ const REASON: Record<string, string> = {
  * software) and VP9/VP8 in WebM; a result without its sound is never used;
  * when the encoder stops moving for 90 s it gives up (the original is sent).
  */
-export async function shrinkVideo(file: Blob, targetBytes: number, opts: { onProgress?: (ratio: number) => void; signal?: AbortSignal } = {}): Promise<ShrinkResult> {
-  const plan = await planShrink(file, targetBytes)
+export async function shrinkVideo(file: Blob, targetBytes: number, opts: { onProgress?: (ratio: number) => void; signal?: AbortSignal } & ShrinkOpts = {}): Promise<ShrinkResult> {
+  const plan = await planShrink(file, targetBytes, opts)
   if (!plan) throw new ShrinkFailed('ভিডিওটি পড়া যায়নি')
   const k = plan.short / Math.min(plan.width, plan.height)
   // multiples of 16 suit every hardware encoder

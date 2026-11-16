@@ -12,15 +12,19 @@ export type BaseSfx = 'whoosh' | 'hit' | 'chime' | 'soft'
 export type LibSfx = 'ident' | 'breaking' | 'riser' | 'impact' | 'ticking' | 'typing' | 'camera' | 'notify' | 'heartbeat' | 'reverse' | 'glitch' | 'pop' | 'cash' | 'drumroll'
   // round 27
   | 'sting' | 'transition' | 'swipeup' | 'siren' | 'thunder' | 'rain' | 'applause' | 'success' | 'buzzer' | 'sparkle'
+  // round 46
+  | 'whoosh-fast' | 'whoosh-deep' | 'whoosh-air' | 'riser-long' | 'boom' | 'glitch-data' | 'typewriter' | 'shutter' | 'ping' | 'clock'
+  | 'heart-fast' | 'siren-soft' | 'crowd' | 'paper' | 'swoosh-up' | 'bassdrop' | 'magic' | 'stamp'
 export type SfxId = BaseSfx | LibSfx
 
-export type SfxGroup = 'brand' | 'move' | 'news' | 'fx'
+export type SfxGroup = 'brand' | 'move' | 'news' | 'fx' | 'texture'
 
 export const SFX_GROUPS: { id: SfxGroup; name: string; hint: string }[] = [
   { id: 'brand', name: 'মিহা ব্র্যান্ড সাউন্ড', hint: 'সাউন্ড লোগো, ব্রেকিং অ্যালার্ট' },
   { id: 'move', name: 'ট্রানজিশন', hint: 'হুশ, রাইজার, উল্টো সুইপ' },
   { id: 'news', name: 'সংবাদের আবহ', hint: 'ঘড়ি, টাইপিং, ক্যামেরা, নোটিফিকেশন' },
   { id: 'fx', name: 'ইফেক্ট', hint: 'ইমপ্যাক্ট, হার্টবিট, গ্লিচ, পপ' },
+  { id: 'texture', name: 'আবহ ও টেক্সচার (নতুন)', hint: 'ভিড়ের গুঞ্জন, কাগজ, ঘড়ি, হৃৎস্পন্দন' },
 ]
 
 export const SFX: { id: SfxId; name: string; hint: string; group: SfxGroup; len: number; isNew?: boolean }[] = [
@@ -52,6 +56,25 @@ export const SFX: { id: SfxId; name: string; hint: string; group: SfxGroup; len:
   { id: 'success', name: 'সঠিক / টিক', hint: 'দুই সুরে ওঠা টুং — সত্য, সঠিক তথ্য', group: 'fx', len: 1, isNew: true },
   { id: 'buzzer', name: 'ভুল / বাজার', hint: 'নিচু ব্যাঁ — গুজব, ভুল তথ্য', group: 'fx', len: 0.8, isNew: true },
   { id: 'sparkle', name: 'ঝিকমিক', hint: 'উঁচু ছোট ঘণ্টার ঝিকমিক — বিনোদন, উৎসব', group: 'fx', len: 1.6, isNew: true },
+  // round 46: professional studio pack
+  { id: 'whoosh-fast', name: 'দ্রুত হুশ', hint: 'ঝটপট বাতাস — দ্রুত কাট, লেখা ছুটে আসা', group: 'move', len: 0.45, isNew: true },
+  { id: 'whoosh-deep', name: 'গভীর হুশ', hint: 'ভারী, নিচু বাতাস — বড় দৃশ্য বদল', group: 'move', len: 1.1, isNew: true },
+  { id: 'whoosh-air', name: 'বাতাসের হুশ', hint: 'নরম, চওড়া বাতাস — শান্ত ট্রানজিশন', group: 'move', len: 1.2, isNew: true },
+  { id: 'riser-long', name: 'লম্বা রাইজার', hint: '৪ সেকেন্ড ধরে উত্তেজনা বাড়ে — বড় ঘোষণার আগে', group: 'move', len: 4.2, isNew: true },
+  { id: 'swoosh-up', name: 'ওপরে সুশ', hint: 'নিচ থেকে ওপরে ঝলক — শিরোনাম বা গ্রাফ উঠতে', group: 'move', len: 0.7, isNew: true },
+  { id: 'boom', name: 'সিনেমাটিক বুম', hint: 'গভীর বুম ও লম্বা গুমগুম — বড় তথ্য', group: 'fx', len: 3, isNew: true },
+  { id: 'bassdrop', name: 'বেস ড্রপ', hint: 'নেমে যাওয়া গভীর বেস — রিলের মোড় ঘোরানো মুহূর্ত', group: 'fx', len: 1.6, isNew: true },
+  { id: 'glitch-data', name: 'ডেটা গ্লিচ', hint: 'ডিজিটাল কড়কড় ও বিপ — সাইবার, ফাঁস হওয়া তথ্য', group: 'fx', len: 0.9, isNew: true },
+  { id: 'magic', name: 'জাদুর ঝিলিক', hint: 'ওপরে ওঠা ঝিকমিক — চমক, প্রকাশ', group: 'fx', len: 1.8, isNew: true },
+  { id: 'stamp', name: 'সিলমোহর', hint: 'ভারী সিলের ঠক — অনুমোদিত, যাচাই করা, ভোট', group: 'fx', len: 0.6, isNew: true },
+  { id: 'typewriter', name: 'টাইপরাইটার', hint: 'পুরোনো টাইপরাইটার, শেষে ঘণ্টা ও রোলার', group: 'news', len: 2.2, isNew: true },
+  { id: 'shutter', name: 'ক্যামেরা শাটার (সিরিজ)', hint: 'পরপর তিনটি শাটার — সংবাদ সম্মেলন', group: 'news', len: 0.9, isNew: true },
+  { id: 'ping', name: 'নোটিফিকেশন পিং', hint: 'এক সুরের পরিষ্কার টুং — নতুন আপডেট', group: 'news', len: 0.9, isNew: true },
+  { id: 'siren-soft', name: 'নরম সাইরেন', hint: 'দূরের, দুই সুরের মৃদু সাইরেন — ভয় না দেখিয়ে জরুরি ভাব', group: 'news', len: 2.6, isNew: true },
+  { id: 'clock', name: 'টিক-টক ঘড়ি', hint: 'ধীর, গম্ভীর দেয়ালঘড়ি — অপেক্ষা, সময়সীমা', group: 'texture', len: 3, isNew: true },
+  { id: 'heart-fast', name: 'দ্রুত হৃৎস্পন্দন', hint: 'বাড়তে থাকা হৃৎস্পন্দন — উত্তেজনা, উদ্ধার', group: 'texture', len: 2.4, isNew: true },
+  { id: 'crowd', name: 'ভিড়ের গুঞ্জন', hint: 'মানুষের মৃদু গুঞ্জন — সমাবেশ, বাজার, সভা', group: 'texture', len: 3.2, isNew: true },
+  { id: 'paper', name: 'কাগজ ওল্টানো', hint: 'পাতা ওল্টানোর খসখস — নথি, রিপোর্ট, বাজেট', group: 'texture', len: 0.8, isNew: true },
 ]
 
 export const SFX_IDS = SFX.map((s) => s.id)
@@ -385,6 +408,205 @@ export function synthLib(ctx: BaseAudioContext, out: AudioNode, kind: SfxId, whe
         tone(ctx, g, hz(n) * 2.01, t, 0.03, 0.002, 0.25)
       }
       burst(ctx, g, when, 1.2, 'highpass', 9000, 0.5, 0.03, 0.2, 161)
+      return true
+    }
+    // ---- round 46 ----
+    case 'whoosh-fast': {
+      burst(ctx, g, when, 0.32, 'bandpass', 700, 1.1, 0.5, 0.09, 201, 5200)
+      burst(ctx, g, when + 0.05, 0.22, 'highpass', 3000, 0.6, 0.12, 0.05, 202)
+      return true
+    }
+    case 'whoosh-deep': {
+      burst(ctx, g, when, 0.95, 'lowpass', 300, 0.9, 0.55, 0.42, 211, 1600)
+      burst(ctx, g, when, 0.9, 'bandpass', 500, 0.8, 0.22, 0.45, 212, 2400)
+      tone(ctx, g, 70, when + 0.35, 0.18, 0.12, 0.6, 'sine', 45)
+      return true
+    }
+    case 'whoosh-air': {
+      const src = ctx.createBufferSource()
+      src.buffer = noise(ctx, 1.3, 221)
+      const bp = ctx.createBiquadFilter()
+      bp.type = 'bandpass'
+      bp.Q.value = 0.5
+      bp.frequency.setValueAtTime(500, when)
+      bp.frequency.exponentialRampToValueAtTime(3500, when + 0.6)
+      bp.frequency.exponentialRampToValueAtTime(900, when + 1.15)
+      const pan = ctx.createStereoPanner()
+      pan.pan.setValueAtTime(-0.7, when)
+      pan.pan.linearRampToValueAtTime(0.7, when + 1.1)
+      const sg = ctx.createGain()
+      sg.gain.setValueAtTime(0.0001, when)
+      sg.gain.linearRampToValueAtTime(0.32, when + 0.6)
+      sg.gain.linearRampToValueAtTime(0.0001, when + 1.15)
+      src.connect(bp).connect(sg).connect(pan).connect(g)
+      src.start(when)
+      return true
+    }
+    case 'riser-long': {
+      for (const [f0, det] of [[80, -10], [80, 10], [160, 0]] as const) {
+        const o = ctx.createOscillator()
+        o.type = 'sawtooth'
+        o.detune.value = det
+        o.frequency.setValueAtTime(f0, when)
+        o.frequency.exponentialRampToValueAtTime(f0 * 8, when + 4)
+        const lp = ctx.createBiquadFilter()
+        lp.type = 'lowpass'
+        lp.frequency.setValueAtTime(300, when)
+        lp.frequency.exponentialRampToValueAtTime(6000, when + 4)
+        const og = ctx.createGain()
+        og.gain.setValueAtTime(0.0001, when)
+        og.gain.exponentialRampToValueAtTime(0.05, when + 3.9)
+        og.gain.linearRampToValueAtTime(0.0001, when + 4.05)
+        o.connect(lp).connect(og).connect(g)
+        o.start(when)
+        o.stop(when + 4.1)
+      }
+      burst(ctx, g, when, 4, 'highpass', 1200, 0.7, 0.1, 3.9, 231, 10000)
+      return true
+    }
+    case 'swoosh-up': {
+      tone(ctx, g, 300, when, 0.16, 0.02, 0.45, 'triangle', 2600)
+      tone(ctx, g, 600, when + 0.02, 0.05, 0.02, 0.4, 'sine', 4800)
+      burst(ctx, g, when, 0.5, 'bandpass', 900, 1, 0.3, 0.2, 241, 9000)
+      return true
+    }
+    case 'boom': {
+      boom(ctx, g, when, 1, 75, 24, 2.8)
+      burst(ctx, g, when, 2.6, 'lowpass', 400, 0.7, 0.3, 0.004, 251, 80)
+      burst(ctx, g, when, 0.12, 'bandpass', 1800, 0.8, 0.2, 0.001, 252)
+      return true
+    }
+    case 'bassdrop': {
+      tone(ctx, g, 220, when, 0.5, 0.01, 1.4, 'sine', 32)
+      tone(ctx, g, 110, when, 0.25, 0.01, 1.4, 'triangle', 28)
+      burst(ctx, g, when, 0.3, 'lowpass', 900, 0.8, 0.2, 0.002, 261)
+      return true
+    }
+    case 'glitch-data': {
+      let seed = 271
+      const r = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff)
+      for (let i = 0; i < 14; i++) {
+        const t = when + i * 0.055 + r() * 0.02
+        if (r() > 0.45) tone(ctx, g, 200 + Math.floor(r() * 12) * 300, t, 0.06, 0.001, 0.035, 'square')
+        else burst(ctx, g, t, 0.03, 'bandpass', 1500 + r() * 6000, 2, 0.14, 0.001, 272 + i)
+      }
+      tone(ctx, g, 2093, when + 0.8, 0.05, 0.001, 0.08, 'square')
+      return true
+    }
+    case 'magic': {
+      for (let i = 0; i < 14; i++) {
+        const t = when + i * 0.07
+        const n = 79 + i * 1.5
+        tone(ctx, g, hz(n), t, 0.07, 0.003, 0.5)
+        tone(ctx, g, hz(n) * 3, t, 0.015, 0.003, 0.3)
+      }
+      burst(ctx, g, when, 1.4, 'highpass', 8000, 0.5, 0.05, 0.7, 281)
+      bell(ctx, g, 96, when + 1, 0.05)
+      return true
+    }
+    case 'stamp': {
+      tone(ctx, g, 150, when, 0.6, 0.002, 0.18, 'sine', 60)
+      burst(ctx, g, when, 0.08, 'lowpass', 1400, 0.8, 0.55, 0.001, 291)
+      burst(ctx, g, when + 0.01, 0.05, 'bandpass', 3200, 1.5, 0.15, 0.001, 292)
+      return true
+    }
+    case 'typewriter': {
+      let seed = 301
+      const r = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff)
+      let t = when
+      for (let i = 0; i < 11; i++) {
+        burst(ctx, g, t, 0.025, 'bandpass', 1800 + r() * 900, 3, 0.3, 0.001, 302 + i)
+        tone(ctx, g, 120 + r() * 30, t, 0.1, 0.001, 0.04, 'triangle')
+        burst(ctx, g, t + 0.012, 0.02, 'highpass', 5000, 0.8, 0.08, 0.001, 320 + i)
+        t += 0.09 + r() * 0.06
+      }
+      bell(ctx, g, 100, t + 0.05, 0.12)
+      burst(ctx, g, t + 0.3, 0.5, 'bandpass', 900, 0.7, 0.12, 0.25, 331, 2200)
+      return true
+    }
+    case 'shutter': {
+      for (let i = 0; i < 3; i++) {
+        const t = when + i * 0.25
+        burst(ctx, g, t, 0.03, 'bandpass', 4000, 1.6, 0.32, 0.001, 341 + i)
+        burst(ctx, g, t + 0.06, 0.05, 'bandpass', 2400, 1.3, 0.26, 0.001, 345 + i)
+        tone(ctx, g, 1100, t + 0.06, 0.04, 0.001, 0.04, 'square')
+      }
+      return true
+    }
+    case 'ping': {
+      tone(ctx, g, hz(93), when, 0.16, 0.002, 0.7)
+      tone(ctx, g, hz(93) * 2.76, when, 0.03, 0.002, 0.25)
+      tone(ctx, g, hz(81), when, 0.04, 0.002, 0.5)
+      return true
+    }
+    case 'siren-soft': {
+      // two soft tones, a fourth apart, far away (low-passed) — urgent without alarm
+      const o = ctx.createOscillator()
+      o.type = 'sine'
+      for (let i = 0; i < 4; i++) {
+        o.frequency.setValueAtTime(660, when + i * 0.6)
+        o.frequency.setValueAtTime(880, when + i * 0.6 + 0.3)
+      }
+      const lp = ctx.createBiquadFilter()
+      lp.type = 'lowpass'
+      lp.frequency.value = 1400
+      const og = ctx.createGain()
+      og.gain.setValueAtTime(0.0001, when)
+      og.gain.linearRampToValueAtTime(0.07, when + 0.6)
+      og.gain.setValueAtTime(0.07, when + 1.8)
+      og.gain.linearRampToValueAtTime(0.0001, when + 2.5)
+      o.connect(lp).connect(og).connect(g)
+      o.start(when)
+      o.stop(when + 2.55)
+      return true
+    }
+    case 'clock': {
+      for (let i = 0; i < 6; i++) {
+        const t = when + i * 0.5
+        tone(ctx, g, i % 2 ? 1250 : 950, t, 0.12, 0.001, 0.06, 'triangle')
+        burst(ctx, g, t, 0.04, 'bandpass', i % 2 ? 2600 : 1900, 4, 0.12, 0.001, 351 + i)
+        tone(ctx, g, 90, t, 0.06, 0.002, 0.12)
+      }
+      return true
+    }
+    case 'heart-fast': {
+      let t = 0
+      for (let i = 0; i < 6; i++) {
+        const gap = 0.5 - i * 0.045
+        boom(ctx, g, when + t, 0.55 + i * 0.05, 72, 38, 0.22)
+        boom(ctx, g, when + t + 0.16, 0.35 + i * 0.04, 66, 36, 0.2)
+        t += gap
+      }
+      return true
+    }
+    case 'crowd': {
+      // murmur: many band-passed noise voices with slow syllable-like swells
+      for (let v = 0; v < 8; v++) {
+        const src = ctx.createBufferSource()
+        src.buffer = noise(ctx, 3.3, 361 + v)
+        const bp = ctx.createBiquadFilter()
+        bp.type = 'bandpass'
+        bp.frequency.value = 350 + v * 110
+        bp.Q.value = 3
+        const vg = ctx.createGain()
+        vg.gain.setValueAtTime(0.0001, when)
+        for (let k = 0; k < 12; k++) {
+          const t = when + 0.1 + k * 0.25 + ((v * 37 + k * 13) % 10) * 0.012
+          vg.gain.linearRampToValueAtTime(0.06 + ((v + k) % 3) * 0.03, t)
+          vg.gain.linearRampToValueAtTime(0.02, t + 0.12)
+        }
+        vg.gain.linearRampToValueAtTime(0.0001, when + 3.2)
+        const pan = ctx.createStereoPanner()
+        pan.pan.value = (v / 7) * 1.4 - 0.7
+        src.connect(bp).connect(vg).connect(pan).connect(g)
+        src.start(when)
+      }
+      return true
+    }
+    case 'paper': {
+      burst(ctx, g, when, 0.18, 'bandpass', 3000, 0.7, 0.18, 0.06, 371, 6000)
+      burst(ctx, g, when + 0.2, 0.25, 'bandpass', 4500, 0.6, 0.22, 0.04, 372, 2000)
+      burst(ctx, g, when + 0.45, 0.08, 'highpass', 2500, 0.6, 0.12, 0.002, 373)
       return true
     }
     default:

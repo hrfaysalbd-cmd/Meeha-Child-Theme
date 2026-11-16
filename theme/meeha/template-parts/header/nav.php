@@ -18,6 +18,7 @@ $meeha_home    = home_url( '/' );
 		<a class="m-nav__mini" href="<?php echo esc_url( $meeha_home ); ?>" aria-label="প্রথম পাতা" tabindex="-1"><?php echo meeha_logo( 'compact' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></a>
 		<a class="m-nav__home" href="<?php echo esc_url( $meeha_home ); ?>" aria-label="প্রথম পাতা"<?php echo is_front_page() ? ' aria-current="page"' : ''; ?>><?php echo meeha_icon( 'home' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></a>
 		<ul class="m-nav__list" role="list">
+			<?php do_action( 'meeha_nav_list_start' ); // 2.4.14: the red "লাইভ" pill while a live post runs (inc/liveblog/home.php). ?>
 			<?php foreach ( $meeha_items as $meeha_it ) : ?>
 				<li><a class="m-nav__link" href="<?php echo esc_url( $meeha_it['url'] ); ?>"<?php echo $meeha_it['current'] ? ' aria-current="' . esc_attr( $meeha_it['current'] ) . '"' : ''; ?><?php echo ! empty( $meeha_it['target'] ) ? ' target="' . esc_attr( $meeha_it['target'] ) . '"' : ''; ?>><?php echo esc_html( $meeha_it['title'] ); ?></a></li>
 			<?php endforeach; ?>

@@ -1,3 +1,4 @@
+import HdUploads from '../components/HdUploads'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { IconChat, IconEdit, IconHome, IconNews, IconUser, IconWallet } from '../components/Icon'
@@ -60,6 +61,7 @@ export default function AppShell() {
       <div className="flex-1 overflow-y-auto pb-[calc(64px+env(safe-area-inset-bottom))]">
         <Outlet />
       </div>
+      {!pathname.startsWith('/app/chat') && <HdUploads />}
 
       <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-white border-t border-black/5 pb-[env(safe-area-inset-bottom)] z-20">
         <div className="flex">

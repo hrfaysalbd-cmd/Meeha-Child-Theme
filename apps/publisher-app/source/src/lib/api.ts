@@ -622,6 +622,8 @@ export interface Correspondent {
   email: string
   phone: string
   division: string
+  /** r46: পদবি shown under the name on the website (WordPress user field). */
+  title?: string
   suspensions: string[]
   // Round 7 — only present when the viewer has finance visibility (same
   // gate as every other money figure in this API).
@@ -634,6 +636,8 @@ export interface CorrespondentDetail extends Correspondent {
   district: string
   upazila: string
   post_counts: { draft: number; pending: number; publish: number }
+  title_log?: { from: string; to: string; by: string; at: string }[]
+  title_presets?: string[]
   available_balance?: number
   monthly_salary?: number | null
   // Round 7 — a standing per-post rate (contract-based average), applied
@@ -1280,6 +1284,8 @@ export const CorrespondentsApi = {
   // docblock). They then sign in here at publisher.meeha.news instead of
   // at correspondent.meeha.news.
   promoteEditor: (id: number) => request<{ ok: true }>(`/admin/correspondents/${id}/promote-editor`, { method: 'POST' }),
+  // r46 (newsroom-os 1.28.0): the পদবি under the reporter's name on the website
+  setTitle: (id: number, title: string) => request<{ ok: true; title: string }>(`/admin/correspondents/${id}/title`, { method: 'POST', body: { title } }),
   // Publisher-only: sets (amount > 0) or clears (amount <= 0 / omitted) a
   // correspondent's optional fixed monthly salary. Takes effect from the
   // next payroll run onward.
@@ -1645,6 +1651,12 @@ export interface Video {
   source: VideoSource
   video_url: string
   video_attachment_id: number | null
+  // r46 (newsroom-os 1.28.0) — the full-quality original of the main file
+  // (the main file may be a quick 720p copy; this arrives later, in background).
+  hd_attachment_id?: number | null
+  hd_url?: string | null
+  // r46 — every footage clip the correspondent sent, in order (only when >1).
+  footage?: VideoFootage[]
   youtube_id: string | null
   orientation: VideoOrientation
   duration: number | null
@@ -1663,6 +1675,16 @@ export interface Video {
   edit?: VideoEditInfo | null
 }
 
+export interface VideoFootage {
+  id: number
+  url: string
+  hd_id: number | null
+  hd_url: string | null
+  mime: string
+  size: number
+  name: string
+}
+
 export interface VideoEditInfo {
   original_attachment_id: number
   original_url: string
@@ -1676,6 +1698,8 @@ export interface VideoInput {
   source?: VideoSource
   video_attachment_id?: number
   video_url?: string
+  // r46 — the footage clips, in order (omit to leave them unchanged)
+  footage_ids?: number[]
   thumbnail_id?: number | null
   category_id?: number | null
   orientation?: VideoOrientation

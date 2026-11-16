@@ -269,6 +269,15 @@ function meeha_home_fields() {
 		array( 'key' => 'lit_count', 'type' => 'number', 'label' => 'সাহিত্য — লেখার সংখ্যা', 'default' => 4, 'min' => 2, 'max' => 6 ),
 		array( 'key' => 'quotes_count', 'type' => 'number', 'label' => 'উক্তি — সংখ্যা', 'default' => 8, 'min' => 3, 'max' => 12 ),
 
+		array( 'type' => 'heading', 'label' => 'লাইভ', 'desc' => 'কোনো লাইভ পোস্ট চলতে থাকলে হোমপেজের ওপরে (লিডের আগে) "এখন লাইভ" অংশ আর মেনুর শুরুতে লাল "লাইভ" বোতাম নিজে থেকেই দেখাবে; লাইভ শেষ হলে নিজে থেকেই সরে যাবে। খোলা হোমপেজ প্রতি মিনিটে নতুন আপডেট নিয়ে আসে (ট্যাব লুকানো থাকলে থামে)।' ),
+		array( 'key' => 'live_band', 'type' => 'checkbox', 'label' => '"এখন লাইভ" অংশ', 'default' => 1, 'text' => 'হোমপেজে দেখান' ),
+		array( 'key' => 'live_band_count', 'type' => 'number', 'label' => 'সর্বোচ্চ লাইভ', 'default' => 4, 'min' => 1, 'max' => 6, 'desc' => 'একাধিক লাইভ চললে পাশাপাশি স্ক্রল করে দেখা যাবে।' ),
+		array( 'key' => 'live_band_lines', 'type' => 'number', 'label' => 'প্রতিটিতে সর্বশেষ আপডেটের লাইন', 'default' => 3, 'min' => 2, 'max' => 3 ),
+		array( 'key' => 'live_pill', 'type' => 'checkbox', 'label' => 'মেনুতে "লাইভ" বোতাম', 'default' => 1, 'text' => 'লাইভ চলাকালে সব পাতার মেনুর শুরুতে দেখান' ),
+		array( 'key' => 'live_stale_minutes', 'type' => 'number', 'label' => 'আপডেট না এলে সতর্কবার্তা', 'default' => 45, 'min' => 0, 'max' => 600, 'unit' => 'মিনিট', 'cap' => 'editorial', 'desc' => 'চলমান লাইভে এত মিনিট নতুন আপডেট না এলে লাইভের প্রতিবেদক ও লেখক অ্যাপে নোটিফিকেশন পাবেন (প্রতি নীরবতায় একবার)। ০ = বন্ধ।' ),
+		array( 'key' => 'live_auto_end', 'type' => 'checkbox', 'label' => 'নিজে থেকে লাইভ শেষ', 'default' => 1, 'cap' => 'editorial', 'text' => 'নিচের সময় ধরে কোনো আপডেট না এলে লাইভটি "লাইভ শেষ" করে দিন' ),
+		array( 'key' => 'live_auto_end_hours', 'type' => 'number', 'label' => 'নিজে থেকে শেষ হওয়ার সময়', 'default' => 24, 'min' => 2, 'max' => 168, 'unit' => 'ঘণ্টা', 'cap' => 'editorial' ),
+
 		array( 'type' => 'heading', 'label' => 'ভিউ গণনা', 'desc' => meeha_home_view_mode_note() ),
 		array(
 			'key'     => 'view_mode',

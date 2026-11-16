@@ -570,6 +570,10 @@ class NROS_Media {
 				'resumable'     => array(
 					'max_bytes'  => NROS_Upload_Sessions::max_bytes( 'video' ),
 					'chunk_size' => NROS_Upload_Sessions::chunk_size(),
+					// 1.28.0: several pieces at once, and the HD original after a quick copy
+					'parallel'     => NROS_Upload_Sessions::streams(),
+					'piece_size'   => NROS_Upload_Sessions::piece_size(),
+					'hd_max_bytes' => NROS_Upload_Sessions::hd_max_bytes(),
 				),
 			),
 			200

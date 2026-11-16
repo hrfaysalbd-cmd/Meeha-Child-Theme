@@ -28,7 +28,7 @@ define( 'NROS_VERSION', '1.27.0' );
 // Bumped whenever create_tables()/register_roles() need to re-run on an
 // already-active install (see NROS_Core::maybe_upgrade()) — bump this any
 // time a future change adds/changes a table or role.
-define( 'NROS_DB_VERSION', '16' );
+define( 'NROS_DB_VERSION', '17' ); // 17 — r46 গোপন তথ্য (nros_tips, nros_tips_files, nros_tips_notes)
 define( 'NROS_DIR', plugin_dir_path( __FILE__ ) );
 define( 'NROS_URL', plugin_dir_url( __FILE__ ) );
 define( 'NROS_PRIVATE_DIR', WP_CONTENT_DIR . '/nros-private' );
@@ -78,6 +78,7 @@ require_once NROS_DIR . 'includes/class-nros-chat-templates.php'; // 1.24.0 mess
 require_once NROS_DIR . 'includes/class-nros-brand.php'; // 1.26.0 মিহার তথ্য + স্টেশনারি
 require_once NROS_DIR . 'includes/class-nros-idcards.php'; // 1.26.0 সাংবাদিক আইডি কার্ড
 require_once NROS_DIR . 'includes/class-nros-field.php'; // 1.27.0 মাঠ: কাজের বোর্ড, নিরাপত্তা, তথ্য অধিকার, কভারেজ
+require_once NROS_DIR . 'includes/class-nros-tips.php'; // r46 (DB 17) গোপন তথ্য পাঠান — secure tipline
 
 // Round 10 — public reels/carousel shortcodes and the /video/{slug}/ page
 // live in their own class, shipped separately; guarded so the plugin keeps
@@ -139,6 +140,7 @@ add_action(
 		NROS_Brand::init();
 		NROS_ID_Cards::init();
 		NROS_Field::init();
+		NROS_Tips::init();
 		if ( class_exists( 'NROS_Video_Frontend' ) ) {
 			NROS_Video_Frontend::init();
 		}

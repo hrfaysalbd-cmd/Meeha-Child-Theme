@@ -28,6 +28,11 @@ export default function Correspondents() {
   const [videoRateInput, setVideoRateInput] = useState('')
   const [videoRateSaving, setVideoRateSaving] = useState(false)
   const [videoRateNotice, setVideoRateNotice] = useState('')
+  const [titleInput, setTitleInput] = useState('')
+  const [titleSaving, setTitleSaving] = useState(false)
+  const [titleNotice, setTitleNotice] = useState('')
+  const [q, setQ] = useState('')
+  const [div, setDiv] = useState('')
 
   useEffect(() => {
     CorrespondentsApi.list()
@@ -42,9 +47,11 @@ export default function Correspondents() {
     setSalaryNotice('')
     setRateNotice('')
     setVideoRateNotice('')
+    setTitleNotice('')
     try {
       const d = await CorrespondentsApi.detail(id)
       setDetail(d)
+      setTitleInput(d.title ?? '')
       setSalaryInput(d.monthly_salary ? String(d.monthly_salary) : '')
       setRateInput(d.default_post_rate ? String(d.default_post_rate) : '')
       setVideoRateInput(d.default_video_payment ? String(d.default_video_payment) : '')
@@ -110,6 +117,31 @@ export default function Correspondents() {
     }
   }
 
+  async function saveTitle(value = titleInput) {
+    if (!detail) return
+    setTitleSaving(true)
+    setTitleNotice('')
+    try {
+      const res = await CorrespondentsApi.setTitle(detail.id, value.trim())
+      setTitleInput(res.title)
+      setDetail({ ...detail, title: res.title })
+      setItems((prev) => prev.map((c) => (c.id === detail.id ? { ...c, title: res.title } : c)))
+      setTitleNotice(res.title ? 'পদবি সংরক্ষিত হয়েছে, ওয়েবসাইটে নামের নিচে এটাই দেখাবে।' : 'পদবি সরানো হয়েছে।')
+    } catch (e) {
+      setTitleNotice(e instanceof ApiError ? e.message : 'সংরক্ষণ করা যায়নি।')
+    } finally {
+      setTitleSaving(false)
+    }
+  }
+
+  const divisions = Array.from(new Set(items.map((c) => c.division).filter(Boolean))).sort()
+  const needle = q.trim().toLowerCase()
+  const shown = items.filter(
+    (c) =>
+      (!div || c.division === div) &&
+      (!needle || [c.name, c.email, c.phone, c.title, c.division].filter(Boolean).some((v) => String(v).toLowerCase().includes(needle))),
+  )
+
   async function promoteToEditor() {
     if (!detail) return
     setPromoting(true)
@@ -138,10 +170,22 @@ export default function Correspondents() {
         <Card><EmptyState>এখনো কোনো সংবাদদাতা নেই।</EmptyState></Card>
       ) : (
         <Card>
+          <div className="flex flex-wrap items-center gap-2 mb-3" data-testid="corr-filters">
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="নাম, ফোন, ইমেইল বা পদবি দিয়ে খুঁজুন" className={`${inputClass} max-w-xs`} data-testid="corr-search" />
+            <select value={div} onChange={(e) => setDiv(e.target.value)} className={`${inputClass} max-w-[180px]`}>
+              <option value="">সব বিভাগ</option>
+              {divisions.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+            <span className="text-[12px] text-neutral-500">{bnNumber(shown.length)} জন</span>
+          </div>
           <Table>
             <thead>
               <tr>
-                <Th>নাম</Th>
+                <Th>নাম ও পদবি</Th>
                 <Th>ইমেইল</Th>
                 <Th>এলাকা</Th>
                 {items.some((c) => c.default_post_rate !== undefined) && <Th>পোস্ট-প্রতি রেট</Th>}
@@ -150,9 +194,12 @@ export default function Correspondents() {
               </tr>
             </thead>
             <tbody>
-              {items.map((c) => (
+              {shown.map((c) => (
                 <tr key={c.id} onClick={() => openDetail(c.id)} className="cursor-pointer hover:bg-neutral-50">
-                  <Td className="font-medium text-neutral-900">{c.name}</Td>
+                  <Td className="font-medium text-neutral-900">
+                    {c.name}
+                    <div className={`text-[11.5px] font-normal ${c.title ? 'text-brand-700' : 'text-neutral-300'}`}>{c.title || 'পদবি নেই'}</div>
+                  </Td>
                   <Td>{c.email}</Td>
                   <Td>{c.division || '—'}</Td>
                   {items.some((x) => x.default_post_rate !== undefined) && (
@@ -204,6 +251,53 @@ export default function Correspondents() {
               </div>
               <div className="text-neutral-600">
                 {[detail.division, detail.district, detail.upazila].filter(Boolean).join(' / ') || 'এলাকা নেই'}
+              </div>
+              <div className="rounded-xl ring-1 ring-brand-100 bg-brand-50/40 p-3" data-testid="title-editor">
+                <Field label="পদবি (ওয়েবসাইটে নামের নিচে দেখায়)">
+                  <input
+                    className={inputClass}
+                    value={titleInput}
+                    maxLength={80}
+                    onChange={(e) => setTitleInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && void saveTitle()}
+                    placeholder="যেমন: জেলা প্রতিনিধি, কুমিল্লা"
+                    data-testid="title-input"
+                  />
+                </Field>
+                <div className="flex flex-wrap gap-1.5 -mt-1 mb-2">
+                  {(detail.title_presets ?? []).map((t) => {
+                    const place = detail.district || detail.upazila || ''
+                    const v = place && /প্রতিনিধি$/.test(t) ? `${t}, ${place}` : t
+                    return (
+                      <button key={t} type="button" onClick={() => setTitleInput(v)} className="rounded-full bg-white ring-1 ring-neutral-200 px-2.5 py-1 text-[11.5px] text-neutral-700 hover:ring-brand-300">
+                        {v}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" disabled={titleSaving || titleInput.trim() === (detail.title ?? '')} onClick={() => void saveTitle()} className="flex-1" data-testid="title-save">
+                    {titleSaving ? 'সংরক্ষণ হচ্ছে…' : 'পদবি সংরক্ষণ করুন'}
+                  </Button>
+                  {detail.title && (
+                    <Button size="sm" variant="secondary" disabled={titleSaving} onClick={() => void saveTitle('')}>
+                      সরান
+                    </Button>
+                  )}
+                </div>
+                {titleNotice && <p className="text-[11.5px] text-neutral-600 mt-1.5">{titleNotice}</p>}
+                {!!detail.title_log?.length && (
+                  <details className="mt-2 text-[11.5px] text-neutral-500">
+                    <summary className="cursor-pointer">আগের পদবি ({bnNumber(detail.title_log.length)})</summary>
+                    <ul className="mt-1 space-y-0.5">
+                      {detail.title_log.map((l, i) => (
+                        <li key={i}>
+                          {l.from || '—'} → <b className="text-neutral-700">{l.to || '(সরানো)'}</b> · {l.by} · {l.at.slice(0, 16)}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
               </div>
               <div className="grid grid-cols-3 gap-2 pt-2">
                 <div className="text-center bg-neutral-50 rounded-xl py-2">

@@ -54,6 +54,7 @@ import {
 } from '../components/Icon'
 import MediaGallery from '../components/MediaGallery'
 import VideoLibraryPicker from '../components/videoStudio/VideoLibraryPicker'
+import FootageJoin from '../components/videoStudio/FootageJoin'
 import type { LibraryVideo } from '../lib/api'
 import { DeleteConfirmModal, PublishInfoCard } from '../components/PostManagement'
 import type { AuthorValue } from '../components/AuthorPicker'
@@ -144,6 +145,8 @@ export default function VideoEditor() {
   // The browser couldn't decode the picked file (e.g. an iPhone HEVC .mov on
   // desktop Chrome): it still uploads fine, but there's no preview/metadata.
   const [metaFailed, setMetaFailed] = useState(false)
+  // r46: the shown file's size (a quick 720p copy until the HD original arrives)
+  const [previewDims, setPreviewDims] = useState<{ src: string; w: number; h: number } | null>(null)
   const [youtubeUrl, setYoutubeUrl] = useState('')
   const [ytPlaying, setYtPlaying] = useState(false)
 
@@ -710,6 +713,7 @@ export default function VideoEditor() {
                         preload="metadata"
                         className="w-full h-full object-contain"
                         data-testid="video-preview"
+                        onLoadedMetadata={(e) => setPreviewDims({ src: previewSrc, w: e.currentTarget.videoWidth, h: e.currentTarget.videoHeight })}
                       />
                     </div>
                   ) : (
@@ -839,6 +843,46 @@ export default function VideoEditor() {
                         </Button>
                       </div>
                     </div>
+                  )}
+
+                  {/* r46: the full-quality original of a quick 720p copy */}
+                  {previewSrc && !localUrl && fileIsSaved && video && upload.status !== 'uploading' && (video.hd_url ? (
+                    <p className="mt-2 inline-flex items-center gap-1 text-[11.5px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-2.5 py-0.5" data-testid="hd-arrived">
+                      HD পৌঁছেছে ✓
+                    </p>
+                  ) : (
+                    !video.edit &&
+                    previewDims?.src === previewSrc &&
+                    previewDims.w > 0 &&
+                    Math.min(previewDims.w, previewDims.h) <= 720 &&
+                    (!video.footage?.length || video.footage.some((f) => f.id === video.video_attachment_id)) && (
+                      <p className="mt-2 inline-flex items-center gap-1 text-[11.5px] text-amber-800 bg-amber-50 border border-amber-100 rounded-full px-2.5 py-0.5" data-testid="hd-pending">
+                        HD ফাইল এখনো আসছে — এখনকার কপি ৭২০p
+                      </p>
+                    )
+                  ))}
+
+                  {/* r46: several footage clips from the correspondent — join them with transitions */}
+                  {video && (video.footage?.length ?? 0) > 1 && upload.status !== 'uploading' && (
+                    <FootageJoin
+                      video={video}
+                      maxBytes={maxBytes}
+                      onSaved={(saved) => {
+                        setVideo(saved)
+                        setSource('upload')
+                        setAttachmentId(saved.video_attachment_id)
+                        setVideoUrl(saved.video_url)
+                        setDuration(saved.duration)
+                        setOrientation(saved.orientation)
+                        setLocalPreview(null)
+                        setFileInfo(null)
+                        setClearEdit(false)
+                        if (!thumbnailId && saved.thumbnail_id) {
+                          setThumbnailId(saved.thumbnail_id)
+                          setThumbnailUrl(saved.thumbnail)
+                        }
+                      }}
+                    />
                   )}
 
                   {/* round 29: take the finished video and its thumbnail straight to social media */}

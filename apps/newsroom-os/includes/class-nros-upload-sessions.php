@@ -15,6 +15,11 @@
  *   POST /media/upload-session/{id}/chunk?offset=N   raw bytes → { received }
  *   POST /media/upload-session/{id}/finish             → { id, url, mime, size }
  *
+ * 1.28.0 — `parallel: true` on start: the pieces (2 MB) may arrive several
+ * at a time and in any order; each is kept as its own file and they are
+ * joined on finish. GET then also returns `have` (offsets stored). Older
+ * apps that do not ask for it keep the one-after-another protocol.
+ *
  * Because no single request carries the whole file, the size limit is the
  * plugin's own cap (200 MB for video, filter `nros_upload_session_max_bytes`),
  * not PHP's upload_max_filesize.
@@ -158,6 +163,15 @@ class NROS_Upload_Sessions {
 	}
 
 	/**
+	 * 1.28.0 — largest full-quality original (sent after the quick copy): 1 GB.
+	 *
+	 * @return int
+	 */
+	public static function hd_max_bytes() {
+		return (int) apply_filters( 'nros_upload_hd_max_bytes', 1073741824 );
+	}
+
+	/**
 	 * Piece size the app should use: below PHP's post_max_size, at most 8 MB.
 	 *
 	 * @return int
@@ -197,6 +211,160 @@ class NROS_Upload_Sessions {
 	 */
 	protected static function part_path( $id ) {
 		return self::dir() . '/' . $id . '.part';
+	}
+
+	/**
+	 * 1.28.0 — folder of the pieces of a parallel upload (one file per piece, named by its offset).
+	 *
+	 * @param string $id Session id.
+	 * @return string
+	 */
+	protected static function pieces_dir( $id ) {
+		return self::dir() . '/' . $id . '.d';
+	}
+
+	/**
+	 * Size of one piece in a parallel upload: 2 MB (below post_max_size).
+	 *
+	 * @return int
+	 */
+	public static function piece_size() {
+		return (int) min( self::chunk_size(), (int) apply_filters( 'nros_upload_piece_size', 2097152 ) );
+	}
+
+	/**
+	 * How many pieces the app may send at the same time.
+	 *
+	 * @return int
+	 */
+	public static function streams() {
+		return (int) max( 1, min( 6, (int) apply_filters( 'nros_upload_streams', 4 ) ) );
+	}
+
+	/**
+	 * Pieces already stored for a parallel upload: offset => length.
+	 *
+	 * @param string $id Session id.
+	 * @return array<int,int>
+	 */
+	protected static function pieces( $id ) {
+		$out = array();
+		$dir = self::pieces_dir( $id );
+		if ( ! is_dir( $dir ) ) {
+			return $out;
+		}
+		foreach ( (array) scandir( $dir ) as $f ) {
+			if ( is_string( $f ) && ctype_digit( $f ) ) {
+				clearstatcache( true, $dir . '/' . $f );
+				$out[ (int) $f ] = (int) filesize( $dir . '/' . $f );
+			}
+		}
+		ksort( $out );
+		return $out;
+	}
+
+	/**
+	 * Bytes from the start with no gap (what a resume can trust).
+	 *
+	 * @param array<int,int> $pieces Pieces.
+	 * @return int
+	 */
+	protected static function contiguous( $pieces ) {
+		$at = 0;
+		foreach ( $pieces as $off => $len ) {
+			if ( $off > $at ) {
+				break;
+			}
+			$at = max( $at, $off + $len );
+		}
+		return $at;
+	}
+
+	/**
+	 * Removes a session's pieces folder.
+	 *
+	 * @param string $id Session id.
+	 */
+	protected static function drop_pieces( $id ) {
+		$dir = self::pieces_dir( $id );
+		if ( ! is_dir( $dir ) ) {
+			return;
+		}
+		foreach ( (array) scandir( $dir ) as $f ) {
+			if ( is_string( $f ) && '.' !== $f && '..' !== $f ) {
+				wp_delete_file( $dir . '/' . $f );
+			}
+		}
+		@rmdir( $dir ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+	}
+
+	/**
+	 * Joins the pieces of a parallel upload into the .part file, in order.
+	 *
+	 * @param array $s Session state (with id).
+	 * @return true|WP_Error
+	 */
+	protected static function assemble( $s ) {
+		$id     = $s['id'];
+		$pieces = self::pieces( $id );
+		$size   = (int) $s['size'];
+		if ( self::contiguous( $pieces ) < $size ) {
+			return new WP_Error(
+				'nros_upload_incomplete',
+				'ফাইলের সব অংশ এখনও আসেনি।',
+				array(
+					'status'   => 409,
+					'received' => self::contiguous( $pieces ),
+					'have'     => array_keys( $pieces ),
+				)
+			);
+		}
+		$out = fopen( self::part_path( $id ), 'wb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+		if ( ! $out ) {
+			return new WP_Error( 'nros_upload_failed', 'সার্ভারে লেখা যায়নি।', array( 'status' => 500 ) );
+		}
+		$at = 0;
+		foreach ( $pieces as $off => $len ) {
+			if ( $off + $len <= $at ) {
+				continue; // a piece sent twice
+			}
+			$in = fopen( self::pieces_dir( $id ) . '/' . $off, 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+			if ( ! $in ) {
+				fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+				return new WP_Error( 'nros_upload_failed', 'সার্ভারে লেখা যায়নি।', array( 'status' => 500 ) );
+			}
+			if ( $off < $at ) {
+				fseek( $in, $at - $off );
+			}
+			$copied = stream_copy_to_stream( $in, $out );
+			fclose( $in ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+			if ( false === $copied ) {
+				fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+				return new WP_Error( 'nros_upload_failed', 'সার্ভারে জায়গা নেই বা লেখা যায়নি।', array( 'status' => 507 ) );
+			}
+			$at = $off + $len;
+			if ( $at >= $size ) {
+				break;
+			}
+		}
+		fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+		clearstatcache( true, self::part_path( $id ) );
+		if ( (int) filesize( self::part_path( $id ) ) !== $size ) {
+			// a piece overshot the end (not allowed by chunk()), or the disk is full
+			$fh = fopen( self::part_path( $id ), 'r+b' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+			if ( $fh && (int) filesize( self::part_path( $id ) ) > $size ) {
+				ftruncate( $fh, $size );
+			}
+			if ( $fh ) {
+				fclose( $fh ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+			}
+			clearstatcache( true, self::part_path( $id ) );
+			if ( (int) filesize( self::part_path( $id ) ) !== $size ) {
+				return new WP_Error( 'nros_upload_failed', 'সার্ভারে জায়গা নেই বা লেখা যায়নি।', array( 'status' => 507 ) );
+			}
+		}
+		self::drop_pieces( $id );
+		return true;
 	}
 
 	/**
@@ -253,6 +421,13 @@ class NROS_Upload_Sessions {
 		$size = (int) $request->get_param( 'size' );
 		$name = sanitize_file_name( (string) $request->get_param( 'name' ) );
 		$pd   = null;
+		// 1.28.0 — the app may send several pieces at once (any order)
+		$parallel = (bool) $request->get_param( 'parallel' ) && (bool) apply_filters( 'nros_upload_parallel', true );
+		// 1.28.0 — the full-quality original of a video already sent as a quick 720p copy
+		$hd_for = 'video' === $kind ? (int) $request->get_param( 'hd_for' ) : 0;
+		if ( $hd_for > 0 && ( 0 !== strpos( (string) get_post_mime_type( $hd_for ), 'video/' ) || ( ! user_can( $user, 'edit_others_posts' ) && ! NROS_Media::uploaded_by( $hd_for, $user->ID ) ) ) ) {
+			return new WP_Error( 'nros_bad_request', 'যে ভিডিওর HD পাঠাচ্ছেন, সেটি পাওয়া যায়নি।', array( 'status' => 400 ) );
+		}
 
 		if ( 'audio' === $kind && ! user_can( $user, 'edit_others_posts' ) ) {
 			return new WP_Error( 'nros_forbidden', 'এই অ্যাক্সেস নেই।', array( 'status' => 403 ) );
@@ -273,7 +448,7 @@ class NROS_Upload_Sessions {
 				return $allowed;
 			}
 		}
-		$max = self::max_bytes( $kind );
+		$max = $hd_for > 0 ? self::hd_max_bytes() : self::max_bytes( $kind );
 		if ( $size <= 0 ) {
 			return new WP_Error( 'nros_bad_request', 'ফাইলের আকার জানা যায়নি।', array( 'status' => 400 ) );
 		}
@@ -314,16 +489,24 @@ class NROS_Upload_Sessions {
 				'created' => time(),
 				'result'  => null,
 				'pd'      => $pd,
+				'mode'    => $parallel ? 'p' : 's',
+				'hd_for'  => $hd_for,
+				'piece'   => $parallel ? self::piece_size() : 0,
 			),
 			self::TTL
 		);
+		if ( $parallel ) {
+			wp_mkdir_p( self::pieces_dir( $id ) );
+		}
 
 		return new WP_REST_Response(
 			array(
 				'id'         => $id,
 				'received'   => 0,
-				'chunk_size' => self::chunk_size(),
+				'chunk_size' => $parallel ? self::piece_size() : self::chunk_size(),
 				'max_bytes'  => $max,
+				'parallel'   => $parallel ? self::streams() : 0,
+				'piece_size' => $parallel ? self::piece_size() : 0,
 			),
 			201
 		);
@@ -342,6 +525,21 @@ class NROS_Upload_Sessions {
 		}
 		$done       = is_array( $s['result'] );
 		$processing = ! $done && self::finishing( $s['id'] );
+		if ( ! $done && ! $processing && isset( $s['mode'] ) && 'p' === $s['mode'] ) {
+			$pieces = self::pieces( $s['id'] );
+			return new WP_REST_Response(
+				array(
+					'received'   => self::contiguous( $pieces ),
+					'size'       => (int) $s['size'],
+					'done'       => false,
+					'processing' => false,
+					'have'       => array_keys( $pieces ),
+					'piece_size' => (int) $s['piece'],
+					'parallel'   => self::streams(),
+				),
+				200
+			);
+		}
 		return new WP_REST_Response(
 			array(
 				'received'   => $done || $processing ? (int) $s['size'] : self::received( $s['id'] ),
@@ -365,6 +563,9 @@ class NROS_Upload_Sessions {
 		$s = self::session( $request );
 		if ( is_wp_error( $s ) ) {
 			return $s;
+		}
+		if ( isset( $s['mode'] ) && 'p' === $s['mode'] ) {
+			return self::chunk_parallel( $request, $s );
 		}
 		$have   = self::received( $s['id'] );
 		$offset = (int) $request->get_param( 'offset' );
@@ -422,6 +623,54 @@ class NROS_Upload_Sessions {
 	}
 
 	/**
+	 * 1.28.0 — one piece of a parallel upload: stored as its own file named
+	 * by its offset (written to a temp name first, so a cut-off request never
+	 * leaves half a piece). Sending a piece again simply replaces it.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @param array           $s       Session state (with id).
+	 * @return WP_REST_Response|WP_Error
+	 */
+	protected static function chunk_parallel( $request, $s ) {
+		$offset = (int) $request->get_param( 'offset' );
+		$body   = $request->get_body();
+		$len    = strlen( $body );
+		$size   = (int) $s['size'];
+		if ( 0 === $len ) {
+			return new WP_Error( 'nros_bad_request', 'খালি অংশ।', array( 'status' => 400 ) );
+		}
+		if ( $offset < 0 || $len > self::CHUNK_MAX + 1024 || $offset + $len > $size ) {
+			return new WP_Error( 'nros_bad_request', 'অংশটি বড় বা ফাইলের আকারের বাইরে।', array( 'status' => 400 ) );
+		}
+		$dir = self::pieces_dir( $s['id'] );
+		if ( ! is_dir( $dir ) && ! wp_mkdir_p( $dir ) ) {
+			return new WP_Error( 'nros_upload_failed', 'সার্ভারে অস্থায়ী ফোল্ডার তৈরি করা যায়নি।', array( 'status' => 500 ) );
+		}
+		$tmp = $dir . '/.' . $offset . '-' . bin2hex( random_bytes( 4 ) );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		$written = @file_put_contents( $tmp, $body );
+		if ( $written !== $len ) {
+			if ( file_exists( $tmp ) ) {
+				wp_delete_file( $tmp );
+			}
+			return new WP_Error( 'nros_upload_failed', 'সার্ভারে জায়গা নেই বা লেখা যায়নি।', array( 'status' => 507 ) );
+		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+		if ( ! @rename( $tmp, $dir . '/' . $offset ) ) {
+			wp_delete_file( $tmp );
+			return new WP_Error( 'nros_upload_failed', 'সার্ভারে লেখা যায়নি।', array( 'status' => 500 ) );
+		}
+		@touch( self::part_path( $s['id'] ) ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- keeps drop_abandoned() from taking a live upload as idle
+		return new WP_REST_Response(
+			array(
+				'received' => $offset + $len,
+				'stored'   => $len,
+			),
+			200
+		);
+	}
+
+	/**
 	 * POST /media/upload-session/{id}/finish — checks the whole file and
 	 * puts it in the media library. Repeating it (the answer was lost on a
 	 * weak connection) returns the same attachment.
@@ -463,6 +712,12 @@ class NROS_Upload_Sessions {
 		$fresh = get_transient( 'nros_upsess_' . $s['id'] );
 		if ( is_array( $fresh ) && is_array( $fresh['result'] ) ) {
 			return new WP_REST_Response( $fresh['result'], 200 );
+		}
+		if ( isset( $s['mode'] ) && 'p' === $s['mode'] && is_dir( self::pieces_dir( $s['id'] ) ) ) {
+			$joined = self::assemble( $s );
+			if ( is_wp_error( $joined ) ) {
+				return $joined;
+			}
 		}
 		$path = self::part_path( $s['id'] );
 		$have = self::received( $s['id'] );
@@ -559,6 +814,10 @@ class NROS_Upload_Sessions {
 			update_post_meta( $attachment_id, '_nros_voice', 1 );
 		}
 
+		if ( ! empty( $s['hd_for'] ) ) {
+			update_post_meta( (int) $s['hd_for'], '_nros_hd_id', (int) $attachment_id );
+			update_post_meta( (int) $attachment_id, '_nros_hd_of', (int) $s['hd_for'] );
+		}
 		$result = array(
 			'id'   => (int) $attachment_id,
 			'url'  => wp_get_attachment_url( $attachment_id ),
@@ -596,6 +855,7 @@ class NROS_Upload_Sessions {
 				if ( file_exists( $path ) ) {
 					wp_delete_file( $path );
 				}
+				self::drop_pieces( $sid );
 				if ( ! $done ) {
 					delete_transient( 'nros_upsess_' . $sid );
 				}
@@ -614,6 +874,12 @@ class NROS_Upload_Sessions {
 		foreach ( (array) glob( $dir . '/*.part' ) as $file ) {
 			if ( is_string( $file ) && filemtime( $file ) < time() - self::TTL ) {
 				wp_delete_file( $file );
+				self::drop_pieces( basename( $file, '.part' ) );
+			}
+		}
+		foreach ( (array) glob( $dir . '/*.d', GLOB_ONLYDIR ) as $d ) {
+			if ( is_string( $d ) && filemtime( $d ) < time() - self::TTL && ! file_exists( substr( $d, 0, -2 ) . '.part' ) ) {
+				self::drop_pieces( basename( $d, '.d' ) );
 			}
 		}
 	}

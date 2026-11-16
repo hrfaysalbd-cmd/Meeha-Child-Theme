@@ -30,18 +30,25 @@ export const FILE_SIZES: { id: FileSize; name: string; hint: string }[] = [
 export type FitMode = 'blur' | 'cover' | 'black'
 export type FrameId = 'none' | 'breaking' | 'news' | 'live' | 'special' | 'wave' | 'minimal' | 'exclusive' | 'sports' | 'election' | 'alert' | 'glass' | 'campus' | 'showbiz' | 'cinema' | 'music' | 'nil' | 'tv' | 'ujjol' | 'investigation' | 'interview' | 'economy' | 'national' | 'weather' | 'crime' | 'health' | 'tech' | 'world' | 'gold'
   | 'tricolor' | 'ribbon' | 'rhythm' | 'festive' | 'signal'
+  // round 46: subject desks
+  | 'vote' | 'budget' | 'court' | 'accident' | 'medical' | 'education' | 'stadium' | 'glamour' | 'agri' | 'religion'
 /** How big the frame bands, their text and the captions are (auto = bigger for reels). */
 export type FrameSize = 'auto' | 's' | 'm' | 'l' | 'xl'
 export type FrameMotion = 'lively' | 'calm'
 export type FooterMode = 'none' | 'ticker' | 'ad-text' | 'ad-image' | 'brand'
-export type IntroId = 'none' | 'meeha-logo' | 'breaking' | 'headline' | 'special' | 'swipe' | 'live' | 'countdown' | 'nil-reveal' | 'tv-open' | 'investigation' | 'sports' | 'showbiz' | 'shatter' | 'globe' | 'kinetic' | 'split' | 'custom'
-export type OutroId = 'none' | 'meeha-social' | 'thanks' | 'follow' | 'nil-end' | 'endscreen' | 'credits' | 'subscribe' | 'staytuned' | 'thanks-burst' | 'custom'
+/** Round 46: drawn scenes of the professional studio pack (pack.ts). */
+export type PackIntroId = 'i-election' | 'i-budget' | 'i-court' | 'i-weather' | 'i-tri-burst' | 'i-ticker' | 'i-docu' | 'i-eid' | 'i-scoreboard' | 'i-mourn'
+export type PackOutroId = 'o-tri' | 'o-website' | 'o-next' | 'o-social-grid' | 'o-mourn' | 'o-wave' | 'o-signoff'
+export type IntroId = 'none' | 'meeha-logo' | 'breaking' | 'headline' | 'special' | 'swipe' | 'live' | 'countdown' | 'nil-reveal' | 'tv-open' | 'investigation' | 'sports' | 'showbiz' | 'shatter' | 'globe' | 'kinetic' | 'split' | 'custom' | PackIntroId
+export type OutroId = 'none' | 'meeha-social' | 'thanks' | 'follow' | 'nil-end' | 'endscreen' | 'credits' | 'subscribe' | 'staytuned' | 'thanks-burst' | 'custom' | PackOutroId
 export type LogoStyle = 'reveal' | 'spin' | 'pulse' | 'static'
 export type Corner = 'tr' | 'tl' | 'br' | 'bl'
 export type Quality = '720' | '1080'
 /* brand music catalogue (the pieces themselves are in music.ts) */
 export type MusicId = 'signature' | 'pulse' | 'calm' | 'showbiz' | 'desi' | 'investigation' | 'sports' | 'tech' | 'sad' | 'anthem' | 'morning' | 'cinematic' | 'election' | 'weather' | 'lofi' | 'village'
   | 'hottalk' | 'debate' | 'emotional' | 'heartfelt' | 'excited' | 'upbeat' | 'fiery' | 'rally' | 'weighty' | 'analysis'
+  // round 46: the professional studio pack
+  | 'urgent' | 'probe' | 'condolence' | 'victory' | 'matchday' | 'ballot' | 'corporate' | 'nature' | 'digital' | 'eid' | 'documentary' | 'talkshow' | 'bulletin' | 'tension'
 
 /** Round 26: the music library is shown in collapsible groups. */
 export type MusicGroup = 'talk' | 'news' | 'human' | 'fun' | 'deep'
@@ -81,7 +88,47 @@ export const MUSIC: { id: MusicId; name: string; hint: string; group: MusicGroup
   { id: 'heartfelt', name: 'হৃদয়ছোঁয়া', hint: 'আশার গল্প, মানবিক বার্তা · তার-বাদ্য ও ঘণ্টা', group: 'talk', isNew: true },
   { id: 'weighty', name: 'শান্ত কিন্তু ওজনদার', hint: 'গম্ভীর বার্তা, সম্পাদকীয় · গভীর ড্রোন ও দূরের ঘণ্টা', group: 'talk', isNew: true },
   { id: 'analysis', name: 'বিশ্লেষণ', hint: 'ব্যাখ্যা, বিশ্লেষণ, তথ্যভিত্তিক কথা · নিচু স্পন্দন ও টিকটিক', group: 'talk', isNew: true },
+  // round 46: professional studio pack (all original, synthesised in music.ts)
+  { id: 'urgent', name: 'জরুরি সংকেত', hint: 'ব্রেকিং, জরুরি ঘোষণা · দ্রুত স্ট্রিং-অস্টিনাটো ও টিকটিক', group: 'news', isNew: true },
+  { id: 'bulletin', name: 'সকালের বুলেটিন', hint: 'নিয়মিত বুলেটিন, শিরোনাম পাঠ · উজ্জ্বল পালস ও বেল', group: 'news', isNew: true },
+  { id: 'ballot', name: 'ভোটের হাওয়া', hint: 'নির্বাচন, রাজনীতি, সংসদ · নিরপেক্ষ, স্থির ছন্দ', group: 'news', isNew: true },
+  { id: 'corporate', name: 'বাজার ও ব্যবসা', hint: 'অর্থনীতি, বাজেট, শেয়ারবাজার · করপোরেট প্লাক ও তালি', group: 'news', isNew: true },
+  { id: 'digital', name: 'ডিজিটাল প্রযুক্তি', hint: 'প্রযুক্তি, স্টার্টআপ, এআই · আধুনিক সিন্থ পালস', group: 'news', isNew: true },
+  { id: 'probe', name: 'গোপন অনুসন্ধান', hint: 'তদন্ত, দুর্নীতি, রহস্য · অন্ধকার ড্রোন ও হৃৎস্পন্দন', group: 'deep', isNew: true },
+  { id: 'tension', name: 'টানটান উত্তেজনা', hint: 'সংঘাত, উদ্ধার, শ্বাসরুদ্ধকর মুহূর্ত · টিম্পানি ও স্ট্রিং', group: 'deep', isNew: true },
+  { id: 'matchday', name: 'মাঠের উত্তাপ', hint: 'খেলা, হাইলাইটস, জয় · দ্রুত ড্রাম ও ব্রাস', group: 'deep', isNew: true },
+  { id: 'documentary', name: 'ডকুমেন্টারি আবহ', hint: 'দীর্ঘ প্রতিবেদন, ফিচার · প্যাড, ড্রোন ও দূরের ঘণ্টা', group: 'deep', isNew: true },
+  { id: 'condolence', name: 'শোকবার্তা', hint: 'মৃত্যু, শোক, স্মরণ · খুব ধীর পিয়ানো ও স্ট্রিং', group: 'human', isNew: true },
+  { id: 'nature', name: 'প্রকৃতির শান্তি', hint: 'আবহাওয়া, পরিবেশ, কৃষি · বাঁশি, মারিম্বা ও নরম প্যাড', group: 'human', isNew: true },
+  { id: 'talkshow', name: 'টকশো লাইট', hint: 'হালকা আলোচনা, অতিথি পর্ব · ই-পিয়ানো ও নরম ড্রাম', group: 'talk', isNew: true },
+  { id: 'victory', name: 'বিজয়ের সুর', hint: 'বিজয় দিবস, স্বাধীনতা, জাতীয় গর্ব · নিজস্ব মৌলিক সুর (জাতীয় সংগীত নয়)', group: 'fun', isNew: true },
+  { id: 'eid', name: 'ঈদ আনন্দ', hint: 'ঈদ, পূজা, উৎসব, শুভেচ্ছা · তবলা, দোতারা ও ঘণ্টা', group: 'fun', isNew: true },
 ]
+
+/** Round 46: moods for the filter chips of the music library. */
+export type MusicMood = 'urgent' | 'dark' | 'sad' | 'proud' | 'energy' | 'neutral' | 'business' | 'calm' | 'tech' | 'festive' | 'ambient' | 'talk'
+export const MUSIC_MOODS: { id: MusicMood; name: string }[] = [
+  { id: 'urgent', name: 'জরুরি' },
+  { id: 'dark', name: 'রহস্য' },
+  { id: 'sad', name: 'শোক' },
+  { id: 'proud', name: 'দেশাত্মবোধক' },
+  { id: 'energy', name: 'উদ্দীপনা' },
+  { id: 'neutral', name: 'নিরপেক্ষ' },
+  { id: 'business', name: 'ব্যবসা' },
+  { id: 'calm', name: 'শান্ত' },
+  { id: 'tech', name: 'প্রযুক্তি' },
+  { id: 'festive', name: 'উৎসব' },
+  { id: 'ambient', name: 'আবহ' },
+  { id: 'talk', name: 'কথার নিচে' },
+]
+export const MUSIC_MOOD_OF: Record<MusicId, MusicMood[]> = {
+  signature: ['neutral'], pulse: ['urgent'], calm: ['calm'], showbiz: ['festive', 'energy'], desi: ['festive'], investigation: ['dark'], sports: ['energy'],
+  tech: ['tech', 'business'], sad: ['sad'], anthem: ['proud', 'festive'], morning: ['calm'], cinematic: ['ambient', 'dark'], election: ['neutral', 'proud'],
+  weather: ['calm'], lofi: ['calm', 'talk'], village: ['festive', 'calm'], hottalk: ['talk', 'urgent'], debate: ['talk', 'energy'], emotional: ['talk', 'sad'],
+  heartfelt: ['talk', 'calm'], excited: ['talk', 'energy'], upbeat: ['talk', 'festive'], fiery: ['talk', 'proud'], rally: ['talk', 'energy'], weighty: ['talk', 'ambient'],
+  analysis: ['talk', 'neutral'], urgent: ['urgent'], probe: ['dark'], condolence: ['sad'], victory: ['proud'], matchday: ['energy'], ballot: ['neutral'],
+  corporate: ['business'], nature: ['calm'], digital: ['tech'], eid: ['festive'], documentary: ['ambient'], talkshow: ['talk', 'calm'], bulletin: ['neutral', 'urgent'], tension: ['dark', 'urgent'],
+}
 
 export const DEFAULT_MUSIC: MusicId = 'signature'
 
@@ -215,7 +262,9 @@ export interface AdBreak {
   bumper: boolean
 }
 
-export type CaptionStyle = 'nameplate' | 'tag' | 'subtitle' | 'quote' | 'location'
+/** Round 46: name-plate / lower-third designs (drawn in pack.ts). */
+export type LowerThirdId = 'lt-tri' | 'lt-glass' | 'lt-nil' | 'lt-breaking' | 'lt-minimal' | 'lt-split' | 'lt-tv' | 'lt-sports' | 'lt-gold' | 'lt-reel' | 'lt-mourn'
+export type CaptionStyle = 'nameplate' | 'tag' | 'subtitle' | 'quote' | 'location' | LowerThirdId
 export type CaptionPos = 'bl' | 'br' | 'tl' | 'tr' | 'bc'
 
 /**
@@ -296,7 +345,9 @@ export interface Freeze {
   text: string
 }
 
-export type TransitionId = 'none' | 'fade' | 'slide' | 'zoom' | 'wipe' | 'flash' | 'dip'
+/** Round 46: branded stingers between segments (pack.ts). */
+export type StingerId = 'st-tri' | 'st-logo' | 'st-nil' | 'st-breaking' | 'st-glitch' | 'st-ink' | 'st-shutter'
+export type TransitionId = 'none' | 'fade' | 'slide' | 'zoom' | 'wipe' | 'flash' | 'dip' | StingerId
 
 export type StickerKind = 'arrow' | 'circle' | 'box' | 'highlight' | 'cross' | 'check' | 'focus'
 
@@ -530,8 +581,9 @@ export const DEFAULT_CONFIG: EditConfig = {
 // ---- catalogue ----
 
 /** Round 26: frames, intros and outros sit in collapsible sections, like the photocard designs. */
-export type DesignGroup = 'color' | 'nil' | 'news' | 'breaking' | 'special' | 'topic' | 'brand' | 'clip'
+export type DesignGroup = 'desk' | 'color' | 'nil' | 'news' | 'breaking' | 'special' | 'topic' | 'brand' | 'clip'
 export const DESIGN_GROUPS: { id: DesignGroup; name: string; hint: string }[] = [
+  { id: 'desk', name: 'বিষয়ভিত্তিক ডেস্ক (নতুন)', hint: 'নির্বাচন, বাজেট, আদালত, দুর্ঘটনা, স্বাস্থ্য, শিক্ষা, খেলা, বিনোদন' },
   { id: 'color', name: 'রঙিন ব্র্যান্ড বার (নতুন)', hint: 'লাল-হলুদ-সবুজ চলমান বার' },
   { id: 'nil', name: 'মিহা নীল (নতুন)', hint: 'ফটোকার্ডের মতো নীল-সোনালি নকশা' },
   { id: 'news', name: 'সংবাদ', hint: 'প্রতিদিনের খবর' },
@@ -554,6 +606,17 @@ export interface FrameInfo {
 }
 
 export const FRAMES: FrameInfo[] = [
+  // round 46: subject desks
+  { id: 'vote', name: 'নির্বাচনী ডেস্ক', hint: 'গাঢ় সবুজ-নীল, টিক চিহ্নের ব্যালট ও চলমান ফলাফল-বার', label: 'নির্বাচন', swatch: ['#0B3B2E', '#F2C230'], group: 'desk', isNew: true },
+  { id: 'budget', name: 'বাজেট ও অর্থনীতি', hint: 'নেভি, ওঠানামা করা বার-চার্ট ও ৳ চিহ্ন', label: 'বাজেট', swatch: ['#0A1A3A', '#34D399'], group: 'desk', isNew: true },
+  { id: 'court', name: 'আদালত ও আইন', hint: 'মেরুন-কালো, সোনালি দাঁড়িপাল্লা ও স্তম্ভ', label: 'আদালত', swatch: ['#3A0D12', '#D4AF37'], group: 'desk', isNew: true },
+  { id: 'accident', name: 'দুর্ঘটনা ও উদ্ধার', hint: 'গাঢ় ধূসর, হলুদ-কালো সতর্ক রেখা ও কমলা বাতি', label: 'দুর্ঘটনা', swatch: ['#1C1C1E', '#F59E0B'], group: 'desk', isNew: true },
+  { id: 'medical', name: 'স্বাস্থ্য ও চিকিৎসা', hint: 'সাদা-টিল, স্পন্দিত চিকিৎসা-চিহ্ন ও ইসিজি', label: 'স্বাস্থ্য', swatch: ['#F0FDFA', '#0D9488'], group: 'desk', isNew: true },
+  { id: 'education', name: 'শিক্ষা ও ক্যাম্পাস', hint: 'ইন্ডিগো, খাতার রেখা ও গ্র্যাজুয়েশন টুপি', label: 'শিক্ষা', swatch: ['#1E1B6B', '#FBBF24'], group: 'desk', isNew: true },
+  { id: 'stadium', name: 'স্টেডিয়াম', hint: 'রাতের মাঠ, ফ্লাডলাইটের আলো ও স্কোরবোর্ড', label: 'খেলা', swatch: ['#052E1B', '#E11D48'], group: 'desk', isNew: true },
+  { id: 'glamour', name: 'রেড কার্পেট', hint: 'কালো-লাল কার্পেট, সোনালি স্পটলাইট ও ঝিকমিক', label: 'বিনোদন', swatch: ['#1A0006', '#F5C542'], group: 'desk', isNew: true },
+  { id: 'agri', name: 'কৃষি ও গ্রাম', hint: 'সবুজ ধানক্ষেত, দোলা খাওয়া শিষ ও সূর্য', label: 'কৃষি', swatch: ['#14532D', '#FACC15'], group: 'desk', isNew: true },
+  { id: 'religion', name: 'ধর্ম ও উৎসব', hint: 'গাঢ় সবুজ-নীল, চাঁদ-তারা ও নকশি কারুকাজ', label: 'ধর্ম', swatch: ['#0A2A3A', '#E7C873'], group: 'desk', isNew: true },
   { id: 'tricolor', name: 'ত্রিরঙা স্রোত', hint: 'গাঢ় নীল, উপরে লাল-হলুদ-সবুজ বার বয়ে চলে', label: 'শিরোনাম', swatch: ['#0A1430', '#FFC20E'], group: 'color', isNew: true },
   { id: 'ribbon', name: 'রঙিন ফিতা', hint: 'সাদা, উপরে তিন রঙের ফিতা পতাকার মতো দোলে', label: 'শিরোনাম', swatch: ['#FFFFFF', '#12A150'], group: 'color', isNew: true },
   { id: 'rhythm', name: 'রঙের ছন্দ', hint: 'কালো, তিন রঙের ভাগ ছন্দে বড়-ছোট হয়, ঝিলিক', label: 'সর্বশেষ', swatch: ['#0A0A0A', '#CC2A1F'], group: 'color', isNew: true },
@@ -616,6 +679,17 @@ export interface SceneInfo<T extends string> {
 }
 
 export const INTROS: SceneInfo<IntroId>[] = [
+  // round 46: professional studio pack
+  { id: 'i-election', name: 'নির্বাচনী ইন্ট্রো', hint: 'ব্যালটে টিক পড়ে, “নির্বাচন”, তারপর শিরোনাম', duration: 3.6, group: 'desk', isNew: true },
+  { id: 'i-budget', name: 'বাজেট ইন্ট্রো', hint: 'বার-চার্ট ওঠে, ৳ কয়েন ঘোরে, শিরোনাম', duration: 3.6, group: 'desk', isNew: true },
+  { id: 'i-court', name: 'আদালত ইন্ট্রো', hint: 'হাতুড়ির আঘাত, দাঁড়িপাল্লা দোলে, শিরোনাম', duration: 3.6, group: 'desk', isNew: true },
+  { id: 'i-weather', name: 'আবহাওয়া বার্তা', hint: 'আকাশ, সূর্য ও ভেসে আসা মেঘ-বৃষ্টি, শিরোনাম', duration: 3.6, group: 'desk', isNew: true },
+  { id: 'i-scoreboard', name: 'স্কোরবোর্ড', hint: 'ফ্লাডলাইট জ্বলে, স্কোরবোর্ডে শিরোনাম উল্টে আসে', duration: 3.4, group: 'desk', isNew: true },
+  { id: 'i-tri-burst', name: 'ত্রিরঙা বিস্ফোরণ', hint: 'লাল-হলুদ-সবুজ বলয় ছড়িয়ে পড়ে, লোগো, শিরোনাম', duration: 3.4, group: 'color', isNew: true },
+  { id: 'i-ticker', name: 'টিভি টিকার ওপেন', hint: 'চলমান “সর্বশেষ” টিকার সারি, মাঝে শিরোনামের বাক্স', duration: 3.4, group: 'breaking', isNew: true },
+  { id: 'i-docu', name: 'ডকুমেন্টারি ওপেন', hint: 'সিনেমার কালো পট্টি, আলোর রেখা, ধীরে শিরোনাম', duration: 4, group: 'special', isNew: true },
+  { id: 'i-eid', name: 'উৎসবের শুভেচ্ছা', hint: 'চাঁদ, ঝুলন্ত বাতি ও তারা — ঈদ, পূজা, উৎসব', duration: 3.8, group: 'topic', isNew: true },
+  { id: 'i-mourn', name: 'শোক ও স্মরণ', hint: 'কালো পটভূমি, মোমবাতির আলো, সংযত শিরোনাম', duration: 4, group: 'special', isNew: true },
   { id: 'shatter', name: 'ব্রেকিং শক', hint: 'সাদা ঝলক, কাচের টুকরো জুড়ে লাল স্ল্যাব, ঝাঁকুনি', duration: 3.8, group: 'breaking', isNew: true },
   { id: 'globe', name: 'ঘুরন্ত গ্লোব', hint: 'ঘুরন্ত পৃথিবী, সোনালি কক্ষপথ, মাঝে লোগো', duration: 4, group: 'nil', isNew: true },
   { id: 'kinetic', name: 'কাইনেটিক শিরোনাম', hint: 'শিরোনামের প্রতিটি শব্দ রঙ বদলে ঝাঁপিয়ে আসে', duration: 3.8, group: 'news', isNew: true },
@@ -636,6 +710,14 @@ export const INTROS: SceneInfo<IntroId>[] = [
 ]
 
 export const OUTROS: SceneInfo<OutroId>[] = [
+  // round 46: professional studio pack
+  { id: 'o-tri', name: 'ত্রিরঙা এন্ড কার্ড', hint: 'তিন রঙের বার সরে লোগো ও “ফলো করুন”', duration: 4.5, group: 'color', isNew: true },
+  { id: 'o-website', name: 'ওয়েবসাইট কার্ড', hint: 'ব্রাউজারের ঠিকানায় meeha.news টাইপ হয়, কার্সার চাপে', duration: 4.5, group: 'nil', isNew: true },
+  { id: 'o-next', name: 'পরের খবর', hint: '“পরের খবর দেখতে চোখ রাখুন” — তীর ও কার্ডের সারি', duration: 4, group: 'news', isNew: true },
+  { id: 'o-social-grid', name: 'সোশ্যাল গ্রিড', hint: 'ফেসবুক, ইউটিউব, ইনস্টাগ্রাম ও ওয়েবসাইটের টাইল উল্টে আসে', duration: 4.5, group: 'nil', isNew: true },
+  { id: 'o-wave', name: 'ঢেউ ধন্যবাদ', hint: 'নীল ঢেউ উঠে আসে, “দেখার জন্য ধন্যবাদ”', duration: 4, group: 'news', isNew: true },
+  { id: 'o-signoff', name: 'আজকের মতো বিদায়', hint: '“এই ছিল আজকের খবর” — তারিখ, লোগো ও ঠিকানা', duration: 4.5, group: 'news', isNew: true },
+  { id: 'o-mourn', name: 'শোক বার্তা', hint: 'সংযত সাদা-কালো, “গভীর শোক ও সমবেদনা”', duration: 4.5, group: 'special', isNew: true },
   { id: 'subscribe', name: 'সাবস্ক্রাইব করুন', hint: 'বড় বোতাম, কার্সার চাপ দেয়, বেল বাজে', duration: 5, group: 'nil', isNew: true },
   { id: 'staytuned', name: 'চোখ রাখুন', hint: 'ঘুরন্ত আলোর রশ্মি, লোগো নেমে আসে, ঠিকানা', duration: 4.5, group: 'nil', isNew: true },
   { id: 'thanks-burst', name: 'রঙিন ধন্যবাদ', hint: 'কনফেটি, “দেখার জন্য ধন্যবাদ”, লাইক · শেয়ার · কমেন্ট', duration: 4, group: 'news', isNew: true },
@@ -668,6 +750,21 @@ export const CAPTION_STYLES: { id: CaptionStyle; name: string; hint: string }[] 
   { id: 'subtitle', name: 'সাবটাইটেল', hint: 'নিচে মাঝখানে, কালো পটভূমিতে' },
   { id: 'quote', name: 'উক্তি', hint: 'বড় উদ্ধৃতি চিহ্নসহ বক্তব্য + বক্তার নাম' },
   { id: 'location', name: 'স্থান', hint: 'লাল পিন আইকনসহ জায়গার নাম' },
+]
+
+/** Round 46: more name-plate designs (name + designation). */
+export const LOWER_THIRDS: { id: LowerThirdId; name: string; hint: string; swatch: [string, string] }[] = [
+  { id: 'lt-tri', name: 'ত্রিরঙা পট্টি', hint: 'সাদা নাম, নিচে লাল-হলুদ-সবুজ চলমান রেখা', swatch: ['#FFFFFF', '#12A150'] },
+  { id: 'lt-nil', name: 'মিহা নীল-সোনালি', hint: 'নীল প্লেট, সোনালি পদবি-চিপ', swatch: ['#0B2A6B', '#FFC20E'] },
+  { id: 'lt-glass', name: 'কাচের প্লেট', hint: 'ঝাপসা কাচ, সাদা লেখা, নীল আলো', swatch: ['#1F2937', '#38BDF8'] },
+  { id: 'lt-tv', name: 'টিভি চ্যানেল', hint: 'বাঁয়ে লোগোর বাক্স, ডানে নাম-পদবি', swatch: ['#025AB2', '#FFFFFF'] },
+  { id: 'lt-breaking', name: 'ব্রেকিং লাল', hint: 'লাল নামের পট্টি, কালো পদবি, ঝলক', swatch: ['#C8102E', '#111827'] },
+  { id: 'lt-split', name: 'দুই রঙা স্প্লিট', hint: 'নাম আর পদবি পাশাপাশি দুই রঙে', swatch: ['#111827', '#F59E0B'] },
+  { id: 'lt-minimal', name: 'মিনিমাল রেখা', hint: 'শুধু লেখা ও সরু রেখা, ছবি কম ঢাকে', swatch: ['#000000', '#FFFFFF'] },
+  { id: 'lt-sports', name: 'খেলা তির্যক', hint: 'তির্যক সবুজ প্লেট, দ্রুত ঢোকে', swatch: ['#065F46', '#A3E635'] },
+  { id: 'lt-gold', name: 'প্রিমিয়াম সোনালি', hint: 'কালো প্লেট, সোনালি রেখা ও ঝিলিক', swatch: ['#0B0905', '#D6B45E'] },
+  { id: 'lt-reel', name: 'রিল বাবল', hint: 'গোল কোণের বড় বাবল — রিলে সহজে পড়া যায়', swatch: ['#FFC20E', '#111111'] },
+  { id: 'lt-mourn', name: 'শোক', hint: 'সাদা-কালো, সংযত, কালো ফিতা', swatch: ['#000000', '#9CA3AF'] },
 ]
 
 export const LOOK_FILTERS: { id: LookFilter; name: string; css: string }[] = [
@@ -752,6 +849,14 @@ export const TRANSITIONS: { id: TransitionId; name: string; hint: string }[] = [
   { id: 'wipe', name: 'ওয়াইপ', hint: 'কোনাকুনি ব্র্যান্ড রেখা মুছে নিয়ে যায়' },
   { id: 'flash', name: 'সাদা ঝলক', hint: 'ছোট্ট সাদা ঝলক — কথার মাঝের কাটে সবচেয়ে মানানসই' },
   { id: 'dip', name: 'কালোয় মিলিয়ে', hint: 'এক পলক কালো হয়ে আবার ফিরে আসে' },
+  // round 46: branded stingers
+  { id: 'st-tri', name: 'ত্রিরঙা স্টিংগার', hint: 'লাল-হলুদ-সবুজ তির্যক বার পর্দা ঢেকে সরে যায়' },
+  { id: 'st-logo', name: 'লোগো স্টিংগার', hint: 'নীল পর্দায় মিহা লোগো এক ঝলক' },
+  { id: 'st-nil', name: 'নীল-সোনালি পর্দা', hint: 'নীল ও সোনালি পর্দা দুদিক থেকে বন্ধ হয়ে খোলে' },
+  { id: 'st-breaking', name: 'ব্রেকিং ঝটকা', hint: 'লাল ঝলক, “সর্বশেষ” লেখা এক পলক' },
+  { id: 'st-glitch', name: 'গ্লিচ', hint: 'ডিজিটাল ফাটল ও রঙের সরণ' },
+  { id: 'st-ink', name: 'রঙের ছোপ', hint: 'নীল-লাল বৃত্ত ফুটে পর্দা ঢাকে' },
+  { id: 'st-shutter', name: 'শাটার', hint: 'অনুভূমিক পাত বন্ধ হয়ে খোলে' },
 ]
 
 export const STICKERS: { id: StickerKind; name: string }[] = [
@@ -950,7 +1055,7 @@ export function normalizeConfig(raw: unknown): EditConfig {
       .map((c: any) => ({
         text: str(c?.text, LIMITS.capText),
         sub: str(c?.sub, LIMITS.capSub),
-        style: oneOf(c?.style, CAPTION_STYLES.map((x) => x.id), 'nameplate'),
+        style: oneOf(c?.style, [...CAPTION_STYLES.map((x) => x.id), ...LOWER_THIRDS.map((x) => x.id)], 'nameplate'),
         pos: oneOf(c?.pos, ['bl', 'br', 'tl', 'tr', 'bc'] as const, c?.style === 'subtitle' || c?.style === 'quote' ? 'bc' : 'bl'),
         at: num(c?.at, 0, 0, 86400),
         dur: c?.dur === null ? null : num(c?.dur, 5, 1, 3600),

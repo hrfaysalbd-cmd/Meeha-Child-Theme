@@ -1,6 +1,7 @@
 <?php
 /**
- * Live posts — the reader's poll: GET meeha/v1/liveblog/{id}?since=<unix>  (or ?before=<unix> for older updates).
+ * Live posts — the reader's poll: GET meeha/v1/liveblog/{id}?since=<unix>  (or ?before=<unix> for older updates,
+ * ?brief=N for the homepage band: status, count and the newest N lines as plain text).
  *
  * The open page asks every ~30 s (only while the tab is visible) for updates changed since its last answer. The reply
  * carries the changed updates as ready HTML, the ids of every published update (so deleted ones disappear), the
@@ -30,6 +31,12 @@ add_action(
 						'type'    => 'integer',
 						'default' => 0,
 					),
+					'brief'  => array(
+						'type'    => 'integer',
+						'default' => 0,
+						'minimum' => 0,
+						'maximum' => 5,
+					),
 				),
 			)
 		);
@@ -52,6 +59,15 @@ function meeha_lb_rest_poll( $req ) {
 		return new WP_Error( 'meeha_lb_off', 'এটি লাইভ পোস্ট নয়', array( 'status' => 404 ) );
 	}
 	$now = time();
+
+	// 2.4.14: ?brief=N — the homepage band's light refresh (status, count, newest N lines as plain text).
+	if ( (int) $req['brief'] > 0 && function_exists( 'meeha_lb_brief' ) ) {
+		$brief        = meeha_lb_brief( $post, (int) $req['brief'] );
+		$brief['now'] = $now;
+		$res          = new WP_REST_Response( $brief );
+		$res->header( 'Cache-Control', 'public, max-age=30' );
+		return $res;
+	}
 
 	if ( (int) $req['before'] > 0 ) {
 		$older = meeha_lb_entries(

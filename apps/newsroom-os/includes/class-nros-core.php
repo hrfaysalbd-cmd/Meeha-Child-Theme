@@ -492,6 +492,13 @@ class NROS_Core {
 				dbDelta( $field_sql );
 			}
 		}
+
+		// DB 17 (r46) — গোপন তথ্য (tips, their files, notes/replies).
+		if ( class_exists( 'NROS_Tips' ) ) {
+			foreach ( NROS_Tips::schema( $charset_collate ) as $tips_sql ) {
+				dbDelta( $tips_sql );
+			}
+		}
 	}
 
 	/**

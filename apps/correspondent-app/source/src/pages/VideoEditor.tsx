@@ -16,13 +16,14 @@ import {
   type VideoOrientation,
   type VideoSource,
 } from '../lib/api'
-import { canShrink, etaText, PICK_MAX_BYTES, targetFor } from '../lib/videoTarget'
+import { canShrink, PICK_MAX_BYTES } from '../lib/videoTarget'
 import { captureFrame, readVideoMeta, youtubeIdFrom, youtubeThumb, type VideoMeta } from '../lib/video'
 import { Banner, Button, CharCount, ErrorRetry, Segmented, Spinner, TopBar, bnDuration, bnNumber, inputClass } from '../components/ui'
 import VideoPayment from '../components/VideoPayment'
 import CategoryPicker from '../components/CategoryPicker'
 import { rememberCategory } from '../lib/categoryTree'
 import WriteModeSwitch from '../components/WriteModeSwitch'
+import FootageExtras from '../components/FootageExtras'
 import {
   IconBrandYoutube,
   IconCamera,
@@ -149,6 +150,10 @@ export default function VideoEditor() {
   const [serverVideoUrl, setServerVideoUrl] = useState('')
   const [localUrl, setLocalUrl] = useState<string | null>(null)
   const [upload, setUpload] = useState<UploadState | null>(null)
+  // r46: extra footage clips (2…n)
+  const [footageIds, setFootageIds] = useState<number[]>([])
+  const [footageBusy, setFootageBusy] = useState(false)
+  const addFootage = useRef<((files: File[]) => void) | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const pickedFileRef = useRef<File | null>(null)
   // r33: the smaller copy made from the picked file — a retry sends it again without re-encoding
@@ -278,66 +283,26 @@ export default function VideoEditor() {
     setUpload({ state: 'uploading', phase: 'check', name: file.name, loaded: 0, total: file.size, percent: 0 })
     const release = await keepAwake()
     try {
-      // ---- r33: make a big file smaller first, sized for this connection ----
-      let toSend = file
-      let note = ''
-      if (shrunkRef.current?.src === file) {
-        toSend = shrunkRef.current.out
-        note = shrunkRef.current.note
-      } else if (file.size > 25 * 1048576 && canShrink()) {
-        const speed = await MediaApi.speedTest(ctrl.signal)
-        if (!live()) return
-        const target = targetFor(speed, serverMax)
-        if (file.size > target * 1.15 || (serverMax > 0 && file.size > serverMax)) {
-          let shrinkCancelled: (new (...a: never[]) => Error) | null = null
-          try {
-            // the encoder (≈1 MB) loads only when a big video is picked
-            const { planShrink, shrinkVideo, ShrinkCancelled } = await import('../lib/videoShrink')
-            shrinkCancelled = ShrinkCancelled
-            const plan = await planShrink(file, target)
-            if (!live()) return
-            if (plan && plan.estimate < file.size * 0.85) {
-              const pLabel = `${bnNumber(plan.short)}p`
-              setUpload((u) => (u ? { ...u, phase: 'shrink', percent: 0, loaded: 0, note: `${formatBytes(file.size)} → প্রায় ${formatBytes(plan.estimate)} · ${pLabel}` } : u))
-              const out = await shrinkVideo(file, target, {
-                signal: ctrl.signal,
-                onProgress: (r) => live() && setUpload((u) => (u && u.state === 'uploading' ? { ...u, percent: Math.min(99, Math.floor(r * 100)) } : u)),
-              })
-              if (!live()) return
-              const base = file.name.replace(/\.[^.]+$/, '') || 'video'
-              toSend = new File([out.blob], `${base}-meeha.${out.ext}`, { type: out.mime })
-              const eta = etaText(toSend.size, speed)
-              note = `${formatBytes(file.size)} → ${formatBytes(toSend.size)} · ${bnNumber(Math.min(out.width, out.height))}p${eta ? ' · ' + eta : ''}`
-              shrunkRef.current = { src: file, out: toSend, note }
-            }
-          } catch (err) {
-            if (!live() || (shrinkCancelled && err instanceof shrinkCancelled)) return
-            // could not re-encode here: the original still goes if the server takes it
-            if (serverMax > 0 && file.size > serverMax) throw new ApiError('এই ফোনে ভিডিওটি ছোট করা গেল না, আর আসল ফাইলটি সার্ভারের সীমার চেয়ে বড়। ভিডিওটি কেটে ছোট করে বা কম রেজোলিউশনে রেকর্ড করে আবার দিন।', 413, 'nros_video_too_large', 'client', '/media/video')
-            const why = err instanceof Error && err.message ? err.message : ''
-            note = `ছোট করা গেল না${why ? ` (${why})` : ''} — আসল ফাইলটিই যাচ্ছে`
-          }
-        }
-      }
-      if (serverMax > 0 && toSend.size > serverMax) throw new ApiError(videoTooLargeMessage(toSend.size, serverMax), 413, 'nros_video_too_large', 'client', '/media/video')
-
-      setUpload({ state: 'uploading', phase: 'send', name: toSend.name, loaded: 0, total: toSend.size, percent: 0, note })
-      const res = await MediaApi.uploadVideo(
-        toSend,
-        (p) => {
-          if (live()) setUpload((u) => (u && u.state === 'uploading' ? { ...u, ...p } : u))
+      // r46: quick 720p copy first (several pieces at once), the HD original follows in the background
+      const { uploadClip } = await import('../lib/clipPipeline')
+      const res = await uploadClip(
+        file,
+        serverMax,
+        (st) => {
+          if (!live() || st.phase === 'done') return
+          setUpload((u) => (u && u.state === 'uploading' ? { ...u, phase: st.phase as 'check' | 'shrink' | 'send', percent: st.percent, loaded: st.loaded, total: st.total, note: st.note, status: st.status } : u))
         },
-        { signal: ctrl.signal },
+        ctrl.signal,
       )
       if (!live()) return
       setAttachmentId(res.id)
       setServerVideoUrl(res.url)
-      setUpload({ state: 'done', name: toSend.name, loaded: toSend.size, total: toSend.size, percent: 100, note: note.replace(/ · প্রায় .*$/, '') })
+      setUpload({ state: 'done', name: res.name, loaded: res.size, total: res.size, percent: 100, note: res.timing + (res.hdPending ? ' · HD পেছনে যাচ্ছে' : '') })
       shrunkRef.current = null
       beforePick.current = null // this file is now the post's video
       setFieldErrors((f) => ({ ...f, video: undefined }))
     } catch (err) {
-      if (!live() || isUploadCancelled(err)) return
+      if (!live() || isUploadCancelled(err) || (err instanceof Error && err.message === 'cancelled')) return
       const d = describeError(err)
       setUpload((u) => ({
         state: 'error',
@@ -454,7 +419,7 @@ export default function VideoEditor() {
     if (!title.trim()) fe.title = 'ভিডিওর সংক্ষিপ্ত শিরোনাম লিখুন।'
     if (excerpt.length > EXCERPT_MAX) fe.excerpt = `সংক্ষিপ্ত বিবরণ সর্বোচ্চ ${bnNumber(EXCERPT_MAX)} অক্ষরের হতে পারে।`
     if (source === 'upload') {
-      if (uploading) fe.video = 'ভিডিও আপলোড শেষ হওয়া পর্যন্ত অপেক্ষা করুন।'
+      if (uploading || footageBusy) fe.video = 'ভিডিও আপলোড শেষ হওয়া পর্যন্ত অপেক্ষা করুন।'
       else if (needsVideo && !attachmentId)
         fe.video = upload?.state === 'error' ? 'ভিডিও আপলোড সম্পন্ন হয়নি — আবার চেষ্টা করুন।' : 'একটি ভিডিও আপলোড করুন।'
     }
@@ -486,6 +451,7 @@ export default function VideoEditor() {
     if (source === 'upload') {
       body.source = 'upload'
       if (attachmentId) body.video_attachment_id = attachmentId
+      if (attachmentId) body.footage_ids = footageIds.length ? [attachmentId, ...footageIds.filter((x) => x !== attachmentId)] : []
     }
     if (target === 'draft') body.status = 'draft'
     if (target === 'pending') body.status = 'pending'
@@ -669,12 +635,15 @@ export default function VideoEditor() {
           <input
             ref={videoInput}
             type="file"
+            multiple
             accept="video/mp4,video/webm,video/quicktime,.mp4,.m4v,.webm,.mov"
             className="hidden"
             data-testid="video-file"
             onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) onPickVideo(f)
+              const all = Array.from(e.target.files || [])
+              if (all[0]) onPickVideo(all[0])
+              // r46: several picked at once — the rest become extra footage
+              if (all.length > 1) setTimeout(() => addFootage.current?.(all.slice(1)), 0)
               e.target.value = ''
             }}
           />
@@ -814,6 +783,16 @@ export default function VideoEditor() {
                   </button>
                 </div>
               )}
+              <FootageExtras
+                mainReady={!!attachmentId && !uploading}
+                serverMax={maxBytes ?? 0}
+                initialIds={video?.footage?.filter((f) => f.id !== video.video_attachment_id)}
+                addRef={addFootage}
+                onChange={(ids, busy) => {
+                  setFootageIds(ids)
+                  setFootageBusy(busy)
+                }}
+              />
             </>
           ) : (
             <div data-testid="youtube-readonly">

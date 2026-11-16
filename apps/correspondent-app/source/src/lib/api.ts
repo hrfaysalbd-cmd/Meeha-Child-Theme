@@ -517,6 +517,9 @@ export type VideoOrientation = 'portrait' | 'landscape'
 
 export interface Video {
   id: number
+  /** r46 (newsroom-os 1.28.0): every footage clip, in order (only when more than one). */
+  footage?: { id: number; url: string; name: string; hd_url?: string | null }[]
+  hd_url?: string | null
   title: string
   excerpt: string
   slug: string
@@ -546,6 +549,8 @@ export interface Video {
 }
 
 export interface VideoInput {
+  /** r46: all clips in order (the first is the main video). */
+  footage_ids?: number[]
   title?: string
   excerpt?: string
   slug?: string
@@ -570,7 +575,7 @@ export interface VideoUploadResult {
 export interface VideoLimits {
   max_bytes: number
   /** newsroom-os 1.13.0+: resumable uploads in pieces (limit not bound by PHP). */
-  resumable?: { max_bytes: number; chunk_size: number }
+  resumable?: { max_bytes: number; chunk_size: number; hd_max_bytes?: number; parallel?: number }
 }
 
 export interface UploadProgress {
@@ -784,25 +789,36 @@ export const MediaApi = {
    * Uploads a video (multipart field `nros_video`) with real upload progress
    * and cancellation — see uploadVideoFile() below.
    */
-  uploadVideo: (file: File, onProgress?: (p: UploadProgress) => void, opts: { signal?: AbortSignal } = {}) =>
-    uploadVideoFile(file, onProgress, opts.signal),
+  uploadVideo: (file: File, onProgress?: (p: UploadProgress) => void, opts: { signal?: AbortSignal; hdFor?: number } = {}) =>
+    uploadVideoFile(file, onProgress, opts.signal, opts.hdFor),
   /**
    * r33: a short upload-speed check (≈384 KB to the server, thrown away
    * there). Bytes a second, or null when it could not be measured.
    */
   speedTest: async (signal?: AbortSignal): Promise<number | null> => {
-    const size = 384 * 1024
+    const size = 512 * 1024
     const bytes = new Uint8Array(size)
     // random bytes, so nothing on the way can squeeze them smaller
     for (let i = 0; i < size; i += 65536) crypto.getRandomValues(bytes.subarray(i, Math.min(size, i + 65536)))
+    // r46: every request also waits for the server to start up (often about
+    // a second). A tiny request first measures that wait, so it is not
+    // counted as a slow line (the old test made fast lines look slow).
+    let base = 0
+    try {
+      const t = performance.now()
+      await sendPiece('/media/speedtest', new Blob([bytes.subarray(0, 4096)], { type: 'application/octet-stream' }), () => {}, signal)
+      base = performance.now() - t
+    } catch {
+      base = 0
+    }
     const t0 = performance.now()
     try {
       await sendPiece('/media/speedtest', new Blob([bytes], { type: 'application/octet-stream' }), () => {}, signal)
     } catch {
       return null
     }
-    const secs = (performance.now() - t0) / 1000
-    return secs > 0.05 ? Math.round(size / secs) : null
+    const ms = Math.max(50, performance.now() - t0 - base * 0.9)
+    return Math.round(size / (ms / 1000))
   },
 }
 
@@ -923,6 +939,7 @@ async function uploadVideoFile(
   file: File,
   onProgress?: (p: UploadProgress) => void,
   signal?: AbortSignal,
+  hdFor?: number,
 ): Promise<VideoUploadResult> {
   const path = '/media/video'
   if (!isAllowedVideoFile(file)) {
@@ -933,12 +950,13 @@ async function uploadVideoFile(
   // on a file that would be refused only after it has fully gone up. (This
   // request also goes through request()'s own 401 handling.)
   const limits = await MediaApi.videoLimits()
-  const max_bytes = limits.resumable?.max_bytes || limits.max_bytes
+  // r46: a full-quality original (sent after its quick copy) may be up to 1 GB
+  const max_bytes = hdFor ? Math.max(limits.resumable?.hd_max_bytes || 0, limits.resumable?.max_bytes || 0) : limits.resumable?.max_bytes || limits.max_bytes
   if (max_bytes > 0 && file.size > max_bytes) {
     throw new ApiError(videoTooLargeMessage(file.size, max_bytes), 413, 'nros_video_too_large', 'client', path)
   }
   // round 27: in pieces — a weak connection resumes instead of starting over
-  if (limits.resumable) return uploadVideoInPieces(file, limits.resumable.chunk_size, onProgress, signal)
+  if (limits.resumable) return uploadVideoInPieces(file, limits.resumable.chunk_size, onProgress, signal, hdFor)
 
   if (!accessToken || Date.now() - accessTokenSetAt > FRESH_TOKEN_FOR_UPLOAD_MS) {
     const outcome = await refreshOnce()
@@ -1287,7 +1305,7 @@ const KB = 1024
 const MIN_PIECE = 256 * KB
 const FIRST_PIECE = 1024 * KB
 
-async function uploadVideoInPieces(file: File, chunkMax: number, onProgress?: (p: UploadProgress) => void, signal?: AbortSignal): Promise<VideoUploadResult> {
+async function uploadVideoInPieces(file: File, chunkMax: number, onProgress?: (p: UploadProgress) => void, signal?: AbortSignal, hdFor?: number): Promise<VideoUploadResult> {
   let status = ''
   let loadedNow = 0
   const report = (loaded: number) => {
@@ -1318,11 +1336,14 @@ async function uploadVideoInPieces(file: File, chunkMax: number, onProgress?: (p
   // the same file again: pick up where the last try stopped
   let id = earlierSession(file)
   let received = 0
+  let par: { streams: number; piece: number; have: number[] } | null = null
   if (id) {
     try {
-      const st = await request<{ received: number; size: number; done: boolean }>(`/media/upload-session/${id}`)
-      if (st.size === file.size && !st.done) received = st.received
-      else id = null
+      const st = await request<{ received: number; size: number; done: boolean; have?: number[]; piece_size?: number; parallel?: number }>(`/media/upload-session/${id}`)
+      if (st.size === file.size && !st.done) {
+        received = st.received
+        if (st.have && st.piece_size) par = { streams: st.parallel || 4, piece: st.piece_size, have: st.have }
+      } else id = null
     } catch {
       id = null
     }
@@ -1330,15 +1351,29 @@ async function uploadVideoInPieces(file: File, chunkMax: number, onProgress?: (p
   let full = Math.max(MIN_PIECE, Math.min(chunkMax || 4194304, 4 * 1048576))
   if (!id) {
     // a few quick tries only: when the server keeps failing here, say so
-    const sess = await retry(() => request<{ id: string; chunk_size: number }>('/media/upload-session', { method: 'POST', body: { kind: 'video', name: file.name, size: file.size } }), 'সংযোগ হয়নি', 6)
+    // r46: ask for several pieces at once (newsroom-os 1.28.0); an older server ignores it
+    const sess = await retry(
+      () =>
+        request<{ id: string; chunk_size: number; parallel?: number; piece_size?: number }>('/media/upload-session', {
+          method: 'POST',
+          body: { kind: 'video', name: file.name, size: file.size, parallel: true, ...(hdFor ? { hd_for: hdFor } : {}) },
+        }),
+      'সংযোগ হয়নি',
+      6,
+    )
     id = sess.id
     full = Math.max(MIN_PIECE, Math.min(sess.chunk_size || full, 4 * 1048576))
+    if (sess.parallel && sess.piece_size) par = { streams: sess.parallel, piece: sess.piece_size, have: [] }
     rememberSession(file, id)
   } else if (received > 0) {
     say(`আগের আপলোড থেকে চলছে (${formatBytes(received)} আগেই পৌঁছেছে)`)
   }
   const sid = id
   fails = 0
+  if (par) {
+    await sendPiecesParallel(file, sid, par, report, say, signal)
+    return finishUpload(file, sid, (t) => (report(file.size), say(t)), signal, () => fails, (n) => (fails = n), retry)
+  }
   // start small, so the first bytes show at once even on a weak line; grow when it is fast
   let chunk = Math.min(full, FIRST_PIECE)
   let sawProgress = false
@@ -1395,11 +1430,16 @@ async function uploadVideoInPieces(file: File, chunkMax: number, onProgress?: (p
       report(received)
     }
   }
+  return finishUpload(file, sid, (t) => (report(file.size), say(t)), signal, () => fails, (n) => (fails = n), retry)
+}
+
+type Retry = <T>(fn: () => Promise<T>, what: string, max?: number) => Promise<T>
+
+async function finishUpload(file: File, sid: string, say: (text: string) => void, signal: AbortSignal | undefined, getFails: () => number, setFails: (n: number) => void, retry: Retry): Promise<VideoUploadResult> {
+  say('সার্ভারে সংরক্ষণ হচ্ছে…')
   // Saving a big file into the library can outlast one reply: a timeout or a
   // 409 from a second "finish" while the first still runs is not a failure —
   // watch the status until the server says the file is in.
-  status = 'সার্ভারে সংরক্ষণ হচ্ছে…'
-  report(file.size)
   for (let round = 0; round < 80; round++) {
     try {
       const res = await request<VideoUploadResult & { processing?: boolean }>(`/media/upload-session/${sid}/finish`, { method: 'POST', body: {}, timeoutMs: 330_000 })
@@ -1413,11 +1453,97 @@ async function uploadVideoInPieces(file: File, chunkMax: number, onProgress?: (p
         rememberSession(file, null)
         throw err
       }
-      if (!conflict && (!worthRetrying(err) || ++fails > 60)) throw err
+      if (!conflict && (!worthRetrying(err) || (setFails(getFails() + 1), getFails() > 60))) throw err
     }
     await pauseFor(round < 6 ? 5000 : 10000, signal)
     const st = await retry(() => request<{ received: number; size: number; done: boolean; processing?: boolean }>(`/media/upload-session/${sid}`), 'সংরক্ষণের খবর নেওয়া হচ্ছে')
     if (!st.done && !st.processing && st.received > 0 && st.received < file.size) throw new ApiError('ভিডিওর একটি অংশ সার্ভারে পৌঁছায়নি — আবার আপলোড করুন।', 409, 'nros_upload_incomplete', 'server', `/media/upload-session/${sid}`)
   }
   throw new ApiError('সার্ভার ভিডিওটি সংরক্ষণ শেষ করেনি — একটু পরে আবার চেষ্টা করুন।', 0, 'nros_finish_slow', 'timeout', `/media/upload-session/${sid}`)
+}
+
+/**
+ * r46 — several pieces in flight at once, in any order (newsroom-os 1.28.0).
+ * One-after-another pieces left the line idle while the server started up
+ * for each piece (about a second each time), which is why a video that
+ * WhatsApp sends in seconds took many minutes here.
+ */
+async function sendPiecesParallel(
+  file: File,
+  sid: string,
+  par: { streams: number; piece: number; have: number[] },
+  report: (loaded: number) => void,
+  say: (text: string) => void,
+  signal?: AbortSignal,
+) {
+  const piece = par.piece
+  const offsets: number[] = []
+  for (let o = 0; o < file.size; o += piece) offsets.push(o)
+  const done = new Set(par.have)
+  const todo = offsets.filter((o) => !done.has(o))
+  const sizeOf = (o: number) => Math.min(piece, file.size - o)
+  let doneBytes = offsets.filter((o) => done.has(o)).reduce((a, o) => a + sizeOf(o), 0)
+  const inflight = new Map<number, number>()
+  const show = () => {
+    let f = 0
+    for (const v of inflight.values()) f += v
+    report(Math.min(file.size, doneBytes + f))
+  }
+  show()
+  let streams = Math.max(1, Math.min(6, par.streams))
+  let fails = 0
+  let running = 0
+  const queue = [...todo]
+  const worker = async (): Promise<void> => {
+    running++
+    try {
+      for (;;) {
+        if (signal?.aborted) throw cancelledError('/media/upload-session')
+        // fewer pieces at a time after failures: extra workers stop here
+        if (running > streams) return
+        const off = queue.shift()
+        if (off === undefined) return
+        const blob = file.slice(off, off + sizeOf(off))
+        const allow = Math.min(300_000, Math.max(60_000, (blob.size / (4 * KB)) * 1000))
+        inflight.set(off, 0)
+        try {
+          await sendPiece(
+            `/media/upload-session/${sid}/chunk?offset=${off}`,
+            blob,
+            (l) => {
+              inflight.set(off, l)
+              show()
+            },
+            signal,
+            allow,
+            75_000,
+          )
+          inflight.delete(off)
+          doneBytes += blob.size
+          fails = 0
+          show()
+        } catch (err) {
+          inflight.delete(off)
+          queue.unshift(off)
+          show()
+          if (signal?.aborted) throw cancelledError('/media/upload-session')
+          if (storageError(err) || (err instanceof ApiError && err.status === 404)) throw err
+          if (!worthRetrying(err) || ++fails > 60) throw err
+          if (streams > 1) streams--
+          say(navigator.onLine === false ? 'নেট নেই — ফিরলেই আবার চলবে' : `লাইন দুর্বল — আবার চেষ্টা (${bnDigits(fails)})`)
+          await pauseFor(Math.min(30_000, 1500 * Math.pow(1.6, Math.min(fails, 8))), signal)
+          say('')
+        }
+      }
+    } finally {
+      running--
+    }
+  }
+  const pool: Promise<void>[] = []
+  for (let i = 0; i < Math.min(streams, Math.max(1, queue.length)); i++) pool.push(worker())
+  // the first error (cancel, full disk, too many failures) stops the upload
+  await Promise.all(pool)
+  // a worker that stopped after a throttle leaves at least one running; finish any rest
+  while (queue.length) await worker()
+  report(file.size)
 }

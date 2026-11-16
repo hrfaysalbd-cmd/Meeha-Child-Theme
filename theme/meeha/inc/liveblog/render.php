@@ -29,6 +29,7 @@ function meeha_lb_icon( $name ) {
 		'bolt'   => '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
 		'plus'   => '<path d="M12 5v14M5 12h14"/>',
 		'minus'  => '<path d="M5 12h14"/>',
+		'down'   => '<path d="M12 5v14M5 12l7 7 7-7"/>',
 	);
 	if ( ! isset( $p[ $name ] ) ) {
 		return '';
@@ -118,7 +119,21 @@ function meeha_lb_entry_html( $e, $cfg ) {
 			<?php endif; ?>
 			<footer class="m-lb-entry__foot">
 				<span class="m-lb-entry__by"><?php echo esc_html( $author ); ?></span>
-				<button type="button" class="m-lb-entry__share" data-lb-copy="<?php echo (int) $e->ID; ?>" aria-label="এই আপডেটের লিংক কপি করুন"><?php echo meeha_lb_icon( 'link' ); // phpcs:ignore WordPress.Security.EscapeOutput ?><span>লিংক</span></button>
+				<span class="m-lb-entry__shares" role="group" aria-label="এই আপডেটটি শেয়ার করুন">
+					<?php
+					// 2.4.14: share one update (WhatsApp / Facebook / X open the update's own #lb- link).
+					$meeha_lb_u = get_permalink( (int) $e->post_parent ) . '#lb-' . (int) $e->ID;
+					$meeha_lb_t = '' !== trim( $e->post_title ) ? $e->post_title : wp_trim_words( wp_strip_all_tags( $e->post_content ), 18, '…' );
+					foreach ( array(
+						'whatsapp' => array( 'হোয়াটসঅ্যাপে শেয়ার', 'https://wa.me/?text=' . rawurlencode( $meeha_lb_t . ' ' . $meeha_lb_u ) ),
+						'facebook' => array( 'ফেসবুকে শেয়ার', 'https://www.facebook.com/sharer/sharer.php?u=' . rawurlencode( $meeha_lb_u ) ),
+						'x'        => array( 'এক্সে শেয়ার', 'https://x.com/intent/post?text=' . rawurlencode( $meeha_lb_t ) . '&url=' . rawurlencode( $meeha_lb_u ) ),
+					) as $meeha_lb_net => $meeha_lb_d ) :
+						?>
+						<a class="m-lb-entry__share m-lb-entry__share--<?php echo esc_attr( $meeha_lb_net ); ?>" href="<?php echo esc_url( $meeha_lb_d[1] ); ?>" target="_blank" rel="noopener nofollow" aria-label="<?php echo esc_attr( $meeha_lb_d[0] ); ?>" title="<?php echo esc_attr( $meeha_lb_d[0] ); ?>"><?php echo meeha_icon( $meeha_lb_net, array( 'size' => 'sm' ) ); // phpcs:ignore WordPress.Security.EscapeOutput ?></a>
+					<?php endforeach; ?>
+					<button type="button" class="m-lb-entry__share" data-lb-copy="<?php echo (int) $e->ID; ?>" aria-label="এই আপডেটের লিংক কপি করুন"><?php echo meeha_lb_icon( 'link' ); // phpcs:ignore WordPress.Security.EscapeOutput ?><span>লিংক</span></button>
+				</span>
 			</footer>
 		</div>
 	</article>
@@ -149,6 +164,31 @@ function meeha_lb_statusbar_html( $post, $cfg, $count ) {
 		$out .= '<span class="m-lb-status__auto" data-lb-auto>স্বয়ংক্রিয়ভাবে হালনাগাদ হচ্ছে</span>';
 	}
 	$out .= '</div>';
+	return $out;
+}
+
+/**
+ * "সর্বশেষ" strip under the status line (2.4.14): the newest updates as one-line links plus a jump to the feed, so on
+ * a phone the latest news is at the top of the page and not below the intro text. Re-rendered by every poll.
+ *
+ * @param WP_Post $post Live post.
+ * @param array   $cfg  Configuration.
+ * @param int     $n    Lines.
+ * @return string
+ */
+function meeha_lb_latest_html( $post, $cfg, $n = 3 ) {
+	$rows = meeha_lb_rows( $post->ID );
+	if ( ! $rows || 'ended' === $cfg['status'] ) {
+		return '';
+	}
+	$kinds = meeha_lb_kinds();
+	$out   = '<nav class="m-lb-latest" aria-label="সর্বশেষ আপডেট"><p class="m-lb-latest__h">সর্বশেষ</p><ol>';
+	foreach ( array_slice( $rows, 0, $n ) as $r ) {
+		$t    = meeha_lb_time( $r['ts'] );
+		$tag  = in_array( $r['kind'], array( 'breaking', 'key', 'milestone' ), true ) ? '<span class="m-lb-latest__tag m-lb-latest__tag--' . esc_attr( $r['kind'] ) . '">' . esc_html( $kinds[ $r['kind'] ][0] ) . '</span> ' : '';
+		$out .= '<li><a href="#lb-' . (int) $r['id'] . '"><time datetime="' . esc_attr( $t['iso'] ) . '">' . esc_html( $t['clock'] ) . '</time> ' . $tag . '<span>' . esc_html( $r['title'] ) . '</span></a></li>';
+	}
+	$out .= '</ol><a class="m-lb-latest__all" href="#live">সব আপডেট দেখুন (' . esc_html( meeha_bn_digits( count( $rows ) ) ) . 'টি)' . meeha_lb_icon( 'down' ) . '</a></nav>';
 	return $out;
 }
 
@@ -250,6 +290,7 @@ function meeha_lb_rows( $post_id ) {
 function meeha_lb_event_top_html( $post, $cfg ) {
 	$rows = meeha_lb_rows( $post->ID );
 	$out  = meeha_lb_statusbar_html( $post, $cfg, count( $rows ) );
+	$out .= meeha_lb_latest_html( $post, $cfg );
 	$b    = $cfg['board'];
 	if ( $b['on'] && ( '' !== $b['a_name'] || '' !== $b['b_name'] ) ) {
 		$out .= '<div class="m-lb-board" aria-label="স্কোরবোর্ড">';
@@ -354,6 +395,7 @@ function meeha_lb_case_top_html( $post, $cfg ) {
 	?>
 	<div class="m-lb-top m-lb-top--case">
 		<?php echo meeha_lb_statusbar_html( $post, $cfg, count( $rows ) ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+		<?php echo meeha_lb_latest_html( $post, $cfg ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 
 		<section class="m-lb-file" aria-label="কেস ফাইল">
 			<div class="m-lb-file__head">

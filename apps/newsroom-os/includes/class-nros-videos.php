@@ -435,9 +435,13 @@ class NROS_Videos {
 			$thumbnail = 'https://i.ytimg.com/vi/' . $youtube_id . '/hqdefault.jpg';
 		}
 
+		$hd_id = ( 'upload' === $source && $attachment_id ) ? (int) get_post_meta( $attachment_id, '_nros_hd_id', true ) : 0;
+		$hd_id = $hd_id && self::is_video_attachment( $hd_id ) ? $hd_id : 0;
 		return array(
 			'source'        => $source,
 			'video_url'     => $video_url,
+			'hd_id'         => $hd_id ? $hd_id : null,
+			'hd_url'        => $hd_id ? (string) wp_get_attachment_url( $hd_id ) : null,
 			'attachment_id' => ( 'upload' === $source && $attachment_id ) ? $attachment_id : null,
 			'youtube_id'    => $youtube_id,
 			'thumbnail'     => $thumbnail ? $thumbnail : null,
@@ -480,6 +484,10 @@ class NROS_Videos {
 			'source'              => $media['source'],
 			'video_url'           => $media['video_url'],
 			'video_attachment_id' => $media['attachment_id'],
+			// r46 (1.28.0): the full-quality file sent after the quick 720p one, and every footage clip
+			'hd_attachment_id'    => $media['hd_id'],
+			'hd_url'              => $media['hd_url'],
+			'footage'             => self::footage( $post->ID ),
 			'youtube_id'          => $media['youtube_id'],
 			'orientation'         => in_array( $orientation, self::ORIENTATIONS, true ) ? $orientation : 'portrait',
 			'duration'            => '' === $duration ? null : (int) $duration,
@@ -501,6 +509,38 @@ class NROS_Videos {
 			// Round 21 — video editor: the unedited original + the settings used.
 			'edit'                => self::edit_info( $post->ID ),
 		);
+	}
+
+	/**
+	 * r46 (1.28.0) — the footage clips a correspondent sent for one video, in
+	 * their order: [{ id, url, hd_id, hd_url, mime, size, name }]. The editor
+	 * joins them (with transitions) in the publisher app.
+	 *
+	 * @param int $post_id Video id.
+	 * @return array
+	 */
+	public static function footage( $post_id ) {
+		$ids = json_decode( (string) get_post_meta( $post_id, '_meeha_video_footage', true ), true );
+		$out = array();
+		foreach ( is_array( $ids ) ? $ids : array() as $id ) {
+			$id = (int) $id;
+			if ( ! self::is_video_attachment( $id ) ) {
+				continue;
+			}
+			$hd    = (int) get_post_meta( $id, '_nros_hd_id', true );
+			$hd    = $hd && self::is_video_attachment( $hd ) ? $hd : 0;
+			$path  = get_attached_file( $id );
+			$out[] = array(
+				'id'     => $id,
+				'url'    => (string) wp_get_attachment_url( $id ),
+				'hd_id'  => $hd ? $hd : null,
+				'hd_url' => $hd ? (string) wp_get_attachment_url( $hd ) : null,
+				'mime'   => (string) get_post_mime_type( $id ),
+				'size'   => $path && file_exists( $path ) ? (int) filesize( $path ) : 0,
+				'name'   => (string) get_the_title( $id ),
+			);
+		}
+		return $out;
 	}
 
 	/**
@@ -727,6 +767,26 @@ class NROS_Videos {
 			$meta_delete[] = '_meeha_video_attachment_id';
 		}
 		$meta_set['_meeha_video_source'] = $source;
+
+		// r46 (1.28.0) — several footage clips for one news (order kept, at most 20)
+		if ( $request->has_param( 'footage_ids' ) ) {
+			$fids = array();
+			foreach ( array_slice( (array) $request->get_param( 'footage_ids' ), 0, 20 ) as $fid ) {
+				$fid = (int) $fid;
+				if ( $fid <= 0 || in_array( $fid, $fids, true ) ) {
+					continue;
+				}
+				if ( ! self::is_video_attachment( $fid ) || ( ! $is_staff && ! NROS_Media::uploaded_by( $fid, $user->ID ) ) ) {
+					return new WP_Error( 'nros_bad_request', 'একটি ফুটেজ ফাইল সঠিক নয়।', array( 'status' => 400 ) );
+				}
+				$fids[] = $fid;
+			}
+			if ( count( $fids ) > 1 ) {
+				$meta_set['_meeha_video_footage'] = wp_json_encode( $fids );
+			} else {
+				$meta_delete[] = '_meeha_video_footage';
+			}
+		}
 
 		// --- Presentation ------------------------------------------------
 		$orientation = $request->get_param( 'orientation' );

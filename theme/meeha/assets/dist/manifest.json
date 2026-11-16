@@ -1,5 +1,5 @@
 {
-    "generated": "2026-11-14T04:43:51+00:00",
+    "generated": "2026-11-16T13:39:01+00:00",
     "bundles": {
         "core": {
             "css": [
@@ -13,8 +13,8 @@
             "critical": [],
             "deps": [],
             "css_file": "core.min.css",
-            "css_ver": "4b38c7b42d",
-            "css_bytes": 44463
+            "css_ver": "569fe38fff",
+            "css_bytes": 45573
         },
         "base": {
             "css": [
@@ -151,18 +151,20 @@
         },
         "home": {
             "css": [
-                "assets/css/home.css"
+                "assets/css/home.css",
+                "assets/css/liveband.css"
             ],
             "js": [
                 "assets/js/home.js"
             ],
             "critical": [
-                "assets/css/home.css"
+                "assets/css/home.css",
+                "assets/css/liveband.css"
             ],
             "deps": [],
             "css_file": "home.min.css",
-            "css_ver": "b31bb15fdb",
-            "css_bytes": 8174,
+            "css_ver": "ce27ebe442",
+            "css_bytes": 14272,
             "js_file": "home.min.js",
             "js_ver": "fdea147781",
             "js_bytes": 2821
@@ -311,8 +313,8 @@
             "critical": [],
             "deps": [],
             "js_file": "cards.min.js",
-            "js_ver": "bab5073765",
-            "js_bytes": 229592
+            "js_ver": "9155a88c60",
+            "js_bytes": 266550
         },
         "campus": {
             "css": [
@@ -372,11 +374,22 @@
             "critical": [],
             "deps": [],
             "css_file": "liveblog.min.css",
-            "css_ver": "8e80666a91",
-            "css_bytes": 20715,
+            "css_ver": "ed3ef5c16a",
+            "css_bytes": 22448,
             "js_file": "liveblog.min.js",
             "js_ver": "9a730b646c",
             "js_bytes": 6866
+        },
+        "liveband": {
+            "css": [],
+            "js": [
+                "assets/js/liveband.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "js_file": "liveband.min.js",
+            "js_ver": "d525f7d62a",
+            "js_bytes": 4637
         }
     },
     "critical": {
@@ -389,8 +402,8 @@
                 "assets/css/components.css",
                 "assets/css/live-badge.css"
             ],
-            "bytes": 44463,
-            "gzip": 9483
+            "bytes": 45573,
+            "gzip": 9646
         },
         "page": {
             "file": "critical-page.min.css",
@@ -402,8 +415,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/page.css"
             ],
-            "bytes": 48394,
-            "gzip": 10230
+            "bytes": 49504,
+            "gzip": 10394
         },
         "404": {
             "file": "critical-404.min.css",
@@ -415,8 +428,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/page.css"
             ],
-            "bytes": 48394,
-            "gzip": 10230
+            "bytes": 49504,
+            "gzip": 10394
         },
         "account": {
             "file": "critical-account.min.css",
@@ -428,8 +441,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/page.css"
             ],
-            "bytes": 48394,
-            "gzip": 10230
+            "bytes": 49504,
+            "gzip": 10394
         },
         "home": {
             "file": "critical-home.min.css",
@@ -439,10 +452,11 @@
                 "assets/css/header.css",
                 "assets/css/components.css",
                 "assets/css/live-badge.css",
-                "assets/css/home.css"
+                "assets/css/home.css",
+                "assets/css/liveband.css"
             ],
-            "bytes": 52637,
-            "gzip": 10699
+            "bytes": 59845,
+            "gzip": 11889
         },
         "archive": {
             "file": "critical-archive.min.css",
@@ -454,8 +468,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/archive.css"
             ],
-            "bytes": 54015,
-            "gzip": 10951
+            "bytes": 55125,
+            "gzip": 11127
         },
         "search": {
             "file": "critical-search.min.css",
@@ -467,8 +481,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/archive.css"
             ],
-            "bytes": 54015,
-            "gzip": 10951
+            "bytes": 55125,
+            "gzip": 11127
         },
         "single": {
             "file": "critical-single.min.css",
@@ -480,8 +494,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/single.css"
             ],
-            "bytes": 62004,
-            "gzip": 12605
+            "bytes": 63114,
+            "gzip": 12765
         },
         "literature": {
             "file": "critical-literature.min.css",
@@ -494,8 +508,8 @@
                 "assets/css/literary-font.css",
                 "assets/css/literature.css"
             ],
-            "bytes": 58631,
-            "gzip": 11957
+            "bytes": 59741,
+            "gzip": 12125
         },
         "quotes": {
             "file": "critical-quotes.min.css",
@@ -507,8 +521,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/quotes.css"
             ],
-            "bytes": 58720,
-            "gzip": 13170
+            "bytes": 59830,
+            "gzip": 13334
         },
         "campus": {
             "file": "critical-campus.min.css",
@@ -520,8 +534,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/campus.css"
             ],
-            "bytes": 89339,
-            "gzip": 17652
+            "bytes": 90449,
+            "gzip": 17819
         }
     }
 }

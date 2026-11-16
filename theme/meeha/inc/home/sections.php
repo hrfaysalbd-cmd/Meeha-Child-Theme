@@ -62,6 +62,12 @@ function meeha_home_prepare() {
 function meeha_home_render() {
 	$plan     = meeha_home_prepare();
 	$sections = meeha_home_sections();
+	/**
+	 * Before the first section (2.4.14: the "এখন লাইভ" band, inc/liveblog/home.php).
+	 *
+	 * @param array $plan Plan.
+	 */
+	do_action( 'meeha_home_before_sections', $plan );
 	foreach ( meeha_home_enabled_sections() as $sid => $title ) {
 		if ( empty( $sections[ $sid ]['render'] ) || ! is_callable( $sections[ $sid ]['render'] ) ) {
 			continue;

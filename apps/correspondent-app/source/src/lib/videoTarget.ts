@@ -34,3 +34,32 @@ export function etaText(bytes: number, speedBps: number | null) {
   if (s < 3600) return `প্রায় ${bn(Math.round(s / 60))} মিনিট`
   return `প্রায় ${bn(Math.round((s / 3600) * 10) / 10)} ঘণ্টা`
 }
+
+/**
+ * r46 — the quick copy, sent first (like YouTube: SD first, HD later).
+ * 720p at about 1.8 Mbit/s on a normal line, 480p at about 0.9 Mbit/s on a
+ * slow one (under ~250 KB/s measured). The untouched original follows in the
+ * background as the HD file.
+ */
+export function quickPlan(speedBps: number | null): { maxShort: number; maxBitrate: number; label: string } {
+  const hint = (navigator as { connection?: { effectiveType?: string; saveData?: boolean } }).connection
+  const slow = (speedBps !== null && speedBps < 250_000) || hint?.saveData || hint?.effectiveType === '2g' || hint?.effectiveType === 'slow-2g' || hint?.effectiveType === '3g'
+  return slow ? { maxShort: 480, maxBitrate: 900_000, label: 'SD ৪৮০p' } : { maxShort: 720, maxBitrate: 1_800_000, label: '৭২০p' }
+}
+
+/** r46: whether the HD original should go up now ("শুধু Wi-Fi-তে" setting). */
+export const HD_PREF_KEY = 'nros_hd_upload'
+export type HdPref = 'always' | 'wifi' | 'never'
+export function hdPref(): HdPref {
+  try {
+    const v = localStorage.getItem(HD_PREF_KEY)
+    return v === 'wifi' || v === 'never' ? v : 'always'
+  } catch {
+    return 'always'
+  }
+}
+export function onWifi(): boolean | null {
+  const t = (navigator as { connection?: { type?: string } }).connection?.type
+  if (!t) return null
+  return t === 'wifi' || t === 'ethernet'
+}

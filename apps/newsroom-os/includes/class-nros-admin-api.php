@@ -109,6 +109,13 @@ class NROS_Admin_API {
 			'permission_callback' => array( 'NROS_Core', 'require_staff' ),
 		) );
 
+		// 1.28.0 — the পদবি shown in the byline (WordPress user field meeha_author_title)
+		register_rest_route( NROS_API_NS, '/admin/correspondents/(?P<id>\d+)/title', array(
+			'methods'             => 'POST',
+			'callback'            => array( __CLASS__, 'correspondent_set_title' ),
+			'permission_callback' => array( 'NROS_Core', 'require_staff' ),
+		) );
+
 		register_rest_route( NROS_API_NS, '/admin/correspondents/(?P<id>\d+)/promote-editor', array(
 			'methods'             => 'POST',
 			'callback'            => array( __CLASS__, 'correspondent_promote_editor' ),
@@ -562,6 +569,7 @@ class NROS_Admin_API {
 					'email'        => $u->user_email,
 					'phone'        => get_user_meta( $u->ID, 'meeha_phone', true ),
 					'division'     => get_user_meta( $u->ID, 'meeha_division', true ),
+					'title'        => (string) get_user_meta( $u->ID, 'meeha_author_title', true ),
 					'suspensions'  => NROS_Core::active_suspension_types( $u->ID ),
 				);
 
@@ -619,6 +627,9 @@ class NROS_Admin_API {
 			'division'      => get_user_meta( $id, 'meeha_division', true ),
 			'district'      => get_user_meta( $id, 'meeha_district', true ),
 			'upazila'       => get_user_meta( $id, 'meeha_upazila', true ),
+			'title'         => (string) get_user_meta( $id, 'meeha_author_title', true ),
+			'title_log'     => array_slice( array_reverse( (array) get_user_meta( $id, 'nros_title_log', true ) ), 0, 10 ),
+			'title_presets' => self::title_presets(),
 			'post_counts'   => $counts,
 			'suspensions'   => NROS_Core::active_suspension_types( $id ),
 		);
@@ -632,6 +643,61 @@ class NROS_Admin_API {
 		}
 
 		return new WP_REST_Response( $data, 200 );
+	}
+
+	/**
+	 * 1.28.0 — common Bangladeshi newsroom পদবি, offered as one-tap choices.
+	 *
+	 * @return string[]
+	 */
+	public static function title_presets() {
+		return (array) apply_filters(
+			'nros_title_presets',
+			array( 'জেলা প্রতিনিধি', 'উপজেলা প্রতিনিধি', 'নিজস্ব প্রতিবেদক', 'স্টাফ রিপোর্টার', 'বিশেষ প্রতিনিধি', 'ক্যাম্পাস প্রতিনিধি', 'বিশ্ববিদ্যালয় প্রতিনিধি', 'আঞ্চলিক প্রতিনিধি', 'ব্যুরো প্রধান', 'সিনিয়র রিপোর্টার', 'অনুসন্ধানী প্রতিবেদক', 'ফটো সাংবাদিক', 'ভিডিও জার্নালিস্ট', 'প্রবাস প্রতিনিধি', 'শিক্ষানবিশ প্রতিবেদক' )
+		);
+	}
+
+	/**
+	 * POST /admin/correspondents/{id}/title { title } — sets the পদবি that
+	 * the website shows under the reporter's name (same field as WordPress
+	 * › Users › "পদবি"). Every change is kept in a short log.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function correspondent_set_title( $request ) {
+		$id   = (int) $request->get_param( 'id' );
+		$user = get_userdata( $id );
+		if ( ! $user || ! in_array( 'correspondent', (array) $user->roles, true ) ) {
+			return new WP_Error( 'nros_not_found', 'পাওয়া যায়নি।', array( 'status' => 404 ) );
+		}
+		$title = trim( sanitize_text_field( (string) $request->get_param( 'title' ) ) );
+		if ( function_exists( 'mb_substr' ) ) {
+			$title = mb_substr( $title, 0, 80 );
+		}
+		$old = (string) get_user_meta( $id, 'meeha_author_title', true );
+		if ( $title === $old ) {
+			return new WP_REST_Response( array( 'ok' => true, 'title' => $title ), 200 );
+		}
+		if ( '' === $title ) {
+			delete_user_meta( $id, 'meeha_author_title' );
+		} else {
+			update_user_meta( $id, 'meeha_author_title', $title );
+		}
+		$me    = NROS_Auth::get_user_from_request( $request );
+		$log   = (array) get_user_meta( $id, 'nros_title_log', true );
+		$log   = array_values( array_filter( $log, 'is_array' ) );
+		$log[] = array(
+			'from' => $old,
+			'to'   => $title,
+			'by'   => $me ? (string) $me->display_name : '',
+			'at'   => current_time( 'mysql' ),
+		);
+		update_user_meta( $id, 'nros_title_log', array_slice( $log, -30 ) );
+		if ( class_exists( 'NROS_Notifications' ) && '' !== $title ) {
+			NROS_Notifications::add( array( $id ), 'title_changed', 'আপনার পদবি এখন: ' . $title, 'ওয়েবসাইটে আপনার নামের নিচে এই পদবি দেখাবে।', '/app/profile' );
+		}
+		return new WP_REST_Response( array( 'ok' => true, 'title' => $title ), 200 );
 	}
 
 	/**

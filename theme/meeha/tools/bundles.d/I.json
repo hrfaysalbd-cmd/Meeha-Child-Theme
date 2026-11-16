@@ -1,10 +1,17 @@
 {
-	"_comment": "Live posts (2.4.8, inc/liveblog): `liveblog` loads only on a live post's page; the small live badge rides in `core` because story cards show it everywhere.",
+	"_comment": "Live posts (2.4.8, inc/liveblog): `liveblog` loads only on a live post's page; the small live badge (+ 2.4.14 header pill) rides in `core` because story cards and the nav show it everywhere. 2.4.14: the homepage \"এখন লাইভ\" band — its CSS is part of the homepage critical CSS (above the fold), `liveband` = its 60 s refresh script, enqueued only while a live post runs.",
 	"core": {
 		"css": [ "assets/css/live-badge.css" ]
 	},
 	"liveblog": {
 		"css": [ "assets/css/liveblog.css" ],
 		"js": [ "assets/js/liveblog.js" ]
+	},
+	"home": {
+		"css": [ "assets/css/liveband.css" ],
+		"critical": [ "assets/css/liveband.css" ]
+	},
+	"liveband": {
+		"js": [ "assets/js/liveband.js" ]
 	}
 }

@@ -288,8 +288,10 @@ export default function VideoStudio() {
         if (video.source !== 'upload' || !video.video_attachment_id) {
           throw new Error('শুধু আপলোড করা ভিডিও এডিট করা যায় — YouTube লিংকের ভিডিও এখানে এডিট হয় না।')
         }
-        const originalId = video.edit?.original_attachment_id ?? video.video_attachment_id
-        const mainUrl = video.edit?.original_url || video.video_url
+        // r46: the full-quality original when it has arrived (the main file may be a quick 720p copy)
+        const useHd = !video.edit?.original_url && !!video.hd_url && !!video.hd_attachment_id
+        const originalId = video.edit?.original_attachment_id ?? (useHd ? video.hd_attachment_id! : video.video_attachment_id)
+        const mainUrl = video.edit?.original_url || (useHd ? video.hd_url! : video.video_url)
         const [main, logo, limits] = await Promise.all([
           probeUrl(mainUrl),
           (async () => {

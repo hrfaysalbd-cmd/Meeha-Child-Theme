@@ -3,7 +3,11 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light dark;
+  /* r46: the screens are drawn for a light look only. "light dark" let a phone
+     in dark mode paint typed text white inside our light boxes (the chat box
+     looked empty while typing). */
+  color-scheme: light only;
+  color: #171717;
 }
 
 html, body, #root {

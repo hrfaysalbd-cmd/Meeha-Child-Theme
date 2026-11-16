@@ -8,7 +8,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-foreach ( array( 'data', 'render', 'rest' ) as $meeha_lb_file ) {
+foreach ( array( 'data', 'render', 'rest', 'home', 'automation' ) as $meeha_lb_file ) {
 	require_once __DIR__ . '/' . $meeha_lb_file . '.php';
 }
 unset( $meeha_lb_file );

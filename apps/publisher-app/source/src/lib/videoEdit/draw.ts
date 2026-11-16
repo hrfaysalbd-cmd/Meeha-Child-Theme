@@ -18,6 +18,7 @@ import { BRAND, FONT_BODY, FONT_DISPLAY, type LogoAsset } from './assets'
 import type { SfxId } from './sfxlib'
 import { EMPTY_HOUSE, drawHouseAd, netIcon, type HouseAdId, type HouseInfo } from './houseads'
 import { clamp, ease, fillRoundRect, fitText, lerp, rnd, win, type Ctx } from './motion'
+import { PACK_SCENE_SFX, PACK_THEMES, drawLowerThird, drawPackScene, isLowerThird, packSettledAt } from './pack'
 import { pipActive, segSource, segSourceEnd, type Layout, type Rect, type SceneId, type Segment, type Timeline } from './timeline'
 
 export interface Picture {
@@ -240,7 +241,7 @@ function drawPrivacyBox(ctx: Ctx, env: DrawEnv, b: BlurBox, d: Rect, clip: Rect)
 // Frame themes
 // ---------------------------------------------------------------------------
 
-interface Theme {
+export interface Theme {
   /** Paints the header band background (+ its continuous animation). */
   headerBg: (ctx: Ctx, r: Rect, t: number, s: number) => void
   footerBg: (ctx: Ctx, r: Rect, t: number, s: number) => void
@@ -256,6 +257,8 @@ interface Theme {
   accent: string
   /** Thin line between header and video. */
   edge?: string
+  /** Round 46: room kept free at the right of the header for the frame's icon (× header height). */
+  rightRoom?: number
 }
 
 /** Round 26: the agreed blue brand look (same as the photocards). */
@@ -452,6 +455,7 @@ function triSignal(ctx: Ctx, r: Rect, t: number) {
 }
 
 const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
+  ...PACK_THEMES,
   breaking: {
     headerBg: (ctx, r, t, s) => {
       ctx.fillStyle = linear(ctx, r, [
@@ -1907,7 +1911,9 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
           ? Math.min(r.w * 0.3, r.h * 2.4 + (fid === 'health' ? r.h * 0.9 : 0))
           : fid === 'world'
             ? r.h * 1.5
-            : 0
+            : theme.rightRoom
+              ? Math.min(r.w * 0.3, r.h * theme.rightRoom)
+              : 0
   if (minimal) {
     // accent bar left of the text block
     const bh = (r.h - 44 * s) * ease.outCubic(win(t, 0.15, 0.6))
@@ -2474,6 +2480,7 @@ function drawCaption(ctx: Ctx, env: DrawEnv, c: Caption, local: number, dur: num
   const logoHere = lg.on && ((top && c.pos[0] === lg.corner[0] && c.pos[1] === lg.corner[1]) || (!top && !centre && c.pos === lg.corner))
   const logoGap = logoHere ? (lg.size / 100) * Math.min(v.w, v.h) * 1.55 + 10 * s : 0
 
+  if (isLowerThird(c.style)) return drawLowerThird(ctx, env, c, local, dur, accent, stack, logoGap)
   ctx.save()
   if (c.style === 'tag' || c.style === 'location') {
     const pin = c.style === 'location'
@@ -4510,6 +4517,8 @@ export function drawScene(ctx: Ctx, env: DrawEnv, id: SceneId, t: number, dur: n
       return sceneStayTuned(ctx, env, t, dur)
     case 'thanks-burst':
       return sceneThanksBurst(ctx, env, t, dur)
+    default:
+      return drawPackScene(ctx, env, id, t, dur)
   }
 }
 
@@ -4850,14 +4859,14 @@ export function drawOutputFrame(ctx: Ctx, env: DrawEnv, seg: Segment, T: number,
       break
   }
   const tr = transitionAt(env.tl, env.cfg, T)
-  if (tr) drawTransition(ctx, env.cfg.transition.id, tr.p, tr.region === 'video' ? env.L.video : { x: 0, y: 0, w: env.L.W, h: env.L.H }, env.L.s / env.L.k, env.scratch.box)
+  if (tr) drawTransition(ctx, env.cfg.transition.id, tr.p, tr.region === 'video' ? env.L.video : { x: 0, y: 0, w: env.L.W, h: env.L.H }, env.L.s / env.L.k, env.scratch.box, env.logo)
   ctx.restore()
 }
 
 /** When an intro looks finished: its title and design are all in, nothing has left yet. */
 export function introSettledAt(scene: SceneId, dur: number) {
   const custom: Partial<Record<SceneId, number>> = { kinetic: 3, 'tv-open': 2.6, countdown: 3 }
-  return Math.min(custom[scene] ?? dur * 0.55, dur - 0.6)
+  return Math.min(custom[scene] ?? packSettledAt(scene) ?? dur * 0.55, dur - 0.6)
 }
 
 /**
@@ -4928,11 +4937,13 @@ export function sfxCues(tl: Timeline, cfg: EditConfig): { t: number; kind: SfxKi
     else if (s.scene === 'subscribe') cues.push({ t: s.t0 + 0.5, kind: 'pop', gain: 0.6 }, { t: s.t0 + 1.75, kind: 'camera', gain: 0.4 }, { t: s.t0 + 2.2, kind: 'notify', gain: 0.6 })
     else if (s.scene === 'staytuned') cues.push({ t: s.t0 + 0.05, kind: 'reverse', gain: 0.45 }, { t: s.t0 + 0.7, kind: 'ident', gain: 0.6 })
     else if (s.scene === 'thanks-burst') cues.push({ t: s.t0 + 0.3, kind: 'pop', gain: 0.6 }, { t: s.t0 + 0.32, kind: 'sparkle', gain: 0.5 }, { t: s.t0 + 0.6, kind: 'applause', gain: 0.35 })
+    else if (s.scene && PACK_SCENE_SFX[s.scene]) for (const [dt, kind, gain] of PACK_SCENE_SFX[s.scene]!) cues.push({ t: s.t0 + dt, kind, gain })
     else if (s.scene?.startsWith('house-')) cues.push({ t: s.t0 + 0.1, kind: 'whoosh', gain: 0.5 }, { t: s.t0 + 1.3, kind: 'pop', gain: 0.6 }, { t: s.t0 + 0.5, kind: 'chime', gain: 0.4 })
   }
   if (cfg.frame.id !== 'none') cues.push({ t: tl.mainStart, kind: 'whoosh', gain: 0.35 })
   for (const s of tl.segments) if (s.rate === 0) cues.push({ t: s.t0, kind: 'hit', gain: 0.35 })
   for (const s of tl.segments) if (s.replay) cues.push({ t: s.t0, kind: 'whoosh', gain: 0.4 })
-  for (const t of transitionTimes(tl, cfg)) cues.push({ t: t - cfg.transition.dur * 0.4, kind: cfg.transition.id === 'fade' ? 'soft' : 'whoosh', gain: 0.45 })
+  const trKind: SfxKind = cfg.transition.id === 'fade' ? 'soft' : cfg.transition.id === 'st-glitch' ? 'glitch' : cfg.transition.id === 'st-breaking' ? 'whoosh-fast' : cfg.transition.id === 'st-ink' || cfg.transition.id === 'st-nil' ? 'whoosh-air' : 'whoosh'
+  for (const t of transitionTimes(tl, cfg)) cues.push({ t: t - cfg.transition.dur * 0.4, kind: trKind, gain: 0.45 })
   return cues
 }

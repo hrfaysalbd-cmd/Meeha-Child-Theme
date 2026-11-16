@@ -520,7 +520,7 @@ export default function Composer({ room, labels, members, me, replyTo, editing, 
             }}
             placeholder={label === 'urgent' ? 'জরুরি কী হয়েছে লিখুন…' : room.kind === 'desk' ? 'ডেস্ককে লিখুন…' : 'মেসেজ লিখুন… @ ডাকুন, / খবর'}
             title="@ লিখে নাম বাছলে তিনি আলাদা করে জানবেন। / লিখলে খবর বাছতে পারবেন"
-            className="flex-1 min-w-0 resize-none rounded-2xl bg-neutral-100 px-4 py-2.5 text-[14.5px] leading-[1.45] outline-none focus:bg-white focus:ring-2 focus:ring-brand-200 max-h-40"
+            className="flex-1 min-w-0 resize-none rounded-2xl bg-neutral-100 text-neutral-900 placeholder:text-neutral-400 caret-brand-600 px-4 py-2.5 text-[14.5px] leading-[1.45] outline-none focus:bg-white focus:ring-2 focus:ring-brand-200 max-h-40"
             data-testid="composer-input"
           />
           {canSend || text.trim() || files.length ? (
