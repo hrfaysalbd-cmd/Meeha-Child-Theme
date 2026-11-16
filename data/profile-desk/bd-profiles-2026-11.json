@@ -1,0 +1,3121 @@
+{
+ "format": "meeha-profile-desk",
+ "version": 1,
+ "note": "ওয়েব থেকে নভেম্বর ২০২৬-এ সংগৃহীত। সব লিংক \"যাচাই হয়নি\" হিসেবে ঢুকবে। প্রকাশের আগে প্রতিটা তথ্য সূত্র দেখে যাচাই করুন।",
+ "rows": [
+  {
+   "name_bn": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "name_en": "Bangladesh Nationalist Party",
+   "category": "party",
+   "importance": 5,
+   "links": [
+    "https://www.bnpbd.org"
+   ],
+   "tags": [
+    "দল",
+    "সরকারি দল",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "১৩তম জাতীয় সংসদ নির্বাচনে (১২ ফেব্রুয়ারি ২০২৬) সংখ্যাগরিষ্ঠ দল; সরকার গঠন করেছে।",
+   "status": "active",
+   "aliases": "বিএনপি, BNP",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "বাংলাদেশ জামায়াতে ইসলামী",
+   "name_en": "Bangladesh Jamaat-e-Islami",
+   "category": "party",
+   "importance": 5,
+   "links": [],
+   "tags": [
+    "দল",
+    "বিরোধী দল",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "১৩তম সংসদে প্রধান বিরোধী দল (১১ দলীয় জোটের নেতৃত্বে)।",
+   "status": "active",
+   "aliases": "জামায়াত, Jamaat",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "জাতীয় নাগরিক পার্টি (এনসিপি)",
+   "name_en": "National Citizen Party",
+   "category": "party",
+   "importance": 5,
+   "links": [],
+   "tags": [
+    "দল",
+    "বিরোধী দল",
+    "এনসিপি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "জুলাই ২০২৪ আন্দোলনের ছাত্রনেতাদের গড়া দল; ১৩তম সংসদে বিরোধী জোটে।",
+   "status": "active",
+   "aliases": "এনসিপি, NCP",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "বাংলাদেশ আওয়ামী লীগ",
+   "name_en": "Bangladesh Awami League",
+   "category": "party",
+   "importance": 4,
+   "links": [
+    "https://albd.org"
+   ],
+   "tags": [
+    "দল",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "২০২৪ সালের আগস্ট পর্যন্ত ক্ষমতাসীন দল। বর্তমান আইনি অবস্থা (কার্যক্রমে নিষেধাজ্ঞা ইত্যাদি) প্রকাশের আগে যাচাই করুন।",
+   "status": "inactive",
+   "aliases": "আওয়ামী লীগ, AL",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "জাতীয় পার্টি",
+   "name_en": "Jatiya Party (Ershad)",
+   "category": "party",
+   "importance": 3,
+   "links": [],
+   "tags": [
+    "দল",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "জাপা",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "বাংলাদেশ জাতীয় পার্টি (বিজেপি)",
+   "name_en": "Bangladesh Jatiya Party",
+   "category": "party",
+   "importance": 3,
+   "links": [],
+   "tags": [
+    "দল",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "১৩তম সংসদে ১ আসন; বিএনপি জোটে। চেয়ারম্যান আন্দালিভ রহমান পার্থ।",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "গণ অধিকার পরিষদ",
+   "name_en": "Gono Odhikar Parishad",
+   "category": "party",
+   "importance": 3,
+   "links": [],
+   "tags": [
+    "দল",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "১৩তম সংসদে ১ আসন; বিএনপি জোটে।",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "গণসংহতি আন্দোলন",
+   "name_en": "Ganosamhati Andolan",
+   "category": "party",
+   "importance": 3,
+   "links": [],
+   "tags": [
+    "দল",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "১৩তম সংসদে ১ আসন; বিএনপি জোটে।",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "বাংলাদেশ খেলাফত মজলিস",
+   "name_en": "Bangladesh Khilafat Majlis",
+   "category": "party",
+   "importance": 3,
+   "links": [],
+   "tags": [
+    "দল",
+    "বিরোধী দল",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "১৩তম সংসদে ৩ আসন; ১১ দলীয় জোটে।",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "ইসলামী আন্দোলন বাংলাদেশ",
+   "name_en": "Islami Andolan Bangladesh",
+   "category": "party",
+   "importance": 3,
+   "links": [],
+   "tags": [
+    "দল",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "১৩তম সংসদে ১ আসন।",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "মির্জা ফখরুল ইসলাম আলমগীর",
+   "name_en": "Mirza Fakhrul Islam Alamgir",
+   "category": "official",
+   "title": "রাষ্ট্রপতি (আগস্ট ২০২৬ থেকে)",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "",
+   "importance": 5,
+   "tags": [
+    "রাষ্ট্রপতি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "২১ আগস্ট ২০২৬-এর মধ্যে রাষ্ট্রপতি হিসেবে শপথ নেন; আগে স্থানীয় সরকারমন্ত্রী ও বিএনপি মহাসচিব ছিলেন। সূত্র দেখে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-08-21",
+     "kind": "position",
+     "title": "রাষ্ট্রপতি (আগস্ট ২০২৬ থেকে)",
+     "source_url": "https://www.tbsnews.net/bangladesh/cabinet-reshuffle-moyeen-partho-saching-prue-millat-take-oath-ministers-1521296"
+    }
+   ]
+  },
+  {
+   "name_bn": "তারেক রহমান",
+   "name_en": "Tarique Rahman",
+   "category": "politician",
+   "title": "প্রধানমন্ত্রী; প্রতিরক্ষা ও মন্ত্রিপরিষদ বিভাগের দায়িত্বেও · সংসদ সদস্য, ঢাকা-১৭",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "ঢাকা",
+   "importance": 5,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রধানমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "প্রধানমন্ত্রী; প্রতিরক্ষা ও মন্ত্রিপরিষদ বিভাগের দায়িত্বেও। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "প্রধানমন্ত্রী; প্রতিরক্ষা ও মন্ত্রিপরিষদ বিভাগের দায়িত্বেও",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "হাফিজ উদ্দিন আহমদ",
+   "name_en": "Hafiz Uddin Ahmad",
+   "category": "politician",
+   "title": "স্পিকার, জাতীয় সংসদ",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "",
+   "importance": 4,
+   "tags": [
+    "সংসদ",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "স্পিকার, জাতীয় সংসদ। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-03-12",
+     "kind": "position",
+     "title": "স্পিকার, জাতীয় সংসদ",
+     "source_url": "https://en.wikipedia.org/wiki/13th_Jatiya_Sangsad"
+    }
+   ]
+  },
+  {
+   "name_bn": "কায়সার কামাল",
+   "name_en": "Kayser Kamal",
+   "category": "politician",
+   "title": "ডেপুটি স্পিকার, জাতীয় সংসদ",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "সংসদ",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "ডেপুটি স্পিকার, জাতীয় সংসদ। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "ডেপুটি স্পিকার, জাতীয় সংসদ",
+     "source_url": "https://en.wikipedia.org/wiki/13th_Jatiya_Sangsad"
+    }
+   ]
+  },
+  {
+   "name_bn": "নুরুল ইসলাম মনি",
+   "name_en": "Nurul Islam Moni",
+   "category": "politician",
+   "title": "চিফ হুইপ (সরকারি দল)",
+   "org": "",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "সংসদ",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "শ্যাডো কেবিনেট পাতায় সরকারি দলের চিফ হুইপ হিসেবে নাম আছে; দল ও আসন পাতায় নেই, যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "চিফ হুইপ (সরকারি দল)",
+     "source_url": "https://en.wikipedia.org/wiki/Shadow_cabinet_of_Bangladesh"
+    }
+   ]
+  },
+  {
+   "name_bn": "মির্জা আব্বাস",
+   "name_en": "Mirza Abbas",
+   "category": "politician",
+   "title": "প্রধানমন্ত্রীর রাজনৈতিক উপদেষ্টা (মন্ত্রী পদমর্যাদা) · সংসদ সদস্য, ঢাকা-৮",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "ঢাকা",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "উপদেষ্টা",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "প্রধানমন্ত্রীর রাজনৈতিক উপদেষ্টা (মন্ত্রী পদমর্যাদা)। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "প্রধানমন্ত্রীর রাজনৈতিক উপদেষ্টা (মন্ত্রী পদমর্যাদা)",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "নজরুল ইসলাম খান",
+   "name_en": "Nazrul Islam Khan",
+   "category": "politician",
+   "title": "প্রধানমন্ত্রীর রাজনৈতিক উপদেষ্টা; কৃষি মন্ত্রণালয় বিষয়ক উপদেষ্টা",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "উপদেষ্টা",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "প্রধানমন্ত্রীর রাজনৈতিক উপদেষ্টা; কৃষি মন্ত্রণালয় বিষয়ক উপদেষ্টা। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "প্রধানমন্ত্রীর রাজনৈতিক উপদেষ্টা; কৃষি মন্ত্রণালয় বিষয়ক উপদেষ্টা",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "রুহুল কবির রিজভী",
+   "name_en": "Ruhul Kabir Rizvi",
+   "category": "politician",
+   "title": "প্রধানমন্ত্রীর রাজনৈতিক উপদেষ্টা; শিল্প মন্ত্রণালয় বিষয়ক উপদেষ্টা",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "উপদেষ্টা",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "প্রধানমন্ত্রীর রাজনৈতিক উপদেষ্টা; শিল্প মন্ত্রণালয় বিষয়ক উপদেষ্টা। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "প্রধানমন্ত্রীর রাজনৈতিক উপদেষ্টা; শিল্প মন্ত্রণালয় বিষয়ক উপদেষ্টা",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "মো. ইসমাইল জবিউল্লাহ",
+   "name_en": "Md. Ismail Zabihullah",
+   "category": "politician",
+   "title": "উপদেষ্টা, জনপ্রশাসন মন্ত্রণালয়",
+   "org": "",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "উপদেষ্টা",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "উপদেষ্টা, জনপ্রশাসন মন্ত্রণালয়। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "উপদেষ্টা, জনপ্রশাসন মন্ত্রণালয়",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "রাশেদ আল মাহমুদ তিতুমীর",
+   "name_en": "Rashed Al Mahmud Titumir",
+   "category": "politician",
+   "title": "উপদেষ্টা, অর্থ ও পরিকল্পনা মন্ত্রণালয়",
+   "org": "",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "উপদেষ্টা",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "উপদেষ্টা, অর্থ ও পরিকল্পনা মন্ত্রণালয়। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "উপদেষ্টা, অর্থ ও পরিকল্পনা মন্ত্রণালয়",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "জহির উদ্দিন স্বপন",
+   "name_en": "Zahir Uddin Swapon",
+   "category": "politician",
+   "title": "প্রধানমন্ত্রীর রাজনৈতিক উপদেষ্টা (পদ যাচাই করুন) · সংসদ সদস্য, বরিশাল-১",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "বরিশাল",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "উপদেষ্টা",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "প্রধানমন্ত্রীর রাজনৈতিক উপদেষ্টা (পদ যাচাই করুন)। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "প্রধানমন্ত্রীর রাজনৈতিক উপদেষ্টা (পদ যাচাই করুন)",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "এ কে এম শামসুল ইসলাম",
+   "name_en": "AKM Shamsul Islam",
+   "category": "politician",
+   "title": "উপদেষ্টা, প্রতিরক্ষা মন্ত্রণালয় ও সশস্ত্র বাহিনী বিভাগ",
+   "org": "",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "উপদেষ্টা",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "উপদেষ্টা, প্রতিরক্ষা মন্ত্রণালয় ও সশস্ত্র বাহিনী বিভাগ। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "উপদেষ্টা, প্রতিরক্ষা মন্ত্রণালয় ও সশস্ত্র বাহিনী বিভাগ",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "জাহেদ উর রহমান",
+   "name_en": "Zahed Ur Rahman",
+   "category": "politician",
+   "title": "নীতি ও কৌশল বিষয়ক উপদেষ্টা; তথ্য ও সংস্কৃতি",
+   "org": "",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "উপদেষ্টা",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "নীতি ও কৌশল বিষয়ক উপদেষ্টা; তথ্য ও সংস্কৃতি। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "নীতি ও কৌশল বিষয়ক উপদেষ্টা; তথ্য ও সংস্কৃতি",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "মাহদী আমিন",
+   "name_en": "Mahdi Amin",
+   "category": "politician",
+   "title": "উপদেষ্টা: শিক্ষা, প্রাথমিক শিক্ষা, শ্রম ও প্রবাসী কল্যাণ",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "উপদেষ্টা",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "উপদেষ্টা: শিক্ষা, প্রাথমিক শিক্ষা, শ্রম ও প্রবাসী কল্যাণ। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "উপদেষ্টা: শিক্ষা, প্রাথমিক শিক্ষা, শ্রম ও প্রবাসী কল্যাণ",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "রেহান আসিফ আসাদ",
+   "name_en": "Rehan Asif Asad",
+   "category": "politician",
+   "title": "উপদেষ্টা: ডাক, টেলিযোগাযোগ ও আইসিটি; বিজ্ঞান ও প্রযুক্তি",
+   "org": "",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "উপদেষ্টা",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "উপদেষ্টা: ডাক, টেলিযোগাযোগ ও আইসিটি; বিজ্ঞান ও প্রযুক্তি। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "উপদেষ্টা: ডাক, টেলিযোগাযোগ ও আইসিটি; বিজ্ঞান ও প্রযুক্তি",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "আমীর খসরু মাহমুদ চৌধুরী",
+   "name_en": "Amir Khasru Mahmud Chowdhury",
+   "category": "politician",
+   "title": "অর্থ ও পরিকল্পনামন্ত্রী · সংসদ সদস্য, চট্টগ্রাম-১১",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "চট্টগ্রাম",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "অর্থ ও পরিকল্পনামন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "অর্থ ও পরিকল্পনামন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "সালাহউদ্দিন আহমদ",
+   "name_en": "Salahuddin Ahmed",
+   "category": "politician",
+   "title": "স্বরাষ্ট্রমন্ত্রী · সংসদ সদস্য, কক্সবাজার-১",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "কক্সবাজার",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "স্বরাষ্ট্রমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "স্বরাষ্ট্রমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "ইকবাল হাসান মাহমুদ",
+   "name_en": "Iqbal Hassan Mahmood",
+   "category": "politician",
+   "title": "বিদ্যুৎ, জ্বালানি ও খনিজ সম্পদমন্ত্রী · সংসদ সদস্য, সিরাজগঞ্জ-২",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "সিরাজগঞ্জ",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "বিদ্যুৎ, জ্বালানি ও খনিজ সম্পদমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "বিদ্যুৎ, জ্বালানি ও খনিজ সম্পদমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "এ জেড এম জাহিদ হোসেন",
+   "name_en": "A. Z. M. Zahid Hossain",
+   "category": "politician",
+   "title": "মহিলা ও শিশু বিষয়ক এবং সমাজকল্যাণমন্ত্রী · সংসদ সদস্য, দিনাজপুর-৬",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "দিনাজপুর",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "মহিলা ও শিশু বিষয়ক এবং সমাজকল্যাণমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "মহিলা ও শিশু বিষয়ক এবং সমাজকল্যাণমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "আবদুল আউয়াল মিন্টু",
+   "name_en": "Abdul Awal Mintoo",
+   "category": "politician",
+   "title": "পরিবেশ, বন ও জলবায়ু পরিবর্তনমন্ত্রী · সংসদ সদস্য, ফেনী-৩",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "ফেনী",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "পরিবেশ, বন ও জলবায়ু পরিবর্তনমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "পরিবেশ, বন ও জলবায়ু পরিবর্তনমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "কাজী শাহ মোফাজ্জল হোসাইন কায়কোবাদ",
+   "name_en": "Kazi Shah Mofazzal Hossain Kaikobad",
+   "category": "politician",
+   "title": "ধর্মমন্ত্রী · সংসদ সদস্য, কুমিল্লা-৩",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "কুমিল্লা",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "ধর্মমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "ধর্মমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "মিজানুর রহমান মিনু",
+   "name_en": "Mizanur Rahman Minu",
+   "category": "politician",
+   "title": "ভূমিমন্ত্রী · সংসদ সদস্য, রাজশাহী-২",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "রাজশাহী",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "ভূমিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "ভূমিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "নিতাই রায় চৌধুরী",
+   "name_en": "Nitai Roy Chowdhury",
+   "category": "politician",
+   "title": "সংস্কৃতিমন্ত্রী · সংসদ সদস্য, মাগুরা-২",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "মাগুরা",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "সংস্কৃতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "সংস্কৃতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "খন্দকার আবদুল মুক্তাদির",
+   "name_en": "Khandaker Abdul Muktadir",
+   "category": "politician",
+   "title": "শিল্প, বস্ত্র ও পাট এবং বাণিজ্যমন্ত্রী · সংসদ সদস্য, সিলেট-১",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "সিলেট",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "শিল্প, বস্ত্র ও পাট এবং বাণিজ্যমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "শিল্প, বস্ত্র ও পাট এবং বাণিজ্যমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "আরিফুল হক চৌধুরী",
+   "name_en": "Ariful Haque Choudhury",
+   "category": "politician",
+   "title": "শ্রম ও কর্মসংস্থান এবং প্রবাসী কল্যাণমন্ত্রী · সংসদ সদস্য, সিলেট-৪",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "সিলেট",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "শ্রম ও কর্মসংস্থান এবং প্রবাসী কল্যাণমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "শ্রম ও কর্মসংস্থান এবং প্রবাসী কল্যাণমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "শহীদ উদ্দীন চৌধুরী এ্যানী",
+   "name_en": "Shahid Uddin Chowdhury Anee",
+   "category": "politician",
+   "title": "পানিসম্পদমন্ত্রী · সংসদ সদস্য, লক্ষ্মীপুর-৩",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "লক্ষ্মীপুর",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "পানিসম্পদমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "পানিসম্পদমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "আসাদুল হাবিব দুলু",
+   "name_en": "Asadul Habib Dulu",
+   "category": "politician",
+   "title": "দুর্যোগ ব্যবস্থাপনা ও ত্রাণমন্ত্রী · সংসদ সদস্য, লালমনিরহাট-৩",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "লালমনিরহাট",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "দুর্যোগ ব্যবস্থাপনা ও ত্রাণমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "দুর্যোগ ব্যবস্থাপনা ও ত্রাণমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "মো. আসাদুজ্জামান",
+   "name_en": "Md. Asaduzzaman",
+   "category": "politician",
+   "title": "আইন, বিচার ও সংসদ বিষয়কমন্ত্রী · সংসদ সদস্য, ঝিনাইদহ-১",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "ঝিনাইদহ",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "আইন, বিচার ও সংসদ বিষয়কমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "আইন, বিচার ও সংসদ বিষয়কমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "জাকারিয়া তাহের সুমন",
+   "name_en": "Zakaria Taher Sumon",
+   "category": "politician",
+   "title": "গৃহায়ণ ও গণপূর্তমন্ত্রী · সংসদ সদস্য, কুমিল্লা-৮",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "কুমিল্লা",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "গৃহায়ণ ও গণপূর্তমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "গৃহায়ণ ও গণপূর্তমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "এ এন এম এহছানুল হক মিলন",
+   "name_en": "A. N. M. Ehsanul Hoque Milan",
+   "category": "politician",
+   "title": "শিক্ষা এবং প্রাথমিক ও গণশিক্ষামন্ত্রী · সংসদ সদস্য, চাঁদপুর-১",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "চাঁদপুর",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "শিক্ষা এবং প্রাথমিক ও গণশিক্ষামন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "শিক্ষা এবং প্রাথমিক ও গণশিক্ষামন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "সরদার মো. সাখাওয়াত হোসেন",
+   "name_en": "Sardar Md. Sakhawat Husain",
+   "category": "politician",
+   "title": "স্বাস্থ্য ও পরিবার কল্যাণমন্ত্রী · সংসদ সদস্য, নরসিংদী-৪",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "নরসিংদী",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "স্বাস্থ্য ও পরিবার কল্যাণমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "স্বাস্থ্য ও পরিবার কল্যাণমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "ফকির মাহবুব আনাম স্বপন",
+   "name_en": "Fakir Mahbub Anam Swapan",
+   "category": "politician",
+   "title": "ডাক, টেলিযোগাযোগ ও আইসিটি এবং বিজ্ঞান ও প্রযুক্তিমন্ত্রী · সংসদ সদস্য, টাঙ্গাইল-১",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "টাঙ্গাইল",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "ডাক, টেলিযোগাযোগ ও আইসিটি এবং বিজ্ঞান ও প্রযুক্তিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "ডাক, টেলিযোগাযোগ ও আইসিটি এবং বিজ্ঞান ও প্রযুক্তিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "শেখ রবিউল আলম",
+   "name_en": "Shaikh Rabiul Alam",
+   "category": "politician",
+   "title": "সড়ক পরিবহন ও সেতু, রেলপথ এবং নৌপরিবহনমন্ত্রী · সংসদ সদস্য, ঢাকা-১০",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "ঢাকা",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "সড়ক পরিবহন ও সেতু, রেলপথ এবং নৌপরিবহনমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "সড়ক পরিবহন ও সেতু, রেলপথ এবং নৌপরিবহনমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "আহমেদ আযম খান",
+   "name_en": "Ahmed Azam Khan",
+   "category": "politician",
+   "title": "মুক্তিযুদ্ধ বিষয়কমন্ত্রী (মার্চ ২০২৬ থেকে) · সংসদ সদস্য, টাঙ্গাইল-৮",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "টাঙ্গাইল",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "মুক্তিযুদ্ধ বিষয়কমন্ত্রী (মার্চ ২০২৬ থেকে)। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "মুক্তিযুদ্ধ বিষয়কমন্ত্রী (মার্চ ২০২৬ থেকে)",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "আফরোজা খানম রিতা",
+   "name_en": "Afroza Khanam Rita",
+   "category": "politician",
+   "title": "খাদ্যমন্ত্রী · সংসদ সদস্য, মানিকগঞ্জ-৩",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "মানিকগঞ্জ",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "খাদ্যমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "খাদ্যমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "খলিলুর রহমান",
+   "name_en": "Khalilur Rahman",
+   "category": "official",
+   "title": "পররাষ্ট্রমন্ত্রী (টেকনোক্র্যাট)",
+   "org": "",
+   "district": "",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "পররাষ্ট্রমন্ত্রী (টেকনোক্র্যাট)। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "পররাষ্ট্রমন্ত্রী (টেকনোক্র্যাট)",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "আমিনুর রশিদ ইয়াসিন",
+   "name_en": "Amin ur Rashid Yasin",
+   "category": "politician",
+   "title": "মৎস্য ও প্রাণিসম্পদ এবং কৃষিমন্ত্রী (টেকনোক্র্যাট)",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "মৎস্য ও প্রাণিসম্পদ এবং কৃষিমন্ত্রী (টেকনোক্র্যাট)। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "মৎস্য ও প্রাণিসম্পদ এবং কৃষিমন্ত্রী (টেকনোক্র্যাট)",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "আবদুল মঈন খান",
+   "name_en": "Abdul Moyeen Khan",
+   "category": "politician",
+   "title": "স্থানীয় সরকার, পল্লী উন্নয়ন ও সমবায়মন্ত্রী (আগস্ট ২০২৬ থেকে) · সংসদ সদস্য, নরসিংদী-২",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "নরসিংদী",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "স্থানীয় সরকার, পল্লী উন্নয়ন ও সমবায়মন্ত্রী (আগস্ট ২০২৬ থেকে)। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-08-21",
+     "kind": "position",
+     "title": "স্থানীয় সরকার, পল্লী উন্নয়ন ও সমবায়মন্ত্রী (আগস্ট ২০২৬ থেকে)",
+     "source_url": "https://www.tbsnews.net/bangladesh/cabinet-reshuffle-moyeen-partho-saching-prue-millat-take-oath-ministers-1521296"
+    }
+   ]
+  },
+  {
+   "name_bn": "সাচিং প্রু জেরী",
+   "name_en": "Sa Ching Prue Jerry",
+   "category": "politician",
+   "title": "পার্বত্য চট্টগ্রাম বিষয়কমন্ত্রী (আগস্ট ২০২৬ থেকে) · সংসদ সদস্য, বান্দরবান",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "বান্দরবান",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "পার্বত্য চট্টগ্রাম বিষয়কমন্ত্রী (আগস্ট ২০২৬ থেকে)। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-08-21",
+     "kind": "position",
+     "title": "পার্বত্য চট্টগ্রাম বিষয়কমন্ত্রী (আগস্ট ২০২৬ থেকে)",
+     "source_url": "https://www.tbsnews.net/bangladesh/cabinet-reshuffle-moyeen-partho-saching-prue-millat-take-oath-ministers-1521296"
+    }
+   ]
+  },
+  {
+   "name_bn": "এম রশিদুজ্জামান মিল্লাত",
+   "name_en": "M. Rashiduzzaman Millat",
+   "category": "politician",
+   "title": "বেসামরিক বিমান পরিবহন ও পর্যটনমন্ত্রী (আগস্ট ২০২৬ থেকে) · সংসদ সদস্য, জামালপুর-১",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "জামালপুর",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "বেসামরিক বিমান পরিবহন ও পর্যটনমন্ত্রী (আগস্ট ২০২৬ থেকে)। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-08-21",
+     "kind": "position",
+     "title": "বেসামরিক বিমান পরিবহন ও পর্যটনমন্ত্রী (আগস্ট ২০২৬ থেকে)",
+     "source_url": "https://www.tbsnews.net/bangladesh/cabinet-reshuffle-moyeen-partho-saching-prue-millat-take-oath-ministers-1521296"
+    }
+   ]
+  },
+  {
+   "name_bn": "আন্দালিভ রহমান পার্থ",
+   "name_en": "Andaleeve Rahman Partho",
+   "category": "politician",
+   "title": "তথ্য ও সম্প্রচারমন্ত্রী (আগস্ট ২০২৬ থেকে) · সংসদ সদস্য, ভোলা-১",
+   "org": "বাংলাদেশ জাতীয় পার্টি (বিজেপি)",
+   "district": "ভোলা",
+   "importance": 4,
+   "tags": [
+    "মন্ত্রিসভা",
+    "মন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "তথ্য ও সম্প্রচারমন্ত্রী (আগস্ট ২০২৬ থেকে)। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-08-21",
+     "kind": "position",
+     "title": "তথ্য ও সম্প্রচারমন্ত্রী (আগস্ট ২০২৬ থেকে)",
+     "source_url": "https://www.tbsnews.net/bangladesh/cabinet-reshuffle-moyeen-partho-saching-prue-millat-take-oath-ministers-1521296"
+    }
+   ]
+  },
+  {
+   "name_bn": "অনিন্দ্য ইসলাম অমিত",
+   "name_en": "Anindya Islam Amit",
+   "category": "politician",
+   "title": "বিদ্যুৎ, জ্বালানি ও খনিজ সম্পদ প্রতিমন্ত্রী · সংসদ সদস্য, যশোর-৩",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "যশোর",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "বিদ্যুৎ, জ্বালানি ও খনিজ সম্পদ প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "বিদ্যুৎ, জ্বালানি ও খনিজ সম্পদ প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "মো. শরীফুল আলম",
+   "name_en": "Md. Shariful Alam",
+   "category": "politician",
+   "title": "বস্ত্র ও পাট প্রতিমন্ত্রী · সংসদ সদস্য, কিশোরগঞ্জ-৬",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "কিশোরগঞ্জ",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "বস্ত্র ও পাট প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "বস্ত্র ও পাট প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "শামা ওবায়েদ",
+   "name_en": "Shama Obaed",
+   "category": "politician",
+   "title": "পররাষ্ট্র প্রতিমন্ত্রী · সংসদ সদস্য, ফরিদপুর-২",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "ফরিদপুর",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "পররাষ্ট্র প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "পররাষ্ট্র প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "সুলতান সালাউদ্দিন টুকু",
+   "name_en": "Sultan Salauddin Tuku",
+   "category": "politician",
+   "title": "মৎস্য ও প্রাণিসম্পদ প্রতিমন্ত্রী · সংসদ সদস্য, টাঙ্গাইল-৫",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "টাঙ্গাইল",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "মৎস্য ও প্রাণিসম্পদ প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "মৎস্য ও প্রাণিসম্পদ প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "ফরহাদ হোসেন আজাদ",
+   "name_en": "Farhad Hossain Azad",
+   "category": "politician",
+   "title": "পানিসম্পদ প্রতিমন্ত্রী · সংসদ সদস্য, পঞ্চগড়-২",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "পঞ্চগড়",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "পানিসম্পদ প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "পানিসম্পদ প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "মীর মোহাম্মদ হেলাল উদ্দিন",
+   "name_en": "Mir Mohammed Helal Uddin",
+   "category": "politician",
+   "title": "পার্বত্য চট্টগ্রাম বিষয়ক প্রতিমন্ত্রী; ভূমি (অতিরিক্ত) · সংসদ সদস্য, চট্টগ্রাম-৫",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "চট্টগ্রাম",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "পার্বত্য চট্টগ্রাম বিষয়ক প্রতিমন্ত্রী; ভূমি (অতিরিক্ত)। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "পার্বত্য চট্টগ্রাম বিষয়ক প্রতিমন্ত্রী; ভূমি (অতিরিক্ত)",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "হাবিবুর রশিদ হাবিব",
+   "name_en": "Habibur Rashid Habib",
+   "category": "politician",
+   "title": "রেলপথ এবং সড়ক পরিবহন প্রতিমন্ত্রী · সংসদ সদস্য, ঢাকা-৯",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "ঢাকা",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "রেলপথ এবং সড়ক পরিবহন প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "রেলপথ এবং সড়ক পরিবহন প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "মো. রাজিব আহসান",
+   "name_en": "Md. Razib Ahsan",
+   "category": "politician",
+   "title": "নৌপরিবহন ও সেতু প্রতিমন্ত্রী · সংসদ সদস্য, বরিশাল-৪",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "বরিশাল",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "নৌপরিবহন ও সেতু প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "নৌপরিবহন ও সেতু প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "মো. আবদুল বারী",
+   "name_en": "Md Abdul Bari",
+   "category": "politician",
+   "title": "জনপ্রশাসন ও খাদ্য প্রতিমন্ত্রী · সংসদ সদস্য, জয়পুরহাট-২",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "জয়পুরহাট",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "জনপ্রশাসন ও খাদ্য প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "জনপ্রশাসন ও খাদ্য প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "মীর শাহে আলম",
+   "name_en": "Mir Shahe Alam",
+   "category": "politician",
+   "title": "স্থানীয় সরকার প্রতিমন্ত্রী · সংসদ সদস্য, বগুড়া-২",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "বগুড়া",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "স্থানীয় সরকার প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "স্থানীয় সরকার প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "জোনায়েদ সাকি",
+   "name_en": "Zonayed Saki",
+   "category": "politician",
+   "title": "পরিকল্পনা প্রতিমন্ত্রী · সংসদ সদস্য, ব্রাহ্মণবাড়িয়া-৬",
+   "org": "গণসংহতি আন্দোলন",
+   "district": "ব্রাহ্মণবাড়িয়া",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "পরিকল্পনা প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "পরিকল্পনা প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "ইশরাক হোসেন",
+   "name_en": "Ishraque Hossain",
+   "category": "politician",
+   "title": "মুক্তিযুদ্ধ বিষয়ক প্রতিমন্ত্রী · সংসদ সদস্য, ঢাকা-৬",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "ঢাকা",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "মুক্তিযুদ্ধ বিষয়ক প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "মুক্তিযুদ্ধ বিষয়ক প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "ফারজানা শারমিন",
+   "name_en": "Farzana Sharmin",
+   "category": "politician",
+   "title": "সমাজকল্যাণ প্রতিমন্ত্রী · সংসদ সদস্য, নাটোর-১",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "নাটোর",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "সমাজকল্যাণ প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "সমাজকল্যাণ প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "শেখ ফরিদুল ইসলাম",
+   "name_en": "Shaikh Faridul Islam",
+   "category": "politician",
+   "title": "পরিবেশ, বন ও জলবায়ু প্রতিমন্ত্রী · সংসদ সদস্য, বাগেরহাট-৩",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "বাগেরহাট",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "পরিবেশ, বন ও জলবায়ু প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "পরিবেশ, বন ও জলবায়ু প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "নুরুল হক নুর",
+   "name_en": "Nurul Haque Nur",
+   "category": "politician",
+   "title": "প্রবাসী কল্যাণ প্রতিমন্ত্রী · সংসদ সদস্য, পটুয়াখালী-৩",
+   "org": "গণ অধিকার পরিষদ",
+   "district": "পটুয়াখালী",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "প্রবাসী কল্যাণ প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "প্রবাসী কল্যাণ প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "ইয়াসের খান চৌধুরী",
+   "name_en": "Yasser Khan Choudhury",
+   "category": "politician",
+   "title": "তথ্য ও সম্প্রচার প্রতিমন্ত্রী · সংসদ সদস্য, ময়মনসিংহ-৯",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "ময়মনসিংহ",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "তথ্য ও সম্প্রচার প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "তথ্য ও সম্প্রচার প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "এম ইকবাল হোসেন",
+   "name_en": "M. Iqbal Hossain",
+   "category": "politician",
+   "title": "দুর্যোগ ব্যবস্থাপনা ও ত্রাণ প্রতিমন্ত্রী · সংসদ সদস্য, ময়মনসিংহ-৩",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "ময়মনসিংহ",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "দুর্যোগ ব্যবস্থাপনা ও ত্রাণ প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "দুর্যোগ ব্যবস্থাপনা ও ত্রাণ প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "এম এ মুহিত",
+   "name_en": "M. A. Muhit",
+   "category": "politician",
+   "title": "স্বাস্থ্য ও পরিবার কল্যাণ প্রতিমন্ত্রী · সংসদ সদস্য, সিরাজগঞ্জ-৬",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "সিরাজগঞ্জ",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "স্বাস্থ্য ও পরিবার কল্যাণ প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "স্বাস্থ্য ও পরিবার কল্যাণ প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "আহমদ সোহেল মঞ্জুর",
+   "name_en": "Ahammad Sohel Monzoor",
+   "category": "politician",
+   "title": "গৃহায়ণ ও গণপূর্ত প্রতিমন্ত্রী · সংসদ সদস্য, পিরোজপুর-২",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "পিরোজপুর",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "গৃহায়ণ ও গণপূর্ত প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "গৃহায়ণ ও গণপূর্ত প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "ববি হাজ্জাজ",
+   "name_en": "Bobby Hajjaj",
+   "category": "politician",
+   "title": "প্রাথমিক ও গণশিক্ষা প্রতিমন্ত্রী · সংসদ সদস্য, ঢাকা-১৩",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "ঢাকা",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "প্রাথমিক ও গণশিক্ষা প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "প্রাথমিক ও গণশিক্ষা প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "আলী নেওয়াজ মাহমুদ খৈয়াম",
+   "name_en": "Ali Newaz Mahmud Khaiyam",
+   "category": "politician",
+   "title": "সংস্কৃতি প্রতিমন্ত্রী · সংসদ সদস্য, রাজবাড়ী-১",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "রাজবাড়ী",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "সংস্কৃতি প্রতিমন্ত্রী। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "সংস্কৃতি প্রতিমন্ত্রী",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "আমিনুল হক",
+   "name_en": "Aminul Haque",
+   "category": "politician",
+   "title": "যুব ও ক্রীড়া প্রতিমন্ত্রী (টেকনোক্র্যাট)",
+   "org": "",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "সাবেক জাতীয় ফুটবলার",
+   "country": "বাংলাদেশ",
+   "bio": "যুব ও ক্রীড়া প্রতিমন্ত্রী (টেকনোক্র্যাট)। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "যুব ও ক্রীড়া প্রতিমন্ত্রী (টেকনোক্র্যাট)",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "হুমায়ুন কবির",
+   "name_en": "Humaiun Kobir",
+   "category": "politician",
+   "title": "পররাষ্ট্র প্রতিমন্ত্রী (আগস্ট ২০২৬ থেকে)",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "পররাষ্ট্র প্রতিমন্ত্রী (আগস্ট ২০২৬ থেকে)। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-08-21",
+     "kind": "position",
+     "title": "পররাষ্ট্র প্রতিমন্ত্রী (আগস্ট ২০২৬ থেকে)",
+     "source_url": "https://www.tbsnews.net/bangladesh/cabinet-reshuffle-moyeen-partho-saching-prue-millat-take-oath-ministers-1521296"
+    }
+   ]
+  },
+  {
+   "name_bn": "শামীম কায়সার লিংকন",
+   "name_en": "Shamim Kaisar Lincoln",
+   "category": "politician",
+   "title": "ধর্ম প্রতিমন্ত্রী (আগস্ট ২০২৬ থেকে) · সংসদ সদস্য, গাইবান্ধা-৪",
+   "org": "বাংলাদেশ জাতীয়তাবাদী দল (বিএনপি)",
+   "district": "গাইবান্ধা",
+   "importance": 3,
+   "tags": [
+    "মন্ত্রিসভা",
+    "প্রতিমন্ত্রী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "ধর্ম প্রতিমন্ত্রী (আগস্ট ২০২৬ থেকে)। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-08-21",
+     "kind": "position",
+     "title": "ধর্ম প্রতিমন্ত্রী (আগস্ট ২০২৬ থেকে)",
+     "source_url": "https://www.tbsnews.net/bangladesh/cabinet-reshuffle-moyeen-partho-saching-prue-millat-take-oath-ministers-1521296"
+    }
+   ]
+  },
+  {
+   "name_bn": "আশিক চৌধুরী",
+   "name_en": "Ashik Chowdhury",
+   "category": "official",
+   "title": "নির্বাহী চেয়ারম্যান, বিডা; প্রধানমন্ত্রীর বিশেষ সহকারী (প্রতিমন্ত্রী পদমর্যাদা)",
+   "org": "",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "বিশেষ সহকারী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "নির্বাহী চেয়ারম্যান, বিডা; প্রধানমন্ত্রীর বিশেষ সহকারী (প্রতিমন্ত্রী পদমর্যাদা)। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "নির্বাহী চেয়ারম্যান, বিডা; প্রধানমন্ত্রীর বিশেষ সহকারী (প্রতিমন্ত্রী পদমর্যাদা)",
+     "source_url": "https://en.wikipedia.org/wiki/Tarique_Rahman_ministry"
+    }
+   ]
+  },
+  {
+   "name_bn": "শফিকুর রহমান",
+   "name_en": "Shafiqur Rahman",
+   "category": "politician",
+   "title": "জাতীয় সংসদে বিরোধীদলীয় নেতা; জামায়াতে ইসলামীর আমির · সংসদ সদস্য, ঢাকা-১৫",
+   "org": "বাংলাদেশ জামায়াতে ইসলামী",
+   "district": "ঢাকা",
+   "importance": 5,
+   "tags": [
+    "বিরোধী দল",
+    "জামায়াত",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "জাতীয় সংসদে বিরোধীদলীয় নেতা; জামায়াতে ইসলামীর আমির। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "জাতীয় সংসদে বিরোধীদলীয় নেতা; জামায়াতে ইসলামীর আমির",
+     "source_url": "https://en.wikipedia.org/wiki/Leader_of_the_Opposition_in_Jatiya_Sangsad"
+    }
+   ]
+  },
+  {
+   "name_bn": "সৈয়দ আবদুল্লাহ মুহাম্মদ তাহের",
+   "name_en": "Syed Abdullah Muhammad Taher",
+   "category": "politician",
+   "title": "বিরোধীদলীয় উপনেতা",
+   "org": "বাংলাদেশ জামায়াতে ইসলামী",
+   "district": "",
+   "importance": 4,
+   "tags": [
+    "বিরোধী দল",
+    "জামায়াত",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "বিরোধীদলীয় উপনেতা। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "বিরোধীদলীয় উপনেতা",
+     "source_url": "https://en.wikipedia.org/wiki/13th_Jatiya_Sangsad"
+    }
+   ]
+  },
+  {
+   "name_bn": "নাহিদ ইসলাম",
+   "name_en": "Nahid Islam",
+   "category": "politician",
+   "title": "এনসিপির প্রধান; বিরোধী দলের চিফ হুইপ · সংসদ সদস্য, ঢাকা-১১",
+   "org": "জাতীয় নাগরিক পার্টি (এনসিপি)",
+   "district": "ঢাকা",
+   "importance": 5,
+   "tags": [
+    "বিরোধী দল",
+    "এনসিপি",
+    "জুলাই আন্দোলন",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "এনসিপির প্রধান; বিরোধী দলের চিফ হুইপ। তথ্য উইকিপিডিয়া/সংবাদ সূত্র থেকে নভেম্বর ২০২৬-এ সংগ্রহ; প্রকাশের আগে যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "এনসিপির প্রধান; বিরোধী দলের চিফ হুইপ",
+     "source_url": "https://en.wikipedia.org/wiki/Shadow_cabinet_of_Bangladesh"
+    }
+   ]
+  },
+  {
+   "name_bn": "আসিফ মাহমুদ সজীব ভূঁইয়া",
+   "name_en": "Asif Mahmud Shojib Bhuyain",
+   "category": "politician",
+   "title": "এনসিপির মুখপাত্র (ফেব্রুয়ারি ২০২৬-এর তথ্য)",
+   "org": "জাতীয় নাগরিক পার্টি (এনসিপি)",
+   "district": "",
+   "importance": 4,
+   "tags": [
+    "বিরোধী দল",
+    "এনসিপি",
+    "জুলাই আন্দোলন",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "আসিফ মাহমুদ",
+   "country": "বাংলাদেশ",
+   "bio": "অন্তর্বর্তী সরকারের সাবেক উপদেষ্টা; ফেব্রুয়ারি ২০২৬-এ এনসিপির মুখপাত্র হিসেবে শ্যাডো কেবিনেট ঘোষণা করেন। বর্তমান পদ যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "এনসিপির মুখপাত্র (ফেব্রুয়ারি ২০২৬-এর তথ্য)",
+     "source_url": "https://en.wikipedia.org/wiki/Shadow_cabinet_of_Bangladesh"
+    }
+   ]
+  },
+  {
+   "name_bn": "মামুনুল হক",
+   "name_en": "Mamunul Haque",
+   "category": "politician",
+   "title": "বাংলাদেশ খেলাফত মজলিসের নেতা",
+   "org": "বাংলাদেশ খেলাফত মজলিস",
+   "district": "",
+   "importance": 4,
+   "tags": [
+    "বিরোধী দল",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "১৩তম সংসদ নির্বাচনে ঢাকা-১৩ আসনে পরাজিত। পদ যাচাই করুন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "বাংলাদেশ খেলাফত মজলিসের নেতা",
+     "source_url": "https://en.wikipedia.org/wiki/13th_Jatiya_Sangsad"
+    }
+   ]
+  },
+  {
+   "name_bn": "শিশির মনির",
+   "name_en": "Shishir Monir",
+   "category": "politician",
+   "title": "জামায়াত নেতা, আইনজীবী",
+   "org": "বাংলাদেশ জামায়াতে ইসলামী",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "বিরোধী দল",
+    "জামায়াত",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "সুনামগঞ্জ-২ আসনে জামায়াতের প্রার্থী ছিলেন (পরাজিত); বিরোধী জোটের শ্যাডো কেবিনেট ঘোষণায় ছিলেন।",
+   "events": [
+    {
+     "date": "2026-02-17",
+     "kind": "position",
+     "title": "জামায়াত নেতা, আইনজীবী",
+     "source_url": "https://en.wikipedia.org/wiki/Shadow_cabinet_of_Bangladesh"
+    }
+   ]
+  },
+  {
+   "name_bn": "হাসনাত আবদুল্লাহ",
+   "name_en": "Hasnat Abdullah",
+   "category": "politician",
+   "title": "এনসিপি নেতা (বর্তমান পদ ও আসন যাচাই করুন)",
+   "org": "জাতীয় নাগরিক পার্টি (এনসিপি)",
+   "district": "",
+   "importance": 4,
+   "tags": [
+    "এনসিপি",
+    "জুলাই আন্দোলন",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "জুলাই ২০২৪ আন্দোলনের পরিচিত মুখ ও এনসিপির নেতা। বর্তমান পদ/আসনের তথ্য এই সংগ্রহে যাচাই করা হয়নি।",
+   "events": []
+  },
+  {
+   "name_bn": "সারজিস আলম",
+   "name_en": "Sarjis Alam",
+   "category": "politician",
+   "title": "এনসিপি নেতা (বর্তমান পদ ও আসন যাচাই করুন)",
+   "org": "জাতীয় নাগরিক পার্টি (এনসিপি)",
+   "district": "",
+   "importance": 4,
+   "tags": [
+    "এনসিপি",
+    "জুলাই আন্দোলন",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "জুলাই ২০২৪ আন্দোলনের পরিচিত মুখ ও এনসিপির নেতা। বর্তমান পদ/আসনের তথ্য এই সংগ্রহে যাচাই করা হয়নি।",
+   "events": []
+  },
+  {
+   "name_bn": "আখতার হোসেন",
+   "name_en": "Akhter Hossen",
+   "category": "politician",
+   "title": "এনসিপি নেতা (বর্তমান পদ ও আসন যাচাই করুন)",
+   "org": "জাতীয় নাগরিক পার্টি (এনসিপি)",
+   "district": "",
+   "importance": 4,
+   "tags": [
+    "এনসিপি",
+    "জুলাই আন্দোলন",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "জুলাই ২০২৪ আন্দোলনের পরিচিত মুখ ও এনসিপির নেতা। বর্তমান পদ/আসনের তথ্য এই সংগ্রহে যাচাই করা হয়নি।",
+   "events": []
+  },
+  {
+   "name_bn": "শেখ হাসিনা",
+   "name_en": "Sheikh Hasina",
+   "category": "politician",
+   "title": "সাবেক প্রধানমন্ত্রী; আওয়ামী লীগ সভাপতি",
+   "org": "বাংলাদেশ আওয়ামী লীগ",
+   "district": "",
+   "importance": 5,
+   "tags": [
+    "সাবেক সরকার",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "abroad",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "আগস্ট ২০২৪-এ ক্ষমতা ছেড়ে দেশ ছাড়েন। মামলা ও বর্তমান অবস্থার তথ্য আলাদা সূত্র দেখে ঘটনাপঞ্জিতে যোগ করুন।",
+   "events": []
+  },
+  {
+   "name_bn": "মুহাম্মদ ইউনূস",
+   "name_en": "Muhammad Yunus",
+   "category": "official",
+   "title": "সাবেক প্রধান উপদেষ্টা, অন্তর্বর্তী সরকার (২০২৪–২০২৬); নোবেলজয়ী",
+   "org": "",
+   "district": "",
+   "importance": 5,
+   "tags": [
+    "সাবেক সরকার",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "২০২৪ সালের আগস্ট থেকে ২০২৬-এর ফেব্রুয়ারিতে নির্বাচিত সরকার আসা পর্যন্ত অন্তর্বর্তী সরকারের প্রধান উপদেষ্টা।",
+   "events": []
+  },
+  {
+   "name_bn": "পিনাকী ভট্টাচার্য",
+   "name_en": "Pinaki Bhattacharya",
+   "category": "activist",
+   "title": "লেখক, ব্লগার ও ইউটিউবার (ফ্রান্সপ্রবাসী)",
+   "org": "",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "অনলাইন অ্যাক্টিভিস্ট",
+    "প্রবাসী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "abroad",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "লেখক, ব্লগার ও ইউটিউবার (ফ্রান্সপ্রবাসী)। প্রবাসে থেকে অনলাইনে বাংলাদেশের রাজনীতি নিয়ে সক্রিয়। সূত্রের তারিখ পুরোনো হতে পারে; বর্তমান অবস্থান যাচাই করুন।",
+   "events": [
+    {
+     "date": "2023-01-01",
+     "kind": "other",
+     "title": "সূত্রে পরিচিতি: প্রবাসী ইউটিউব/অনলাইন কণ্ঠ",
+     "source_url": "https://netra.news/2023/bangladeshs-youtube-dissidents/"
+    }
+   ]
+  },
+  {
+   "name_bn": "ইলিয়াস হোসেন",
+   "name_en": "Elias Hossain",
+   "category": "activist",
+   "title": "সাংবাদিক ও ইউটিউবার (যুক্তরাষ্ট্রপ্রবাসী)",
+   "org": "",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "অনলাইন অ্যাক্টিভিস্ট",
+    "প্রবাসী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "abroad",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "সাংবাদিক ও ইউটিউবার (যুক্তরাষ্ট্রপ্রবাসী)। প্রবাসে থেকে অনলাইনে বাংলাদেশের রাজনীতি নিয়ে সক্রিয়। সূত্রের তারিখ পুরোনো হতে পারে; বর্তমান অবস্থান যাচাই করুন।",
+   "events": [
+    {
+     "date": "2023-01-01",
+     "kind": "other",
+     "title": "সূত্রে পরিচিতি: প্রবাসী ইউটিউব/অনলাইন কণ্ঠ",
+     "source_url": "https://netra.news/2023/bangladeshs-youtube-dissidents/"
+    },
+    {
+     "date": "2026-01-01",
+     "kind": "case",
+     "title": "নিউইয়র্কে চাঁদাবাজির চেষ্টার অভিযোগে গ্রেপ্তারের খবর (তারিখ সূত্রে দেখে ঠিক করুন)",
+     "source_url": "https://thefinancialexpress.com.bd/home/youtuber-elias-hossain-arrested-in-new-york-over-extortion-attempt"
+    }
+   ]
+  },
+  {
+   "name_bn": "কনক সারওয়ার",
+   "name_en": "Kanak Sarwar",
+   "category": "activist",
+   "title": "সাংবাদিক ও ইউটিউবার (যুক্তরাষ্ট্রপ্রবাসী)",
+   "org": "",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "অনলাইন অ্যাক্টিভিস্ট",
+    "প্রবাসী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "abroad",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "সাংবাদিক ও ইউটিউবার (যুক্তরাষ্ট্রপ্রবাসী)। প্রবাসে থেকে অনলাইনে বাংলাদেশের রাজনীতি নিয়ে সক্রিয়। সূত্রের তারিখ পুরোনো হতে পারে; বর্তমান অবস্থান যাচাই করুন।",
+   "events": [
+    {
+     "date": "2023-01-01",
+     "kind": "other",
+     "title": "সূত্রে পরিচিতি: প্রবাসী ইউটিউব/অনলাইন কণ্ঠ",
+     "source_url": "https://thediplomat.com/2023/07/bangladeshi-diaspora-journalists-push-back-against-democratic-backsliding-at-home"
+    }
+   ]
+  },
+  {
+   "name_bn": "জুলকারনাইন সায়ের",
+   "name_en": "Zulkarnain Saer Khan",
+   "category": "activist",
+   "title": "অনুসন্ধানী সাংবাদিক (প্রবাসী)",
+   "org": "",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "অনলাইন অ্যাক্টিভিস্ট",
+    "প্রবাসী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "abroad",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "অনুসন্ধানী সাংবাদিক (প্রবাসী)। প্রবাসে থেকে অনলাইনে বাংলাদেশের রাজনীতি নিয়ে সক্রিয়। সূত্রের তারিখ পুরোনো হতে পারে; বর্তমান অবস্থান যাচাই করুন।",
+   "events": [
+    {
+     "date": "2023-01-01",
+     "kind": "other",
+     "title": "সূত্রে পরিচিতি: প্রবাসী ইউটিউব/অনলাইন কণ্ঠ",
+     "source_url": "https://netra.news/2023/bangladeshs-youtube-dissidents/"
+    }
+   ]
+  },
+  {
+   "name_bn": "তাসনিম খলিল",
+   "name_en": "Tasneem Khalil",
+   "category": "activist",
+   "title": "সাংবাদিক; নেত্র নিউজের প্রধান সম্পাদক (সুইডেনপ্রবাসী)",
+   "org": "",
+   "district": "",
+   "importance": 3,
+   "tags": [
+    "অনলাইন অ্যাক্টিভিস্ট",
+    "প্রবাসী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "abroad",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "সাংবাদিক; নেত্র নিউজের প্রধান সম্পাদক (সুইডেনপ্রবাসী)। প্রবাসে থেকে অনলাইনে বাংলাদেশের রাজনীতি নিয়ে সক্রিয়। সূত্রের তারিখ পুরোনো হতে পারে; বর্তমান অবস্থান যাচাই করুন।",
+   "events": [
+    {
+     "date": "2023-01-01",
+     "kind": "other",
+     "title": "সূত্রে পরিচিতি: প্রবাসী ইউটিউব/অনলাইন কণ্ঠ",
+     "source_url": "https://netra.news/2023/bangladeshs-youtube-dissidents/"
+    }
+   ]
+  },
+  {
+   "name_bn": "শাকিব খান",
+   "name_en": "Shakib Khan",
+   "category": "celebrity",
+   "title": "চলচ্চিত্র অভিনেতা",
+   "org": "",
+   "district": "",
+   "importance": 2,
+   "tags": [
+    "সেলিব্রেটি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "চলচ্চিত্র অভিনেতা। পরিচিতি সাধারণ জ্ঞান থেকে; বর্তমান অবস্থা যাচাই করুন।",
+   "events": []
+  },
+  {
+   "name_bn": "জয়া আহসান",
+   "name_en": "Jaya Ahsan",
+   "category": "celebrity",
+   "title": "অভিনেত্রী",
+   "org": "",
+   "district": "",
+   "importance": 2,
+   "tags": [
+    "সেলিব্রেটি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "অভিনেত্রী। পরিচিতি সাধারণ জ্ঞান থেকে; বর্তমান অবস্থা যাচাই করুন।",
+   "events": []
+  },
+  {
+   "name_bn": "চঞ্চল চৌধুরী",
+   "name_en": "Chanchal Chowdhury",
+   "category": "celebrity",
+   "title": "অভিনেতা",
+   "org": "",
+   "district": "",
+   "importance": 2,
+   "tags": [
+    "সেলিব্রেটি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "অভিনেতা। পরিচিতি সাধারণ জ্ঞান থেকে; বর্তমান অবস্থা যাচাই করুন।",
+   "events": []
+  },
+  {
+   "name_bn": "মোশাররফ করিম",
+   "name_en": "Mosharraf Karim",
+   "category": "celebrity",
+   "title": "অভিনেতা",
+   "org": "",
+   "district": "",
+   "importance": 2,
+   "tags": [
+    "সেলিব্রেটি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "অভিনেতা। পরিচিতি সাধারণ জ্ঞান থেকে; বর্তমান অবস্থা যাচাই করুন।",
+   "events": []
+  },
+  {
+   "name_bn": "মেহজাবীন চৌধুরী",
+   "name_en": "Mehazabien Chowdhury",
+   "category": "celebrity",
+   "title": "অভিনেত্রী",
+   "org": "",
+   "district": "",
+   "importance": 2,
+   "tags": [
+    "সেলিব্রেটি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "অভিনেত্রী। পরিচিতি সাধারণ জ্ঞান থেকে; বর্তমান অবস্থা যাচাই করুন।",
+   "events": []
+  },
+  {
+   "name_bn": "রুনা লায়লা",
+   "name_en": "Runa Laila",
+   "category": "celebrity",
+   "title": "সংগীতশিল্পী",
+   "org": "",
+   "district": "",
+   "importance": 2,
+   "tags": [
+    "সেলিব্রেটি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "সংগীতশিল্পী। পরিচিতি সাধারণ জ্ঞান থেকে; বর্তমান অবস্থা যাচাই করুন।",
+   "events": []
+  },
+  {
+   "name_bn": "সাবিনা ইয়াসমিন",
+   "name_en": "Sabina Yasmin",
+   "category": "celebrity",
+   "title": "সংগীতশিল্পী",
+   "org": "",
+   "district": "",
+   "importance": 2,
+   "tags": [
+    "সেলিব্রেটি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "সংগীতশিল্পী। পরিচিতি সাধারণ জ্ঞান থেকে; বর্তমান অবস্থা যাচাই করুন।",
+   "events": []
+  },
+  {
+   "name_bn": "হাবিব ওয়াহিদ",
+   "name_en": "Habib Wahid",
+   "category": "celebrity",
+   "title": "সংগীতশিল্পী ও সুরকার",
+   "org": "",
+   "district": "",
+   "importance": 2,
+   "tags": [
+    "সেলিব্রেটি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "সংগীতশিল্পী ও সুরকার। পরিচিতি সাধারণ জ্ঞান থেকে; বর্তমান অবস্থা যাচাই করুন।",
+   "events": []
+  },
+  {
+   "name_bn": "সাকিব আল হাসান",
+   "name_en": "Shakib Al Hasan",
+   "category": "celebrity",
+   "title": "ক্রিকেটার; আওয়ামী লীগের সাবেক সংসদ সদস্য",
+   "org": "",
+   "district": "",
+   "importance": 2,
+   "tags": [
+    "সেলিব্রেটি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "ক্রিকেটার; আওয়ামী লীগের সাবেক সংসদ সদস্য। পরিচিতি সাধারণ জ্ঞান থেকে; বর্তমান অবস্থা যাচাই করুন।",
+   "events": []
+  },
+  {
+   "name_bn": "মাশরাফি বিন মর্তুজা",
+   "name_en": "Mashrafe Bin Mortaza",
+   "category": "celebrity",
+   "title": "সাবেক ক্রিকেট অধিনায়ক; আওয়ামী লীগের সাবেক সংসদ সদস্য",
+   "org": "",
+   "district": "",
+   "importance": 2,
+   "tags": [
+    "সেলিব্রেটি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "সাবেক ক্রিকেট অধিনায়ক; আওয়ামী লীগের সাবেক সংসদ সদস্য। পরিচিতি সাধারণ জ্ঞান থেকে; বর্তমান অবস্থা যাচাই করুন।",
+   "events": []
+  },
+  {
+   "name_bn": "তামিম ইকবাল",
+   "name_en": "Tamim Iqbal",
+   "category": "celebrity",
+   "title": "ক্রিকেটার",
+   "org": "",
+   "district": "",
+   "importance": 2,
+   "tags": [
+    "সেলিব্রেটি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "status": "active",
+   "links": [],
+   "aliases": "",
+   "country": "বাংলাদেশ",
+   "bio": "ক্রিকেটার। পরিচিতি সাধারণ জ্ঞান থেকে; বর্তমান অবস্থা যাচাই করুন।",
+   "events": []
+  },
+  {
+   "name_bn": "বাংলাদেশ পুলিশ",
+   "name_en": "Bangladesh Police",
+   "category": "law_bd",
+   "importance": 5,
+   "links": [
+    "https://www.police.gov.bd"
+   ],
+   "tags": [
+    "আইনশৃঙ্খলা বাহিনী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "ঢাকা মেট্রোপলিটন পুলিশ (ডিএমপি)",
+   "name_en": "Dhaka Metropolitan Police",
+   "category": "law_bd",
+   "importance": 4,
+   "links": [
+    "https://dmp.gov.bd"
+   ],
+   "tags": [
+    "আইনশৃঙ্খলা বাহিনী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "র‍্যাপিড অ্যাকশন ব্যাটালিয়ন (র‍্যাব)",
+   "name_en": "Rapid Action Battalion",
+   "category": "law_bd",
+   "importance": 4,
+   "links": [
+    "https://www.rab.gov.bd"
+   ],
+   "tags": [
+    "আইনশৃঙ্খলা বাহিনী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "বর্ডার গার্ড বাংলাদেশ (বিজিবি)",
+   "name_en": "Border Guard Bangladesh",
+   "category": "law_bd",
+   "importance": 4,
+   "links": [
+    "https://www.bgb.gov.bd"
+   ],
+   "tags": [
+    "আইনশৃঙ্খলা বাহিনী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "আন্তঃবাহিনী জনসংযোগ পরিদপ্তর (আইএসপিআর)",
+   "name_en": "Inter Services Public Relations",
+   "category": "law_bd",
+   "importance": 4,
+   "links": [
+    "https://www.ispr.gov.bd"
+   ],
+   "tags": [
+    "সশস্ত্র বাহিনী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "বাংলাদেশ কোস্ট গার্ড",
+   "name_en": "Bangladesh Coast Guard",
+   "category": "law_bd",
+   "importance": 3,
+   "links": [],
+   "tags": [
+    "আইনশৃঙ্খলা বাহিনী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "দুর্নীতি দমন কমিশন (দুদক)",
+   "name_en": "Anti-Corruption Commission",
+   "category": "govt",
+   "importance": 4,
+   "links": [
+    "https://acc.org.bd"
+   ],
+   "tags": [
+    "সরকারি সংস্থা",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "বাংলাদেশ নির্বাচন কমিশন",
+   "name_en": "Bangladesh Election Commission",
+   "category": "govt",
+   "importance": 4,
+   "links": [
+    "https://www.ecs.gov.bd"
+   ],
+   "tags": [
+    "সরকারি সংস্থা",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "বাংলাদেশ ব্যাংক",
+   "name_en": "Bangladesh Bank",
+   "category": "govt",
+   "importance": 4,
+   "links": [
+    "https://www.bb.org.bd"
+   ],
+   "tags": [
+    "সরকারি সংস্থা",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "বিটিআরসি",
+   "name_en": "Bangladesh Telecommunication Regulatory Commission",
+   "category": "govt",
+   "importance": 3,
+   "links": [
+    "https://www.btrc.gov.bd"
+   ],
+   "tags": [
+    "সরকারি সংস্থা",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "বাংলাদেশ জাতীয় সংসদ",
+   "name_en": "Parliament of Bangladesh",
+   "category": "govt",
+   "importance": 4,
+   "links": [
+    "https://www.parliament.gov.bd"
+   ],
+   "tags": [
+    "সংসদ",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "প্রথম আলো",
+   "name_en": "Prothom Alo",
+   "category": "media",
+   "importance": 4,
+   "links": [
+    "https://www.prothomalo.com"
+   ],
+   "tags": [
+    "গণমাধ্যম",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "দ্য ডেইলি স্টার",
+   "name_en": "The Daily Star",
+   "category": "media",
+   "importance": 4,
+   "links": [
+    "https://www.thedailystar.net"
+   ],
+   "tags": [
+    "গণমাধ্যম",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "বিডিনিউজ২৪",
+   "name_en": "bdnews24.com",
+   "category": "media",
+   "importance": 3,
+   "links": [
+    "https://bdnews24.com"
+   ],
+   "tags": [
+    "গণমাধ্যম",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "দ্য বিজনেস স্ট্যান্ডার্ড",
+   "name_en": "The Business Standard",
+   "category": "media",
+   "importance": 3,
+   "links": [
+    "https://www.tbsnews.net"
+   ],
+   "tags": [
+    "গণমাধ্যম",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "ঢাকা ট্রিবিউন",
+   "name_en": "Dhaka Tribune",
+   "category": "media",
+   "importance": 3,
+   "links": [
+    "https://www.dhakatribune.com"
+   ],
+   "tags": [
+    "গণমাধ্যম",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "যুগান্তর",
+   "name_en": "Jugantor",
+   "category": "media",
+   "importance": 3,
+   "links": [
+    "https://www.jugantor.com"
+   ],
+   "tags": [
+    "গণমাধ্যম",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "কালের কণ্ঠ",
+   "name_en": "Kaler Kantho",
+   "category": "media",
+   "importance": 3,
+   "links": [
+    "https://www.kalerkantho.com"
+   ],
+   "tags": [
+    "গণমাধ্যম",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "সমকাল",
+   "name_en": "Samakal",
+   "category": "media",
+   "importance": 3,
+   "links": [
+    "https://samakal.com"
+   ],
+   "tags": [
+    "গণমাধ্যম",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "নয়া দিগন্ত",
+   "name_en": "Naya Diganta",
+   "category": "media",
+   "importance": 3,
+   "links": [
+    "https://www.dailynayadiganta.com"
+   ],
+   "tags": [
+    "গণমাধ্যম",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "আমার দেশ",
+   "name_en": "Amar Desh",
+   "category": "media",
+   "importance": 3,
+   "links": [],
+   "tags": [
+    "গণমাধ্যম",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "সময় টিভি",
+   "name_en": "Somoy TV",
+   "category": "media",
+   "importance": 4,
+   "links": [
+    "https://www.somoynews.tv"
+   ],
+   "tags": [
+    "গণমাধ্যম",
+    "টিভি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "যমুনা টেলিভিশন",
+   "name_en": "Jamuna Television",
+   "category": "media",
+   "importance": 4,
+   "links": [
+    "https://jamuna.tv"
+   ],
+   "tags": [
+    "গণমাধ্যম",
+    "টিভি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "চ্যানেল ২৪",
+   "name_en": "Channel 24",
+   "category": "media",
+   "importance": 3,
+   "links": [],
+   "tags": [
+    "গণমাধ্যম",
+    "টিভি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "বিবিসি বাংলা",
+   "name_en": "BBC Bangla",
+   "category": "media",
+   "importance": 4,
+   "links": [
+    "https://www.bbc.com/bengali"
+   ],
+   "tags": [
+    "গণমাধ্যম",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "নেত্র নিউজ",
+   "name_en": "Netra News",
+   "category": "media",
+   "importance": 3,
+   "links": [
+    "https://netra.news"
+   ],
+   "tags": [
+    "গণমাধ্যম",
+    "অনুসন্ধানী",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "বাসস",
+   "name_en": "Bangladesh Sangbad Sangstha",
+   "category": "media",
+   "importance": 3,
+   "links": [
+    "https://www.bssnews.net"
+   ],
+   "tags": [
+    "গণমাধ্যম",
+    "সরকারি",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "আইন ও সালিশ কেন্দ্র",
+   "name_en": "Ain o Salish Kendra",
+   "category": "ngo",
+   "importance": 3,
+   "links": [
+    "https://www.askbd.org"
+   ],
+   "tags": [
+    "মানবাধিকার",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "অধিকার",
+   "name_en": "Odhikar",
+   "category": "ngo",
+   "importance": 3,
+   "links": [
+    "https://odhikar.org"
+   ],
+   "tags": [
+    "মানবাধিকার",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "ট্রান্সপারেন্সি ইন্টারন্যাশনাল বাংলাদেশ (টিআইবি)",
+   "name_en": "Transparency International Bangladesh",
+   "category": "ngo",
+   "importance": 3,
+   "links": [
+    "https://www.ti-bangladesh.org"
+   ],
+   "tags": [
+    "সুশাসন",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  },
+  {
+   "name_bn": "ব্র্যাক",
+   "name_en": "BRAC",
+   "category": "ngo",
+   "importance": 3,
+   "links": [
+    "https://www.brac.net"
+   ],
+   "tags": [
+    "উন্নয়ন",
+    "ওয়েব-সংগ্রহ-নভেম্বর-২০২৬"
+   ],
+   "title": "",
+   "bio": "",
+   "status": "active",
+   "aliases": "",
+   "country": "বাংলাদেশ"
+  }
+ ]
+}

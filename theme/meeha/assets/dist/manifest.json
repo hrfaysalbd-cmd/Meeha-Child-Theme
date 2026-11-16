@@ -1,0 +1,616 @@
+{
+    "generated": "2026-11-16T14:39:17+00:00",
+    "bundles": {
+        "core": {
+            "css": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/live-badge.css"
+            ],
+            "js": [],
+            "critical": [],
+            "deps": [],
+            "css_file": "core.min.css",
+            "css_ver": "569fe38fff",
+            "css_bytes": 45573
+        },
+        "base": {
+            "css": [
+                "assets/css/dialogs.css",
+                "assets/css/footer.css"
+            ],
+            "js": [
+                "assets/js/meeha.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "base.min.css",
+            "css_ver": "432b635b25",
+            "css_bytes": 10509,
+            "js_file": "base.min.js",
+            "js_ver": "cb667a8078",
+            "js_bytes": 7297
+        },
+        "page": {
+            "css": [
+                "assets/css/page.css"
+            ],
+            "js": [],
+            "critical": [
+                "assets/css/page.css"
+            ],
+            "deps": [],
+            "css_file": "page.min.css",
+            "css_ver": "e13742d1a8",
+            "css_bytes": 3931
+        },
+        "404": {
+            "css": [
+                "assets/css/page.css"
+            ],
+            "js": [],
+            "critical": [
+                "assets/css/page.css"
+            ],
+            "deps": [],
+            "css_file": "404.min.css",
+            "css_ver": "e13742d1a8",
+            "css_bytes": 3931
+        },
+        "account": {
+            "css": [
+                "assets/css/page.css",
+                "assets/css/account.css"
+            ],
+            "js": [
+                "assets/js/account.js"
+            ],
+            "critical": [
+                "assets/css/page.css"
+            ],
+            "deps": [],
+            "css_file": "account.min.css",
+            "css_ver": "c6c4e0766b",
+            "css_bytes": 11678,
+            "js_file": "account.min.js",
+            "js_ver": "10dcfd83cc",
+            "js_bytes": 11349
+        },
+        "editor": {
+            "css": [
+                "assets/css/tokens.css",
+                "assets/css/editor.css"
+            ],
+            "js": [],
+            "critical": [],
+            "deps": [],
+            "css_file": "editor.min.css",
+            "css_ver": "96ab842160",
+            "css_bytes": 5931
+        },
+        "glance": {
+            "css": [
+                "assets/css/glance.css"
+            ],
+            "js": [
+                "assets/js/glance.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "glance.min.css",
+            "css_ver": "9e336bc5ff",
+            "css_bytes": 5053,
+            "js_file": "glance.min.js",
+            "js_ver": "a9c473c121",
+            "js_bytes": 4396
+        },
+        "latest": {
+            "css": [
+                "assets/css/latest.css"
+            ],
+            "js": [
+                "assets/js/latest.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "latest.min.css",
+            "css_ver": "67a2f5afb1",
+            "css_bytes": 3049,
+            "js_file": "latest.min.js",
+            "js_ver": "e5eac53b93",
+            "js_bytes": 3695
+        },
+        "report": {
+            "css": [
+                "assets/css/report.css"
+            ],
+            "js": [
+                "assets/js/report.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "report.min.css",
+            "css_ver": "1ab28be681",
+            "css_bytes": 4131,
+            "js_file": "report.min.js",
+            "js_ver": "c89991421d",
+            "js_bytes": 4676
+        },
+        "area": {
+            "css": [],
+            "js": [
+                "assets/js/area.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "js_file": "area.min.js",
+            "js_ver": "1e3b64af43",
+            "js_bytes": 3192
+        },
+        "home": {
+            "css": [
+                "assets/css/home.css",
+                "assets/css/liveband.css"
+            ],
+            "js": [
+                "assets/js/home.js"
+            ],
+            "critical": [
+                "assets/css/home.css",
+                "assets/css/liveband.css"
+            ],
+            "deps": [],
+            "css_file": "home.min.css",
+            "css_ver": "82b33ff63d",
+            "css_bytes": 14355,
+            "js_file": "home.min.js",
+            "js_ver": "fdea147781",
+            "js_bytes": 2821
+        },
+        "archive": {
+            "css": [
+                "assets/css/archive.css"
+            ],
+            "js": [
+                "assets/js/home.js"
+            ],
+            "critical": [
+                "assets/css/archive.css"
+            ],
+            "deps": [],
+            "css_file": "archive.min.css",
+            "css_ver": "822e0d3db6",
+            "css_bytes": 9552,
+            "js_file": "archive.min.js",
+            "js_ver": "fdea147781",
+            "js_bytes": 2821
+        },
+        "search": {
+            "css": [
+                "assets/css/archive.css"
+            ],
+            "js": [
+                "assets/js/search.js"
+            ],
+            "critical": [
+                "assets/css/archive.css"
+            ],
+            "deps": [],
+            "css_file": "search.min.css",
+            "css_ver": "822e0d3db6",
+            "css_bytes": 9552,
+            "js_file": "search.min.js",
+            "js_ver": "d26d38aaab",
+            "js_bytes": 1148
+        },
+        "metrics": {
+            "css": [],
+            "js": [
+                "assets/js/metrics.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "js_file": "metrics.min.js",
+            "js_ver": "74b0fd7738",
+            "js_bytes": 4150
+        },
+        "single": {
+            "css": [
+                "assets/css/single.css"
+            ],
+            "js": [
+                "assets/js/single.js"
+            ],
+            "critical": [
+                "assets/css/single.css"
+            ],
+            "deps": [],
+            "css_file": "single.min.css",
+            "css_ver": "bec287df01",
+            "css_bytes": 18753,
+            "js_file": "single.min.js",
+            "js_ver": "7d11af41c9",
+            "js_bytes": 12913
+        },
+        "literature": {
+            "css": [
+                "assets/css/literary-font.css",
+                "assets/css/literature.css"
+            ],
+            "js": [],
+            "critical": [
+                "assets/css/literary-font.css",
+                "assets/css/literature.css"
+            ],
+            "deps": [],
+            "css_file": "literature.min.css",
+            "css_ver": "c07beb2351",
+            "css_bytes": 14168
+        },
+        "literary-font": {
+            "css": [
+                "assets/css/literary-font.css"
+            ],
+            "js": [],
+            "critical": [],
+            "deps": [],
+            "css_file": "literary-font.min.css",
+            "css_ver": "9382fdb155",
+            "css_bytes": 300
+        },
+        "quotes": {
+            "css": [
+                "assets/css/quotes.css"
+            ],
+            "js": [
+                "assets/js/quotes.js"
+            ],
+            "critical": [
+                "assets/css/quotes.css"
+            ],
+            "deps": [],
+            "css_file": "quotes.min.css",
+            "css_ver": "7448b0ba1e",
+            "css_bytes": 14257,
+            "js_file": "quotes.min.js",
+            "js_ver": "7c4a6e3545",
+            "js_bytes": 7574
+        },
+        "quote-cards": {
+            "css": [
+                "assets/css/quotes.css"
+            ],
+            "js": [],
+            "critical": [],
+            "deps": [],
+            "css_file": "quote-cards.min.css",
+            "css_ver": "7448b0ba1e",
+            "css_bytes": 14257
+        },
+        "comments": {
+            "css": [
+                "assets/css/comments.css"
+            ],
+            "js": [
+                "assets/js/comments.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "comments.min.css",
+            "css_ver": "cd572a3a27",
+            "css_bytes": 4310,
+            "js_file": "comments.min.js",
+            "js_ver": "d81f15c288",
+            "js_bytes": 1549
+        },
+        "cards": {
+            "css": [],
+            "js": [
+                "assets/js/cards.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "js_file": "cards.min.js",
+            "js_ver": "c1aaccc1b5",
+            "js_bytes": 266661
+        },
+        "campus": {
+            "css": [
+                "assets/css/campus.css"
+            ],
+            "js": [],
+            "critical": [
+                "assets/css/campus.css"
+            ],
+            "deps": [],
+            "css_file": "campus.min.css",
+            "css_ver": "16565c1358",
+            "css_bytes": 44876
+        },
+        "push": {
+            "css": [
+                "assets/css/push.css"
+            ],
+            "js": [
+                "assets/js/push.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "push.min.css",
+            "css_ver": "d191016164",
+            "css_bytes": 1464,
+            "js_file": "push.min.js",
+            "js_ver": "b71f11f382",
+            "js_bytes": 4398
+        },
+        "deshchitro": {
+            "css": [
+                "assets/css/deshchitro.css"
+            ],
+            "js": [
+                "assets/js/deshchitro-icons.js",
+                "assets/js/deshchitro-map.js",
+                "assets/js/deshchitro.js",
+                "assets/js/deshchitro-live.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "deshchitro.min.css",
+            "css_ver": "5b740065b5",
+            "css_bytes": 32298,
+            "js_file": "deshchitro.min.js",
+            "js_ver": "417982d33c",
+            "js_bytes": 111814
+        },
+        "liveblog": {
+            "css": [
+                "assets/css/liveblog.css"
+            ],
+            "js": [
+                "assets/js/liveblog.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "liveblog.min.css",
+            "css_ver": "ed3ef5c16a",
+            "css_bytes": 22448,
+            "js_file": "liveblog.min.js",
+            "js_ver": "9a730b646c",
+            "js_bytes": 6866
+        },
+        "liveband": {
+            "css": [],
+            "js": [
+                "assets/js/liveband.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "js_file": "liveband.min.js",
+            "js_ver": "d525f7d62a",
+            "js_bytes": 4637
+        },
+        "reader": {
+            "css": [
+                "assets/css/reader.css"
+            ],
+            "js": [
+                "assets/js/saved.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "reader.min.css",
+            "css_ver": "c59e4da6cc",
+            "css_bytes": 2939,
+            "js_file": "reader.min.js",
+            "js_ver": "1b8b35f815",
+            "js_bytes": 5501
+        },
+        "factcheck": {
+            "css": [
+                "assets/css/factcheck.css"
+            ],
+            "js": [],
+            "critical": [],
+            "deps": [],
+            "css_file": "factcheck.min.css",
+            "css_ver": "7dbffd3fae",
+            "css_bytes": 2876
+        },
+        "tips": {
+            "css": [
+                "assets/css/tips.css"
+            ],
+            "js": [
+                "assets/js/tips.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "tips.min.css",
+            "css_ver": "942160e2f4",
+            "css_bytes": 4577,
+            "js_file": "tips.min.js",
+            "js_ver": "bb754eeb0a",
+            "js_bytes": 8213
+        },
+        "assistant": {
+            "css": [
+                "assets/css/assistant.css"
+            ],
+            "js": [
+                "assets/js/assistant.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "assistant.min.css",
+            "css_ver": "2d40904c73",
+            "css_bytes": 4396,
+            "js_file": "assistant.min.js",
+            "js_ver": "07f9ad5cd3",
+            "js_bytes": 7082
+        },
+        "assistant-panel": {
+            "css": [
+                "assets/css/assistant-panel.css"
+            ],
+            "js": [
+                "assets/js/assistant-panel.js"
+            ],
+            "critical": [],
+            "deps": [],
+            "css_file": "assistant-panel.min.css",
+            "css_ver": "452f203f4e",
+            "css_bytes": 8253,
+            "js_file": "assistant-panel.min.js",
+            "js_ver": "64fe7392bd",
+            "js_bytes": 11262
+        }
+    },
+    "critical": {
+        "default": {
+            "file": "critical-default.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/live-badge.css"
+            ],
+            "bytes": 45573,
+            "gzip": 9646
+        },
+        "page": {
+            "file": "critical-page.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/live-badge.css",
+                "assets/css/page.css"
+            ],
+            "bytes": 49504,
+            "gzip": 10394
+        },
+        "404": {
+            "file": "critical-404.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/live-badge.css",
+                "assets/css/page.css"
+            ],
+            "bytes": 49504,
+            "gzip": 10394
+        },
+        "account": {
+            "file": "critical-account.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/live-badge.css",
+                "assets/css/page.css"
+            ],
+            "bytes": 49504,
+            "gzip": 10394
+        },
+        "home": {
+            "file": "critical-home.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/live-badge.css",
+                "assets/css/home.css",
+                "assets/css/liveband.css"
+            ],
+            "bytes": 59928,
+            "gzip": 11904
+        },
+        "archive": {
+            "file": "critical-archive.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/live-badge.css",
+                "assets/css/archive.css"
+            ],
+            "bytes": 55125,
+            "gzip": 11127
+        },
+        "search": {
+            "file": "critical-search.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/live-badge.css",
+                "assets/css/archive.css"
+            ],
+            "bytes": 55125,
+            "gzip": 11127
+        },
+        "single": {
+            "file": "critical-single.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/live-badge.css",
+                "assets/css/single.css"
+            ],
+            "bytes": 64326,
+            "gzip": 13027
+        },
+        "literature": {
+            "file": "critical-literature.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/live-badge.css",
+                "assets/css/literary-font.css",
+                "assets/css/literature.css"
+            ],
+            "bytes": 59741,
+            "gzip": 12125
+        },
+        "quotes": {
+            "file": "critical-quotes.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/live-badge.css",
+                "assets/css/quotes.css"
+            ],
+            "bytes": 59830,
+            "gzip": 13334
+        },
+        "campus": {
+            "file": "critical-campus.min.css",
+            "files": [
+                "assets/css/tokens.css",
+                "assets/css/base.css",
+                "assets/css/header.css",
+                "assets/css/components.css",
+                "assets/css/live-badge.css",
+                "assets/css/campus.css"
+            ],
+            "bytes": 90449,
+            "gzip": 17819
+        }
+    }
+}

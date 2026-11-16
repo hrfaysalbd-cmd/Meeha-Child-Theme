@@ -1,0 +1,7 @@
+{
+	"_comment": "Owner F (শিক্ষা ও ক্যাম্পাস hub, inc/campus). `campus` = the hub page in every view; its CSS is fully inlined as critical CSS (template key `campus`). Behaviour (timer, quiz, save, share) ships with the Meeha Prep plugin.",
+	"campus": {
+		"css": [ "assets/css/campus.css" ],
+		"critical": [ "assets/css/campus.css" ]
+	}
+}

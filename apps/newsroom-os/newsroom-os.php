@@ -1,0 +1,148 @@
+<?php
+/**
+ * Plugin Name:       Newsroom OS — Correspondent API
+ * Description:       Headless REST API backend for the Meeha News correspondent
+ *                     portal (correspondent.meeha.news) and future publisher/ads
+ *                     apps. Exposes authenticated endpoints under the nros/v1
+ *                     namespace: JWT auth, KYC applications, article submissions,
+ *                     media uploads, earnings/withdraw ledger, engagement analytics,
+ *                     and area (division/upazila) lookups. Reuses the active theme's
+ *                     existing data (engagement meta, area helpers, edit-request CPT,
+ *                     submission safety-net) wherever possible instead of duplicating it.
+ * Version:           1.28.1
+ * Author:             Meeha News
+ * Text Domain:        newsroom-os
+ *
+ * @package NewsroomOS
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+// ---------------------------------------------------------------------------
+// Core constants
+// ---------------------------------------------------------------------------
+
+define( 'NROS_VERSION', '1.28.1' );
+// Bumped whenever create_tables()/register_roles() need to re-run on an
+// already-active install (see NROS_Core::maybe_upgrade()) — bump this any
+// time a future change adds/changes a table or role.
+define( 'NROS_DB_VERSION', '17' ); // 17 — r46 গোপন তথ্য (nros_tips, nros_tips_files, nros_tips_notes)
+define( 'NROS_DIR', plugin_dir_path( __FILE__ ) );
+define( 'NROS_URL', plugin_dir_url( __FILE__ ) );
+define( 'NROS_PRIVATE_DIR', WP_CONTENT_DIR . '/nros-private' );
+define( 'NROS_API_NS', 'nros/v1' );
+
+// ---------------------------------------------------------------------------
+// Load plugin classes
+// ---------------------------------------------------------------------------
+
+require_once NROS_DIR . 'includes/class-nros-core.php';
+require_once NROS_DIR . 'includes/class-nros-jwt.php';
+require_once NROS_DIR . 'includes/class-nros-auth.php';
+require_once NROS_DIR . 'includes/class-nros-applications.php';
+require_once NROS_DIR . 'includes/class-nros-submissions.php';
+require_once NROS_DIR . 'includes/class-nros-media.php';
+require_once NROS_DIR . 'includes/class-nros-upload-sessions.php';
+require_once NROS_DIR . 'includes/class-nros-ledger.php';
+require_once NROS_DIR . 'includes/class-nros-analytics.php';
+require_once NROS_DIR . 'includes/class-nros-areas.php';
+require_once NROS_DIR . 'includes/class-nros-categories.php';
+require_once NROS_DIR . 'includes/class-nros-admin.php';
+require_once NROS_DIR . 'includes/class-nros-admin-api.php';
+require_once NROS_DIR . 'includes/class-nros-admin-posts.php';
+require_once NROS_DIR . 'includes/class-nros-ad-leads.php';
+require_once NROS_DIR . 'includes/class-nros-prompts.php';
+require_once NROS_DIR . 'includes/class-nros-videos.php';
+require_once NROS_DIR . 'includes/class-nros-editorial.php';
+require_once NROS_DIR . 'includes/class-nros-guest-authors.php';
+require_once NROS_DIR . 'includes/class-nros-notifications.php';
+require_once NROS_DIR . 'includes/class-nros-quotes.php';
+require_once NROS_DIR . 'includes/class-nros-insights.php';
+require_once NROS_DIR . 'includes/class-nros-video-kit.php';
+require_once NROS_DIR . 'includes/class-nros-photocard.php';
+require_once NROS_DIR . 'includes/class-nros-live.php';
+require_once NROS_DIR . 'includes/class-nros-deshchitro.php';
+require_once NROS_DIR . 'includes/class-nros-profile-desk.php';
+require_once NROS_DIR . 'includes/class-nros-pd-files.php';
+require_once NROS_DIR . 'includes/class-nros-pd-feeds.php';
+require_once NROS_DIR . 'includes/class-nros-pd-work.php';
+require_once NROS_DIR . 'includes/class-nros-vi.php';
+require_once NROS_DIR . 'includes/class-nros-vi-providers.php';
+require_once NROS_DIR . 'includes/class-nros-chat.php';
+require_once NROS_DIR . 'includes/class-nros-push.php';
+require_once NROS_DIR . 'includes/class-nros-app-landing.php'; // 1.22.0 [meeha_app_landing]
+require_once NROS_DIR . 'includes/class-nros-chat-tasks.php'; // 1.23.0 টু-ডু + chat automation
+require_once NROS_DIR . 'includes/class-nros-chat-templates.php'; // 1.24.0 message templates + “/” news
+require_once NROS_DIR . 'includes/class-nros-brand.php'; // 1.26.0 মিহার তথ্য + স্টেশনারি
+require_once NROS_DIR . 'includes/class-nros-idcards.php'; // 1.26.0 সাংবাদিক আইডি কার্ড
+require_once NROS_DIR . 'includes/class-nros-field.php'; // 1.27.0 মাঠ: কাজের বোর্ড, নিরাপত্তা, তথ্য অধিকার, কভারেজ
+require_once NROS_DIR . 'includes/class-nros-tips.php'; // r46 (DB 17) গোপন তথ্য পাঠান — secure tipline
+
+// Round 10 — public reels/carousel shortcodes and the /video/{slug}/ page
+// live in their own class, shipped separately; guarded so the plugin keeps
+// working whether or not that file is present.
+if ( file_exists( NROS_DIR . 'includes/class-nros-video-frontend.php' ) ) {
+	require_once NROS_DIR . 'includes/class-nros-video-frontend.php';
+}
+
+// ---------------------------------------------------------------------------
+// Activation / deactivation
+// ---------------------------------------------------------------------------
+
+register_activation_hook( __FILE__, array( 'NROS_Core', 'activate' ) );
+register_deactivation_hook( __FILE__, array( 'NROS_Core', 'deactivate' ) );
+
+// ---------------------------------------------------------------------------
+// Bootstrap — every class with route registrations/hooks gets its init()
+// called once all plugins have loaded.
+// ---------------------------------------------------------------------------
+
+add_action(
+	'plugins_loaded',
+	function () {
+		NROS_Core::init();
+		NROS_Auth::init();
+		NROS_Applications::init();
+		NROS_Submissions::init();
+		NROS_Media::init();
+		NROS_Upload_Sessions::init();
+		NROS_Ledger::init();
+		NROS_Analytics::init();
+		NROS_Areas::init();
+		NROS_Categories::init();
+		NROS_Admin::init();
+		NROS_Admin_API::init();
+		NROS_Admin_Posts::init();
+		NROS_Ad_Leads::init();
+		NROS_Prompts::init();
+		NROS_Videos::init();
+		NROS_Editorial::init();
+		NROS_Guest_Authors::init();
+		NROS_Notifications::init();
+		NROS_Quotes::init();
+		NROS_Insights::init();
+		NROS_Video_Kit::init();
+		NROS_Photocard::init();
+		NROS_Live::init();
+		NROS_Deshchitro::init();
+		NROS_Profile_Desk::init();
+		NROS_PD_Files::init();
+		NROS_PD_Feeds::init();
+		NROS_PD_Work::init();
+		NROS_VI::init();
+		NROS_Chat::init();
+		NROS_Push::init();
+		NROS_App_Landing::init();
+		NROS_Chat_Tasks::init();
+		NROS_Chat_Templates::init();
+		NROS_Brand::init();
+		NROS_ID_Cards::init();
+		NROS_Field::init();
+		NROS_Tips::init();
+		if ( class_exists( 'NROS_Video_Frontend' ) ) {
+			NROS_Video_Frontend::init();
+		}
+	}
+);

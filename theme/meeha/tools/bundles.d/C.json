@@ -1,0 +1,21 @@
+{
+	"_comment": "Owner C (home, archives, search, metrics). Template bundles: home, archive, search (their CSS is small and fully inlined as critical CSS, so no extra stylesheet request); metrics = view beacon + share/reaction counters (singular views).",
+	"home": {
+		"css": [ "assets/css/home.css" ],
+		"js": [ "assets/js/home.js" ],
+		"critical": [ "assets/css/home.css" ]
+	},
+	"archive": {
+		"css": [ "assets/css/archive.css" ],
+		"js": [ "assets/js/home.js" ],
+		"critical": [ "assets/css/archive.css" ]
+	},
+	"search": {
+		"css": [ "assets/css/archive.css" ],
+		"js": [ "assets/js/search.js" ],
+		"critical": [ "assets/css/archive.css" ]
+	},
+	"metrics": {
+		"js": [ "assets/js/metrics.js" ]
+	}
+}

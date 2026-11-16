@@ -1,0 +1,2244 @@
+/**
+ * Round 21 — "ভিডিও এডিট": the video editor for a video news item
+ * (route /app/videos/:id/edit-video).
+ *
+ * One click adds each element — animated corner logo, intro, outro,
+ * animated news frame (header with title + footer with ticker / ad),
+ * captions & credits, ad breaks from the video library — with a live
+ * preview that is exactly what gets rendered. "রেন্ডার" builds an MP4 in
+ * the browser (lib/videoEdit/render.ts), uploads it, and puts it on the
+ * post; the original file and the settings are kept on the post so the
+ * edit can be reopened or undone (NROS_Videos `edit`).
+ */
+import { applyAutoStyle } from '../lib/videoEdit/autostyle'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import {
+  AdminVideosApi,
+  ApiError,
+  CategoriesApi,
+  MediaApi,
+  PhotocardApi,
+  VideoKitApi,
+  describeError,
+  downloadMediaFile,
+  type LibraryImage,
+  type LibraryVideo,
+  type Video,
+  type VideoKit,
+} from '../lib/api'
+import { DEFAULT_CONFIG, FRAMES, INTROS, LIMITS, OUTROS, hasEdits, normalizeConfig, styleOnly, type EditConfig, type FormatId, type MediaRef } from '../lib/videoEdit/config'
+import { BUILTIN_CLIPS, fetchBlob, loadFonts, loadLogo, type LogoAsset } from '../lib/videoEdit/assets'
+import { drawOutputFrame, drawScene, introSettledAt, makeScratch, type DrawEnv, type Picture } from '../lib/videoEdit/draw'
+import { EMPTY_HOUSE, HOUSE_ADS, houseInfo, type HouseAdId, type HouseInfo } from '../lib/videoEdit/houseads'
+import { bnClock, bnDate } from '../lib/videoEdit/motion'
+import { PreviewPlayer, probeUrl, type PreviewState } from '../lib/videoEdit/preview'
+import { prepareVoices } from '../lib/videoEdit/audio'
+import { RenderCancelled, exportCapability, pickBitrate, renderAudioPreview, renderEdit, type RenderProgress } from '../lib/videoEdit/render'
+import { musicBuffer } from '../lib/videoEdit/music'
+import { AnalysisCancelled, reframeTrack, waveformPeaks, type Waveform } from '../lib/videoEdit/analyse'
+import { grabFrame, thumbnailJpeg, thumbSource } from '../lib/videoEdit/thumb'
+import { shrinkVideo, ShrinkCancelled } from '../lib/videoEdit/compress'
+import { dropKept, keepRender, keptRender, updateKept } from '../lib/videoEdit/keep'
+import { FILE_SIZES, type FileSize } from '../lib/videoEdit/config'
+import { buildTimeline, clipsUsed, computeLayout, outputToSource, sourceToOutput, trimRange, type ClipKey, type SceneId } from '../lib/videoEdit/timeline'
+import { bnFileSize, bnDuration } from '../lib/postMeta'
+import { Banner, Button, Card, Spinner, bnNumber } from '../components/ui'
+import {
+  IconAd,
+  IconAdjustments,
+  IconAspectRatio,
+  IconArrowLeft,
+  IconBadgeLogo,
+  IconBolt,
+  IconCheck,
+  IconDeviceFloppy,
+  IconDownload,
+  IconLayoutRows,
+  IconLibraryPhoto,
+  IconMovie,
+  IconMusic,
+  IconPlayerPause,
+  IconPlayerPlay,
+  IconPlayerSkipBack,
+  IconPlus,
+  IconRedo,
+  IconTextCaption,
+  IconTrash,
+  IconUndo,
+  IconWand,
+  IconWaveSine,
+  IconX,
+} from '../components/Icon'
+import MediaGallery from '../components/MediaGallery'
+import VideoLibraryPicker from '../components/videoStudio/VideoLibraryPicker'
+import StudioTimeline from '../components/videoStudio/StudioTimeline'
+import { AdsPanel, CaptionsPanel, FramePanel, IntroOutroPanel, LayoutPanel, LogoPanel, type ReframeJob, type ThumbPainter } from '../components/videoStudio/StudioPanels'
+import ToolsPanel from '../components/videoStudio/StudioTools'
+import BlurOverlay from '../components/videoStudio/BlurOverlay'
+import SoundPanel, { type AuditionState } from '../components/videoStudio/StudioSound'
+import VoicePanel from '../components/videoStudio/StudioVoice'
+import EffectsPanel from '../components/videoStudio/StudioEffects'
+import ThumbPanel from '../components/videoStudio/StudioThumb'
+import SubtitlesSection from '../components/videoStudio/StudioSubtitles'
+import StudioViewBar, { readUi, writeUi, type StudioUi } from '../components/videoStudio/StudioViewBar'
+import { announce, askNotify, notifyPermission } from '../lib/videoEdit/notify'
+
+type Tab = 'frame' | 'logo' | 'intro' | 'ads' | 'captions' | 'tools' | 'fx' | 'sound' | 'thumb' | 'layout'
+
+const TABS: { id: Tab; name: string; icon: (p: { className?: string }) => ReactNode }[] = [
+  { id: 'frame', name: 'ফ্রেম', icon: IconLayoutRows },
+  { id: 'logo', name: 'লোগো', icon: IconBadgeLogo },
+  { id: 'intro', name: 'ইন্ট্রো/আউট্রো', icon: IconMovie },
+  { id: 'captions', name: 'ক্যাপশন', icon: IconTextCaption },
+  { id: 'ads', name: 'বিজ্ঞাপন', icon: IconAd },
+  { id: 'tools', name: 'সম্পাদনা', icon: IconAdjustments },
+  { id: 'fx', name: 'ইফেক্ট', icon: IconBolt },
+  { id: 'sound', name: 'শব্দ ও মিউজিক', icon: IconMusic },
+  { id: 'layout', name: 'আকার', icon: IconAspectRatio },
+]
+
+const TAB_COLS = ['grid-cols-1', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4', 'grid-cols-5']
+
+const draftKey = (videoId: number, originalId: number) => `meeha-studio:v1:${videoId}:${originalId}`
+const STYLE_KEY = 'meeha-studio:last-style'
+
+function readJson(key: string): unknown {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+function writeJson(key: string, value: unknown) {
+  try {
+    if (value === null) localStorage.removeItem(key)
+    else localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // private mode / full storage: drafts are a convenience only
+  }
+}
+
+/** Another size rendered together with the main one ("এক ক্লিকে কয়েক মাপে"). */
+interface Extra {
+  format: FormatId
+  name: string
+  url: string
+  size: number
+  filename: string
+  uploaded: boolean
+}
+
+/** The sizes offered for rendering together. */
+const MULTI_FORMATS: { id: FormatId; name: string; ratio: number }[] = [
+  { id: '9:16', name: 'রিল / শর্টস (৯:১৬)', ratio: 9 / 16 },
+  { id: '16:9', name: 'YouTube (১৬:৯)', ratio: 16 / 9 },
+  { id: '1:1', name: 'বর্গ (১:১)', ratio: 1 },
+]
+
+type Job =
+  | { stage: 'options' }
+  | { stage: 'download'; ratio: number; label: string }
+  | { stage: 'render'; p: RenderProgress; part?: string }
+  | { stage: 'upload'; percent: number; part?: string; note?: string | null; loaded?: number; total?: number; speed?: number | null; eta?: number | null }
+  | { stage: 'shrink'; ratio: number; from: number; to: number }
+  | { stage: 'saving' }
+  /**
+   * Round 28: the render is ready. `canAttach`: it can still go into the post
+   * (the পোস্টে বসান button); `note` says why an upload stopped; `restored`:
+   * kept in the browser from an earlier visit.
+   */
+  | { stage: 'done'; url: string; size: number; attached: boolean; filename: string; tooLarge: boolean; extras: Extra[]; canAttach?: boolean; note?: string | null; restored?: number | null; mime?: string }
+  /** `resume`: the render is kept, only the upload is tried again. */
+  | { stage: 'error'; message: string; resume?: boolean }
+
+/** Round 27: what is left to send after a render (kept so a failed upload never means rendering again). */
+interface Pending {
+  blob: Blob
+  mime: string
+  ext: 'mp4' | 'webm'
+  filename: string
+  slug: string
+  duration: number
+  width: number
+  height: number
+  poster: Blob | null
+  cfg: EditConfig
+  extras: { info: Extra; blob: Blob; mime: string }[]
+  /** Resumable upload sessions by blob (so a retry continues where it stopped). */
+  sessions: Map<Blob, { id: string }>
+  videoAttachment: { id: number } | null
+  /** Round 28: already shrunk to fit the server. */
+  shrunk?: boolean
+}
+
+/** Round 28: an upload stop that is not worth retrying by itself; `final`: পোস্টে বসান cannot help either. */
+class UploadStop extends Error {
+  final: boolean
+  constructor(message: string, final = false) {
+    super(message)
+    this.final = final
+  }
+}
+
+interface Loaded {
+  video: Video
+  kit: VideoKit | null
+  logo: LogoAsset
+  originalId: number
+  mainUrl: string
+  main: { duration: number; width: number; height: number }
+  maxBytes: number | null
+  restored: 'draft' | 'saved' | null
+  initial: EditConfig
+}
+
+export default function VideoStudio() {
+  const { id } = useParams()
+  const videoId = Number(id)
+  const navigate = useNavigate()
+
+  const [loaded, setLoaded] = useState<Loaded | null>(null)
+  const [loadError, setLoadError] = useState('')
+  const [cfg, setCfg] = useState<EditConfig>(DEFAULT_CONFIG)
+  // round 30: open on the first tab the tick bar keeps
+  const [tab, setTab] = useState<Tab>(() => TABS.find((t) => !readUi().hiddenTabs.includes(t.id))?.id ?? 'frame')
+  const [pstate, setPstate] = useState<PreviewState>({ time: 0, playing: false, waiting: false })
+  const [durations, setDurations] = useState<Record<string, number>>({})
+  const [adPic, setAdPic] = useState<Picture | null>(null)
+  const [picker, setPicker] = useState<null | { kind: 'ad-add' } | { kind: 'ad-replace'; index: number } | { kind: 'intro' | 'outro' | 'pip' }>(null)
+  const [imagePicker, setImagePicker] = useState<null | 'ad' | 'face'>(null)
+  const [facePic, setFacePic] = useState<Picture | null>(null)
+  const [selectedSticker, setSelectedSticker] = useState<number | null>(null)
+  const [wave, setWave] = useState<Waveform | null>(null)
+  const [waveJob, setWaveJob] = useState<null | { ratio: number; label: string } | { error: string }>(null)
+  const [reframeJob, setReframeJob] = useState<ReframeJob>(null)
+  const [extraFormats, setExtraFormats] = useState<FormatId[]>([])
+  const analysisRef = useRef<{ wave: AbortController | null; reframe: AbortController | null }>({ wave: null, reframe: null })
+  const [job, setJob] = useState<Job | null>(null)
+  // round 28: upload only on পোস্টে বসান, unless this is ticked (round 30: remembered)
+  const [attach, setAttachRaw] = useState(() => readJson('meeha-studio:auto-attach') === true)
+  const setAttach = (v: boolean) => {
+    setAttachRaw(v)
+    writeJson('meeha-studio:auto-attach', v)
+  }
+  // round 30: the render dialog folded away while the job goes on in the background
+  const [bg, setBg] = useState(false)
+  // round 30: what the studio shows (the tick bar at the top)
+  const [ui, setUiRaw] = useState<StudioUi>(readUi)
+  const setUi = (f: (u: StudioUi) => StudioUi) =>
+    setUiRaw((u) => {
+      const n = f(u)
+      writeUi(n)
+      return n
+    })
+  const [notifyState, setNotifyState] = useState(notifyPermission)
+  const [setThumb, setSetThumb] = useState(true)
+  // round 29: the thumbnail studio under the editor; open unless closed before
+  const [thumbOpen, setThumbOpenRaw] = useState(() => {
+    try {
+      return localStorage.getItem('meeha-studio:thumb-open') !== '0'
+    } catch {
+      return true
+    }
+  })
+  const setThumbOpen = (f: (v: boolean) => boolean) =>
+    setThumbOpenRaw((v) => {
+      const n = f(v)
+      try {
+        localStorage.setItem('meeha-studio:thumb-open', n ? '1' : '0')
+      } catch {
+        // private mode: just not remembered
+      }
+      return n
+    })
+  const [notice, setNotice] = useState('')
+  const [presetMenu, setPresetMenu] = useState(false)
+  const [kit, setKit] = useState<VideoKit | null>(null)
+  // round 26: the site's social links + campus address, for the Meeha house ads (newsroom-os ≥ 1.9.0)
+  const [house, setHouse] = useState<HouseInfo>(EMPTY_HOUSE)
+  useEffect(() => {
+    PhotocardApi.kit()
+      .then((k) => setHouse(houseInfo(k.house?.social, k.house?.campus)))
+      .catch(() => undefined)
+  }, [])
+  const [stillTick, setStillTick] = useState(0)
+  const [selectedBlur, setSelectedBlur] = useState<number | null>(null)
+  const [audition, setAudition] = useState<AuditionState>(null)
+  const auditionRef = useRef<{ ctrl: AbortController; src: AudioBufferSourceNode | null } | null>(null)
+
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const playerRef = useRef<PreviewPlayer | null>(null)
+  const scratch = useMemo(() => makeScratch(), [])
+  const thumbScratch = useMemo(() => makeScratch(), [])
+  const stillRef = useRef<HTMLVideoElement | null>(null)
+  const history = useRef<{ past: EditConfig[]; future: EditConfig[]; last: number }>({ past: [], future: [], last: 0 })
+  const abortRef = useRef<AbortController | null>(null)
+  const blobCache = useRef(new Map<string, Blob>())
+  const resultUrl = useRef<string | null>(null)
+  const pendingRef = useRef<Pending | null>(null)
+  const extraUrls = useRef<string[]>([])
+  const capability = useMemo(() => exportCapability(), [])
+
+  // ---- load everything ----
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [video, kitRes] = await Promise.all([AdminVideosApi.get(videoId), VideoKitApi.get().catch(() => null)])
+        if (video.source !== 'upload' || !video.video_attachment_id) {
+          throw new Error('শুধু আপলোড করা ভিডিও এডিট করা যায় — YouTube লিংকের ভিডিও এখানে এডিট হয় না।')
+        }
+        // r46: the full-quality original when it has arrived (the main file may be a quick 720p copy)
+        const useHd = !video.edit?.original_url && !!video.hd_url && !!video.hd_attachment_id
+        const originalId = video.edit?.original_attachment_id ?? (useHd ? video.hd_attachment_id! : video.video_attachment_id)
+        const mainUrl = video.edit?.original_url || (useHd ? video.hd_url! : video.video_url)
+        const [main, logo, limits] = await Promise.all([
+          probeUrl(mainUrl),
+          (async () => {
+            await loadFonts()
+            if (kitRes?.logo) {
+              try {
+                return await loadLogo(await downloadMediaFile(kitRes.logo.id))
+              } catch {
+                // fall back to the bundled logo
+              }
+            }
+            return loadLogo()
+          })(),
+          MediaApi.videoLimits().catch(() => null),
+        ])
+        if (!main) throw new Error('ভিডিওটি এই ব্রাউজারে চালানো যাচ্ছে না (ফরম্যাট/কোডেক) — কম্পিউটারে Chrome বা Edge-এ খুলে চেষ্টা করুন।')
+
+        const draft = readJson(draftKey(videoId, originalId)) as { config?: unknown } | null
+        let initial: EditConfig
+        let restored: Loaded['restored'] = null
+        if (draft?.config) {
+          initial = normalizeConfig(draft.config)
+          restored = 'draft'
+        } else if (video.edit?.config) {
+          initial = normalizeConfig(video.edit.config)
+          restored = 'saved'
+        } else {
+          const style = readJson(STYLE_KEY)
+          initial = style ? normalizeConfig(style) : { ...DEFAULT_CONFIG }
+          initial = { ...initial, frame: { ...initial.frame, ticker: kitRes?.ticker ?? '', adText: initial.frame.adText || kitRes?.ad_text || '' } }
+          // r46: a first edit gets music, frame, intro, outro and name plate picked from its category and title
+          const catName = video.category_id ? ((await CategoriesApi.list().catch(() => [])) as { id: number; name: string }[]).find((c) => c.id === video.category_id)?.name ?? '' : ''
+          initial = applyAutoStyle(initial, catName, video.title)
+        }
+        if (cancelled) return
+        setKit(kitRes)
+        setCfg(initial)
+        setLoaded({
+          video,
+          kit: kitRes,
+          logo,
+          originalId,
+          mainUrl,
+          main,
+          // round 27: with resumable uploads (plugin 1.13.0) the limit is the plugin's 200 MB, not PHP's
+          maxBytes: limits?.resumable?.max_bytes ? limits.resumable.max_bytes : limits && limits.max_bytes > 0 ? limits.max_bytes : null,
+          restored,
+          initial,
+        })
+      } catch (err) {
+        if (!cancelled) setLoadError(err instanceof Error && !('status' in err) ? err.message : describeError(err).message)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [videoId])
+
+  // ---- config updates with undo ----
+  const set = useCallback((fn: (c: EditConfig) => EditConfig) => {
+    setCfg((prev) => {
+      const next = fn(prev)
+      if (next === prev) return prev
+      const h = history.current
+      const now = Date.now()
+      if (now - h.last > 700) {
+        h.past.push(prev)
+        if (h.past.length > 80) h.past.shift()
+      }
+      h.last = now
+      h.future = []
+      return next
+    })
+  }, [])
+  const undo = useCallback(() => {
+    const h = history.current
+    const prev = h.past.pop()
+    if (!prev) return
+    setCfg((cur) => {
+      h.future.push(cur)
+      return prev
+    })
+  }, [])
+  const redo = useCallback(() => {
+    const h = history.current
+    const next = h.future.pop()
+    if (!next) return
+    setCfg((cur) => {
+      h.past.push(cur)
+      return next
+    })
+  }, [])
+
+  // draft autosave
+  useEffect(() => {
+    if (!loaded) return
+    const t = setTimeout(() => {
+      const same = JSON.stringify(cfg) === JSON.stringify(loaded.initial)
+      writeJson(draftKey(videoId, loaded.originalId), same && loaded.restored !== 'draft' ? null : { config: cfg, at: Date.now() })
+    }, 600)
+    return () => clearTimeout(t)
+  }, [cfg, loaded, videoId])
+
+  // ---- clip URLs + durations ----
+  const urls = useMemo(() => {
+    const u: Partial<Record<ClipKey, string>> = {}
+    if (!loaded) return u
+    u.main = loaded.mainUrl
+    if (cfg.intro.id === 'meeha-logo') u.intro = BUILTIN_CLIPS['meeha-logo']
+    else if (cfg.intro.id === 'custom' && cfg.intro.clip) u.intro = cfg.intro.clip.url
+    if (cfg.outro.id === 'meeha-social') u.outro = BUILTIN_CLIPS['meeha-social']
+    else if (cfg.outro.id === 'custom' && cfg.outro.clip) u.outro = cfg.outro.clip.url
+    cfg.ads.forEach((a, i) => {
+      if (a.clip) u[`ad${i}`] = a.clip.url
+    })
+    if (cfg.pip?.clip) u.pip = cfg.pip.clip.url
+    return u
+  }, [loaded, cfg.intro, cfg.outro, cfg.ads, cfg.pip])
+
+  useEffect(() => {
+    for (const url of Object.values(urls)) {
+      if (!url || durations[url] !== undefined) continue
+      setDurations((d) => ({ ...d, [url]: -1 }))
+      probeUrl(url).then((m) => setDurations((d) => ({ ...d, [url]: m ? m.duration : 0 })))
+    }
+  }, [urls, durations])
+
+  const dur = (url?: string, fallback?: number | null) => {
+    if (!url) return null
+    const d = durations[url]
+    return d && d > 0 ? d : fallback && fallback > 0 ? fallback : null
+  }
+
+  // ---- ad banner image ----
+  useEffect(() => {
+    const ref = cfg.frame.adImage
+    if (!ref) {
+      setAdPic(null)
+      return
+    }
+    let cancelled = false
+    downloadMediaFile(ref.id)
+      .then((b) => createImageBitmap(b))
+      .then((bmp) => !cancelled && setAdPic({ src: bmp, w: bmp.width, h: bmp.height }))
+      .catch(() => !cancelled && setAdPic(null))
+    return () => {
+      cancelled = true
+    }
+  }, [cfg.frame.adImage])
+
+  // ---- thumbnail face photo ----
+  useEffect(() => {
+    const ref = cfg.thumb.face
+    if (!ref) {
+      setFacePic(null)
+      return
+    }
+    let cancelled = false
+    downloadMediaFile(ref.id)
+      .then((b) => createImageBitmap(b))
+      .then((bmp) => !cancelled && setFacePic({ src: bmp, w: bmp.width, h: bmp.height }))
+      .catch(() => !cancelled && setFacePic(null))
+    return () => {
+      cancelled = true
+    }
+  }, [cfg.thumb.face])
+
+  // ---- layout / timeline / draw env ----
+  const L = useMemo(() => (loaded ? computeLayout(cfg, loaded.main.width, loaded.main.height) : null), [loaded, cfg])
+  const clipDurations = () => ({
+    main: loaded?.main.duration ?? 0,
+    intro: dur(urls.intro, cfg.intro.clip?.duration),
+    outro: dur(urls.outro, cfg.outro.clip?.duration),
+    ads: cfg.ads.map((a, i) => (a.clip ? dur(urls[`ad${i}`], a.clip.duration) : null)),
+  })
+  const tl = useMemo(() => {
+    if (!loaded) return null
+    return buildTimeline(cfg, clipDurations())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, cfg, urls, durations])
+
+  const postTitle = loaded?.video.title ?? ''
+  const env: DrawEnv | null = useMemo(() => {
+    if (!loaded || !L || !tl) return null
+    const title = cfg.frame.title.trim() || postTitle
+    return {
+      cfg,
+      L,
+      tl,
+      logo: loaded.logo,
+      adImage: adPic,
+      title,
+      introTitle: cfg.intro.text.trim() || title,
+      kicker: cfg.frame.kicker,
+      ticker: cfg.frame.ticker.trim() || title,
+      dateText: bnDate(),
+      website: kit?.website || 'meeha.news',
+      house,
+      reporter: loaded.video.author?.name,
+      scratch,
+    }
+  }, [loaded, L, tl, cfg, adPic, kit, postTitle, scratch, house])
+  const thumbEnv = useMemo(() => (env ? { ...env, scratch: thumbScratch } : null), [env, thumbScratch])
+
+  // ---- preview player ----
+  useEffect(() => {
+    if (!canvasRef.current || !loaded) return
+    const p = new PreviewPlayer(canvasRef.current, setPstate)
+    playerRef.current = p
+    return () => {
+      p.destroy()
+      playerRef.current = null
+    }
+  }, [loaded])
+  useEffect(() => {
+    if (env) playerRef.current?.setEnv(env)
+  }, [env])
+  // the brand music is synthesised on first use; get the chosen piece ready early
+  useEffect(() => {
+    if (cfg.audio.music !== 'none') musicBuffer(cfg.audio.music).catch(() => undefined)
+  }, [cfg.audio.music])
+  useEffect(() => {
+    playerRef.current?.setSources(urls)
+  }, [urls])
+  // round 27: the voice-overs play in the preview too (downloaded once, decoded once)
+  useEffect(() => {
+    if (!tl) return
+    if (!cfg.voices.length) {
+      playerRef.current?.setVoices([])
+      return
+    }
+    const ctrl = new AbortController()
+    collectVoices(ctrl.signal, () => undefined)
+      .then((blobs) => prepareVoices(cfg, tl, blobs))
+      .then((tracks) => {
+        if (!ctrl.signal.aborted) playerRef.current?.setVoices(tracks)
+      })
+      .catch(() => undefined)
+    return () => ctrl.abort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg.voices, tl, loaded])
+
+  // a still of the main video for the design thumbnails
+  useEffect(() => {
+    if (!loaded) return
+    const v = document.createElement('video')
+    v.muted = true
+    v.preload = 'auto'
+    v.src = loaded.mainUrl
+    v.onloadeddata = () => {
+      v.currentTime = Math.min(loaded.main.duration * 0.3, 2)
+    }
+    v.onseeked = () => {
+      stillRef.current = v
+      setStillTick((n) => n + 1)
+    }
+    return () => {
+      v.removeAttribute('src')
+      v.load()
+    }
+  }, [loaded])
+
+  const thumbRatio = L ? L.W / L.H : 16 / 9
+  const thumbKey = `${stillTick}|${cfg.format}|${cfg.fit}|${cfg.frame.size}|${cfg.frame.title}|${cfg.frame.kicker}|${cfg.frame.footer}|${cfg.intro.text}|${L?.W}x${L?.H}|${kit?.website}|${JSON.stringify(cfg.look)}`
+
+  const thumb: ThumbPainter = useCallback(
+    (kind, id) => {
+      if (!env || !loaded) return null
+      return (canvas: HTMLCanvasElement) => {
+        let c2 = cfg
+        if (kind === 'frame') c2 = { ...cfg, frame: { ...cfg.frame, id: id as EditConfig['frame']['id'] }, logo: { ...cfg.logo, on: false }, watermark: { ...cfg.watermark, on: false }, captions: [] }
+        const L2 = computeLayout(c2, loaded.main.width, loaded.main.height)
+        const tl2 = buildTimeline({ ...c2, intro: { ...c2.intro, id: 'none' }, outro: { ...c2.outro, id: 'none' }, ads: [] }, { main: loaded.main.duration })
+        const w = 360
+        canvas.width = w
+        canvas.height = Math.round((w * L2.H) / L2.W)
+        const ctx = canvas.getContext('2d')!
+        ctx.setTransform(w / L2.W, 0, 0, w / L2.W, 0, 0)
+        const e2: DrawEnv = { ...env, cfg: c2, L: L2, tl: tl2, scratch: thumbScratch }
+        const still = stillRef.current
+        const pic: Picture | null = still && still.videoWidth ? { src: still, w: still.videoWidth, h: still.videoHeight } : null
+        if (kind === 'house') {
+          drawScene(ctx, e2, `house-${id as HouseAdId}`, 3.3, HOUSE_ADS.find((h) => h.id === id)?.dur ?? 6)
+        } else if (kind === 'frame') {
+          const seg = tl2.segments[0]
+          drawOutputFrame(ctx, e2, { ...seg, mainOffset: 3 - 0 }, seg.t0, pic)
+        } else {
+          const scene = (kind === 'intro' ? INTROS : OUTROS).find((x) => x.id === id)
+          if (scene?.duration) drawScene(ctx, e2, id as SceneId, kind === 'intro' ? introSettledAt(id as SceneId, scene.duration) : 1.8, scene.duration)
+          else {
+            // clip-based: a branded placeholder card
+            const g = ctx.createLinearGradient(0, 0, L2.W, L2.H)
+            g.addColorStop(0, id === 'meeha-logo' ? '#F1F6FC' : id === 'meeha-social' ? '#025AB2' : '#3F3F46')
+            g.addColorStop(1, id === 'meeha-logo' ? '#DCE8F6' : id === 'meeha-social' ? '#0B2746' : '#18181B')
+            ctx.fillStyle = g
+            ctx.fillRect(0, 0, L2.W, L2.H)
+            const lh = Math.min(L2.W, L2.H) * 0.12
+            const lw = (loaded.logo.w / loaded.logo.h) * lh
+            if (id === 'meeha-social') {
+              ctx.fillStyle = '#fff'
+              ctx.beginPath()
+              ctx.roundRect(L2.W / 2 - lw / 2 - lh * 0.4, L2.H / 2 - lh * 0.9, lw + lh * 0.8, lh * 1.8, lh * 0.3)
+              ctx.fill()
+            }
+            if (id !== 'custom') ctx.drawImage(loaded.logo.color, L2.W / 2 - lw / 2, L2.H / 2 - lh / 2, lw, lh)
+            else {
+              ctx.fillStyle = '#A1A1AA'
+              ctx.font = `600 ${lh * 0.6}px "MeehaKit Sans", sans-serif`
+              ctx.textAlign = 'center'
+              ctx.textBaseline = 'middle'
+              ctx.fillText('নিজের ভিডিও', L2.W / 2, L2.H / 2)
+            }
+          }
+        }
+        ctx.setTransform(1, 0, 0, 1, 0, 0)
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [env, loaded, thumbKey],
+  )
+
+  // ---- keyboard ----
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) {
+        e.preventDefault()
+        if (e.shiftKey) redo()
+        else undo()
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y' && !typing) {
+        e.preventDefault()
+        redo()
+      } else if (e.code === 'Space' && !typing && !job) {
+        e.preventDefault()
+        playerRef.current?.toggle()
+      } else if (!typing && !job && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === ',' || e.key === '.')) {
+        // ← → one second (Shift: five), , . one frame
+        const p = playerRef.current
+        if (!p) return
+        e.preventDefault()
+        const step = e.key === ',' || e.key === '.' ? 1 / 30 : e.shiftKey ? 5 : 1
+        p.pause()
+        p.seek(p.time + (e.key === 'ArrowLeft' || e.key === ',' ? -step : step))
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [undo, redo, job])
+
+  // round 27: keep the screen (and so the tab) awake while rendering / uploading
+  const working = !!job && job.stage !== 'options' && job.stage !== 'done' && job.stage !== 'error'
+  useEffect(() => {
+    if (!working) return
+    type Lock = { release: () => Promise<void> }
+    const wl = (navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<Lock> } }).wakeLock
+    if (!wl) return
+    let lock: Lock | null = null
+    let gone = false
+    const get = () =>
+      wl
+        .request('screen')
+        .then((l) => {
+          if (gone) void l.release()
+          else lock = l
+        })
+        .catch(() => undefined)
+    void get()
+    // the lock drops when the tab is hidden; take it again on return
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void get()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      gone = true
+      document.removeEventListener('visibilitychange', onVis)
+      void lock?.release().catch(() => undefined)
+    }
+  }, [working])
+
+  // leaving mid-render
+  useEffect(() => {
+    if (!job || job.stage === 'options' || job.stage === 'done' || job.stage === 'error') return
+    const h = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', h)
+    return () => window.removeEventListener('beforeunload', h)
+  }, [job])
+
+  useEffect(
+    () => () => {
+      abortRef.current?.abort()
+      analysisRef.current.wave?.abort()
+      analysisRef.current.reframe?.abort()
+      if (resultUrl.current) URL.revokeObjectURL(resultUrl.current)
+      extraUrls.current.forEach((u) => URL.revokeObjectURL(u))
+    },
+    [],
+  )
+
+  // ---- helpers ----
+  const range = loaded ? trimRange(cfg, loaded.main.duration) : { start: 0, end: 0 }
+  const playheadSrc = useCallback(() => (tl ? outputToSource(tl, playerRef.current?.time ?? 0) : null), [tl])
+  const seekToSource = (src: number) => {
+    if (!tl) return
+    const t = sourceToOutput(tl, src)
+    if (t !== null) playerRef.current?.seek(t)
+  }
+
+  function addAd(v: LibraryVideo, replaceIndex?: number) {
+    const clip: MediaRef = { id: v.id, url: v.url, title: v.title, duration: v.duration }
+    if (replaceIndex !== undefined) {
+      set((c) => ({ ...c, ads: c.ads.map((a, i) => (i === replaceIndex ? { ...a, clip, house: null } : a)) }))
+      return
+    }
+    const p = playheadSrc()
+    const at = p !== null && p > range.start + 0.3 && p < range.end - 0.3 ? p : range.start + (range.end - range.start) / 2
+    set((c) => ({ ...c, ads: [...c.ads, { at: Math.round(at * 10) / 10, clip, house: null, bumper: true }] }))
+    setTab('ads')
+  }
+
+  /** Round 26: a Meeha house ad (drawn, nothing to download) at the playhead, or in place of break `replaceIndex`. */
+  function addHouseAd(house: HouseAdId, replaceIndex?: number) {
+    if (replaceIndex !== undefined) {
+      set((c) => ({ ...c, ads: c.ads.map((a, i) => (i === replaceIndex ? { ...a, clip: null, house } : a)) }))
+      return
+    }
+    const p = playheadSrc()
+    const at = p !== null && p > range.start + 0.3 && p < range.end - 0.3 ? p : range.start + (range.end - range.start) / 2
+    set((c) => ({ ...c, ads: [...c.ads, { at: Math.round(at * 10) / 10, clip: null, house, bumper: false }].slice(0, LIMITS.ads) }))
+  }
+
+  async function getBlob(
+    key: string,
+    load: (onProgress: (l: number, t: number) => void) => Promise<Blob>,
+    label: string,
+    signal: AbortSignal,
+    report: (label: string, ratio: number) => void,
+  ) {
+    const hit = blobCache.current.get(key)
+    if (hit) return hit
+    report(label, 0)
+    const b = await load((l, t) => {
+      if (!signal.aborted) report(label, t ? l / t : 0)
+    })
+    blobCache.current.set(key, b)
+    return b
+  }
+
+  /** Downloads (once) every file the timeline plays. */
+  async function collectClips(signal: AbortSignal, report: (label: string, ratio: number) => void, only?: Set<ClipKey>) {
+    const clips: Partial<Record<ClipKey, Blob>> = {}
+    if (!loaded) return clips
+    const want = (k: ClipKey) => !only || only.has(k)
+    if (want('main')) clips.main = await getBlob(`m${loaded.originalId}`, (p) => downloadMediaFile(loaded.originalId, p, signal), 'মূল ভিডিও নামানো হচ্ছে…', signal, report)
+    const clipFor = async (key: ClipKey, url: string | undefined, ref: MediaRef | null, builtin: boolean, label: string) => {
+      if (!url || !want(key)) return
+      if (builtin) clips[key] = await getBlob(url, () => fetchBlob(url, signal), label, signal, report)
+      else if (ref) clips[key] = await getBlob(`m${ref.id}`, (p) => downloadMediaFile(ref.id, p, signal), label, signal, report)
+    }
+    await clipFor('intro', urls.intro, cfg.intro.clip, cfg.intro.id === 'meeha-logo', 'ইন্ট্রো ভিডিও লোড হচ্ছে…')
+    await clipFor('outro', urls.outro, cfg.outro.clip, cfg.outro.id === 'meeha-social', 'আউট্রো ভিডিও লোড হচ্ছে…')
+    for (let i = 0; i < cfg.ads.length; i++) await clipFor(`ad${i}`, urls[`ad${i}`], cfg.ads[i].clip, false, `বিজ্ঞাপন ${bnNumber(i + 1)} লোড হচ্ছে…`)
+    if (cfg.pip?.clip && tl && clipsUsed(tl, cfg).has('pip')) await clipFor('pip', urls.pip, cfg.pip.clip, false, 'দ্বিতীয় ভিডিও লোড হচ্ছে…')
+    return clips
+  }
+
+  /** Downloads (once) every recorded / uploaded voice-over, by index. */
+  async function collectVoices(signal: AbortSignal, report: (label: string, ratio: number) => void) {
+    const out: (Blob | null)[] = []
+    for (const [i, v] of cfg.voices.entries()) {
+      try {
+        out.push(await getBlob(`m${v.clip.id}`, (p) => downloadMediaFile(v.clip.id, p, signal), `ভয়েস ${bnNumber(i + 1)} লোড হচ্ছে…`, signal, report))
+      } catch (err) {
+        if (signal.aborted) throw err
+        out.push(null)
+      }
+    }
+    return out
+  }
+
+  const errText = (err: unknown) => (err instanceof Error && !('status' in err) ? err.message : describeError(err).message)
+  const mainBlob = (signal: AbortSignal, report: (label: string, ratio: number) => void) =>
+    getBlob(`m${loaded!.originalId}`, (p) => downloadMediaFile(loaded!.originalId, p, signal), 'মূল ভিডিও নামানো হচ্ছে…', signal, report)
+  const withPct = (label: string, ratio: number) => (ratio > 0 ? `${label} ${bnNumber(Math.round(ratio * 100))}%` : label)
+
+  // ---- the main video's sound on the timeline ----
+  async function loadWave() {
+    if (!loaded) return
+    analysisRef.current.wave?.abort()
+    const ctrl = new AbortController()
+    analysisRef.current.wave = ctrl
+    try {
+      const blob = await mainBlob(ctrl.signal, (label, ratio) => setWaveJob({ label: withPct(label, ratio), ratio }))
+      setWaveJob({ label: 'শব্দ পড়া হচ্ছে…', ratio: 0 })
+      const w = await waveformPeaks(blob, ctrl.signal, (ratio) => setWaveJob({ label: withPct('শব্দ পড়া হচ্ছে…', ratio), ratio }))
+      if (ctrl.signal.aborted) return
+      if (!w) setWaveJob({ error: 'এই ভিডিওতে পড়ার মতো শব্দ পাওয়া যায়নি।' })
+      else {
+        setWave(w)
+        setWaveJob(null)
+      }
+    } catch (err) {
+      if (ctrl.signal.aborted || err instanceof AnalysisCancelled) setWaveJob(null)
+      else setWaveJob({ error: `শব্দের ঢেউ দেখানো যায়নি: ${errText(err)}` })
+    } finally {
+      if (analysisRef.current.wave === ctrl) analysisRef.current.wave = null
+    }
+  }
+
+  // ---- smart reframe: follow the people when the crop is narrower than the video ----
+  async function runReframe() {
+    if (!loaded) return
+    analysisRef.current.reframe?.abort()
+    const ctrl = new AbortController()
+    analysisRef.current.reframe = ctrl
+    try {
+      const blob = await mainBlob(ctrl.signal, (label, ratio) => setReframeJob({ stage: 'running', label: withPct(label, ratio), ratio }))
+      setReframeJob({ stage: 'running', label: 'ভিডিও বিশ্লেষণ হচ্ছে…', ratio: 0 })
+      const r = await reframeTrack(blob, LIMITS.reframe, ctrl.signal, (ratio) => setReframeJob({ stage: 'running', label: withPct('ভিডিও বিশ্লেষণ হচ্ছে…', ratio), ratio }))
+      if (ctrl.signal.aborted) return
+      if (!r) {
+        setReframeJob({ stage: 'error', message: 'এই ভিডিওটি বিশ্লেষণ করা যায়নি।' })
+        return
+      }
+      set((c) => ({ ...c, fit: 'cover', reframe: { on: true, step: r.step, xs: r.xs, ys: r.ys } }))
+      setReframeJob({ stage: 'done', faces: r.faces })
+    } catch (err) {
+      if (ctrl.signal.aborted || err instanceof AnalysisCancelled) setReframeJob(null)
+      else setReframeJob({ stage: 'error', message: `বিশ্লেষণ করা যায়নি: ${errText(err)}` })
+    } finally {
+      if (analysisRef.current.reframe === ctrl) analysisRef.current.reframe = null
+    }
+  }
+
+  // ---- "শুনে দেখুন": the exact export soundtrack for 15 s from the playhead ----
+  function stopAudition() {
+    const a = auditionRef.current
+    auditionRef.current = null
+    if (a) {
+      a.ctrl.abort()
+      try {
+        a.src?.stop()
+      } catch {
+        // already stopped
+      }
+    }
+    playerRef.current?.setMuted(false)
+    if (a?.src) playerRef.current?.pause()
+    setAudition(null)
+  }
+
+  async function startAudition() {
+    const player = playerRef.current
+    if (!loaded || !tl || !player) return
+    stopAudition()
+    const ctrl = new AbortController()
+    const mine = { ctrl, src: null as AudioBufferSourceNode | null }
+    auditionRef.current = mine
+    const from = Math.min(player.time, Math.max(0, tl.duration - 1))
+    const seconds = Math.min(15, tl.duration - from)
+    player.pause()
+    try {
+      const only = new Set(tl.segments.filter((s) => s.clip && s.t0 < from + seconds && s.t0 + s.dur > from).map((s) => s.clip as ClipKey))
+      if (clipsUsed(tl, cfg).has('pip')) only.add('pip')
+      const clips = await collectClips(ctrl.signal, (label, ratio) => setAudition({ stage: 'loading', label: ratio > 0 ? `${label} ${bnNumber(Math.round(ratio * 100))}%` : label }), only)
+      if (auditionRef.current !== mine) return
+      setAudition({ stage: 'loading', label: 'সাউন্ড তৈরি হচ্ছে…' })
+      const voiceFiles = await collectVoices(ctrl.signal, (label, ratio) => setAudition({ stage: 'loading', label: withPct(label, ratio) }))
+      const buf = await renderAudioPreview(cfg, tl, clips, from, seconds, ctrl.signal, voiceFiles)
+      const ctx = player.audioContext()
+      if (auditionRef.current !== mine || !ctx) return
+      await ctx.resume().catch(() => undefined)
+      player.seek(from)
+      player.setMuted(true)
+      player.play()
+      const src = ctx.createBufferSource()
+      src.buffer = buf
+      src.connect(ctx.destination)
+      src.onended = () => {
+        if (auditionRef.current === mine) stopAudition()
+      }
+      src.start()
+      mine.src = src
+      setAudition({ stage: 'playing', from, seconds })
+    } catch (err) {
+      if (auditionRef.current !== mine) return
+      auditionRef.current = null
+      player.setMuted(false)
+      setAudition(null)
+      if (!(err instanceof RenderCancelled) && !ctrl.signal.aborted) setNotice(`সাউন্ড তৈরি করা যায়নি: ${err instanceof Error && !('status' in err) ? err.message : describeError(err).message}`)
+    }
+  }
+
+  async function startRender() {
+    if (!loaded || !env || !tl || !L) return
+    stopAudition()
+    pendingRef.current = null
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
+    const signal = ctrl.signal
+    try {
+      // 1 — files
+      const clips = await collectClips(signal, (label, ratio) => setJob({ stage: 'download', ratio, label }))
+      const voices = await collectVoices(signal, (label, ratio) => setJob({ stage: 'download', ratio, label }))
+
+      // 2 — render (the chosen size, then any other sizes asked for)
+      playerRef.current?.pause()
+      const others = MULTI_FORMATS.filter((f) => extraFormats.includes(f.id) && Math.abs(f.ratio - L.W / L.H) > 0.02)
+      const result = await renderEdit({
+        cfg,
+        tl,
+        env: { ...env, scratch: makeScratch() },
+        clips,
+        voices,
+        maxBytes: loaded.maxBytes,
+        posterAt: tl.mainStart + Math.min(2.5, tl.mainDuration / 3),
+        signal,
+        onProgress: (p) => setJob({ stage: 'render', p, part: others.length ? `${bnNumber(L.W)}×${bnNumber(L.H)} (১/${bnNumber(others.length + 1)})` : undefined }),
+      })
+      const slug = (loaded.video.slug ? decodeURIComponent(loaded.video.slug) : 'meeha-video').slice(0, 60)
+      const filename = `${slug}-edit.${result.ext}`
+      if (resultUrl.current) URL.revokeObjectURL(resultUrl.current)
+      resultUrl.current = URL.createObjectURL(result.blob)
+      const tooLarge = !!loaded.maxBytes && result.blob.size > loaded.maxBytes
+      writeJson(STYLE_KEY, styleOnly(cfg))
+
+      const extraBlobs: { info: Extra; blob: Blob; mime: string }[] = []
+      extraUrls.current.forEach((u) => URL.revokeObjectURL(u))
+      extraUrls.current = []
+      for (const [n, f] of others.entries()) {
+        const c2: EditConfig = { ...cfg, format: f.id }
+        const L2 = computeLayout(c2, loaded.main.width, loaded.main.height)
+        const tl2 = buildTimeline(c2, clipDurations())
+        const r2 = await renderEdit({
+          cfg: c2,
+          tl: tl2,
+          env: { ...env, cfg: c2, L: L2, tl: tl2, scratch: makeScratch() },
+          clips,
+          voices,
+          maxBytes: loaded.maxBytes,
+          posterAt: tl2.mainStart + Math.min(2.5, tl2.mainDuration / 3),
+          signal,
+          onProgress: (p) => setJob({ stage: 'render', p, part: `${f.name} (${bnNumber(n + 2)}/${bnNumber(others.length + 1)})` }),
+        })
+        const url = URL.createObjectURL(r2.blob)
+        extraUrls.current.push(url)
+        extraBlobs.push({ info: { format: f.id, name: f.name, url, size: r2.blob.size, filename: `${slug}-${f.id.replace(':', 'x')}.${r2.ext}`, uploaded: false }, blob: r2.blob, mime: r2.mime })
+      }
+      const extras = () => extraBlobs.map((x) => x.info)
+
+      // the designed thumbnail (থাম্বনেইল tab), from the downloaded file so it can be saved
+      let poster = result.poster
+      if (setThumb && cfg.thumb.on && clips.main) {
+        try {
+          const src = thumbSource(cfg, range.start, range.end)
+          const pic = await grabFrame(clips.main, src)
+          poster = (await thumbnailJpeg({ ...env, scratch: makeScratch() }, pic, facePic, src)) ?? poster
+        } catch {
+          // fall back to the plain frame
+        }
+      }
+
+      pendingRef.current = {
+        blob: result.blob,
+        mime: result.mime,
+        ext: result.ext,
+        filename,
+        slug,
+        duration: result.duration,
+        width: result.width,
+        height: result.height,
+        poster,
+        cfg,
+        extras: extraBlobs,
+        sessions: new Map(),
+        videoAttachment: null,
+      }
+      // round 28: kept in the browser too, so a reload never means rendering again
+      void keepRender({
+        videoId,
+        blob: result.blob,
+        mime: result.mime,
+        ext: result.ext,
+        filename,
+        slug,
+        duration: result.duration,
+        width: result.width,
+        height: result.height,
+        poster,
+        cfg,
+        session: null,
+        attachmentId: null,
+        savedAt: Date.now(),
+      })
+      setJob({ stage: 'done', url: resultUrl.current, size: result.blob.size, attached: false, filename, tooLarge, extras: extras(), canAttach: true, mime: result.mime })
+      if (attach) {
+        // round 30 fix: the render's own controller must be let go first, or
+        // attachNow() sees a job still running and does nothing
+        if (abortRef.current === ctrl) abortRef.current = null
+        void attachNow()
+      }
+    } catch (err) {
+      if (signal.aborted && pendingRef.current) {
+        setJob({ stage: 'error', message: 'আপলোড থামানো হয়েছে। রেন্ডার করা ভিডিও রাখা আছে — আবার চালু করলে যেখানে থেমেছিল সেখান থেকে চলবে।', resume: true })
+        return
+      }
+      if (err instanceof RenderCancelled || err instanceof ShrinkCancelled || signal.aborted) {
+        setJob(null)
+        setNotice('রেন্ডার বাতিল করা হয়েছে।')
+        return
+      }
+      setJob({ stage: 'error', message: err instanceof Error && !('status' in err) ? err.message : describeError(err).message, resume: !!pendingRef.current })
+    } finally {
+      if (abortRef.current === ctrl) abortRef.current = null
+    }
+  }
+
+  /**
+   * Round 27 — sends a finished render: resumable upload (continues where
+   * a weak connection stopped it), thumbnail, attach to the post, then the
+   * other sizes. Run again after an error, it picks up from what is done.
+   */
+  async function publishPending(signal: AbortSignal) {
+    const pend = pendingRef.current
+    if (!pend || !loaded) return
+    // round 28: speed + time left, from the last ~8 seconds of progress
+    const samples: { t: number; b: number }[] = []
+    const rate = (loadedBytes: number, total: number) => {
+      const now = performance.now()
+      samples.push({ t: now, b: loadedBytes })
+      while (samples.length > 2 && now - samples[0].t > 8000) samples.shift()
+      const first = samples[0]
+      const dt = (now - first.t) / 1000
+      if (dt < 1.5 || loadedBytes <= first.b) return { speed: null, eta: null }
+      const speed = (loadedBytes - first.b) / dt
+      return { speed, eta: (total - loadedBytes) / speed }
+    }
+    const send = (blob: Blob, filename: string, mime: string, part?: string, main = false) =>
+      MediaApi.uploadResumable(new File([blob], filename, { type: mime }), {
+        signal,
+        session: pend.sessions.get(blob) ?? null,
+        onSession: (sess) => {
+          pend.sessions.set(blob, sess)
+          if (main) void updateKept(videoId, { session: sess })
+        },
+        onProgress: (p) =>
+          setJob((j) => ({ stage: 'upload', percent: p.percent, part, loaded: p.loaded, total: p.total, note: j?.stage === 'upload' ? j.note : null, ...rate(p.loaded, p.total) })),
+        onStatus: (note) => setJob((j) => (j?.stage === 'upload' ? { ...j, note } : { stage: 'upload', percent: 0, part, note })),
+      })
+    // too big for the server: a smaller copy goes up, the full one stays for download
+    if (!pend.videoAttachment && loaded.maxBytes && pend.blob.size > loaded.maxBytes && !pend.shrunk) {
+      const target = Math.floor(loaded.maxBytes * 0.92)
+      const from = pend.blob.size
+      setJob({ stage: 'shrink', ratio: 0, from, to: target })
+      const small = await shrinkVideo(pend.blob, target, { signal, onProgress: (r) => setJob({ stage: 'shrink', ratio: r, from, to: target }) })
+      if (small.blob.size > loaded.maxBytes) throw new UploadStop('ফাইলটি ছোট করার পরও সার্ভারের সীমার চেয়ে বড় — ভিডিও ছোট (ট্রিম) করুন বা “ছোট — দ্রুত আপলোড” বেছে আবার রেন্ডার করুন। ডাউনলোড করে নেওয়া যাবে।', true)
+      Object.assign(pend, { blob: small.blob, mime: small.mime, ext: small.ext, filename: `${pend.slug}-edit.${small.ext}`, shrunk: true })
+    }
+    if (!pend.videoAttachment) {
+      setJob({ stage: 'upload', percent: 0 })
+      const up = await send(pend.blob, pend.filename, pend.mime, undefined, true)
+      pend.videoAttachment = { id: up.id }
+      void updateKept(videoId, { attachmentId: up.id })
+    }
+    setJob({ stage: 'saving' })
+    let thumbId: number | undefined
+    if (setThumb && pend.poster) {
+      try {
+        const t = await MediaApi.upload(new File([pend.poster], `${pend.slug}-thumbnail.jpg`, { type: 'image/jpeg' }))
+        thumbId = t.id
+      } catch {
+        // the video matters more than its thumbnail
+      }
+    }
+    const saved = await AdminVideosApi.update(loaded.video.id, {
+      source: 'upload',
+      video_attachment_id: pend.videoAttachment.id,
+      duration: Math.round(pend.duration),
+      orientation: pend.height >= pend.width ? 'portrait' : 'landscape',
+      ...(thumbId ? { thumbnail_id: thumbId } : {}),
+      edit: { original_attachment_id: loaded.originalId, config: pend.cfg as unknown as Record<string, unknown> },
+    })
+    writeJson(draftKey(videoId, loaded.originalId), null)
+    setLoaded((l) => (l ? { ...l, video: saved, restored: null, initial: pend.cfg } : l))
+    // the other sizes go to the media library, ready for YouTube / Facebook / Instagram
+    for (const x of pend.extras) {
+      if (x.info.uploaded || (loaded.maxBytes && x.blob.size > loaded.maxBytes)) continue
+      try {
+        await send(x.blob, x.info.filename, x.mime, x.info.name)
+        x.info.uploaded = true
+      } catch (err) {
+        if (signal.aborted) throw err
+        // still downloadable below
+      }
+    }
+    pendingRef.current = null
+    void dropKept(videoId)
+    setJob({ stage: 'done', url: resultUrl.current ?? '', size: pend.blob.size, attached: true, filename: pend.filename, tooLarge: false, extras: pend.extras.map((x) => x.info), mime: pend.mime })
+  }
+
+  /** Back to the ready screen (download + পোস্টে বসান), saying why the upload stopped. */
+  function readyAgain(note: string | null, canAttach = true) {
+    const pend = pendingRef.current
+    if (!pend) return
+    setJob({
+      stage: 'done',
+      url: resultUrl.current ?? '',
+      size: pend.blob.size,
+      attached: false,
+      filename: pend.filename,
+      tooLarge: !canAttach,
+      extras: pend.extras.map((x) => x.info),
+      canAttach,
+      note,
+      mime: pend.mime,
+    })
+  }
+
+  /**
+   * Round 28 — পোস্টে বসান. Keeps trying by itself: a failed step waits and
+   * runs again from where it stopped (the upload from the server's byte
+   * count), so a weak line needs no button presses. Only a cancel, a logout
+   * or a refused file stops it.
+   */
+  async function attachNow() {
+    if (!pendingRef.current || abortRef.current) return
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
+    try {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          await publishPending(ctrl.signal)
+          return
+        } catch (err) {
+          if (ctrl.signal.aborted || err instanceof ShrinkCancelled) {
+            readyAgain('আপলোড থামানো হয়েছে। “পোস্টে বসান” চাপলে যেখানে থেমেছিল সেখান থেকে চলবে।')
+            return
+          }
+          if (err instanceof UploadStop) {
+            readyAgain(err.message, !err.final)
+            return
+          }
+          const stop = err instanceof ApiError && (err.kind === 'session' || ['nros_bad_file_type', 'nros_forbidden', 'nros_file_too_large', 'nros_suspended', 'nros_video_daily_upload_cap'].includes(err.code ?? ''))
+          const msg = err instanceof Error && !('status' in err) ? err.message : describeError(err).message
+          if (stop || attempt >= 8) {
+            readyAgain(`${msg} — “পোস্টে বসান” চাপলে যেখানে থেমেছিল সেখান থেকে চলবে।`)
+            return
+          }
+          // wait, then go on by itself
+          const wait = Math.min(60, 5 * attempt)
+          for (let left = wait; left > 0; left--) {
+            setJob((j) => ({ ...(j?.stage === 'upload' ? j : { stage: 'upload' as const, percent: 0 }), note: `${msg} ${bnNumber(left)} সেকেন্ড পরে নিজে থেকেই আবার চলবে (যতটুকু গেছে তা হারায়নি)…` }))
+            await new Promise((r) => setTimeout(r, 1000))
+            if (ctrl.signal.aborted) {
+              readyAgain('আপলোড থামানো হয়েছে। “পোস্টে বসান” চাপলে যেখানে থেমেছিল সেখান থেকে চলবে।')
+              return
+            }
+          }
+        }
+      }
+    } finally {
+      if (abortRef.current === ctrl) abortRef.current = null
+    }
+  }
+
+  /** Round 28 — throws away the render kept from an earlier visit. */
+  function discardKept() {
+    pendingRef.current = null
+    void dropKept(videoId)
+    setJob(null)
+  }
+
+  // round 28: a render kept from an earlier visit (reload, closed tab) comes back ready
+  const keptChecked = useRef(false)
+  useEffect(() => {
+    if (!loaded || keptChecked.current) return
+    keptChecked.current = true
+    void keptRender(videoId).then((k) => {
+      if (!k || pendingRef.current) return
+      if (resultUrl.current) URL.revokeObjectURL(resultUrl.current)
+      resultUrl.current = URL.createObjectURL(k.blob)
+      const sessions = new Map<Blob, { id: string }>()
+      if (k.session) sessions.set(k.blob, k.session)
+      pendingRef.current = {
+        blob: k.blob,
+        mime: k.mime,
+        ext: k.ext,
+        filename: k.filename,
+        slug: k.slug,
+        duration: k.duration,
+        width: k.width,
+        height: k.height,
+        poster: k.poster,
+        cfg: normalizeConfig(k.cfg),
+        extras: [],
+        sessions,
+        videoAttachment: k.attachmentId ? { id: k.attachmentId } : null,
+      }
+      setJob((j) =>
+        j
+          ? j
+          : {
+              stage: 'done',
+              url: resultUrl.current ?? '',
+              size: k.blob.size,
+              attached: false,
+              filename: k.filename,
+              tooLarge: false,
+              extras: [],
+              canAttach: true,
+              restored: k.savedAt,
+              mime: k.mime,
+              note: k.session ? 'আগের আপলোড অসম্পূর্ণ ছিল — “পোস্টে বসান” চাপলে যেখানে থেমেছিল সেখান থেকে চলবে।' : null,
+            },
+      )
+    })
+  }, [loaded, videoId])
+
+  // round 28: leaving mid-render or mid-upload asks first
+  const busyNow = !!job && (job.stage === 'render' || job.stage === 'upload' || job.stage === 'saving' || job.stage === 'shrink' || job.stage === 'download')
+  useEffect(() => {
+    if (!busyNow) return
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [busyNow])
+
+  // round 30: a chime, a browser notification and a blinking tab title when a long job ends
+  const lastStage = useRef<Job['stage'] | null>(null)
+  const uiRef = useRef(ui)
+  uiRef.current = ui
+  useEffect(() => {
+    const prev = lastStage.current
+    const now = job?.stage ?? null
+    lastStage.current = now
+    const wasBusy = prev === 'render' || prev === 'upload' || prev === 'saving' || prev === 'shrink' || prev === 'download'
+    if (!wasBusy || !job) return
+    const u = uiRef.current
+    if (job.stage === 'done') {
+      const title = job.attached ? 'ভিডিও পোস্টে বসানো হয়েছে' : 'ভিডিও তৈরি হয়ে গেছে'
+      announce({ title, body: job.attached ? 'মিহা স্টুডিও: আপলোড শেষ, পোস্টে নতুন ভিডিও।' : 'মিহা স্টুডিও: ডাউনলোড করুন বা পোস্টে বসান।', ok: true, sound: u.sound, browser: u.browser })
+    } else if (job.stage === 'error') {
+      announce({ title: 'ভিডিওর কাজ থেমে গেছে', body: job.message.slice(0, 140), ok: false, sound: u.sound, browser: u.browser })
+    }
+  }, [job])
+
+  // ---- presets ----
+  async function savePreset() {
+    setPresetMenu(false)
+    const name = window.prompt('প্রিসেটের নাম দিন (যেমন: ব্রেকিং — রিলস)')?.trim()
+    if (!name || !kit) return
+    try {
+      const next = await VideoKitApi.savePresets([
+        ...kit.presets,
+        { id: `p${Date.now().toString(36)}`, name: name.slice(0, 60), config: styleOnly(cfg) as unknown as Record<string, unknown> },
+      ])
+      setKit(next)
+      setNotice(`“${name}” প্রিসেট সংরক্ষিত — সবাই ব্যবহার করতে পারবেন।`)
+    } catch (err) {
+      setNotice(describeError(err).message)
+    }
+  }
+  function applyPreset(config: Record<string, unknown>) {
+    const p = normalizeConfig(config)
+    set((c) => ({
+      ...p,
+      trim: c.trim,
+      frame: { ...p.frame, title: c.frame.title, ticker: c.frame.ticker || p.frame.ticker },
+      intro: { ...p.intro, text: c.intro.text },
+      ads: c.ads,
+      captions: c.captions,
+      cuts: c.cuts,
+      blurs: c.blurs,
+      speeds: c.speeds,
+      freezes: c.freezes,
+      stickers: c.stickers,
+      pip: c.pip,
+      reframe: c.reframe,
+      thumb: { ...p.thumb, at: c.thumb.at, title: c.thumb.title, face: c.thumb.face },
+      look: { ...p.look, zoom: c.look.zoom, panX: c.look.panX, panY: c.look.panY, rotate: c.look.rotate, flip: c.look.flip },
+    }))
+    setPresetMenu(false)
+  }
+  async function deletePreset(pid: string) {
+    if (!kit) return
+    try {
+      setKit(await VideoKitApi.savePresets(kit.presets.filter((p) => p.id !== pid)))
+    } catch (err) {
+      setNotice(describeError(err).message)
+    }
+  }
+
+  // ---- render ----
+  if (loadError) {
+    return (
+      <div>
+        <BackLink id={videoId} />
+        <Banner kind="error">{loadError}</Banner>
+      </div>
+    )
+  }
+  if (!loaded || !env || !tl || !L) {
+    return (
+      <div>
+        <BackLink id={videoId} />
+        <Spinner className="mt-10" />
+        <p className="text-center text-[12.5px] text-neutral-400">এডিটর প্রস্তুত হচ্ছে…</p>
+      </div>
+    )
+  }
+
+  const edited = hasEdits(cfg, loaded.main.duration)
+  // round 30: hidden tabs leave the bar; the open one stays until another is picked
+  const shownTabs = TABS.filter((t) => !ui.hiddenTabs.includes(t.id) || t.id === tab)
+  const chips: { label: string; on: boolean; onClick: () => void; testId: string }[] = [
+    {
+      label: 'ওয়াটারমার্ক',
+      on: cfg.watermark.on,
+      testId: 'chip-watermark',
+      onClick: () => {
+        set((c) => ({ ...c, watermark: { ...c.watermark, on: !c.watermark.on } }))
+        setTab('logo')
+      },
+    },
+    {
+      label: 'লোগো',
+      on: cfg.logo.on,
+      testId: 'chip-logo',
+      onClick: () => {
+        set((c) => ({ ...c, logo: { ...c.logo, on: !c.logo.on } }))
+        setTab('logo')
+      },
+    },
+    {
+      label: 'ইন্ট্রো',
+      on: cfg.intro.id !== 'none',
+      testId: 'chip-intro',
+      onClick: () => {
+        // The newsroom's own intro (Settings → ভিডিও এডিটর কিট) wins over the built-in one.
+        set((c) =>
+          c.intro.id !== 'none'
+            ? { ...c, intro: { ...c.intro, id: 'none' } }
+            : kit?.intro
+              ? { ...c, intro: { ...c.intro, id: 'custom', clip: kit.intro } }
+              : { ...c, intro: { ...c.intro, id: 'meeha-logo' } },
+        )
+        setTab('intro')
+      },
+    },
+    {
+      label: 'আউট্রো',
+      on: cfg.outro.id !== 'none',
+      testId: 'chip-outro',
+      onClick: () => {
+        set((c) =>
+          c.outro.id !== 'none'
+            ? { ...c, outro: { ...c.outro, id: 'none' } }
+            : kit?.outro
+              ? { ...c, outro: { ...c.outro, id: 'custom', clip: kit.outro } }
+              : { ...c, outro: { ...c.outro, id: 'meeha-social' } },
+        )
+        setTab('intro')
+      },
+    },
+    {
+      label: 'ফ্রেম',
+      on: cfg.frame.id !== 'none',
+      testId: 'chip-frame',
+      onClick: () => {
+        set((c) => ({ ...c, frame: { ...c.frame, id: c.frame.id === 'none' ? 'news' : 'none' } }))
+        setTab('frame')
+      },
+    },
+    { label: 'ক্যাপশন', on: cfg.captions.length > 0, testId: 'chip-captions', onClick: () => setTab('captions') },
+    { label: 'মিউজিক', on: cfg.audio.music !== 'none', testId: 'chip-music', onClick: () => setTab('sound') },
+    { label: 'বিজ্ঞাপন', on: cfg.ads.length > 0, testId: 'chip-ads', onClick: () => setPicker({ kind: 'ad-add' }) },
+  ]
+  const frameName = FRAMES.find((f) => f.id === cfg.frame.id)?.name
+
+  return (
+    <div className="pb-10">
+      {/* header */}
+      <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+        <div className="min-w-0">
+          <BackLink id={videoId} />
+          <h1 className="text-[21px] font-bold text-neutral-900 flex items-center gap-2">
+            <IconWand className="w-6 h-6 text-brand-600" />
+            ভিডিও এডিট
+          </h1>
+          <p className="text-[13px] text-neutral-500 truncate max-w-[60ch]">{loaded.video.title}</p>
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button type="button" onClick={undo} disabled={!history.current.past.length} title="আগের অবস্থায় (Ctrl+Z)" className="p-2 rounded-lg bg-white border border-neutral-200 disabled:opacity-40">
+            <IconUndo className="w-4 h-4" />
+          </button>
+          <button type="button" onClick={redo} disabled={!history.current.future.length} title="আবার করুন (Ctrl+Y)" className="p-2 rounded-lg bg-white border border-neutral-200 disabled:opacity-40">
+            <IconRedo className="w-4 h-4" />
+          </button>
+          <div className="relative">
+            <Button variant="secondary" onClick={() => setPresetMenu((v) => !v)}>
+              <IconDeviceFloppy className="w-4 h-4" />
+              প্রিসেট
+            </Button>
+            {presetMenu && (
+              <div className="absolute right-0 mt-1.5 w-72 rounded-xl bg-white border border-neutral-200 shadow-lg z-30 p-2">
+                {kit?.presets.length ? (
+                  kit.presets.map((p) => (
+                    <div key={p.id} className="flex items-center gap-1 rounded-lg hover:bg-neutral-50">
+                      <button type="button" onClick={() => applyPreset(p.config)} className="flex-1 text-left px-2.5 py-2 text-[13px] text-neutral-800 truncate">
+                        {p.name}
+                      </button>
+                      <button type="button" onClick={() => deletePreset(p.id)} aria-label="মুছুন" className="p-1.5 text-neutral-400 hover:text-red-600">
+                        <IconTrash className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="px-2.5 py-2 text-[12px] text-neutral-400">কোনো প্রিসেট নেই। নিজের স্টাইল সংরক্ষণ করলে পুরো টিম ব্যবহার করতে পারবে।</p>
+                )}
+                <button type="button" onClick={savePreset} disabled={!kit} className="mt-1 w-full flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-neutral-100 text-[12.5px] font-medium text-neutral-700 disabled:opacity-50">
+                  <IconPlus className="w-4 h-4" />
+                  বর্তমান স্টাইল প্রিসেট হিসেবে রাখুন
+                </button>
+              </div>
+            )}
+          </div>
+          {job && bg ? (
+            <Button onClick={() => setBg(false)} data-testid="job-open">
+              <IconMovie className="w-4 h-4" />
+              {busyNow ? 'চলছে — দেখুন' : 'ফল দেখুন'}
+            </Button>
+          ) : (
+            <Button
+              onClick={() => {
+                setBg(false)
+                setJob({ stage: 'options' })
+              }}
+              disabled={!edited || !capability.ok}
+            >
+              <IconMovie className="w-4 h-4" />
+              রেন্ডার করুন
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {!capability.ok && <Banner kind="error">{capability.reason}</Banner>}
+      {loaded.restored === 'draft' && (
+        <Banner kind="info">
+          আগের অসমাপ্ত এডিট ফিরিয়ে আনা হয়েছে।{' '}
+          <button
+            type="button"
+            className="underline font-medium"
+            onClick={() => {
+              writeJson(draftKey(videoId, loaded.originalId), null)
+              const base = loaded.video.edit?.config ? normalizeConfig(loaded.video.edit.config) : DEFAULT_CONFIG
+              set(() => base)
+              setLoaded((l) => (l ? { ...l, restored: null, initial: base } : l))
+            }}
+          >
+            নতুন করে শুরু করুন
+          </button>
+        </Banner>
+      )}
+      {loaded.restored === 'saved' && loaded.video.edit && (
+        <Banner kind="info">এই ভিডিওটি আগে এডিট করা হয়েছিল — মূল (এডিটের আগের) ভিডিও আর আগের সেটিং দিয়ে খোলা হয়েছে। নতুন রেন্ডার আগেরটার জায়গা নেবে।</Banner>
+      )}
+      {notice && (
+        <div className="rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 text-[13px] mb-4 flex items-center justify-between gap-3">
+          <span>{notice}</span>
+          <button onClick={() => setNotice('')} aria-label="বন্ধ" className="text-neutral-400">
+            <IconX className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* round 30: tick what the studio shows */}
+      <StudioViewBar
+        ui={ui}
+        setUi={setUi}
+        tabs={TABS.map((t) => ({ id: t.id, name: t.name }))}
+        notifyState={notifyState}
+        onAskNotify={() => void askNotify().then(() => setNotifyState(notifyPermission()))}
+      />
+
+      {/* one-click add */}
+      {ui.chips && (
+      <div className="flex flex-wrap gap-2 mb-4" data-testid="quick-add">
+        {chips.map((c) => (
+          <button
+            key={c.label}
+            type="button"
+            onClick={c.onClick}
+            data-testid={c.testId}
+            aria-pressed={c.on}
+            className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-semibold border transition ${
+              c.on ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-neutral-200 text-neutral-700 hover:border-brand-500'
+            }`}
+          >
+            {c.on ? <IconCheck className="w-4 h-4" /> : <IconPlus className="w-4 h-4" />}
+            {c.label}
+          </button>
+        ))}
+      </div>
+      )}
+
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_400px] gap-5 items-start">
+        {/* preview */}
+        <Card className="p-4">
+          <div className="relative rounded-xl bg-[#0b0d12] flex items-center justify-center overflow-hidden" style={{ height: 'min(62vh, 640px)' }}>
+            <canvas
+              ref={canvasRef}
+              onClick={() => playerRef.current?.toggle()}
+              className="max-w-full max-h-full cursor-pointer"
+              style={{ aspectRatio: `${L.W} / ${L.H}` }}
+              data-testid="studio-canvas"
+            />
+            {tab === 'tools' && selectedBlur !== null && (
+              <BlurOverlay canvas={canvasRef.current} cfg={cfg} L={L} picW={loaded.main.width} picH={loaded.main.height} index={selectedBlur} set={set} src={playheadSrc() ?? undefined} />
+            )}
+            {tab === 'fx' && selectedSticker !== null && (
+              <BlurOverlay
+                canvas={canvasRef.current}
+                cfg={cfg}
+                L={L}
+                picW={loaded.main.width}
+                picH={loaded.main.height}
+                index={selectedSticker}
+                set={set}
+                target="sticker"
+                src={playheadSrc() ?? undefined}
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-3">
+            <button
+              type="button"
+              onClick={() => playerRef.current?.toggle()}
+              className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center shrink-0"
+              aria-label={pstate.playing ? 'থামান' : 'চালান'}
+              data-testid="play"
+            >
+              {pstate.playing ? <IconPlayerPause className="w-5 h-5" /> : <IconPlayerPlay className="w-5 h-5 ml-0.5" />}
+            </button>
+            <button type="button" onClick={() => playerRef.current?.seek(0)} className="w-9 h-9 rounded-full bg-neutral-100 text-neutral-700 flex items-center justify-center shrink-0" aria-label="শুরুতে যান">
+              <IconPlayerSkipBack className="w-4 h-4" />
+            </button>
+            <span className="text-[13px] font-medium text-neutral-800 tabular-nums">
+              {bnClock(pstate.time)} / {bnClock(tl.duration)}
+            </span>
+            {pstate.waiting && <span className="text-[11.5px] text-neutral-400">লোড হচ্ছে…</span>}
+            <span className="ml-auto text-[11.5px] text-neutral-400 tabular-nums">
+              {bnNumber(L.W)}×{bnNumber(L.H)}
+              {frameName ? ` · ${frameName}` : ''}
+            </span>
+          </div>
+          {ui.timeline && (
+          <div className="mt-3">
+            <StudioTimeline tl={tl} cfg={cfg} time={pstate.time} onSeek={(t) => playerRef.current?.seek(t)} wave={wave} />
+          </div>
+          )}
+          {ui.timeline && !wave && (
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              {waveJob && 'ratio' in waveJob ? (
+                <>
+                  <span className="text-[11.5px] text-neutral-500">{waveJob.label}</span>
+                  <button type="button" onClick={() => analysisRef.current.wave?.abort()} className="text-[11.5px] px-2 py-1 rounded-md bg-neutral-100">
+                    বাতিল
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={loadWave}
+                  data-testid="load-wave"
+                  className="inline-flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.5 rounded-lg bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+                >
+                  <IconWaveSine className="w-4 h-4" />
+                  টাইমলাইনে শব্দের ঢেউ দেখান
+                </button>
+              )}
+              {waveJob && 'error' in waveJob && <span className="text-[11.5px] text-red-700">{waveJob.error}</span>}
+            </div>
+          )}
+          {ui.tips && (
+          <p className="mt-2 text-[11.5px] text-neutral-400">
+            স্পেসবার = চালান/থামান · ← → এক সেকেন্ড (Shift: পাঁচ) · , . এক ফ্রেম · প্রিভিউ যা দেখাচ্ছে, রেন্ডারে ঠিক তা-ই হবে।
+          </p>
+          )}
+        </Card>
+
+        {/* panels */}
+        <Card className="overflow-hidden">
+          <div className={`grid ${TAB_COLS[Math.min(5, shownTabs.length)]} border-b border-neutral-100 px-1`} role="tablist">
+            {shownTabs.map((t) => (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={tab === t.id}
+                onClick={() => setTab(t.id)}
+                data-testid={`tab-${t.id}`}
+                className={`flex flex-col items-center gap-0.5 px-1 py-2 text-[11.5px] font-medium whitespace-nowrap border-b-2 ${
+                  tab === t.id ? 'border-brand-600 text-brand-700' : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                }`}
+              >
+                {t.icon({ className: 'w-5 h-5' })}
+                {t.name}
+              </button>
+            ))}
+          </div>
+          <div className="p-4 max-h-none lg:max-h-[calc(100vh-180px)] lg:overflow-y-auto">
+            {tab === 'frame' && (
+              <FramePanel cfg={cfg} set={set} postTitle={postTitle} thumb={thumb} thumbRatio={thumbRatio} thumbKey={thumbKey} onPickAdImage={() => setImagePicker('ad')} />
+            )}
+            {tab === 'logo' && <LogoPanel cfg={cfg} set={set} customLogo={!!kit?.logo} />}
+            {tab === 'intro' && (
+              <IntroOutroPanel cfg={cfg} set={set} postTitle={postTitle} thumb={thumb} thumbRatio={thumbRatio} thumbKey={thumbKey} kit={kit} onPick={(w) => setPicker({ kind: w })} />
+            )}
+            {tab === 'ads' && (
+              <AdsPanel
+                cfg={cfg}
+                set={set}
+                range={range}
+                playhead={playheadSrc}
+                onAdd={() => setPicker({ kind: 'ad-add' })}
+                onReplace={(i) => setPicker({ kind: 'ad-replace', index: i })}
+                onAddHouse={addHouseAd}
+                thumb={thumb}
+                thumbRatio={thumbRatio}
+                thumbKey={`${thumbKey}|${house.handle}|${house.nets.join()}`}
+              />
+            )}
+            {tab === 'tools' && (
+              <ToolsPanel cfg={cfg} set={set} range={range} playhead={playheadSrc} selectedBlur={selectedBlur} onSelectBlur={setSelectedBlur} wave={wave} waveJob={waveJob} onLoadWave={loadWave} />
+            )}
+            {tab === 'fx' && (
+              <EffectsPanel
+                cfg={cfg}
+                set={set}
+                range={range}
+                playhead={playheadSrc}
+                selectedSticker={selectedSticker}
+                onSelectSticker={setSelectedSticker}
+                onPickPip={() => setPicker({ kind: 'pip' })}
+              />
+            )}
+            {tab === 'captions' && <CaptionsPanel cfg={cfg} set={set} range={range} playhead={playheadSrc} defaultName={loaded.video.author.name} kit={kit} onKit={setKit} />}
+            {tab === 'captions' && (
+              <div className="mt-5 pt-4 border-t border-neutral-100">
+                <SubtitlesSection cfg={cfg} set={set} range={range} playhead={playheadSrc} />
+              </div>
+            )}
+            {tab === 'layout' && (
+              <LayoutPanel
+                cfg={cfg}
+                set={set}
+                srcDuration={loaded.main.duration}
+                playhead={playheadSrc}
+                outputSize={`${bnNumber(L.W)}×${bnNumber(L.H)} · ${bnDuration(tl.duration) || bnClock(tl.duration)}`}
+                reframe={reframeJob}
+                onReframe={runReframe}
+                onCancelReframe={() => analysisRef.current.reframe?.abort()}
+              />
+            )}
+            {tab === 'sound' && (
+              <SoundPanel
+                cfg={cfg}
+                set={set}
+                audioContext={() => playerRef.current?.audioContext() ?? null}
+                onSample={() => {
+                  stopAudition()
+                  playerRef.current?.pause()
+                }}
+                audition={audition}
+                onAudition={startAudition}
+                onStopAudition={stopAudition}
+                range={range}
+                playhead={playheadSrc}
+              />
+            )}
+            {tab === 'sound' && (
+              <VoicePanel
+                cfg={cfg}
+                set={set}
+                range={range}
+                playhead={playheadSrc}
+                onRecordStart={({ play, mute }) => {
+                  stopAudition()
+                  const p = playerRef.current
+                  if (!p) return
+                  if (play) {
+                    if (mute) p.setMuted(true)
+                    p.play()
+                  } else p.pause()
+                }}
+                onRecordStop={() => {
+                  const p = playerRef.current
+                  p?.pause()
+                  p?.setMuted(false)
+                }}
+                onFile={(id, blob) => blobCache.current.set(`m${id}`, blob)}
+              />
+            )}
+            {tab === 'captions' && cfg.captions.length > 0 && (
+              <p className="mt-3 text-[11.5px] text-neutral-400">
+                টিপ: প্রিভিউ থামিয়ে “এখানে” চাপলে সেই মুহূর্ত থেকে ক্যাপশন শুরু হবে।{' '}
+                <button type="button" className="underline" onClick={() => seekToSource(cfg.captions[cfg.captions.length - 1].at)}>
+                  শেষ ক্যাপশনে যান
+                </button>
+              </p>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* round 29: the thumbnail studio gets the full width under the editor */}
+      {ui.thumb && (
+      <div className="mt-5" data-testid="thumb-studio">
+      <Card className="overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setThumbOpen((v) => !v)}
+          className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-neutral-50"
+          aria-expanded={thumbOpen}
+          data-testid="thumb-studio-toggle"
+        >
+          <span className="flex items-center gap-2.5 min-w-0">
+            <IconLibraryPhoto className="w-5 h-5 text-brand-600 shrink-0" />
+            <span className="min-w-0">
+              <span className="block text-[14px] font-semibold text-neutral-900">থাম্বনেইল স্টুডিও</span>
+              <span className="block text-[11.5px] text-neutral-500 truncate">
+                {cfg.thumb.on ? 'ডিজাইন করা থাম্বনেইল চালু — রেন্ডারের সময় পোস্টে বসবে' : 'বন্ধ — ফ্রেমসহ ভিডিওর একটি দৃশ্য থাম্বনেইল হবে'}
+              </span>
+            </span>
+          </span>
+          <span className="text-[12.5px] font-semibold text-brand-700 shrink-0">{thumbOpen ? 'বন্ধ করুন ▲' : 'খুলুন ▼'}</span>
+        </button>
+        {thumbOpen && (
+          <div className="px-4 pb-4 border-t border-neutral-100 pt-3">
+            <ThumbPanel wide cfg={cfg} set={set} env={thumbEnv ?? env} mainUrl={loaded.mainUrl} range={range} playhead={playheadSrc} face={facePic} onPickFace={() => setImagePicker('face')} getMain={mainBlob} />
+          </div>
+        )}
+      </Card>
+      </div>
+      )}
+
+      {picker && (
+        <VideoLibraryPicker
+          title={
+            picker.kind === 'intro' ? 'ইন্ট্রো ভিডিও বেছে নিন' : picker.kind === 'outro' ? 'আউট্রো ভিডিও বেছে নিন' : picker.kind === 'pip' ? 'দ্বিতীয় ভিডিও বেছে নিন' : 'বিজ্ঞাপন ভিডিও বেছে নিন'
+          }
+          adsFirst={picker.kind === 'ad-add' || picker.kind === 'ad-replace'}
+          onClose={() => setPicker(null)}
+          onSelect={(v) => {
+            const ref: MediaRef = { id: v.id, url: v.url, title: v.title, duration: v.duration }
+            if (picker.kind === 'ad-add') addAd(v)
+            else if (picker.kind === 'ad-replace') addAd(v, picker.index)
+            else if (picker.kind === 'intro') set((c) => ({ ...c, intro: { ...c.intro, id: 'custom', clip: ref } }))
+            else if (picker.kind === 'pip') {
+              const at = Math.round((playheadSrc() ?? range.start) * 10) / 10
+              set((c) => ({
+                ...c,
+                pip: c.pip
+                  ? { ...c.pip, clip: ref }
+                  : { clip: ref, layout: 'pip', corner: 'br', size: 0.36, at, dur: null, sound: 'main', label: '', mainLabel: '' },
+              }))
+            }
+            else set((c) => ({ ...c, outro: { ...c.outro, id: 'custom', clip: ref } }))
+            setPicker(null)
+          }}
+        />
+      )}
+      {imagePicker && (
+        <MediaGallery
+          title={imagePicker === 'face' ? 'থাম্বনেইলের মুখের ছবি — গ্যালারি থেকে বেছে নিন' : 'ফুটারের বিজ্ঞাপন ব্যানার — গ্যালারি থেকে বেছে নিন'}
+          onClose={() => setImagePicker(null)}
+          onSelect={(img: LibraryImage) => {
+            const ref = { id: img.id, url: img.url, title: img.title }
+            if (imagePicker === 'face') set((c) => ({ ...c, thumb: { ...c.thumb, on: true, face: ref } }))
+            else set((c) => ({ ...c, frame: { ...c.frame, footer: 'ad-image', adImage: ref } }))
+            setImagePicker(null)
+          }}
+        />
+      )}
+      {job && bg && <JobDock job={job} onOpen={() => setBg(false)} onCancel={() => abortRef.current?.abort()} onDismiss={() => { setBg(false); setJob(null) }} />}
+      {job && !bg && (
+        <RenderDialog
+          job={job}
+          onBackground={() => {
+            setBg(true)
+            if (notifyState === 'default' && ui.browser) void askNotify().then(() => setNotifyState(notifyPermission()))
+          }}
+          attach={attach}
+          setAttach={setAttach}
+          setThumb={setThumb}
+          onSetThumb={setSetThumb}
+          duration={tl.duration}
+          size={`${bnNumber(L.W)}×${bnNumber(L.H)}`}
+          multi={MULTI_FORMATS.filter((f) => Math.abs(f.ratio - L.W / L.H) > 0.02)}
+          extra={extraFormats}
+          setExtra={setExtraFormats}
+          designedThumb={cfg.thumb.on}
+          onStart={startRender}
+          onResume={attachNow}
+          onDiscard={discardKept}
+          fileSize={cfg.fileSize}
+          onFileSize={(v) => set((c) => ({ ...c, fileSize: v }))}
+          estimate={(size) => Math.round(((pickBitrate(L.W, L.H, tl.duration, loaded.maxBytes, size) + 160_000) * tl.duration) / 8)}
+          maxBytes={loaded.maxBytes}
+          keptUrl={pendingRef.current ? resultUrl.current : null}
+          keptName={pendingRef.current?.filename ?? null}
+          onCancel={() => abortRef.current?.abort()}
+          onClose={() => setJob(null)}
+          onBack={() => navigate(`/app/videos/${videoId}`, { state: { notice: 'এডিট করা ভিডিও পোস্টে বসানো হয়েছে।' } })}
+        />
+      )}
+    </div>
+  )
+}
+
+const attachLabel = () => 'সবগুলো ডাউনলোড করা যাবে; পোস্টে বসালে মূলটি পোস্টে বসবে, বাকিগুলো মিডিয়া লাইব্রেরিতে যাবে।'
+
+/** Round 28: "2.4 MB/s" style speed. */
+const bnSpeed = (bps: number) => `${bnFileSize(Math.max(1, Math.round(bps)))}/সে.`
+
+/** Round 28: the phone's share sheet (Facebook, WhatsApp, YouTube…) with the file itself, where the browser can. */
+function canShareFile(url: string) {
+  try {
+    return typeof navigator !== 'undefined' && typeof navigator.share === 'function' && typeof navigator.canShare === 'function' && !!url
+  } catch {
+    return false
+  }
+}
+async function shareFile(url: string, filename: string, mime: string) {
+  const blob = await (await fetch(url)).blob()
+  const file = new File([blob], filename, { type: mime || blob.type })
+  if (!navigator.canShare({ files: [file] })) throw new Error('এই ব্রাউজার ফাইল শেয়ার করতে পারে না — ডাউনলোড করে নিন।')
+  await navigator.share({ files: [file], title: filename })
+}
+
+function BackLink({ id }: { id: number }) {
+  return (
+    <Link to={`/app/videos/${id}`} className="inline-flex items-center gap-1 text-[12.5px] text-neutral-500 hover:text-neutral-800 mb-1">
+      <IconArrowLeft className="w-4 h-4" />
+      ভিডিও পোস্টে ফিরুন
+    </Link>
+  )
+}
+
+/** Round 30: one line saying where a background job is, and how far. */
+function jobLine(job: Job): { text: string; ratio: number | null } {
+  switch (job.stage) {
+    case 'download':
+      return { text: job.label, ratio: job.ratio }
+    case 'render':
+      return { text: job.p.stage === 'render' ? `রেন্ডার হচ্ছে${job.part ? ` (${job.part})` : ''}${job.p.eta !== null ? ` · আর প্রায় ${bnClock(job.p.eta)}` : ''}` : 'রেন্ডারের প্রস্তুতি…', ratio: job.p.ratio }
+    case 'shrink':
+      return { text: 'সার্ভারের সীমায় আনতে ছোট করা হচ্ছে…', ratio: job.ratio }
+    case 'upload':
+      return { text: job.note ? job.note : job.percent >= 100 ? 'সার্ভারে প্রসেস হচ্ছে…' : `আপলোড হচ্ছে${job.speed ? ` · ${bnSpeed(job.speed)}` : ''}`, ratio: job.percent / 100 }
+    case 'saving':
+      return { text: 'পোস্টে বসানো হচ্ছে…', ratio: null }
+    case 'done':
+      return { text: job.attached ? 'ভিডিও পোস্টে বসানো হয়েছে ✓' : 'ভিডিও তৈরি ✓ — ডাউনলোড বা পোস্টে বসান', ratio: 1 }
+    case 'error':
+      return { text: job.message, ratio: null }
+    default:
+      return { text: 'রেন্ডারের সেটিংস', ratio: null }
+  }
+}
+
+/** Round 30: the job runs on while the user keeps editing; this small card follows it. */
+function JobDock({ job, onOpen, onCancel, onDismiss }: { job: Job; onOpen: () => void; onCancel: () => void; onDismiss: () => void }) {
+  const { text, ratio } = jobLine(job)
+  const busy = job.stage === 'download' || job.stage === 'render' || job.stage === 'upload' || job.stage === 'saving' || job.stage === 'shrink'
+  const tone = job.stage === 'done' ? 'border-emerald-300 bg-emerald-50' : job.stage === 'error' ? 'border-red-200 bg-red-50' : 'border-neutral-200 bg-white'
+  return (
+    <div className={`fixed z-40 bottom-4 right-4 left-4 sm:left-auto sm:w-[360px] rounded-2xl border shadow-lg p-3 ${tone}`} role="status" aria-live="polite" data-testid="job-dock">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-[12.5px] font-semibold text-neutral-900">{busy ? 'পটভূমিতে চলছে — এডিট চালিয়ে যেতে পারেন' : job.stage === 'done' ? 'কাজ শেষ' : 'থেমে গেছে'}</p>
+          <p className={`text-[12px] mt-0.5 line-clamp-2 ${job.stage === 'error' ? 'text-red-700' : 'text-neutral-600'}`}>{text}</p>
+        </div>
+        {!busy && (
+          <button type="button" onClick={onDismiss} aria-label="বন্ধ" className="text-neutral-400 hover:text-neutral-700">
+            <IconX className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+      {ratio !== null && busy && (
+        <div className="mt-2 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
+          <div className="h-full bg-brand-600 transition-[width] duration-300" style={{ width: `${Math.round(Math.min(1, ratio) * 100)}%` }} />
+        </div>
+      )}
+      <div className="mt-2 flex items-center gap-2">
+        <button type="button" onClick={onOpen} className="rounded-lg bg-brand-600 text-white px-3 py-1.5 text-[12.5px] font-semibold" data-testid="job-dock-open">
+          {job.stage === 'done' ? 'দেখুন ও ডাউনলোড' : 'খুলুন'}
+        </button>
+        {busy && (
+          <button type="button" onClick={onCancel} className="rounded-lg bg-neutral-100 text-neutral-700 px-3 py-1.5 text-[12.5px] font-semibold">
+            {job.stage === 'render' || job.stage === 'download' ? 'বাতিল' : 'থামান'}
+          </button>
+        )}
+        {ratio !== null && busy && <span className="ml-auto text-[11.5px] text-neutral-500 tabular-nums">{bnNumber(Math.round(Math.min(1, ratio) * 100))}%</span>}
+      </div>
+    </div>
+  )
+}
+
+function RenderDialog({
+  onBackground,
+  job,
+  attach,
+  setAttach,
+  setThumb,
+  onSetThumb,
+  duration,
+  size,
+  multi,
+  extra,
+  setExtra,
+  designedThumb,
+  onStart,
+  onCancel,
+  onClose,
+  onBack,
+  onResume,
+  onDiscard,
+  keptName,
+  fileSize,
+  onFileSize,
+  estimate,
+  maxBytes,
+  keptUrl,
+}: {
+  onBackground: () => void
+  onResume: () => void
+  onDiscard: () => void
+  keptName: string | null
+  fileSize: FileSize
+  onFileSize: (v: FileSize) => void
+  estimate: (size: FileSize) => number
+  maxBytes: number | null
+  keptUrl: string | null
+  job: Job
+  attach: boolean
+  setAttach: (v: boolean) => void
+  setThumb: boolean
+  onSetThumb: (v: boolean) => void
+  duration: number
+  size: string
+  multi: { id: FormatId; name: string }[]
+  extra: FormatId[]
+  setExtra: (v: FormatId[]) => void
+  designedThumb: boolean
+  onStart: () => void
+  onCancel: () => void
+  onClose: () => void
+  onBack: () => void
+}) {
+  const busy = job.stage === 'download' || job.stage === 'render' || job.stage === 'upload' || job.stage === 'saving' || job.stage === 'shrink'
+  const bar = (ratio: number) => (
+    <div className="h-2.5 rounded-full bg-neutral-100 overflow-hidden">
+      <div className="h-full bg-brand-600 transition-[width] duration-200" style={{ width: `${Math.round(Math.min(1, ratio) * 100)}%` }} />
+    </div>
+  )
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl p-5" data-testid="render-dialog">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-[16px] font-semibold text-neutral-900">ভিডিও রেন্ডার</h2>
+          {!busy && (
+            <button onClick={onClose} aria-label="বন্ধ করুন" className="text-neutral-400 hover:text-neutral-700">
+              <IconX className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+
+        {job.stage === 'options' && (
+          <>
+            <p className="text-[13px] text-neutral-600 mb-3">
+              {size} · দৈর্ঘ্য {bnClock(duration)} — ভিডিও আপনার ব্রাউজারেই তৈরি হবে (সার্ভারে চাপ পড়বে না)। সাধারণত ভিডিওর দৈর্ঘ্যের চেয়ে কম সময় লাগে।
+            </p>
+            <label className="flex items-start gap-2.5 py-2">
+              <input type="checkbox" checked={attach} onChange={(e) => setAttach(e.target.checked)} className="mt-1 accent-[#b91c1c]" data-testid="auto-attach" />
+              <span>
+                <span className="block text-[13.5px] text-neutral-800">রেন্ডার শেষে নিজে থেকেই পোস্টে বসান</span>
+                <span className="block text-[11.5px] text-neutral-400">না দিলে রেন্ডার শেষে “ডাউনলোড” ও “পোস্টে বসান” বাটন আসবে। মূল ভিডিও মুছবে না।</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2.5 py-2">
+              <input type="checkbox" checked={setThumb} onChange={(e) => onSetThumb(e.target.checked)} className="mt-1 accent-[#b91c1c]" />
+              <span>
+                <span className="block text-[13.5px] text-neutral-800">পোস্টে বসালে থাম্বনেইলও নতুন করুন</span>
+                <span className="block text-[11.5px] text-neutral-400">
+                  {designedThumb ? '“থাম্বনেইল” ট্যাবের ডিজাইন করা থাম্বনেইল বসবে।' : 'ফ্রেমসহ সংবাদের একটি দৃশ্য থাম্বনেইল হবে।'}
+                </span>
+              </span>
+            </label>
+            <div className="mt-2 rounded-xl border border-neutral-200 p-3" data-testid="file-size">
+              <p className="text-[13px] font-medium text-neutral-800 mb-1.5">ফাইলের আকার</p>
+              {FILE_SIZES.map((f) => (
+                <label key={f.id} className="flex items-start gap-2.5 py-1">
+                  <input type="radio" name="file-size" checked={fileSize === f.id} onChange={() => onFileSize(f.id)} className="mt-1 accent-[#b91c1c]" data-testid={`size-${f.id}`} />
+                  <span>
+                    <span className="block text-[13px] text-neutral-800">
+                      {f.name} <span className="text-neutral-400">· প্রায় {bnFileSize(estimate(f.id))}</span>
+                    </span>
+                    <span className="block text-[11px] text-neutral-400">{f.hint}</span>
+                  </span>
+                </label>
+              ))}
+              {maxBytes && (
+                <p className="text-[11px] text-neutral-400 mt-1">সার্ভারের সীমা {bnFileSize(maxBytes)} — বড় হলে নিজে থেকেই ছোট করে আপলোড হবে। আপলোড টুকরো টুকরো যায়, নেট কাটলে যেখানে থেমেছে সেখান থেকে আবার চলে।</p>
+              )}
+            </div>
+            {multi.length > 0 && (
+              <div className="mt-2 rounded-xl border border-neutral-200 p-3" data-testid="multi-format">
+                <p className="text-[13px] font-medium text-neutral-800">একসাথে আরও মাপে তৈরি করুন</p>
+                <p className="text-[11.5px] text-neutral-400 mb-1.5">
+                  একই এডিট অন্য মাপে — {attachLabel()} প্রতিটি মাপে আলাদা সময় লাগবে।
+                </p>
+                {multi.map((f) => (
+                  <label key={f.id} className="flex items-center gap-2.5 py-1">
+                    <input
+                      type="checkbox"
+                      checked={extra.includes(f.id)}
+                      onChange={(e) => setExtra(e.target.checked ? [...extra, f.id] : extra.filter((x) => x !== f.id))}
+                      className="accent-[#b91c1c]"
+                      data-testid={`multi-${f.id}`}
+                    />
+                    <span className="text-[13px] text-neutral-700">{f.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2 mt-4">
+              <Button className="flex-1" onClick={onStart}>
+                {attach ? 'রেন্ডার করে পোস্টে বসান' : 'রেন্ডার শুরু করুন'}
+              </Button>
+              <Button variant="secondary" onClick={onClose}>
+                বাতিল
+              </Button>
+            </div>
+          </>
+        )}
+
+        {job.stage === 'download' && (
+          <>
+            <p className="text-[13px] text-neutral-700 mb-2">{job.label}</p>
+            {bar(job.ratio)}
+            <p className="text-[11.5px] text-neutral-400 mt-1.5">{bnNumber(Math.round(job.ratio * 100))}%</p>
+          </>
+        )}
+        {job.stage === 'render' && (
+          <>
+            <p className="text-[13px] text-neutral-700 mb-2">
+              {job.part ? `${job.part} · ` : ''}
+              {job.p.stage === 'prepare' ? 'প্রস্তুত হচ্ছে…' : job.p.stage === 'loudness' ? 'শব্দের মাত্রা মাপা হচ্ছে…' : job.p.stage === 'finish' ? 'ফাইল তৈরি শেষ হচ্ছে…' : `রেন্ডার হচ্ছে — ${bnClock(job.p.done)} / ${bnClock(job.p.total)}`}
+            </p>
+            {bar(job.p.ratio)}
+            <p className="text-[11.5px] text-neutral-400 mt-1.5">
+              {bnNumber(Math.round(job.p.ratio * 100))}%
+              {job.p.eta !== null && job.p.stage === 'render' ? ` · আনুমানিক আর ${bnClock(job.p.eta)}` : ''} · এই ট্যাব বন্ধ করবেন না
+            </p>
+          </>
+        )}
+        {job.stage === 'shrink' && (
+          <>
+            <p className="text-[13px] text-neutral-700 mb-2">
+              ফাইলটি ({bnFileSize(job.from)}) সার্ভারের সীমার চেয়ে বড় — {bnFileSize(job.to)}-এর মধ্যে ছোট করা হচ্ছে…
+            </p>
+            {bar(job.ratio)}
+            <p className="text-[11.5px] text-neutral-400 mt-1.5">{bnNumber(Math.round(job.ratio * 100))}% · এই ট্যাব বন্ধ করবেন না</p>
+          </>
+        )}
+        {job.stage === 'upload' && (
+          <>
+            <p className="text-[13px] text-neutral-700 mb-2">
+              {job.part ? `${job.part} · ` : ''}
+              {job.percent >= 100 ? 'সার্ভারে প্রসেস হচ্ছে…' : 'আপলোড হচ্ছে…'}
+            </p>
+            {bar(job.percent / 100)}
+            <p className="text-[11.5px] text-neutral-400 mt-1.5" data-testid="upload-stats">
+              {bnNumber(job.percent)}%{job.total ? ` · ${bnFileSize(job.loaded ?? 0)} / ${bnFileSize(job.total)}` : ''}
+              {job.speed && job.percent < 100 ? ` · ${bnSpeed(job.speed)}` : ''}
+              {job.eta != null && job.percent < 100 && isFinite(job.eta) ? ` · আর প্রায় ${bnClock(Math.max(1, job.eta))}` : ''}
+            </p>
+            {job.note && <p className="text-[12px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-2" data-testid="upload-note">{job.note}</p>}
+            {keptUrl && (
+              <p className="text-[11.5px] text-neutral-500 mt-2">
+                আপলোড চলার মধ্যেই{' '}
+                <a href={keptUrl} download={keptName ?? true} className="font-semibold text-brand-700 underline">
+                  ডাউনলোড
+                </a>{' '}
+                করে সোশ্যাল মিডিয়ায় দিতে পারেন।
+              </p>
+            )}
+          </>
+        )}
+        {job.stage === 'saving' && <p className="text-[13px] text-neutral-700">পোস্টে বসানো হচ্ছে…</p>}
+        {busy && (
+          <div className="mt-4 flex gap-2 flex-wrap">
+            <Button onClick={onBackground} data-testid="run-background">
+              পটভূমিতে চালান, এডিট করুন
+            </Button>
+            <Button variant="secondary" onClick={onCancel}>
+              {job.stage === 'upload' || job.stage === 'saving' || (job.stage === 'shrink' && keptUrl) ? 'আপলোড থামান' : 'বাতিল করুন'}
+            </Button>
+          </div>
+        )}
+
+        {job.stage === 'done' && <DoneView job={job} onResume={onResume} onDiscard={onDiscard} onClose={onClose} onBack={onBack} />}
+        {job.stage === 'error' && (
+          <>
+            <p className="text-[13px] text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3">{job.message}</p>
+            {job.resume && (
+              <p className="text-[12px] text-neutral-600 mb-3">রেন্ডার করা ভিডিও রাখা আছে — আবার রেন্ডার লাগবে না। আপলোড যেখানে থেমেছিল সেখান থেকে চলবে।</p>
+            )}
+            <div className="flex gap-2 flex-wrap">
+              {job.resume ? (
+                <>
+                  <Button onClick={onResume}>আপলোড আবার চালু করুন</Button>
+                  {keptUrl && (
+                    <a href={keptUrl} download className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-neutral-100 text-neutral-800 text-[13px] font-semibold">
+                      <IconDownload className="w-4 h-4" />
+                      ডাউনলোড
+                    </a>
+                  )}
+                  <Button variant="secondary" onClick={onStart}>
+                    নতুন করে রেন্ডার
+                  </Button>
+                </>
+              ) : (
+                <Button onClick={onStart}>আবার চেষ্টা করুন</Button>
+              )}
+              <Button variant="secondary" onClick={onClose}>
+                বন্ধ করুন
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Round 28 — the ready screen: watch, download, share, পোস্টে বসান. */
+function DoneView({ job, onResume, onDiscard, onClose, onBack }: { job: Extract<Job, { stage: 'done' }>; onResume: () => void; onDiscard: () => void; onClose: () => void; onBack: () => void }) {
+  const [shareErr, setShareErr] = useState('')
+  const share = canShareFile(job.url)
+  return (
+    <>
+      <video src={job.url} controls playsInline className="w-full max-h-[42vh] rounded-xl bg-black mb-3" data-testid="render-result" />
+      {job.attached ? (
+        <p className="text-[13px] text-emerald-700 mb-3">এডিট করা ভিডিও পোস্টে বসানো হয়েছে ({bnFileSize(job.size)})। মূল ভিডিও সংরক্ষিত আছে।</p>
+      ) : job.restored ? (
+        <p className="text-[13px] text-neutral-700 mb-3" data-testid="kept-render">
+          আগে রেন্ডার করা ভিডিও এই ব্রাউজারে রাখা আছে ({bnFileSize(job.size)} · {bnDate(new Date(job.restored))}) — আবার রেন্ডার লাগবে না।
+        </p>
+      ) : (
+        <p className="text-[13px] text-neutral-700 mb-3">ভিডিও তৈরি হয়েছে ({bnFileSize(job.size)})। এখনই ডাউনলোড করে সোশ্যাল মিডিয়ায় দিতে পারেন।</p>
+      )}
+      {job.note && (
+        <p className="text-[12px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-3" data-testid="upload-note">
+          {job.note}
+        </p>
+      )}
+      <div className="grid grid-cols-2 gap-2" data-testid="done-actions">
+        <a
+          href={job.url}
+          download={job.filename}
+          className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl bg-neutral-900 text-white text-[14px] font-semibold hover:bg-neutral-800"
+          data-testid="download-main"
+        >
+          <IconDownload className="w-5 h-5" />
+          ডাউনলোড
+        </a>
+        {job.attached ? (
+          <Button className="!py-3 !rounded-xl" onClick={onBack}>
+            ভিডিও পোস্টে ফিরুন
+          </Button>
+        ) : job.canAttach ? (
+          <Button className="!py-3 !rounded-xl" onClick={onResume} data-testid="attach-now">
+            {job.note ? 'আবার চালু করুন' : 'পোস্টে বসান'}
+          </Button>
+        ) : (
+          <Button variant="secondary" className="!py-3 !rounded-xl" onClick={onClose}>
+            এডিটরে ফিরুন
+          </Button>
+        )}
+      </div>
+      {share && (
+        <button
+          type="button"
+          onClick={() => {
+            setShareErr('')
+            shareFile(job.url, job.filename, job.mime ?? '').catch((e: unknown) => {
+              if (e instanceof Error && e.name !== 'AbortError') setShareErr(e.message)
+            })
+          }}
+          className="w-full mt-2 px-4 py-2 rounded-xl border border-neutral-200 text-[13px] font-semibold text-neutral-700 hover:bg-neutral-50"
+          data-testid="share-main"
+        >
+          ফোন থেকে সরাসরি শেয়ার (Facebook, WhatsApp…)
+        </button>
+      )}
+      {shareErr && <p className="text-[11.5px] text-red-600 mt-1">{shareErr}</p>}
+      {job.extras.length > 0 && (
+        <div className="mt-3 rounded-xl border border-neutral-200 divide-y divide-neutral-100" data-testid="extra-results">
+          {job.extras.map((x) => (
+            <div key={x.format} className="flex items-center justify-between gap-2 px-3 py-2">
+              <span className="min-w-0">
+                <span className="block text-[13px] text-neutral-800">{x.name}</span>
+                <span className="block text-[11px] text-neutral-400">
+                  {bnFileSize(x.size)}
+                  {x.uploaded ? ' · মিডিয়া লাইব্রেরিতে রাখা হয়েছে' : ''}
+                </span>
+              </span>
+              <a href={x.url} download={x.filename} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-brand-700 shrink-0">
+                <IconDownload className="w-4 h-4" />
+                ডাউনলোড
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex justify-between gap-2 mt-3">
+        {!job.attached && (
+          <button type="button" onClick={onClose} className="text-[12.5px] text-neutral-500 hover:text-neutral-800">
+            এডিটরে ফিরুন
+          </button>
+        )}
+        {job.restored && !job.attached && (
+          <button type="button" onClick={onDiscard} className="text-[12.5px] text-red-600 hover:text-red-700" data-testid="discard-kept">
+            রাখা ভিডিও মুছে ফেলুন
+          </button>
+        )}
+      </div>
+    </>
+  )
+}

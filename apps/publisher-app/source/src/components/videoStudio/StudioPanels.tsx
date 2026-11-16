@@ -1,0 +1,858 @@
+/**
+ * Round 21 — the video editor's side panels: ফ্রেম, লোগো, ইন্ট্রো/আউট্রো,
+ * বিজ্ঞাপন, ক্যাপশন, আকার ও অডিও. Each panel edits one part of the
+ * EditConfig through `set` (an immutable updater), nothing else.
+ */
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  CAPTION_POSITIONS,
+  CAPTION_PRESETS,
+  CAPTION_STYLES,
+  FOOTERS,
+  FORMATS,
+  DESIGN_GROUPS,
+  FRAMES,
+  FRAME_SIZES,
+  INTROS,
+  LIMITS,
+  LOWER_THIRDS,
+  MUSIC,
+  LOGO_STYLES,
+  QUICK_LOOKS,
+  WATERMARK_STYLES,
+  OUTROS,
+  type Caption,
+  type Corner,
+  type DesignGroup,
+  type EditConfig,
+  type IntroId,
+  type MediaRef,
+  type OutroId,
+} from '../../lib/videoEdit/config'
+import { bnClock } from '../../lib/videoEdit/motion'
+import type { VideoKit } from '../../lib/api'
+import { bnNumber } from '../ui'
+import { IconPlus, IconTrash, IconUsers, IconX } from '../Icon'
+import PeoplePicker from './StudioPeople'
+import { ChoiceCard, Group, Section, Segmented, Slider, SwitchRow, TextInput, TimeField, useGroups } from './StudioFields'
+import { HOUSE_ADS, type HouseAdId } from '../../lib/videoEdit/houseads'
+import { AUTO_LOOKS, applyAutoStyle, detectTopic } from '../../lib/videoEdit/autostyle'
+import AssetBrowser from './AssetBrowser'
+
+export type Setter = (fn: (c: EditConfig) => EditConfig) => void
+
+/** Paints a small still of a design (supplied by the page, which owns the renderer). */
+export function Thumb({ paint, ratio, deps }: { paint: (c: HTMLCanvasElement) => void; ratio: number; deps: unknown[] }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    if (ref.current) paint(ref.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps)
+  return <canvas ref={ref} className="block w-full bg-neutral-900" style={{ aspectRatio: String(ratio) }} />
+}
+
+export type ThumbPainter = (kind: 'frame' | 'intro' | 'outro' | 'house', id: string) => ((c: HTMLCanvasElement) => void) | null
+
+// ---------------------------------------------------------------------------
+// Frame
+// ---------------------------------------------------------------------------
+
+export function FramePanel({
+  cfg,
+  set,
+  postTitle,
+  thumb,
+  thumbRatio,
+  thumbKey,
+  onPickAdImage,
+}: {
+  cfg: EditConfig
+  set: Setter
+  postTitle: string
+  thumb: ThumbPainter
+  thumbRatio: number
+  thumbKey: string
+  onPickAdImage: () => void
+}) {
+  const f = cfg.frame
+  const setF = (patch: Partial<EditConfig['frame']>) => set((c) => ({ ...c, frame: { ...c.frame, ...patch } }))
+  return (
+    <div>
+      <Section title="অটো স্টাইল" hint="শিরোনাম ও ক্যাটেগরি পড়ে খবরের ধরন বুঝে মিলিয়ে দেয় — মিউজিক, ফ্রেম, ইন্ট্রো, আউট্রো ও নাম-পট্টি, আর কথার সময় মিউজিক নিচু। লেখা ও কাটা অংশ বদলায় না।">
+        {(() => {
+          const cat = f.kicker
+          const ttl = f.title || postTitle
+          const look = AUTO_LOOKS[detectTopic(cat, ttl)]
+          return (
+            <div className="flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50/50 px-3 py-2.5">
+              <div className="flex-1 min-w-0">
+                <p className="text-[12.5px] font-semibold text-neutral-800">ধরন: {look.name}</p>
+                <p className="text-[11px] text-neutral-500 truncate">
+                  {MUSIC.find((m) => m.id === look.music)?.name} · {FRAMES.find((x) => x.id === look.frame)?.name} · {INTROS.find((x) => x.id === look.intro)?.name}
+                </p>
+              </div>
+              <button type="button" onClick={() => set((c) => applyAutoStyle(c, c.frame.kicker, c.frame.title || postTitle))} className="shrink-0 rounded-lg bg-brand-600 text-white text-[12.5px] font-semibold px-3 py-1.5" data-testid="auto-style">
+                অটো স্টাইল দিন
+              </button>
+            </div>
+          )
+        })()}
+      </Section>
+      <Section title="এক ক্লিকে সাজান" hint="ফ্রেম, ইন্ট্রো, আউট্রো ও মাপ একসাথে বসে। আপনার লেখা, কাটা অংশ ও ক্যাপশন যেমন আছে থাকবে; পরে যেকোনোটা বদলানো যায়।">
+        <div className="grid grid-cols-2 gap-2" data-testid="quick-looks">
+          {QUICK_LOOKS.map((q) => (
+            <button
+              key={q.id}
+              type="button"
+              onClick={() => set((c) => q.apply(c))}
+              className="text-left rounded-xl border border-neutral-200 px-3 py-2 hover:border-brand-400 hover:bg-brand-50/40"
+              data-testid={`look-${q.id}`}
+            >
+              <span className="block text-[13px] font-semibold text-neutral-800">{q.name}</span>
+              <span className="block text-[11px] text-neutral-500 leading-snug">{q.hint}</span>
+            </button>
+          ))}
+        </div>
+      </Section>
+      <Section title="এনিমেটেড ফ্রেম" hint="ক্লিক করলে পুরো ভিডিওর উপরে ও নিচে ফ্রেমের অংশ যোগ হবে। নকশাগুলো ভাগ করে সাজানো — শিরোনামে চাপ দিলে খোলে।">
+        <AssetBrowser
+          kind="frame"
+          items={FRAMES}
+          groups={DESIGN_GROUPS}
+          current={f.id}
+          onPick={(id) => setF({ id })}
+          none={{ label: 'ফ্রেম নেই', hint: 'শুধু ভিডিও' }}
+          preview={(o) => <Thumb paint={thumb('frame', o.id) ?? (() => {})} ratio={thumbRatio} deps={[thumbKey, o.id]} />}
+        />
+      </Section>
+
+      {f.id !== 'none' && (
+        <>
+          <Section title="শিরোনাম কোথায় থাকবে" hint="নিচে দিলে শিরোনামের পট্টি ছবির নিচে, স্ক্রলের ঠিক উপরে বসে — টিভির লোয়ার-থার্ডের মতো।">
+            <Segmented
+              value={f.titlePos}
+              options={[
+                { id: 'top', name: 'ছবির উপরে' },
+                { id: 'bottom', name: 'ছবির নিচে (নতুন)' },
+              ]}
+              onChange={(v) => setF({ titlePos: v })}
+              size="sm"
+            />
+          </Section>
+          <Section title="ফ্রেমের আকার" hint="স্বয়ংক্রিয়: রিল (৯:১৬) ভিডিওতে ফ্রেম ও লেখা বড় হয়, কারণ ফোনে পুরো স্ক্রিনে দেখা হয়।">
+            <Segmented value={f.size} options={FRAME_SIZES} onChange={(v) => setF({ size: v })} size="sm" />
+            <div className="mt-2">
+              <Slider label={f.titlePos === 'bottom' ? 'শিরোনাম পট্টির উচ্চতা' : 'উপরের অংশের উচ্চতা'} value={Math.round(f.top * 100)} min={100} max={200} step={10} onChange={(v) => setF({ top: v / 100 })} format={(v) => (v === 100 ? 'স্বাভাবিক' : `${bnNumber(v)}%`)} />
+              {f.footer !== 'none' && (
+                <Slider label="নিচের অংশের উচ্চতা" value={Math.round(f.bottom * 100)} min={100} max={200} step={10} onChange={(v) => setF({ bottom: v / 100 })} format={(v) => (v === 100 ? 'স্বাভাবিক' : `${bnNumber(v)}%`)} />
+              )}
+              <p className="text-[11px] text-neutral-400">বড় করলে শিরোনাম ও স্ক্রলের লেখাও বড় হয়। ১৬:৯ / ৯:১৬ মাপে ছবির জায়গা একটু কমে।</p>
+            </div>
+            <p className="text-[11.5px] text-neutral-500 mt-3 mb-1">অ্যানিমেশন</p>
+            <Segmented
+              value={f.motion}
+              options={[
+                { id: 'lively', name: 'প্রাণবন্ত (নতুন)' },
+                { id: 'calm', name: 'শান্ত' },
+              ]}
+              onChange={(v) => setF({ motion: v })}
+              size="sm"
+            />
+            <p className="text-[11px] text-neutral-400 mt-1">প্রথম ফ্রেম থেকেই পুরো ফ্রেম দেখা যায় (কালো দিয়ে শুরু হয় না)। প্রাণবন্ত: শুরুতে শিরোনামের উপর দিয়ে রঙের বার যায়, মাঝে মাঝে আলোর ঝলক।</p>
+          </Section>
+          <Section title={f.titlePos === 'bottom' ? 'শিরোনাম পট্টি' : 'উপরের অংশ'}>
+            <TextInput label="শিরোনাম / নিজের লেখা" value={f.title} onChange={(v) => setF({ title: v })} max={LIMITS.title} placeholder={postTitle || 'ভিডিওর শিরোনাম'} testId="frame-title" />
+            <TextInput label="ক্যাটেগরি / লেবেল (ঐচ্ছিক)" value={f.kicker} onChange={(v) => setF({ kicker: v })} max={LIMITS.kicker} placeholder="যেমন: জাতীয়, খেলা, ক্যাম্পাস" />
+            <SwitchRow label="তারিখ দেখান" checked={f.date} onChange={(v) => setF({ date: v })} />
+          </Section>
+          <Section title="নিচের অংশ (ফুটার)" hint="স্ক্রল, বিজ্ঞাপন বা ব্র্যান্ডিং — ফুটার না চাইলে “ফুটার নেই”।">
+            <Segmented value={f.footer} options={FOOTERS} onChange={(v) => setF({ footer: v })} size="sm" />
+            <div className="mt-3">
+              {f.footer === 'ticker' && (
+                <TextInput label="চলমান স্ক্রলের লেখা" value={f.ticker} onChange={(v) => setF({ ticker: v })} max={LIMITS.ticker} placeholder="খালি রাখলে শিরোনামটিই চলবে" multiline />
+              )}
+              {f.footer === 'ad-text' && (
+                <TextInput label="বিজ্ঞাপনের লেখা" value={f.adText} onChange={(v) => setF({ adText: v })} max={LIMITS.adText} placeholder="যেমন: রহমান ইলেকট্রনিক্স — ঈদ অফারে ২০% ছাড়, ফোন ০১৭…" multiline testId="ad-text" />
+              )}
+              {f.footer === 'ad-image' && (
+                <div className="flex items-center gap-2">
+                  {f.adImage ? (
+                    <>
+                      <img src={f.adImage.url} alt="" className="h-12 max-w-[200px] object-cover rounded-lg border border-neutral-200" />
+                      <button type="button" onClick={onPickAdImage} className="text-[12px] px-2.5 py-1.5 rounded-lg bg-neutral-100">
+                        বদলান
+                      </button>
+                      <button type="button" onClick={() => setF({ adImage: null })} className="text-[12px] px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600">
+                        সরান
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={onPickAdImage} className="text-[12.5px] px-3 py-2 rounded-lg border border-dashed border-neutral-300 text-neutral-600 w-full">
+                      গ্যালারি থেকে ব্যানার ছবি বেছে নিন (চওড়া ছবি সবচেয়ে ভালো — প্রায় ৮:১)
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </Section>
+        </>
+      )}
+      <Section title="প্রগ্রেস বার" hint="ছবির নিচে সরু দাগ — খবরের কতটা বাকি দেখায়, রিলে দর্শক শেষ পর্যন্ত থাকে।">
+        <SwitchRow label="প্রগ্রেস বার দেখান" checked={cfg.progress.on} onChange={(v) => set((c) => ({ ...c, progress: { ...c.progress, on: v } }))} testId="progress-on" />
+        {cfg.progress.on && (
+          <Segmented
+            value={cfg.progress.color}
+            options={[
+              { id: 'red', name: 'লাল' },
+              { id: 'yellow', name: 'হলুদ' },
+              { id: 'blue', name: 'নীল' },
+              { id: 'white', name: 'সাদা' },
+              { id: 'tri', name: 'লাল-হলুদ-সবুজ' },
+            ]}
+            onChange={(v) => set((c) => ({ ...c, progress: { ...c.progress, color: v } }))}
+            size="sm"
+          />
+        )}
+      </Section>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Logo
+// ---------------------------------------------------------------------------
+
+export function LogoPanel({ cfg, set, customLogo }: { cfg: EditConfig; set: Setter; customLogo: boolean }) {
+  const l = cfg.logo
+  const setL = (patch: Partial<EditConfig['logo']>) => set((c) => ({ ...c, logo: { ...c.logo, ...patch } }))
+  const corners: { id: Corner; name: string }[] = [
+    { id: 'tl', name: 'উপরে বামে' },
+    { id: 'tr', name: 'উপরে ডানে' },
+    { id: 'bl', name: 'নিচে বামে' },
+    { id: 'br', name: 'নিচে ডানে' },
+  ]
+  const w = cfg.watermark
+  const setW = (patch: Partial<EditConfig['watermark']>) => set((c) => ({ ...c, watermark: { ...c.watermark, ...patch } }))
+  return (
+    <div>
+      <SwitchRow
+        label="মিহা নিউজ ওয়াটারমার্ক"
+        hint="হালকা সাদা লোগো ভিডিওর এখানে-সেখানে ফুটে ওঠে, ধীরে ভেসে মিলিয়ে যায় — কেউ ভিডিও নিয়ে গেলেও মিহা নিউজের নাম থাকে।"
+        checked={w.on}
+        onChange={(v) => setW({ on: v })}
+        testId="watermark-on"
+      />
+      {w.on && (
+        <div className="mt-3 mb-4" data-testid="watermark-settings">
+          <Section title="চলাফেরা">
+            <div className="grid grid-cols-3 gap-2">
+              {WATERMARK_STYLES.map((x) => (
+                <ChoiceCard key={x.id} active={w.style === x.id} onClick={() => setW({ style: x.id })} title={x.name} hint={x.hint} />
+              ))}
+            </div>
+          </Section>
+          <Slider label="আকার" value={w.size} min={3} max={10} step={0.5} onChange={(v) => setW({ size: v })} format={(v) => `${bnNumber(v)}%`} />
+          <Slider
+            label={w.style === 'glide' ? 'গতি (এক চক্করের সময়)' : 'এক জায়গায় কত সেকেন্ড'}
+            value={w.every}
+            min={5}
+            max={30}
+            onChange={(v) => setW({ every: v })}
+            format={(v) => `${bnNumber(v)} সে.`}
+          />
+          <Slider label="দৃশ্যমানতা" value={Math.round(w.opacity * 100)} min={15} max={80} step={5} onChange={(v) => setW({ opacity: v / 100 })} format={(v) => `${bnNumber(v)}%`} />
+          <SwitchRow label="নিচে ওয়েবসাইটের ঠিকানা" hint="লোগোর নিচে ছোট করে সাইটের ঠিকানা" checked={w.site} onChange={(v) => setW({ site: v })} />
+        </div>
+      )}
+      <div className="border-t border-neutral-100 pt-3" />
+      <SwitchRow
+        label="এনিমেটেড লোগো"
+        hint={`পুরো ভিডিও জুড়ে কোণে থাকবে, নির্দিষ্ট সময় পরপর এনিমেশন হবে।${customLogo ? ' (সেটিংসে দেওয়া লোগো)' : ''}`}
+        checked={l.on}
+        onChange={(v) => setL({ on: v })}
+        testId="logo-on"
+      />
+      {l.on && (
+        <div className="mt-3">
+          <Section title="এনিমেশন">
+            <div className="grid grid-cols-2 gap-2">
+              {LOGO_STYLES.map((s) => (
+                <ChoiceCard key={s.id} active={l.style === s.id} onClick={() => setL({ style: s.id })} title={s.name} hint={s.hint} />
+              ))}
+            </div>
+          </Section>
+          <Section title="কোণ">
+            <div className="grid grid-cols-2 gap-1.5 w-[220px]">
+              {corners.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setL({ corner: c.id })}
+                  aria-pressed={l.corner === c.id}
+                  className={`rounded-lg border px-2 py-2 text-[12px] font-medium ${l.corner === c.id ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-neutral-200 text-neutral-600'}`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </Section>
+          <Slider label="আকার" value={l.size} min={3} max={14} step={0.5} onChange={(v) => setL({ size: v })} format={(v) => `${bnNumber(v)}%`} />
+          {l.style !== 'static' && (
+            <Slider label="কত সেকেন্ড পরপর এনিমেশন" value={l.every} min={6} max={60} onChange={(v) => setL({ every: v })} format={(v) => `${bnNumber(v)} সে.`} />
+          )}
+          <Slider label="স্বচ্ছতা" value={Math.round(l.opacity * 100)} min={30} max={100} step={5} onChange={(v) => setL({ opacity: v / 100 })} format={(v) => `${bnNumber(v)}%`} />
+          <SwitchRow label="সাদা পটভূমি" hint="বন্ধ করলে সাদা লোগো, ছায়াসহ" checked={l.plate} onChange={(v) => setL({ plate: v })} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Intro / outro
+// ---------------------------------------------------------------------------
+
+function ClipChooser({ clip, onPick, onClear, label }: { clip: MediaRef | null; onPick: () => void; onClear?: () => void; label: string }) {
+  return (
+    <div className="mt-2 flex items-center gap-2 rounded-lg bg-neutral-50 border border-neutral-200 px-3 py-2">
+      <p className="flex-1 min-w-0 text-[12.5px] text-neutral-700 truncate">{clip ? clip.title || `ভিডিও #${bnNumber(clip.id)}` : label}</p>
+      <button type="button" onClick={onPick} className="text-[12px] px-2.5 py-1 rounded-md bg-white border border-neutral-200">
+        {clip ? 'বদলান' : 'বেছে নিন'}
+      </button>
+      {clip && onClear && (
+        <button type="button" onClick={onClear} aria-label="সরান" className="text-neutral-400">
+          <IconX className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  )
+}
+
+export function IntroOutroPanel({
+  cfg,
+  set,
+  postTitle,
+  thumb,
+  thumbRatio,
+  thumbKey,
+  kit,
+  onPick,
+}: {
+  cfg: EditConfig
+  set: Setter
+  postTitle: string
+  thumb: ThumbPainter
+  thumbRatio: number
+  thumbKey: string
+  kit: VideoKit | null
+  onPick: (which: 'intro' | 'outro') => void
+}) {
+  const intro = cfg.intro
+  const outro = cfg.outro
+  const introGroups = null
+  const outroGroups = null
+  const textIntro = ['breaking', 'headline', 'special', 'swipe', 'live', 'countdown', 'nil-reveal', 'tv-open', 'investigation', 'sports', 'showbiz', 'shatter', 'globe', 'kinetic', 'split'].includes(intro.id) || intro.id.startsWith('i-')
+  const pickIntro = (id: IntroId) => {
+    set((c) => ({ ...c, intro: { ...c.intro, id, clip: id === 'custom' ? c.intro.clip ?? kit?.intro ?? null : c.intro.clip } }))
+    if (id === 'custom' && !intro.clip && !kit?.intro) onPick('intro')
+  }
+  const pickOutro = (id: OutroId) => {
+    set((c) => ({ ...c, outro: { ...c.outro, id, clip: id === 'custom' ? c.outro.clip ?? kit?.outro ?? null : c.outro.clip } }))
+    if (id === 'custom' && !outro.clip && !kit?.outro) onPick('outro')
+  }
+  const grouped = <T extends { id: string; name: string; hint: string; group: DesignGroup; isNew?: boolean }>(
+    kind: 'intro' | 'outro',
+    list: T[],
+    current: string,
+    _groups: unknown,
+    pick: (id: T['id']) => void,
+  ) => (
+    <AssetBrowser kind={kind} items={list} groups={DESIGN_GROUPS} current={current} onPick={pick} none={{ label: kind === 'intro' ? 'ইন্ট্রো নেই' : 'আউট্রো নেই' }} preview={(o) => preview(kind, o.id)} />
+  )
+  const preview = (kind: 'intro' | 'outro', id: string): ReactNode => {
+    const p = id === 'none' ? null : thumb(kind, id)
+    return p ? <Thumb paint={p} ratio={thumbRatio} deps={[thumbKey, id]} /> : <div className="bg-neutral-100" style={{ aspectRatio: String(thumbRatio) }} />
+  }
+  return (
+    <div>
+      <Section title="ইন্ট্রো" hint="ক্লিক করলে ভিডিওর শুরুতে যোগ হবে।">
+        {grouped('intro', INTROS, intro.id, introGroups, pickIntro)}
+        {intro.id === 'custom' && <ClipChooser clip={intro.clip} label="ইন্ট্রো ভিডিও বেছে নিন" onPick={() => onPick('intro')} />}
+        {intro.id !== 'none' && intro.id !== 'custom' && (
+          <div className="mt-3">
+            <SwitchRow
+              label="শুরুতে পূর্ণ ডিজাইন (কভার)"
+              hint="ভিডিও কালো দিয়ে শুরু হবে না: প্রথম ০.৮ সেকেন্ড ইন্ট্রোর সম্পূর্ণ ডিজাইন দেখাবে, তারপর এনিমেশন। ফেসবুক/প্লেয়ারের প্রিভিউতেও এটিই দেখাবে।"
+              checked={intro.cover}
+              onChange={(v) => set((c) => ({ ...c, intro: { ...c.intro, cover: v } }))}
+              testId="intro-cover"
+            />
+          </div>
+        )}
+        {textIntro && (
+          <div className="mt-3">
+            <TextInput label="ইন্ট্রোর লেখা" value={intro.text} onChange={(v) => set((c) => ({ ...c, intro: { ...c.intro, text: v } }))} max={LIMITS.introText} placeholder={cfg.frame.title || postTitle || 'শিরোনাম'} />
+          </div>
+        )}
+      </Section>
+      <Section title="আউট্রো" hint="ক্লিক করলে ভিডিওর শেষে যোগ হবে।">
+        {grouped('outro', OUTROS, outro.id, outroGroups, pickOutro)}
+        {outro.id === 'custom' && <ClipChooser clip={outro.clip} label="আউট্রো ভিডিও বেছে নিন" onPick={() => onPick('outro')} />}
+      </Section>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Ad breaks
+// ---------------------------------------------------------------------------
+
+export function AdsPanel({
+  cfg,
+  set,
+  range,
+  playhead,
+  onAdd,
+  onReplace,
+  onAddHouse,
+  thumb,
+  thumbRatio,
+  thumbKey,
+}: {
+  cfg: EditConfig
+  set: Setter
+  range: { start: number; end: number }
+  playhead: () => number | null
+  onAdd: () => void
+  onReplace: (index: number) => void
+  /** Round 26: a Meeha house ad at the playhead (or in place of break `replace`). */
+  onAddHouse: (id: HouseAdId, replace?: number) => void
+  thumb: ThumbPainter
+  thumbRatio: number
+  thumbKey: string
+}) {
+  const [houseFor, setHouseFor] = useState<number | null>(null)
+  const houseOpen = useGroups('house')
+  const update = (i: number, patch: Partial<EditConfig['ads'][number]>) =>
+    set((c) => ({ ...c, ads: c.ads.map((a, j) => (j === i ? { ...a, ...patch } : a)) }))
+  const remove = (i: number) => set((c) => ({ ...c, ads: c.ads.filter((_, j) => j !== i) }))
+  const order = cfg.ads.map((a, i) => ({ a, i })).sort((x, y) => x.a.at - y.a.at)
+  return (
+    <div>
+      <Section
+        title="ভিডিওর মাঝে বিজ্ঞাপন"
+        hint="প্রিভিউ থামিয়ে যেখানে বিজ্ঞাপন চান সেখানে “এখানে বিজ্ঞাপন যোগ করুন” দিন — ভিডিও সেখানে ভাগ হয়ে গ্যালারির বিজ্ঞাপন চলবে, তারপর সংবাদ আবার চলবে।"
+      >
+        <button
+          type="button"
+          onClick={onAdd}
+          disabled={cfg.ads.length >= LIMITS.ads}
+          data-testid="add-ad"
+          className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-amber-400 bg-amber-50 text-amber-800 py-2.5 text-[13px] font-semibold disabled:opacity-50"
+        >
+          <IconPlus className="w-4 h-4" />
+          এখানে বিজ্ঞাপন যোগ করুন (গ্যালারি থেকে)
+        </button>
+      </Section>
+      <div className="mb-5">
+        <Group
+          title="মিহা নিউজের নিজস্ব ভিডিও বিজ্ঞাপন"
+          hint="আঁকা এনিমেশন, আপলোড লাগে না, সব মাপে মানায়"
+          count={HOUSE_ADS.length}
+          open={houseOpen.isOpen('house') || houseFor !== null}
+          onToggle={() => {
+            setHouseFor(null)
+            houseOpen.toggle('house')
+          }}
+          testId="house-ads"
+        >
+          {houseFor !== null && <p className="text-[12px] text-brand-700 mb-2">বিরতি {bnNumber(order.findIndex((o) => o.i === houseFor) + 1)}-এর বিজ্ঞাপন বদলাতে একটি বেছে নিন।</p>}
+          <div className="grid grid-cols-2 gap-2.5">
+            {HOUSE_ADS.map((h) => {
+              const paint = thumb('house', h.id)
+              return (
+                <ChoiceCard
+                  key={h.id}
+                  active={false}
+                  onClick={() => {
+                    onAddHouse(h.id, houseFor ?? undefined)
+                    setHouseFor(null)
+                  }}
+                  title={h.name}
+                  hint={`${h.hint} · ${bnNumber(h.dur)} সে.`}
+                  testId={`house-${h.id}`}
+                  preview={paint ? <Thumb paint={paint} ratio={thumbRatio} deps={[thumbKey, h.id]} /> : <div className="bg-neutral-100" style={{ aspectRatio: String(thumbRatio) }} />}
+                />
+              )
+            })}
+          </div>
+          <p className="text-[11px] text-neutral-400 mt-2">ক্লিক করলে প্রিভিউ যেখানে থেমে আছে সেখানে বসবে। সোশ্যাল হ্যান্ডেল ও ক্যাম্পাসের ঠিকানা সাইটের সেটিংস থেকে আসে — না থাকলে ওয়েবসাইটের নাম দেখায়।</p>
+        </Group>
+      </div>
+      {order.length === 0 ? (
+        <p className="text-[12.5px] text-neutral-400 text-center py-4">এখনো কোনো বিজ্ঞাপন বিরতি নেই।</p>
+      ) : (
+        <div className="flex flex-col gap-2.5">
+          {order.map(({ a, i }, k) => {
+            const outside = a.at <= range.start + 0.25 || a.at >= range.end - 0.25
+            return (
+              <div key={i} className="rounded-xl border border-neutral-200 p-3" data-testid="ad-row">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="text-[12.5px] font-semibold text-neutral-800">বিজ্ঞাপন বিরতি {bnNumber(k + 1)}</p>
+                  <button type="button" onClick={() => remove(i)} aria-label="সরান" className="text-red-500 hover:text-red-700">
+                    <IconTrash className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="flex items-end gap-3 flex-wrap">
+                  <TimeField
+                    label="মূল ভিডিওর কোন সময়ে"
+                    value={a.at}
+                    min={0}
+                    max={range.end}
+                    onChange={(v) => update(i, { at: v })}
+                    onPlayhead={() => {
+                      const p = playhead()
+                      if (p !== null) update(i, { at: p })
+                    }}
+                  />
+                  <div className="flex-1 min-w-[120px]">
+                    <span className="block text-[11.5px] text-neutral-500 mb-1">{a.house ? 'মিহা নিজস্ব বিজ্ঞাপন' : 'বিজ্ঞাপন ক্লিপ'}</span>
+                    {a.house ? (
+                      <button type="button" onClick={() => setHouseFor(i)} className="w-full text-left text-[12.5px] rounded-lg border border-brand-200 bg-brand-50/50 px-2.5 py-1.5 truncate hover:border-brand-300">
+                        {HOUSE_ADS.find((h) => h.id === a.house)?.name}
+                        <span className="text-neutral-400"> · বদলান</span>
+                      </button>
+                    ) : a.clip ? (
+                      <button type="button" onClick={() => onReplace(i)} className="w-full text-left text-[12.5px] rounded-lg border border-neutral-200 px-2.5 py-1.5 truncate hover:border-neutral-300">
+                        {a.clip.title || `ভিডিও #${bnNumber(a.clip.id)}`}
+                        {a.clip.duration ? <span className="text-neutral-400"> · {bnClock(a.clip.duration)}</span> : null}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                <SwitchRow label="“বিজ্ঞাপন বিরতি” ও “সংবাদে ফিরছি” কার্ড" checked={a.bumper} onChange={(v) => update(i, { bumper: v })} />
+                {outside && <p className="text-[11.5px] text-amber-700">এই সময়টা কাটছাঁটের বাইরে বা একদম শুরু/শেষে — বিজ্ঞাপনটি বসবে না।</p>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Captions & credits
+// ---------------------------------------------------------------------------
+
+export function CaptionsPanel({
+  cfg,
+  set,
+  range,
+  playhead,
+  defaultName,
+  kit,
+  onKit,
+}: {
+  cfg: EditConfig
+  set: Setter
+  range: { start: number; end: number }
+  playhead: () => number | null
+  defaultName: string
+  kit: VideoKit | null
+  onKit: (k: VideoKit) => void
+}) {
+  const [people, setPeople] = useState(false)
+  const update = (i: number, patch: Partial<Caption>) => set((c) => ({ ...c, captions: c.captions.map((x, j) => (j === i ? { ...x, ...patch } : x)) }))
+  const remove = (i: number) => set((c) => ({ ...c, captions: c.captions.filter((_, j) => j !== i) }))
+  const add = (preset: (typeof CAPTION_PRESETS)[number]) => {
+    const p = playhead()
+    const at = preset.caption.dur === null ? range.start : p ?? range.start
+    const text = preset.caption.style === 'nameplate' && !preset.caption.text ? defaultName : preset.caption.text
+    set((c) => ({ ...c, captions: [...c.captions, { ...preset.caption, text: text || preset.caption.text, at }] }))
+  }
+  return (
+    <div>
+      <Section title="ক্যাপশন ও ক্রেডিট" hint="ভিডিওর উপর লেখা — কে পাঠিয়েছেন, কার বক্তব্য, সংগৃহীত কিনা। কখন থেকে কতক্ষণ দেখাবে তা নিচে ঠিক করুন।">
+        {people && (
+          <PeoplePicker
+            kit={kit}
+            onKit={onKit}
+            onClose={() => setPeople(false)}
+            onPick={(person) => {
+              if (cfg.captions.length >= LIMITS.captions) return
+              const at = playhead() ?? range.start
+              set((c) => ({ ...c, captions: [...c.captions, { text: person.name, sub: person.role, style: 'nameplate', pos: 'bl', at, dur: 5 }] }))
+              setPeople(false)
+            }}
+          />
+        )}
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setPeople((v) => !v)}
+            disabled={cfg.captions.length >= LIMITS.captions}
+            className="flex items-center gap-1 rounded-full bg-brand-600 text-white px-2.5 py-1.5 text-[12px] font-semibold disabled:opacity-50"
+            data-testid="open-people"
+          >
+            <IconUsers className="w-3.5 h-3.5" />
+            নামের তালিকা থেকে
+          </button>
+          {CAPTION_PRESETS.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => add(p)}
+              disabled={cfg.captions.length >= LIMITS.captions}
+              className="flex items-center gap-1 rounded-full border border-neutral-200 px-2.5 py-1.5 text-[12px] font-medium text-neutral-700 hover:border-brand-500 hover:text-brand-700 disabled:opacity-50"
+            >
+              <IconPlus className="w-3.5 h-3.5" />
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </Section>
+      {cfg.captions.length === 0 ? (
+        <p className="text-[12.5px] text-neutral-400 text-center py-4">এখনো কোনো ক্যাপশন নেই — উপরের বোতাম থেকে যোগ করুন।</p>
+      ) : (
+        <div className="flex flex-col gap-2.5">
+          {cfg.captions.map((c, i) => (
+            <div key={i} className="rounded-xl border border-neutral-200 p-3" data-testid="caption-row">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <Segmented
+                  value={c.style.startsWith('lt-') ? 'nameplate' : c.style}
+                  options={CAPTION_STYLES}
+                  onChange={(v) => update(i, { style: v === 'nameplate' && c.style.startsWith('lt-') ? c.style : v, pos: v === 'subtitle' || v === 'quote' ? 'bc' : c.pos === 'bc' ? 'bl' : c.pos })}
+                  size="sm"
+                />
+                <button type="button" onClick={() => remove(i)} aria-label="সরান" className="text-red-500 hover:text-red-700 shrink-0">
+                  <IconTrash className="w-4 h-4" />
+                </button>
+              </div>
+              {(c.style === 'nameplate' || c.style.startsWith('lt-')) && (
+                <div className="mb-2" data-testid="lower-thirds">
+                  <p className="text-[11.5px] text-neutral-500 mb-1">নাম-পট্টির নকশা ({bnNumber(LOWER_THIRDS.length + 1)}টি)</p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[{ id: 'nameplate' as const, name: 'ক্লাসিক', hint: 'সাদা নাম, নীল পদবি', swatch: ['#FFFFFF', '#025AB2'] as [string, string] }, ...LOWER_THIRDS].map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        title={d.hint}
+                        onClick={() => update(i, { style: d.id })}
+                        aria-pressed={c.style === d.id}
+                        data-testid={`lt-${d.id}`}
+                        className={`group text-left rounded-lg border overflow-hidden ${c.style === d.id ? 'border-brand-500 ring-2 ring-brand-500/25' : 'border-neutral-200 hover:border-neutral-300'}`}
+                      >
+                        <span className="flex h-6 bg-neutral-700/90 items-end px-1.5 pb-1">
+                          <span className="h-2.5 rounded-sm transition-all duration-500 w-1/3 group-hover:w-2/3" style={{ background: d.swatch[0] }} />
+                          <span className="h-1.5 ml-0.5 rounded-sm transition-all duration-700 w-1/5 group-hover:w-1/4" style={{ background: d.swatch[1] }} />
+                        </span>
+                        <span className="block px-1.5 py-1 text-[11px] font-medium text-neutral-700 truncate">{d.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <TextInput
+                label={c.style === 'nameplate' || c.style.startsWith('lt-') ? 'নাম' : c.style === 'location' ? 'স্থান' : c.style === 'quote' ? 'বক্তব্য' : 'লেখা'}
+                value={c.text}
+                onChange={(v) => update(i, { text: v })}
+                max={LIMITS.capText}
+                multiline={c.style === 'quote'}
+                placeholder={
+                  c.style === 'nameplate' ? 'যেমন: আসিফ মাহমুদ' : c.style === 'location' ? 'যেমন: শাহবাগ, ঢাকা' : c.style === 'quote' ? 'যেমন: আমরা দ্রুত ব্যবস্থা নেব' : 'যেমন: ভিডিও: সংগৃহীত'
+                }
+              />
+              {(c.style === 'nameplate' || c.style === 'quote' || c.style.startsWith('lt-')) && (
+                <TextInput
+                  label={c.style === 'quote' ? 'বক্তার নাম ও পরিচয়' : 'পদবি / পরিচয়'}
+                  value={c.sub}
+                  onChange={(v) => update(i, { sub: v })}
+                  max={LIMITS.capSub}
+                  placeholder={c.style === 'quote' ? 'যেমন: মো. রহিম, জেলা প্রশাসক' : 'যেমন: ক্যাম্পাস সংবাদদাতা'}
+                />
+              )}
+              <p className="text-[11.5px] text-neutral-500 mb-1">অবস্থান</p>
+              <Segmented value={c.pos} options={CAPTION_POSITIONS} onChange={(v) => update(i, { pos: v })} size="sm" />
+              <div className="flex items-end gap-3 flex-wrap mt-3">
+                <TimeField
+                  label="কখন থেকে (মূল ভিডিওর সময়)"
+                  value={c.at}
+                  min={0}
+                  max={range.end}
+                  onChange={(v) => update(i, { at: v })}
+                  onPlayhead={() => {
+                    const p = playhead()
+                    if (p !== null) update(i, { at: p })
+                  }}
+                />
+                {c.dur !== null && (
+                  <label className="block">
+                    <span className="block text-[11.5px] text-neutral-500 mb-1">কতক্ষণ (সেকেন্ড)</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={600}
+                      step={0.5}
+                      value={c.dur}
+                      onChange={(e) => update(i, { dur: Math.max(1, Number(e.target.value) || 1) })}
+                      className="w-[84px] rounded-lg border border-neutral-200 px-2 py-1.5 text-[13px]"
+                    />
+                  </label>
+                )}
+              </div>
+              <SwitchRow label="পুরো ভিডিও জুড়ে দেখান" checked={c.dur === null} onChange={(v) => update(i, { dur: v ? null : 5 })} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Size, trim & sound
+// ---------------------------------------------------------------------------
+
+export type ReframeJob = null | { stage: 'running'; ratio: number; label: string } | { stage: 'done'; faces: boolean } | { stage: 'error'; message: string }
+
+export function LayoutPanel({
+  cfg,
+  set,
+  srcDuration,
+  playhead,
+  outputSize,
+  reframe,
+  onReframe,
+  onCancelReframe,
+}: {
+  cfg: EditConfig
+  set: Setter
+  srcDuration: number
+  playhead: () => number | null
+  outputSize: string
+  reframe: ReframeJob
+  onReframe: () => void
+  onCancelReframe: () => void
+}) {
+  const hasTrack = cfg.reframe.xs.length > 0
+  const trimEnd = cfg.trim.end ?? srcDuration
+  return (
+    <div>
+      <Section title="ভিডিওর আকার" hint={`আউটপুট: ${outputSize}`}>
+        <div className="grid grid-cols-3 gap-2">
+          {FORMATS.map((f) => (
+            <ChoiceCard key={f.id} active={cfg.format === f.id} onClick={() => set((c) => ({ ...c, format: f.id }))} title={f.name} hint={f.hint} testId={`format-${f.id}`} />
+          ))}
+        </div>
+        {cfg.format !== 'source' && (
+          <div className="mt-3">
+            <p className="text-[11.5px] text-neutral-500 mb-1">ভিডিও মাপে না মিললে</p>
+            <Segmented
+              value={cfg.fit}
+              options={[
+                { id: 'blur', name: 'পাশে ঝাপসা পটভূমি' },
+                { id: 'cover', name: 'কেটে পুরো ভরাট' },
+                { id: 'black', name: 'কালো পটভূমি' },
+              ]}
+              onChange={(v) => set((c) => ({ ...c, fit: v }))}
+              size="sm"
+            />
+          </div>
+        )}
+        {cfg.format !== 'source' && (
+          <div className="mt-3 rounded-xl border border-neutral-200 p-2.5" data-testid="reframe">
+            <p className="text-[12.5px] font-semibold text-neutral-800">স্মার্ট রিফ্রেম</p>
+            <p className="text-[11.5px] text-neutral-400 leading-snug mb-2">
+              ১৬:৯ ভিডিও রিল (৯:১৬) বা বর্গ করলে কাটা ফ্রেম মানুষের মুখ ও নড়াচড়া অনুসরণ করে সরবে। চালু করলে “কেটে পুরো ভরাট” হয়।
+            </p>
+            {reframe?.stage === 'running' ? (
+              <div>
+                <p className="text-[12px] text-neutral-700 mb-1">{reframe.label}</p>
+                <div className="h-2 rounded-full bg-neutral-100 overflow-hidden">
+                  <div className="h-full bg-brand-600 transition-[width] duration-200" style={{ width: `${Math.round(reframe.ratio * 100)}%` }} />
+                </div>
+                <button type="button" onClick={onCancelReframe} className="mt-2 text-[11.5px] px-2 py-1 rounded-md bg-neutral-100">
+                  বাতিল
+                </button>
+              </div>
+            ) : hasTrack ? (
+              <>
+                <SwitchRow
+                  label="ফ্রেম অনুসরণ করবে"
+                  checked={cfg.reframe.on}
+                  onChange={(v) => set((c) => ({ ...c, reframe: { ...c.reframe, on: v }, ...(v ? { fit: 'cover' as const } : {}) }))}
+                  testId="reframe-on"
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] text-neutral-400">
+                    {reframe?.stage === 'done' ? (reframe.faces ? 'মুখ শনাক্ত করে অনুসরণ করা হচ্ছে।' : 'রং ও নড়াচড়া দেখে অনুসরণ করা হচ্ছে।') : 'বিশ্লেষণ করা আছে।'} প্রিভিউ চালিয়ে দেখে নিন।
+                  </p>
+                  <button type="button" onClick={onReframe} className="text-[11.5px] px-2 py-1 rounded-md bg-neutral-100 shrink-0">
+                    আবার বিশ্লেষণ
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={onReframe}
+                data-testid="reframe-run"
+                className="w-full rounded-lg bg-brand-600 text-white py-2 text-[13px] font-semibold"
+              >
+                ভিডিও বিশ্লেষণ করে চালু করুন
+              </button>
+            )}
+            {reframe?.stage === 'error' && <p className="text-[12px] text-red-700 mt-1.5">{reframe.message}</p>}
+          </div>
+        )}
+        <div className="mt-3">
+          <p className="text-[11.5px] text-neutral-500 mb-1">মান</p>
+          <Segmented
+            value={cfg.quality}
+            options={[
+              { id: '1080', name: '১০৮০p (সেরা)' },
+              { id: '720', name: '৭২০p (দ্রুত, ছোট ফাইল)' },
+            ]}
+            onChange={(v) => set((c) => ({ ...c, quality: v }))}
+            size="sm"
+          />
+        </div>
+      </Section>
+      <Section title="কাটছাঁট" hint="মূল ভিডিওর শুরু ও শেষ থেকে বাদ দিন।">
+        <div className="flex items-end gap-4 flex-wrap">
+          <TimeField
+            label="শুরু"
+            value={cfg.trim.start}
+            min={0}
+            max={Math.max(0, trimEnd - 0.5)}
+            onChange={(v) => set((c) => ({ ...c, trim: { ...c.trim, start: v } }))}
+            onPlayhead={() => {
+              const p = playhead()
+              if (p !== null) set((c) => ({ ...c, trim: { ...c.trim, start: Math.min(p, (c.trim.end ?? srcDuration) - 0.5) } }))
+            }}
+          />
+          <TimeField
+            label="শেষ"
+            value={trimEnd}
+            min={cfg.trim.start + 0.5}
+            max={srcDuration}
+            onChange={(v) => set((c) => ({ ...c, trim: { ...c.trim, end: v >= srcDuration - 0.05 ? null : v } }))}
+            onPlayhead={() => {
+              const p = playhead()
+              if (p !== null) set((c) => ({ ...c, trim: { ...c.trim, end: Math.max(p, c.trim.start + 0.5) } }))
+            }}
+          />
+          {(cfg.trim.start > 0 || cfg.trim.end !== null) && (
+            <button type="button" onClick={() => set((c) => ({ ...c, trim: { start: 0, end: null } }))} className="text-[12px] px-2.5 py-1.5 rounded-lg bg-neutral-100">
+              রিসেট
+            </button>
+          )}
+        </div>
+        <p className="text-[11.5px] text-neutral-400 mt-2">
+          মূল ভিডিও {bnClock(srcDuration)} · কাটার পর {bnClock(Math.max(0, trimEnd - cfg.trim.start))}
+        </p>
+      </Section>
+    </div>
+  )
+}

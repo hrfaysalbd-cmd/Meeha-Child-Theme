@@ -1,0 +1,111 @@
+/* =====================================================================
+   base.css — reset, typography primitives, layout primitives (CRITICAL)
+   ===================================================================== */
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--m-paper);
+  color: var(--m-text);
+  font: 400 var(--m-fs-ui)/var(--m-lh-snug) var(--m-font-body);
+  font-synthesis: none;            /* never fake-bold Bengali */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+img, svg, video { display: block; max-width: 100%; height: auto; }
+img { background: var(--m-surface-2); }  /* neutral placeholder while loading */
+a { color: inherit; text-decoration: none; }
+a:hover { color: var(--m-blue); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+h1, h2, h3, h4, p, ul, ol, figure, blockquote { margin: 0; }
+:where(ul[role="list"], ol[role="list"]) { list-style: none; padding: 0; margin: 0; }
+:focus-visible { outline: 3px solid var(--m-focus); outline-offset: 2px; border-radius: 2px; }
+::selection { background: var(--m-blue-100); color: var(--m-ink); }
+
+.m-skip { position: absolute; left: 8px; top: -60px; z-index: 100; padding: 10px 16px; background: var(--m-ink); color: var(--m-paper); border-radius: var(--m-r-sm); }
+.m-skip:focus { top: 8px; }
+.m-vh { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+/* hidden text never needs an extra web-font file (the home's hidden h1 alone pulled the 48 KB semibold face) */
+.m-vh, .m-vh *, .screen-reader-text, .screen-reader-text * { font-weight: 400 !important; font-family: var(--m-font-body) !important; }
+
+@media (max-width: 767.98px) { .m-hide-m { display: none !important; } }
+@media (min-width: 768px) { .m-show-m { display: none !important; } }
+
+/* ---------- icons (inline SVG sprite, see sprite.svg) ---------- */
+.m-icon { width: 1.25em; height: 1.25em; fill: currentColor; flex: none; }
+.m-icon--sm { width: 1em; height: 1em; }
+.m-icon--lg { width: 24px; height: 24px; }
+
+/* ---------- layout ---------- */
+.m-container { width: 100%; max-width: calc(var(--m-container) + 2 * var(--m-gutter)); margin-inline: auto; padding-inline: var(--m-gutter); }
+.m-container--narrow { max-width: calc(46rem + 2 * var(--m-gutter)); }
+.m-section { padding-block: var(--m-s6); }
+.m-section + .m-section { border-top: 1px solid var(--m-line); }
+.m-section--band { background: var(--m-surface); border-top: 0 !important; }
+.m-section--band + .m-section { border-top: 0; }
+@media (min-width: 1024px) { .m-section { padding-block: var(--m-s7); } }
+
+.m-grid { display: grid; gap: var(--m-gap); }
+@media (min-width: 600px)  { .m-grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 768px)  { .m-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 600px)  { .m-grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .m-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+/* media boxes reserve space → zero CLS. width/height attributes are still set on <img>. */
+.m-media { position: relative; overflow: hidden; border-radius: var(--m-r-sm); background: var(--m-surface-2); aspect-ratio: 16 / 9; }
+.m-media > img, .m-media > video { width: 100%; height: 100%; object-fit: cover; }
+.m-media--4x3 { aspect-ratio: 4 / 3; }
+.m-media--1x1 { aspect-ratio: 1; }
+.m-media--9x16 { aspect-ratio: 9 / 16; }
+.m-media--3x2 { aspect-ratio: 3 / 2; }
+
+/* ---------- type primitives ---------- */
+.m-headline { font-family: var(--m-font-head); font-weight: 700; color: var(--m-ink); line-height: var(--m-lh-tight); letter-spacing: 0; text-wrap: pretty; }
+.m-headline a:hover { color: var(--m-blue); }
+.m-dek { color: var(--m-muted); font-size: var(--m-fs-ui); line-height: 1.65; }
+/* meta row: hairline separators that never dangle at a line start —
+   each item carries its rule on the left; the row is shifted left 12px and
+   that strip is clipped, so the first item of every wrapped line loses it. */
+.m-meta { display: flex; flex-wrap: wrap; align-items: center; row-gap: 2px; margin-left: -12px; clip-path: inset(-4px -4px -4px 12px); color: var(--m-muted); font-size: var(--m-fs-xs); line-height: 1.5; }
+.m-meta > * { padding: 0 12px; background: linear-gradient(var(--m-line-strong), var(--m-line-strong)) left center / 1px .9em no-repeat; }
+.m-meta--plain > * { background: none; }
+.m-kicker { display: inline-block; color: var(--m-blue); font-size: var(--m-fs-xs); line-height: 1.5; }
+.m-kicker:hover { text-decoration: underline; text-underline-offset: 3px; }
+.m-kicker--live { color: var(--m-red); }
+.m-kicker--live::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: 1px; animation: m-pulse 1.6s infinite; }
+@keyframes m-pulse { 50% { opacity: .25; } }
+
+/* ---------- controls ---------- */
+.m-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 20px; border: 1px solid transparent; border-radius: var(--m-r-pill); background: var(--m-blue); color: var(--m-on-blue); font-size: var(--m-fs-sm); font-weight: 600; line-height: 1.4; white-space: nowrap; }
+.m-btn:hover { background: var(--m-blue-700); color: var(--m-on-blue); }
+.m-btn--ghost { background: transparent; color: var(--m-ink); border-color: var(--m-line-strong); }
+.m-btn--ghost:hover { background: var(--m-surface); color: var(--m-blue); border-color: var(--m-blue); }
+.m-btn--block { display: flex; width: 100%; }
+.m-iconbtn { display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--m-ink); }
+.m-iconbtn:hover { background: var(--m-surface); color: var(--m-blue); }
+.m-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border: 1px solid var(--m-line-strong); border-radius: var(--m-r-pill); background: var(--m-paper); color: var(--m-text); font-size: var(--m-fs-sm); line-height: 1.4; white-space: nowrap; }
+.m-chip:hover { border-color: var(--m-blue); color: var(--m-blue); }
+.m-chip[aria-pressed="true"], .m-chip[aria-current], .m-chip.is-active { background: var(--m-ink); border-color: var(--m-ink); color: var(--m-paper); }
+.m-input { width: 100%; min-height: 44px; padding: 10px 14px; border: 1px solid var(--m-line-strong); border-radius: var(--m-r-sm); background: var(--m-paper); color: var(--m-ink); font-size: var(--m-fs-ui); }
+.m-input:focus { outline: 2px solid var(--m-focus); outline-offset: 0; border-color: var(--m-focus); }
+
+/* horizontal scroll-snap rail (no JS required; JS only adds prev/next) */
+.m-rail { display: grid; grid-auto-flow: column; grid-auto-columns: var(--m-rail-item, 78%); gap: var(--m-gap); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scroll-padding-inline: var(--m-gutter); padding-inline: var(--m-gutter); margin-inline: calc(-1 * var(--m-gutter)); padding-bottom: 6px; scrollbar-width: none; }
+.m-rail::-webkit-scrollbar { display: none; }
+.m-rail > * { scroll-snap-align: start; min-width: 0; }
+@media (min-width: 1024px) { .m-rail { margin-inline: 0; padding-inline: 0; scroll-padding-inline: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+/* ---------- WordPress integration (theme port) ---------- */
+.screen-reader-text { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; word-wrap: normal !important; }
+.screen-reader-text:focus { clip: auto !important; clip-path: none; width: auto; height: auto; left: 8px; top: 8px; z-index: 100; padding: 10px 16px; background: var(--m-ink); color: var(--m-paper); }
+
+/* Performance: blocks far below the fold skip style-dependent layout & paint until they near the viewport
+   (first layout = header + lead only). `auto` remembers the real height once rendered. */
+.m-footer, .m-cv { content-visibility: auto; contain-intrinsic-size: auto 900px; }

@@ -1,0 +1,21 @@
+{
+	"account": {
+		"css": [ "assets/css/account.css" ],
+		"js": [ "assets/js/account.js" ]
+	},
+	"glance": {
+		"css": [ "assets/css/glance.css" ],
+		"js": [ "assets/js/glance.js" ]
+	},
+	"latest": {
+		"css": [ "assets/css/latest.css" ],
+		"js": [ "assets/js/latest.js" ]
+	},
+	"report": {
+		"css": [ "assets/css/report.css" ],
+		"js": [ "assets/js/report.js" ]
+	},
+	"area": {
+		"js": [ "assets/js/area.js" ]
+	}
+}

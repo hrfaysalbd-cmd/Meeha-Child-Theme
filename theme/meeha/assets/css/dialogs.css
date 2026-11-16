@@ -1,0 +1,69 @@
+/* =====================================================================
+   dialogs.css — drawer + search overlay (non-critical: only seen after a tap;
+   load with the non-blocking bundle; dialogs are closed at first paint)
+   ===================================================================== */
+/* ---------- drawer (native <dialog>) ---------- */
+.m-drawer { width: min(360px, 88vw); max-width: none; height: 100dvh; max-height: none; margin: 0; padding: 0; border: 0; background: var(--m-paper); color: var(--m-text); box-shadow: var(--m-shadow-pop); }
+.m-drawer::backdrop, .m-search::backdrop { background: rgba(8, 20, 36, .55); }
+.m-drawer[open] { animation: m-slide-in .22s var(--m-ease); }
+@keyframes m-slide-in { from { transform: translateX(-100%); } }
+.m-drawer__head { display: flex; align-items: center; justify-content: space-between; padding: 8px 8px 8px var(--m-gutter); border-bottom: 1px solid var(--m-line); color: var(--m-blue); }
+.m-drawer__body { padding: var(--m-s4) var(--m-gutter) var(--m-s7); overflow-y: auto; height: calc(100% - 61px); }
+.m-drawer__group + .m-drawer__group { margin-top: var(--m-s5); padding-top: var(--m-s4); border-top: 1px solid var(--m-line); }
+.m-drawer__title { margin-bottom: 8px; color: var(--m-muted); font-size: var(--m-fs-xs); }
+.m-drawer__links { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; margin: 0; padding: 0; list-style: none; }
+.m-drawer__links a { display: block; padding: 8px 0; color: var(--m-ink); font-size: var(--m-fs-ui); line-height: 1.5; }
+.m-drawer__date { display: grid; gap: 2px; color: var(--m-muted); font-size: var(--m-fs-sm); }
+.m-theme-switch { display: grid; grid-template-columns: repeat(3, 1fr); padding: 3px; border-radius: var(--m-r-pill); background: var(--m-surface); }
+.m-theme-switch button { min-height: 36px; border: 0; border-radius: var(--m-r-pill); background: none; font-size: var(--m-fs-sm); color: var(--m-muted); }
+.m-theme-switch [aria-pressed="true"] { background: var(--m-paper); color: var(--m-ink); box-shadow: var(--m-shadow-raise); }
+
+/* ---------- search dialog ---------- */
+.m-search { width: 100%; max-width: 760px; max-height: 100dvh; margin: 0 auto auto; padding: 0; border: 0; border-radius: 0 0 var(--m-r-lg) var(--m-r-lg); background: var(--m-paper); color: var(--m-text); box-shadow: var(--m-shadow-pop); }
+.m-search[open] { animation: m-drop .2s var(--m-ease); }
+@keyframes m-drop { from { transform: translateY(-16px); opacity: 0; } }
+.m-search__form { display: flex; align-items: center; gap: 8px; padding: 12px var(--m-gutter); border-bottom: 1px solid var(--m-line); }
+.m-search__field { flex: 1; min-width: 0; height: 52px; padding: 0 4px; border: 0; background: none; color: var(--m-ink); font: 700 1.25rem/1.4 var(--m-font-head); }
+.m-search__field::placeholder { color: var(--m-faint); font-weight: 700; }
+.m-search__field:focus { outline: none; }
+.m-search__body { padding: var(--m-s4) var(--m-gutter) var(--m-s5); }
+.m-search__label { margin: 0 0 10px; color: var(--m-muted); font-size: var(--m-fs-xs); }
+.m-search__chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: var(--m-s5); }
+.m-search__recent { display: grid; margin: 0; padding: 0; list-style: none; }
+.m-search__recent a { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--m-line); color: var(--m-ink); }
+.m-search__recent .m-icon { color: var(--m-faint); }
+.m-search__hint { margin-top: var(--m-s4); color: var(--m-muted); font-size: var(--m-fs-xs); }
+@media (min-width: 1024px) { .m-search { margin-top: 72px; border-radius: var(--m-r-lg); } }
+
+/* ---------- WordPress integration (theme port) ---------- */
+.m-drawer__links a[aria-current="page"] { color: var(--m-blue); }
+.m-drawer__head .m-logo { width: 148px; height: 25px; }
+.m-search__clear { margin-left: 8px; padding: 0; border: 0; background: none; color: var(--m-blue); font-size: var(--m-fs-xs); text-decoration: underline; text-underline-offset: 3px; }
+.m-search__recentwrap[hidden] { display: none; }
+.m-search__recentwrap { margin-bottom: var(--m-s2); }
+.m-drawer__body > form { margin-bottom: var(--m-s5); }
+
+/* ---------- photocard preview (MeehaCards.preview: single "ফটোকার্ড ডাউনলোড", quote "ছবি ডাউনলোড") ---------- */
+.m-cardpv { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); margin: auto; padding: 0; border: 0; border-radius: var(--m-r-lg); background: var(--m-paper); color: var(--m-text); box-shadow: var(--m-shadow-pop); }
+.m-cardpv::backdrop { background: rgba(8, 20, 36, .62); }
+.m-cardpv[open] { display: flex; flex-direction: column; animation: m-drop .2s var(--m-ease); }
+.m-cardpv__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 20px; border-bottom: 1px solid var(--m-line); }
+.m-cardpv__title { margin: 0; color: var(--m-ink); font: 700 1.1875rem/1.4 var(--m-font-head); }
+.m-cardpv__title:focus { outline: none; }
+.m-cardpv__x { display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--m-muted); cursor: pointer; }
+.m-cardpv__x:hover { background: var(--m-surface); color: var(--m-ink); }
+.m-cardpv__stage { position: relative; display: grid; place-items: center; width: auto; max-width: 100%; max-height: calc(100dvh - 220px); margin: 16px 16px 0; aspect-ratio: 1 / 1; overflow: hidden; border-radius: var(--m-r-sm); background: var(--m-surface); }
+.m-cardpv__img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.m-cardpv__img[hidden], .m-cardpv__loading[hidden], .m-cardpv [hidden] { display: none; }
+.m-cardpv__loading { display: grid; justify-items: center; gap: 12px; padding: 24px; color: var(--m-muted); font-size: var(--m-fs-sm); text-align: center; }
+.m-cardpv__loading.is-error { color: var(--m-red, #CC2A1F); }
+.m-cardpv__loading.is-error .m-cardpv__spin { display: none; }
+.m-cardpv__spin { width: 28px; height: 28px; border: 3px solid var(--m-line); border-top-color: var(--m-blue); border-radius: 50%; animation: m-cardpv-spin .8s linear infinite; }
+@keyframes m-cardpv-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .m-cardpv__spin { animation-duration: 2.4s; } .m-cardpv[open] { animation: none; } }
+.m-cardpv__status { min-height: 1.5em; margin: 8px 20px 0; color: var(--m-muted); font-size: var(--m-fs-xs); }
+.m-cardpv__actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px 16px; }
+.m-cardpv__actions .m-btn { flex: 1 1 auto; }
+.m-cardpv__dl { flex-basis: 100%; }
+.m-cardpv .m-btn[disabled] { opacity: .5; cursor: progress; }
+@media (min-width: 600px) { .m-cardpv__dl { flex-basis: auto; } }

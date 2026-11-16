@@ -1,0 +1,93 @@
+/* push.js — নিউজ এলার্ট (2.4.1). Asks once with a small "পেতে চান? হ্যাঁ / না" card; "হ্যাঁ" asks the browser for
+   permission, subscribes with the Push API and sends the subscription to meeha/v1/push/subscribe.
+   - Never shown when the browser cannot do push, when permission was already given or refused, within `snooze`
+     days of "না", or on iPhone/iPad outside a home-screen app (Apple allows push only there).
+   - Permission already given: the subscription is re-sent once a day (keeps the server list fresh).
+   - Any element with [data-meeha-alerts] opens the card again; window.MeehaPush.open() does the same. */
+(() => {
+  const C = window.MeehaPushConfig;
+  if (!C || !C.key || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+  const LS = 'meeha_push';
+  const state = () => { try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch (e) { return {}; } };
+  const save = patch => { try { localStorage.setItem(LS, JSON.stringify(Object.assign(state(), patch))); } catch (e) {} };
+  const DAY = 864e5;
+
+  const keyBytes = b => {
+    b = b.replace(/-/g, '+').replace(/_/g, '/'); b += '===='.slice(0, (4 - b.length % 4) % 4);
+    const s = atob(b), a = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i);
+    return a;
+  };
+  const sameKey = (buf, want) => {
+    if (!buf) return true;
+    const a = new Uint8Array(buf);
+    return a.length === want.length && a.every((v, i) => v === want[i]);
+  };
+  const active = reg => new Promise(resolve => {
+    if (reg.active) return resolve(reg);
+    const w = reg.installing || reg.waiting;
+    if (!w) return resolve(reg);
+    w.addEventListener('statechange', () => { if (w.state === 'activated') resolve(reg); });
+  });
+  const post = (path, body) => fetch(C.rest + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'omit' })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r; });
+
+  const subscribe = () => navigator.serviceWorker.register(C.sw, { scope: C.scope }).then(active).then(reg => {
+    const key = keyBytes(C.key);
+    return reg.pushManager.getSubscription().then(sub => {
+      if (sub && !sameKey(sub.options && sub.options.applicationServerKey, key)) return sub.unsubscribe().then(() => null);
+      return sub;
+    }).then(sub => sub || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }));
+  }).then(sub => post('subscribe', sub.toJSON())).then(() => save({ synced: Date.now(), no: 0 }));
+
+  /* ---- the card ---- */
+  let card = null;
+  const close = () => { if (card) { card.classList.remove('is-in'); const c = card; card = null; setTimeout(() => c.remove(), 220); } };
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text) n.textContent = text; return n; };
+  const open = () => {
+    if (card || Notification.permission === 'denied') return;
+    card = el('div', 'm-alert');
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-labelledby', 'm-alert-q');
+    const icon = el('img', 'm-alert__icon');
+    icon.src = C.icon; icon.alt = ''; icon.width = 48; icon.height = 48; icon.decoding = 'async';
+    const q = el('p', 'm-alert__q', C.q); q.id = 'm-alert-q';
+    const btns = el('div', 'm-alert__btns');
+    const yes = el('button', 'm-alert__yes', C.yes); yes.type = 'button';
+    const no = el('button', 'm-alert__no', C.no); no.type = 'button';
+    btns.append(yes, no);
+    card.append(icon, q, btns);
+    document.body.appendChild(card);
+    requestAnimationFrame(() => card && card.classList.add('is-in'));
+
+    no.addEventListener('click', () => { save({ no: Date.now() }); close(); });
+    yes.addEventListener('click', () => {
+      yes.disabled = no.disabled = true;
+      const asked = Notification.requestPermission(p => p); /* old Safari: callback only */
+      Promise.resolve(asked || Notification.permission).then(p => {
+        if (p !== 'granted') { save({ no: Date.now() }); close(); return; }
+        return subscribe().then(() => {
+          q.textContent = C.thanks; btns.remove();
+          setTimeout(close, 3200);
+        });
+      }).catch(() => { q.textContent = 'দুঃখিত, এই ব্রাউজারে এলার্ট চালু করা গেল না। পরে আবার চেষ্টা করুন।'; btns.remove(); setTimeout(close, 4000); });
+    });
+  };
+  window.MeehaPush = { open };
+  document.addEventListener('click', e => {
+    const t = e.target.closest && e.target.closest('[data-meeha-alerts]');
+    if (t) { e.preventDefault(); if (Notification.permission === 'granted') { subscribe().catch(() => {}); } else { open(); } }
+  });
+
+  const s = state();
+  if (Notification.permission === 'granted') {
+    if (!s.synced || Date.now() - s.synced > DAY) subscribe().catch(() => {});
+    return;
+  }
+  if (Notification.permission === 'denied') return;
+  const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  if (ios && !standalone) return;
+  if (s.no && Date.now() - s.no < (C.snooze || 7) * DAY) return;
+  setTimeout(open, C.delay || 0);
+})();

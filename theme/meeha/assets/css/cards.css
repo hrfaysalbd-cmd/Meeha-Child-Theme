@@ -1,0 +1,33 @@
+/* =====================================================================
+   cards.css — swatches for the built-in photo-card frames (studio frame
+   picker, ফ্রেম লাইব্রেরি; reusable by the front end). The real artwork is
+   drawn by assets/js/cards.js on a canvas; উক্তি frames are
+   assets/frames/quote-{type}.svg. Class: .sw-{type}-{preset}.
+   ===================================================================== */
+.sw { display: block; aspect-ratio: 1; overflow: hidden; border-radius: 4px; background: #fff; }
+.sw-img { display: grid; place-items: center; }
+.sw-img img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.sw-checker { background: repeating-conic-gradient(#e9edf2 0 25%, #fff 0 50%) 0 0 / 12px 12px; }
+.sw-checker img, .sw-1080-1080 img { object-fit: contain; }
+
+/* শুভ সকাল */
+.sw-morning-bhor { background: linear-gradient(#9fb3a0 0 61%, #025AB2 61% 62%, #fff 62%); }
+.sw-morning-nilpar { background: linear-gradient(#9fb3a0 0 61%, #fff 61%); box-shadow: inset 0 0 0 5px #025AB2; }
+.sw-morning-side { background: linear-gradient(90deg, #025AB2 0 6%, transparent 6%), linear-gradient(#9fb3a0 0 61%, #FBF7EE 61%); }
+/* মতামত */
+.sw-opinion-blue { background: linear-gradient(150deg, #0A69C6, #024A93); }
+.sw-opinion-navy { background: linear-gradient(160deg, #123462, #0B2140 70%); }
+.sw-opinion-paper { background: linear-gradient(150deg, #fff, #EEF4FB); box-shadow: inset 0 0 0 1px #c5cdd7; }
+/* ফিচার / বিভাগ */
+.sw-feature-shade, .sw-category-shade { background: linear-gradient(180deg, rgba(8,20,36,0) 38%, rgba(8,20,36,.55) 60%, rgba(8,20,36,.94)), linear-gradient(#a9bfb0, #5d7b66); }
+.sw-feature-vf2, .sw-category-vf2 { background: linear-gradient(180deg, rgba(8,20,36,0) 34%, rgba(8,20,36,.6) 56%, rgba(8,20,36,.96)), linear-gradient(#a9bfb0, #5d7b66); box-shadow: inset 6px 6px 0 -3px #fff, inset -6px -6px 0 -3px #fff; }
+.sw-feature-band, .sw-category-band { background: linear-gradient(#a9bfb0 0 50%, rgba(11,39,70,.96) 56%); }
+.sw-category-shade, .sw-category-vf2, .sw-category-band { border-top: 4px solid #11553A; }
+/* ব্রেকিং */
+.sw-breaking-breaking { background: linear-gradient(#CC2A1F 0 13%, #d9b98c 13% 63%, #fff 63%); }
+.sw-breaking-latest { background: linear-gradient(#025AB2 0 13%, #d9b98c 13% 63%, #fff 63%); }
+/* শোক — no red/blue */
+.sw-condolence-dark { background: #1B1D21; box-shadow: inset 0 0 0 4px #1B1D21, inset 0 0 0 5px #8E877B; }
+.sw-condolence-light { background: #F4F1EA; box-shadow: inset 0 0 0 4px #F4F1EA, inset 0 0 0 5px #8E877B; }
+/* live-rendered thumbnails (studio frame picker, ফ্রেম লাইব্রেরি) */
+.sw canvas.ms-thumbc { display: block; width: 100%; height: 100%; }
