@@ -628,7 +628,7 @@ class NROS_Admin_API {
 			'district'      => get_user_meta( $id, 'meeha_district', true ),
 			'upazila'       => get_user_meta( $id, 'meeha_upazila', true ),
 			'title'         => (string) get_user_meta( $id, 'meeha_author_title', true ),
-			'title_log'     => array_slice( array_reverse( (array) get_user_meta( $id, 'nros_title_log', true ) ), 0, 10 ),
+			'title_log'     => array_slice( array_reverse( array_values( array_filter( (array) get_user_meta( $id, 'nros_title_log', true ), 'is_array' ) ) ), 0, 10 ),
 			'title_presets' => self::title_presets(),
 			'post_counts'   => $counts,
 			'suspensions'   => NROS_Core::active_suspension_types( $id ),

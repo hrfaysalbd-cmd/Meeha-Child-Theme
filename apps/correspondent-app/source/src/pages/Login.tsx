@@ -47,6 +47,24 @@ function mustRestart(err: unknown) {
 // Minimal typing for the WebOTP API (Android Chrome reads an SMS code).
 type OtpCredential = Credential & { code?: string }
 
+
+/** r46.2 — after a mid-work logout, the next login returns to that same screen. */
+function resumePath(): string {
+  try {
+    const raw = localStorage.getItem('nros_resume')
+    if (raw) {
+      localStorage.removeItem('nros_resume')
+      const v = JSON.parse(raw) as { path?: string; at?: number }
+      if (v && typeof v.path === 'string' && v.path.startsWith('/app') && typeof v.at === 'number' && Date.now() - v.at < 6 * 3600_000) {
+        return v.path
+      }
+    }
+  } catch {
+    // fall through to the home screen
+  }
+  return '/app'
+}
+
 export default function Login() {
   const navigate = useNavigate()
   const { login, verifyOtp, resendOtp } = useAuth()
@@ -101,7 +119,7 @@ export default function Login() {
         setResendIn(Math.max(0, Math.round(otp.resend_after || 0)))
         setTimeout(() => otpRef.current?.focus(), 50)
       } else {
-        navigate('/app', { replace: true })
+        navigate(resumePath(), { replace: true })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'লগইন করা যায়নি, আবার চেষ্টা করুন।')
@@ -122,7 +140,7 @@ export default function Login() {
     setLoading(true)
     try {
       await verifyOtp(challenge.otp_token, value)
-      navigate('/app', { replace: true })
+      navigate(resumePath(), { replace: true })
     } catch (err) {
       if (mustRestart(err)) {
         restartWith(otpErrorText(err))

@@ -90,6 +90,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // screen, instead of every page quietly failing forever.
   useEffect(() => {
     setSessionExpiredHandler(() => {
+      // r46.2 — remember where the person was (e.g. the video editor with
+      // uploads in it), so the next login lands back there (see Login.tsx).
+      try {
+        const path = window.location.pathname + window.location.search
+        if (path.startsWith('/app')) localStorage.setItem('nros_resume', JSON.stringify({ path, at: Date.now() }))
+      } catch {
+        // storage full/blocked — nothing to resume then
+      }
       setAccessToken(null)
       setProfile(null)
     })

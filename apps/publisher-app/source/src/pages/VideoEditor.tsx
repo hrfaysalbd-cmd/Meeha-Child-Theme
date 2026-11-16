@@ -55,6 +55,7 @@ import {
 import MediaGallery from '../components/MediaGallery'
 import VideoLibraryPicker from '../components/videoStudio/VideoLibraryPicker'
 import FootageJoin from '../components/videoStudio/FootageJoin'
+import FootagePanel from '../components/videoStudio/FootagePanel'
 import type { LibraryVideo } from '../lib/api'
 import { DeleteConfirmModal, PublishInfoCard } from '../components/PostManagement'
 import type { AuthorValue } from '../components/AuthorPicker'
@@ -156,6 +157,11 @@ export default function VideoEditor() {
   const [galleryOpen, setGalleryOpen] = useState(false)
   // round 32: take a video that is already in the media library (uploaded earlier, post never saved)
   const [libraryOpen, setLibraryOpen] = useState(false)
+  // r46.2 — footage the publisher attaches itself (ids without the main clip).
+  const [extraFootage, setExtraFootage] = useState<number[]>([])
+  const [footageBusy, setFootageBusy] = useState(false)
+  // extra files from one multi-pick, waiting for the main clip's upload to finish
+  const pendingExtras = useRef<File[]>([])
 
   const [slug, setSlug] = useState('')
   const [seoTitle, setSeoTitle] = useState('')
@@ -461,6 +467,7 @@ export default function VideoEditor() {
     else if ([...title.trim()].length > TITLE_MAX) errs.title = `শিরোনাম ${bnNumber(TITLE_MAX)} অক্ষরের মধ্যে রাখুন।`
     if ([...excerpt.trim()].length > EXCERPT_MAX) errs.excerpt = `সংক্ষিপ্ত বিবরণ ${bnNumber(EXCERPT_MAX)} অক্ষরের মধ্যে রাখুন।`
     if (uploading) errs.video = 'ভিডিও আপলোড শেষ হওয়া পর্যন্ত অপেক্ষা করুন।'
+    else if (footageBusy) errs.video = 'ফুটেজ আপলোড শেষ হওয়া পর্যন্ত অপেক্ষা করুন।'
     else if (source === 'upload' && !attachmentId) errs.video = 'একটি ভিডিও ফাইল আপলোড করুন।'
     else if (source === 'youtube' && !youtubeId) errs.video = 'সঠিক একটি YouTube লিংক দিন।'
     setFieldErrors(errs)
@@ -477,6 +484,10 @@ export default function VideoEditor() {
       ...(slug.trim() ? { slug: slug.trim() } : {}),
       source,
       ...(source === 'upload' ? { video_attachment_id: attachmentId ?? undefined } : { video_url: youtubeUrl.trim() }),
+      // r46.2 — the publisher's own extra clips (or the correspondent's, kept as they were)
+      ...(source === 'upload' && attachmentId && (extraFootage.length > 0 || (video?.footage?.length ?? 0) > 0)
+        ? { footage_ids: [attachmentId, ...extraFootage.filter((x) => x !== attachmentId)] }
+        : {}),
       thumbnail_id: thumbnailId,
       category_id: categoryId || null,
       orientation,
@@ -690,11 +701,15 @@ export default function VideoEditor() {
                 ref={fileInput}
                 type="file"
                 accept={VIDEO_ACCEPT}
+                multiple
                 className="hidden"
                 data-testid="video-file"
                 onChange={(e) => {
-                  const f = e.target.files?.[0]
-                  if (f) startUpload(f)
+                  const files = Array.from(e.target.files ?? [])
+                  const [first, ...rest] = files
+                  if (first) startUpload(first)
+                  // r46.2 — the rest of a multi-pick become footage clips once the main upload has an id
+                  if (rest.length) pendingExtras.current = rest
                   e.target.value = ''
                 }}
               />
@@ -861,6 +876,26 @@ export default function VideoEditor() {
                       </p>
                     )
                   ))}
+
+                  {/* r46.2: the publisher attaches extra clips itself (multi-pick, "+ more", gallery) */}
+                  {source === 'upload' && !!attachmentId && (
+                    <FootagePanel
+                      key={video?.id ?? 'new'}
+                      initial={(video?.footage ?? []).filter((f) => f.id !== video?.video_attachment_id)}
+                      mainId={attachmentId}
+                      maxBytes={maxBytes}
+                      accept={VIDEO_ACCEPT}
+                      takeFiles={() => {
+                        const f = pendingExtras.current
+                        pendingExtras.current = []
+                        return f
+                      }}
+                      onChange={(ids, busy) => {
+                        setExtraFootage(ids)
+                        setFootageBusy(busy)
+                      }}
+                    />
+                  )}
 
                   {/* r46: several footage clips from the correspondent — join them with transitions */}
                   {video && (video.footage?.length ?? 0) > 1 && upload.status !== 'uploading' && (

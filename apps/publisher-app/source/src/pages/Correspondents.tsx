@@ -290,11 +290,13 @@ export default function Correspondents() {
                   <details className="mt-2 text-[11.5px] text-neutral-500">
                     <summary className="cursor-pointer">আগের পদবি ({bnNumber(detail.title_log.length)})</summary>
                     <ul className="mt-1 space-y-0.5">
-                      {detail.title_log.map((l, i) => (
-                        <li key={i}>
-                          {l.from || '—'} → <b className="text-neutral-700">{l.to || '(সরানো)'}</b> · {l.by} · {l.at.slice(0, 16)}
-                        </li>
-                      ))}
+                      {detail.title_log
+                        .filter((l) => l && typeof l === 'object')
+                        .map((l, i) => (
+                          <li key={i}>
+                            {l.from || '—'} → <b className="text-neutral-700">{l.to || '(সরানো)'}</b> · {l.by || ''} · {(l.at || '').slice(0, 16)}
+                          </li>
+                        ))}
                     </ul>
                   </details>
                 )}

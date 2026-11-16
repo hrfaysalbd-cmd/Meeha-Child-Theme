@@ -272,6 +272,27 @@ export default function VideoEditor() {
     topRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
   }
 
+  // r46.2 — extra clips are written to the draft as each one finishes, so they
+  // survive a logout; submitting still sends the final list.
+  useEffect(() => {
+    if (!video || video.status !== 'draft' || footageBusy || !attachmentId || uploading) return
+    const want = footageIds.length ? [attachmentId, ...footageIds.filter((x) => x !== attachmentId)] : []
+    const have = (video.footage ?? []).map((f) => f.id)
+    if (want.join(',') === have.join(',')) return
+    let alive = true
+    VideosApi.update(video.id, { footage_ids: want })
+      .then((v) => {
+        if (alive) setVideo(v)
+      })
+      .catch(() => {
+        // best effort — the next save sends the list again
+      })
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [footageIds, footageBusy, attachmentId, video, uploading])
+
   // ---- Video file ----
 
   async function startUpload(file: File) {
@@ -301,6 +322,32 @@ export default function VideoEditor() {
       shrunkRef.current = null
       beforePick.current = null // this file is now the post's video
       setFieldErrors((f) => ({ ...f, video: undefined }))
+      // r46.2 (Hafiz) — the clip becomes a draft at once, so a dropped session or
+      // logout never loses an upload again: it waits in ড্রাফট with the clip attached.
+      if (!loadedIdRef.current) {
+        try {
+          const base = file.name.replace(/\.[^.]+$/, '')
+          const saved = await VideosApi.create({
+            title: title.trim() || `ভিডিও — ${base}`.slice(0, 90),
+            excerpt: excerpt.trim(),
+            orientation,
+            duration,
+            thumbnail_id: thumbId,
+            category_id: categoryId || null,
+            source: 'upload',
+            video_attachment_id: res.id,
+            status: 'draft',
+          })
+          if (live()) {
+            loadedIdRef.current = saved.id
+            setVideo(saved)
+            setNotice('ভিডিওটি ড্রাফটে সংরক্ষিত হয়ে গেছে — শিরোনাম লিখে জমা দিন।')
+            navigate(`/app/video/${saved.id}`, { replace: true })
+          }
+        } catch {
+          // best effort: submitting still saves everything
+        }
+      }
     } catch (err) {
       if (!live() || isUploadCancelled(err) || (err instanceof Error && err.message === 'cancelled')) return
       const d = describeError(err)
@@ -326,8 +373,9 @@ export default function VideoEditor() {
       setFieldErrors((f) => ({ ...f, video: 'শুধু MP4, WebM বা MOV ফরম্যাটের ভিডিও আপলোড করা যাবে।' }))
       return
     }
-    // r33: up to 1 GB where the phone can make it smaller before sending
-    const pickMax = maxBytes && canShrink() ? Math.max(maxBytes, PICK_MAX_BYTES) : maxBytes
+    // r33: up to 1 GB — the phone makes it smaller first where it can; where it
+    // can't (1.28.2), the untouched original goes up under the server's HD cap.
+    const pickMax = maxBytes ? Math.max(maxBytes, PICK_MAX_BYTES) : maxBytes
     if (pickMax && file.size > pickMax) {
       setFieldErrors((f) => ({ ...f, video: videoTooLargeMessage(file.size, pickMax) }))
       return
@@ -678,7 +726,7 @@ export default function VideoEditor() {
                   </span>
                   <span className="text-[14.5px] font-semibold text-neutral-800">ভিডিও নির্বাচন করুন</span>
                   <span className="text-[12px] text-neutral-400">
-                    MP4, WebM বা MOV{maxBytes ? ` · সর্বোচ্চ ${formatBytes(canShrink() ? Math.max(maxBytes, PICK_MAX_BYTES) : maxBytes)}` : ''}
+                    MP4, WebM বা MOV{maxBytes ? ` · সর্বোচ্চ ${formatBytes(Math.max(maxBytes, PICK_MAX_BYTES))}` : ''}
                   </span>
                   {canShrink() && (
                     <span className="text-[11.5px] text-neutral-500 max-w-xs" data-testid="shrink-hint">

@@ -789,8 +789,8 @@ export const MediaApi = {
    * Uploads a video (multipart field `nros_video`) with real upload progress
    * and cancellation — see uploadVideoFile() below.
    */
-  uploadVideo: (file: File, onProgress?: (p: UploadProgress) => void, opts: { signal?: AbortSignal; hdFor?: number } = {}) =>
-    uploadVideoFile(file, onProgress, opts.signal, opts.hdFor),
+  uploadVideo: (file: File, onProgress?: (p: UploadProgress) => void, opts: { signal?: AbortSignal; hdFor?: number; original?: boolean } = {}) =>
+    uploadVideoFile(file, onProgress, opts.signal, opts.hdFor, opts.original),
   /**
    * r33: a short upload-speed check (≈384 KB to the server, thrown away
    * there). Bytes a second, or null when it could not be measured.
@@ -940,6 +940,8 @@ async function uploadVideoFile(
   onProgress?: (p: UploadProgress) => void,
   signal?: AbortSignal,
   hdFor?: number,
+  /** 1.28.2 — the untouched original of a clip the phone could not shrink: the server then allows the HD cap. */
+  original?: boolean,
 ): Promise<VideoUploadResult> {
   const path = '/media/video'
   if (!isAllowedVideoFile(file)) {
@@ -951,12 +953,15 @@ async function uploadVideoFile(
   // request also goes through request()'s own 401 handling.)
   const limits = await MediaApi.videoLimits()
   // r46: a full-quality original (sent after its quick copy) may be up to 1 GB
-  const max_bytes = hdFor ? Math.max(limits.resumable?.hd_max_bytes || 0, limits.resumable?.max_bytes || 0) : limits.resumable?.max_bytes || limits.max_bytes
+  const max_bytes =
+    hdFor || (original && limits.resumable)
+      ? Math.max(limits.resumable?.hd_max_bytes || 0, limits.resumable?.max_bytes || 0)
+      : limits.resumable?.max_bytes || limits.max_bytes
   if (max_bytes > 0 && file.size > max_bytes) {
     throw new ApiError(videoTooLargeMessage(file.size, max_bytes), 413, 'nros_video_too_large', 'client', path)
   }
   // round 27: in pieces — a weak connection resumes instead of starting over
-  if (limits.resumable) return uploadVideoInPieces(file, limits.resumable.chunk_size, onProgress, signal, hdFor)
+  if (limits.resumable) return uploadVideoInPieces(file, limits.resumable.chunk_size, onProgress, signal, hdFor, original)
 
   if (!accessToken || Date.now() - accessTokenSetAt > FRESH_TOKEN_FOR_UPLOAD_MS) {
     const outcome = await refreshOnce()
@@ -1305,7 +1310,7 @@ const KB = 1024
 const MIN_PIECE = 256 * KB
 const FIRST_PIECE = 1024 * KB
 
-async function uploadVideoInPieces(file: File, chunkMax: number, onProgress?: (p: UploadProgress) => void, signal?: AbortSignal, hdFor?: number): Promise<VideoUploadResult> {
+async function uploadVideoInPieces(file: File, chunkMax: number, onProgress?: (p: UploadProgress) => void, signal?: AbortSignal, hdFor?: number, original?: boolean): Promise<VideoUploadResult> {
   let status = ''
   let loadedNow = 0
   const report = (loaded: number) => {
@@ -1356,7 +1361,7 @@ async function uploadVideoInPieces(file: File, chunkMax: number, onProgress?: (p
       () =>
         request<{ id: string; chunk_size: number; parallel?: number; piece_size?: number }>('/media/upload-session', {
           method: 'POST',
-          body: { kind: 'video', name: file.name, size: file.size, parallel: true, ...(hdFor ? { hd_for: hdFor } : {}) },
+          body: { kind: 'video', name: file.name, size: file.size, parallel: true, ...(hdFor ? { hd_for: hdFor } : {}), ...(original ? { original: true } : {}) },
         }),
       'সংযোগ হয়নি',
       6,

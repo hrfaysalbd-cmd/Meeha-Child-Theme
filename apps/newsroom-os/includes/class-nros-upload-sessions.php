@@ -448,7 +448,11 @@ class NROS_Upload_Sessions {
 				return $allowed;
 			}
 		}
-		$max = $hd_for > 0 ? self::hd_max_bytes() : self::max_bytes( $kind );
+		// 1.28.2 — a phone that cannot make the quick copy (e.g. HEVC it cannot
+		// decode) may send the untouched original up to the HD cap instead of
+		// failing; the desk shrinks it in the studio later.
+		$original = 'video' === $kind && (bool) $request->get_param( 'original' );
+		$max      = ( $hd_for > 0 || $original ) ? self::hd_max_bytes() : self::max_bytes( $kind );
 		if ( $size <= 0 ) {
 			return new WP_Error( 'nros_bad_request', 'ফাইলের আকার জানা যায়নি।', array( 'status' => 400 ) );
 		}
