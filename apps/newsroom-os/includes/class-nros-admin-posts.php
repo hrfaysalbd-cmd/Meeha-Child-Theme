@@ -397,7 +397,72 @@ class NROS_Admin_Posts {
 			'created_at'             => $post->post_date,
 			'updated_at'             => $post->post_modified,
 			'permalink'              => 'publish' === $post->post_status ? get_permalink( $post ) : null,
+			// r46.1 — the theme's ফ্যাক্টচেক fields (theme 2.5.0+); null when the theme module is absent.
+			'factcheck'              => self::factcheck_of( $post->ID ),
 		) + NROS_Editorial::staff_fields( $post ); // Round 12: tags, area, topic, flags, glance_text, lit, is_literature.
+	}
+
+	/**
+	 * r46.1 — ফ্যাক্টচেক fields of a post plus the verdict list, for the publisher's editor box.
+	 * The theme (inc/factcheck) owns the meta keys, sanitizing and rendering; null without it.
+	 *
+	 * @param int $post_id Post.
+	 * @return array|null
+	 */
+	protected static function factcheck_of( $post_id ) {
+		if ( ! function_exists( 'meeha_fc_meta_schema' ) || ! function_exists( 'meeha_fc_verdicts' ) ) {
+			return null;
+		}
+		$out = array();
+		foreach ( meeha_fc_meta_schema() as $key => $def ) {
+			$name         = '_meeha_fc' === $key ? 'on' : substr( $key, strlen( '_meeha_fc_' ) );
+			$v            = get_post_meta( $post_id, $key, true );
+			$out[ $name ] = ( '' === $v || null === $v ) ? $def['default'] : $v;
+		}
+		$out['on']      = (bool) $out['on'];
+		$out['spread']  = is_array( $out['spread'] ) ? array_values( $out['spread'] ) : array();
+		$out['sources'] = is_array( $out['sources'] ) ? array_values( $out['sources'] ) : array();
+		$verdicts       = array();
+		foreach ( meeha_fc_verdicts() as $k => $v ) {
+			$verdicts[] = array(
+				'key'     => (string) $k,
+				'label'   => (string) $v[0],
+				'color'   => (string) $v[1],
+				'meaning' => isset( $v[3] ) ? (string) $v[3] : '',
+			);
+		}
+		$out['verdicts'] = $verdicts;
+		return $out;
+	}
+
+	/**
+	 * r46.1 — saves a `factcheck` object from the publisher's editor (same rules as the wp-admin box).
+	 *
+	 * @param int             $post_id Post.
+	 * @param WP_REST_Request $request Request.
+	 */
+	protected static function apply_factcheck( $post_id, $request ) {
+		$in = $request->get_param( 'factcheck' );
+		if ( ! is_array( $in ) || ! function_exists( 'meeha_fc_sanitize' ) || ! function_exists( 'meeha_fc_meta_schema' ) ) {
+			return;
+		}
+		foreach ( meeha_fc_meta_schema() as $key => $def ) {
+			if ( '_meeha_fc' === $key ) {
+				continue;
+			}
+			$name = substr( $key, strlen( '_meeha_fc_' ) );
+			if ( array_key_exists( $name, $in ) ) {
+				update_post_meta( $post_id, $key, meeha_fc_sanitize( $key, $in[ $name ] ) );
+			}
+		}
+		// The flag last: the theme's meta hook adds/removes the “ফ্যাক্টচেক” tag.
+		if ( array_key_exists( 'on', $in ) ) {
+			if ( ! empty( $in['on'] ) ) {
+				update_post_meta( $post_id, '_meeha_fc', true );
+			} else {
+				delete_post_meta( $post_id, '_meeha_fc' );
+			}
+		}
 	}
 
 	/**
@@ -543,6 +608,7 @@ class NROS_Admin_Posts {
 		self::apply_category( $post_id, $request );
 		self::apply_seo_fields( $post_id, $request );
 		self::apply_ai_summary( $post_id, $request );
+		self::apply_factcheck( $post_id, $request );
 
 		return new WP_REST_Response( self::shape( get_post( $post_id ) ), 201 );
 	}
@@ -773,6 +839,7 @@ class NROS_Admin_Posts {
 		self::apply_category( $post->ID, $request );
 		self::apply_seo_fields( $post->ID, $request );
 		self::apply_ai_summary( $post->ID, $request );
+		self::apply_factcheck( $post->ID, $request );
 
 		// Same hook /admin/queue/{id}/approve fires — so a correspondent's
 		// pending article being approved from inside the full editor (instead

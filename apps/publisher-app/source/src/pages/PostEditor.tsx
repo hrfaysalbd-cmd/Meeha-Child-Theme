@@ -28,6 +28,8 @@ import { Banner, Button, Card, Field, inputClass, Modal, PageHeader, Spinner, bn
 import { IconHistory, IconLibraryPhoto, IconPhoto, IconPhotoPlus } from '../components/Icon'
 import MediaGallery from '../components/MediaGallery'
 import DeshchitroPostBox from '../components/DeshchitroPostBox'
+import FactcheckPostBox, { EMPTY_FC, NEW_POST_FC, fcFromPost } from '../components/FactcheckPostBox'
+import type { FactcheckFields } from '../lib/api'
 import RichEditor from '../components/RichEditor'
 import CategoryPicker from '../components/CategoryPicker'
 import { rememberCategory } from '../lib/categoryTree'
@@ -97,6 +99,9 @@ export default function PostEditor() {
   // r26.6 — দেশচিত্র counts of this news (sent only when edited, so a wp-admin edit is never overwritten).
   const [dc, setDc] = useState<Record<string, number>>({})
   const [dcTouched, setDcTouched] = useState(false)
+  // r46.1 — ফ্যাক্টচেক fields (sent only when edited, so a wp-admin edit is never overwritten).
+  const [fc, setFc] = useState<FactcheckFields>(EMPTY_FC)
+  const [fcTouched, setFcTouched] = useState(false)
   // Sections start open on a desktop, folded on a phone (one long stack).
   const [wide] = useState(() => typeof window === 'undefined' || window.matchMedia('(min-width: 1024px)').matches)
 
@@ -190,6 +195,8 @@ export default function PostEditor() {
     setLitTouched(false)
     setDc(p.dc && typeof p.dc === 'object' && !Array.isArray(p.dc) ? { ...p.dc } : {})
     setDcTouched(false)
+    setFc(fcFromPost(p.factcheck))
+    setFcTouched(false)
   }
 
   function syncPublishInfo(p: AdminPost) {
@@ -244,6 +251,7 @@ export default function PostEditor() {
       // Literature meta only for literature posts (or when it was edited).
       ...(showLiterature || litTouched ? { lit } : {}),
       ...(dcTouched ? { dc } : {}),
+      ...(fcTouched ? { factcheck: { ...fc, spread: fc.spread.map((x) => x.trim()).filter(Boolean) } } : {}),
       content,
       category_id: categoryId || undefined,
       slug: slug || undefined,
@@ -546,6 +554,20 @@ export default function PostEditor() {
               district={area.district}
               title={title}
               defaultOpen={wide || Object.keys(dc).length > 0}
+            />
+          </div>
+
+          {/* r46.1: ফ্যাক্টচেক — was only in wp-admin; now right under the body too. */}
+          <div className="mt-4">
+            <FactcheckPostBox
+              data={post ? post.factcheck : NEW_POST_FC}
+              value={fc}
+              onChange={(v) => {
+                setFc(v)
+                setFcTouched(true)
+              }}
+              title={title}
+              defaultOpen={fc.on}
             />
           </div>
 

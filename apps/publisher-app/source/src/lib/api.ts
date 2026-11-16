@@ -822,6 +822,22 @@ export interface Seo {
   focus_keyword: string
 }
 
+// ---- r46.1: ফ্যাক্টচেক fields (theme 2.5.0 module, read/written through /admin/posts) ----
+export interface FactcheckVerdict { key: string; label: string; color: string; meaning: string }
+export interface FactcheckSource { title: string; url: string }
+export interface FactcheckFields {
+  on: boolean
+  claim: string
+  claimant: string
+  claimant_type: 'person' | 'org'
+  claim_date: string
+  spread: string[]
+  verdict: string
+  evidence: string
+  sources: FactcheckSource[]
+}
+export interface FactcheckData extends FactcheckFields { verdicts: FactcheckVerdict[] }
+
 export interface AdminPost {
   id: number
   title: string
@@ -872,6 +888,7 @@ export interface AdminPost {
   flag_times?: { breaking_at: number | null; trending_at: number | null }
   // Plugin 1.12.0 — দেশচিত্র counts typed on this news ({} = none).
   dc?: Record<string, number>
+  factcheck?: FactcheckData | null
 }
 
 // ---- Round 12: editorial fields ----
@@ -1584,6 +1601,7 @@ export interface AdminPostInput {
   lit?: Record<string, string>
   // Plugin 1.12.0 — দেশচিত্র counts ({} clears them).
   dc?: Record<string, number>
+  factcheck?: FactcheckFields
   // Round 10 — PATCH only, and only when profile.can allows it.
   date?: string // 'YYYY-MM-DD HH:MM:SS', site time; future → scheduled
   author_id?: number
