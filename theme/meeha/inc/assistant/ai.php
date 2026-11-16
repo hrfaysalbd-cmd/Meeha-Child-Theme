@@ -80,8 +80,11 @@ function meeha_as_ai_answer( $question, $posts ) {
 				'content' => $user,
 			),
 		),
-		'output_config' => array( 'effort' => 'low' ),
 	);
+	// effort is only sent to the larger models (unsure every small model takes it)
+	if ( ! preg_match( '/haiku/', $model ) ) {
+		$body['output_config'] = array( 'effort' => 'low' );
+	}
 	$headers = array(
 		'x-api-key'         => $key,
 		'anthropic-version' => '2026-10-21',

@@ -298,3 +298,17 @@ add_action(
 		delete_transient( 'meeha_fc_counts' );
 	}
 );
+
+// r46: an empty fact-check list (none published yet, or a verdict with none) is a real page, not a 404
+add_filter(
+	'pre_handle_404',
+	function ( $handled, $q ) {
+		if ( $q->is_main_query() && $q->get( 'meeha_fc_archive' ) && 1 >= max( 1, (int) $q->get( 'paged' ) ) ) {
+			status_header( 200 );
+			return true;
+		}
+		return $handled;
+	},
+	10,
+	2
+);

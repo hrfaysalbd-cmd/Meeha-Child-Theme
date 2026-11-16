@@ -9,7 +9,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-const MEEHA_AS_DEFAULT_MODEL = 'claude-opus-5-5';
+const MEEHA_AS_DEFAULT_MODEL = 'claude-haiku-5-5';
 
 /**
  * Default floating / greeting suggestions (one per line in the settings).
@@ -149,7 +149,7 @@ meeha_register_settings_tab(
 			array( 'key' => 'live_chip', 'type' => 'checkbox', 'label' => 'লাইভ চলাকালে বাবলে "লাইভ" চিহ্ন ও "এখন লাইভ" বোতাম', 'default' => 1 ),
 			array( 'type' => 'heading', 'label' => 'AI উত্তর (ঐচ্ছিক)', 'desc' => 'চালু থাকলে প্রাসঙ্গিক ৮টি পর্যন্ত খবর বেছে Anthropic Claude সংক্ষিপ্ত বাংলা উত্তর লেখে, প্রতিটি তথ্যের পাশে [১], [২] সূত্র। খরচ Anthropic অ্যাকাউন্টে যায়; একই প্রশ্নের উত্তর ১০ মিনিট ক্যাশে থাকে।' ),
 			array( 'key' => 'ai_enabled', 'type' => 'checkbox', 'label' => 'AI উত্তর চালু', 'default' => 0, 'cap' => 'admin' ),
-			array( 'key' => 'model', 'type' => 'text', 'label' => 'মডেল', 'default' => MEEHA_AS_DEFAULT_MODEL, 'cap' => 'admin', 'desc' => 'ডিফল্ট claude-opus-5-5। কম খরচে চাইলে claude-haiku-5-5 বা claude-sonnet-5-5।' ),
+			array( 'key' => 'model', 'type' => 'text', 'label' => 'মডেল', 'default' => MEEHA_AS_DEFAULT_MODEL, 'cap' => 'admin', 'desc' => 'ডিফল্ট claude-haiku-5-5 (কম খরচ, দ্রুত)। আরও ভালো উত্তর চাইলে claude-sonnet-5-5 বা claude-opus-5-5 (খরচ বেশি)।' ),
 			array( 'type' => 'heading', 'label' => 'অপব্যবহার সীমা (প্রতি IP)' ),
 			array( 'key' => 'rate_hour', 'type' => 'number', 'label' => 'ঘণ্টায় সর্বোচ্চ প্রশ্ন', 'default' => 20, 'min' => 1, 'max' => 500 ),
 			array( 'key' => 'rate_day', 'type' => 'number', 'label' => 'দিনে সর্বোচ্চ প্রশ্ন', 'default' => 60, 'min' => 1, 'max' => 2000 ),

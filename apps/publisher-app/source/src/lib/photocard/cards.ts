@@ -74,7 +74,7 @@ declare global {
 
 // Bump together with the theme version whenever cards.js changes, so a
 // browser never keeps an old copy next to new app code.
-export const CARDS_VERSION = '2.4.4-2'
+export const CARDS_VERSION = '2.5.0'
 
 /** Absolute URL of public/photocard/ (fonts, frames and the script live there). */
 export function cardsBase() {
