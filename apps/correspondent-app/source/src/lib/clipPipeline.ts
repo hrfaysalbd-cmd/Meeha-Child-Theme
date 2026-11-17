@@ -59,7 +59,13 @@ export async function uploadClip(file: File, serverMax: number, onStep: (s: Clip
   let note = ''
   let shrinkMs = 0
   let shrunk = false
+  let bigOriginal = false
   onStep({ phase: 'check', percent: 0, loaded: 0, total: file.size })
+  if (file.size > 12 * 1048576 && !canShrink() && serverMax > 0 && file.size > serverMax) {
+    // no encoder on this phone at all — send the original under the HD cap
+    bigOriginal = true
+    note = 'এই ফোনে ছোট করা যায় না — আসল ফাইলটিই যাচ্ছে (বড় ফাইল, সময় লাগবে)'
+  }
   if (file.size > 12 * 1048576 && canShrink()) {
     const bps = await speed(signal)
     const q = quickPlan(bps)
@@ -82,22 +88,23 @@ export async function uploadClip(file: File, serverMax: number, onStep: (s: Clip
         }
       } catch (err) {
         if (err instanceof ShrinkCancelled || signal?.aborted) throw err
-        if (serverMax > 0 && file.size > serverMax) {
-          throw new ApiError('এই ফোনে ভিডিওটি ছোট করা গেল না, আর আসল ফাইলটি সার্ভারের সীমার চেয়ে বড়। ভিডিওটি কেটে ছোট করে বা কম রেজোলিউশনে রেকর্ড করে আবার দিন।', 413, 'nros_video_too_large', 'client', '/media/video')
-        }
         const why = err instanceof Error && err.message ? err.message : ''
-        note = `ছোট করা গেল না${why ? ` (${why})` : ''} — আসল ফাইলটিই যাচ্ছে`
+        // 1.28.2 — the phone could not make the quick copy (often an HEVC
+        // recording it cannot decode): the untouched original goes up anyway,
+        // up to the server's HD cap, and the desk shrinks it in the studio.
+        if (serverMax > 0 && file.size > serverMax) bigOriginal = true
+        note = `ছোট করা গেল না${why ? ` (${why})` : ''} — আসল ফাইলটিই যাচ্ছে${bigOriginal ? ' (বড় ফাইল, সময় লাগবে)' : ''}`
       }
     } catch (err) {
       if (signal?.aborted) throw err
       throw err
     }
   }
-  if (serverMax > 0 && toSend.size > serverMax) throw new ApiError(videoTooLargeMessage(toSend.size, serverMax), 413, 'nros_video_too_large', 'client', '/media/video')
+  if (!bigOriginal && serverMax > 0 && toSend.size > serverMax) throw new ApiError(videoTooLargeMessage(toSend.size, serverMax), 413, 'nros_video_too_large', 'client', '/media/video')
 
   const u0 = performance.now()
   onStep({ phase: 'send', percent: 0, loaded: 0, total: toSend.size, note })
-  const res = await MediaApi.uploadVideo(toSend, (p: UploadProgress) => onStep({ phase: 'send', percent: p.percent, loaded: p.loaded, total: p.total, status: p.status, note }), { signal })
+  const res = await MediaApi.uploadVideo(toSend, (p: UploadProgress) => onStep({ phase: 'send', percent: p.percent, loaded: p.loaded, total: p.total, status: p.status, note }), { signal, original: bigOriginal })
   const sendMs = performance.now() - u0
   const rate = sendMs > 500 ? toSend.size / (sendMs / 1000) : 0
   const timing = [shrinkMs ? `ছোট করা ${secsText(shrinkMs)}` : '', `পাঠানো ${secsText(sendMs)}`, rate ? `${bn((rate / 1048576).toFixed(1))} MB/s` : '', `মোট ${secsText(performance.now() - t0)}`].filter(Boolean).join(' · ')

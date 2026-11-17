@@ -63,6 +63,8 @@ if ( function_exists( 'meeha_studio_url' ) && current_user_can( 'meeha_make_card
 				<?php echo $meeha_body['html']; // phpcs:ignore WordPress.Security.EscapeOutput ?>
 			</div>
 
+			<?php echo function_exists( 'meeha_ad' ) ? meeha_ad( 'article_end' ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- built in meeha_ad(). r47. ?>
+
 			<footer class="m-article__foot">
 				<?php
 				if ( ! $meeha_ed ) {

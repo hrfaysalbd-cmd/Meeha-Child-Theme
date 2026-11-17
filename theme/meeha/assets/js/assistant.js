@@ -155,6 +155,11 @@
       });
     }, { passive: true });
     window.matchMedia('(max-width: 600px)').addEventListener('change', () => { if (!opened) renderFloat(); });
+
+    // r47: a house ad / shared link can open the assistant directly with ?m_assistant=1.
+    try {
+      if (new URLSearchParams(location.search).get('m_assistant') === '1') open('');
+    } catch (e) { /* old browsers: the bubble still works */ }
   };
 
   window.MeehaAssistant = { open: q => (root ? open(q) : null), loadPanel };

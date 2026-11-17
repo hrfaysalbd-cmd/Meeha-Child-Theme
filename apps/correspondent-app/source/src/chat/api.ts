@@ -7,7 +7,7 @@
 import { apiRequest } from '../lib/api'
 
 /** 'dm' (1.26.0) — one Editor/Publisher to another, person to person */
-export type RoomKind = 'family' | 'staff' | 'area' | 'desk' | 'room' | 'dm'
+export type RoomKind = 'family' | 'staff' | 'area' | 'writers' | 'desk' | 'room' | 'dm'
 export type LabelKey = 'urgent' | 'meeting' | 'notice' | 'task' | 'info' | 'general'
 
 export interface ChatLabel {
@@ -306,8 +306,10 @@ export const ChatApi = {
   openDesk: (user_id?: number) => apiRequest<{ id: number }>('/chat/desk', { method: 'POST', body: user_id ? { user_id } : {} }),
   /** staff=true → only Editors/Publishers (1.26.0) */
   people: (q: string, staff = false) => apiRequest<{ people: Person[] }>(`/chat/people${qs({ q, staff: staff ? 1 : undefined })}`),
-  /** ব্যক্তিগত মেসেজ — Editor/Publisher ↔ Editor/Publisher (1.26.0) */
+  /** ব্যক্তিগত মেসেজ — staff ↔ staff; r47: publisher ↔ correspondent too */
   openDm: (user_id: number) => apiRequest<{ id: number }>('/chat/dm', { method: 'POST', body: { user_id } }),
+  /** r47 — the publishers, so a correspondent can open the private publisher line */
+  publishers: () => apiRequest<{ items: Person[] }>('/chat/publishers'),
   upload: (room: number, file: Blob, name: string, duration = 0) => {
     const fd = new FormData()
     fd.append('file', file, name)

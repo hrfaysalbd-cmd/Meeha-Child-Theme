@@ -49,7 +49,7 @@ class NROS_Chat {
 	const MAX_FILE = 25 * MB_IN_BYTES;
 
 	const SCHEMA_OPTION = 'nros_chat_defaults_v';
-	const SCHEMA_REV    = '1';
+	const SCHEMA_REV    = '2'; // r47: + মিহা কলম writer rooms
 
 	/**
 	 * Hooks.
@@ -301,6 +301,11 @@ class NROS_Chat {
 		foreach ( self::divisions() as $div ) {
 			self::ensure_room( 'area', 'area-' . md5( $div ), 'বিভাগ: ' . $div, $div . ' বিভাগের সংবাদদাতা ও ডেস্ক।', '📍' );
 		}
+		if ( class_exists( 'NROS_Writers' ) ) { // r47 — মিহা কলম: writers' own rooms
+			foreach ( NROS_Writers::rooms() as $slug => $w ) {
+				self::ensure_room( 'writers', $slug, $w[0], $w[1], $w[2] );
+			}
+		}
 		update_option( self::SCHEMA_OPTION, self::SCHEMA_REV, false );
 		// the first fill: everyone already on the team, so no welcome lines
 		self::sync_all( false );
@@ -357,7 +362,10 @@ class NROS_Chat {
 	 */
 	protected static function auto_members( $room ) {
 		if ( 'family' === $room['kind'] ) {
-			return self::people();
+			return self::without_writers( self::people() ); // r47: writers have their own rooms
+		}
+		if ( 'writers' === $room['kind'] ) {
+			return class_exists( 'NROS_Writers' ) ? NROS_Writers::room_members( $room, self::people( true ) ) : array();
 		}
 		if ( 'staff' === $room['kind'] ) {
 			return self::people( true );
@@ -374,9 +382,23 @@ class NROS_Chat {
 					'meta_value' => $div, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_query_meta_value
 				)
 			);
-			return array_merge( $ids, array_map( 'intval', $corr ) );
+			return array_merge( $ids, self::without_writers( array_map( 'intval', $corr ) ) );
 		}
 		return null;
+	}
+
+	/**
+	 * r47 — drop writer-track people from a list (they live in the মিহা কলম rooms).
+	 *
+	 * @param int[] $ids User ids.
+	 * @return int[]
+	 */
+	protected static function without_writers( $ids ) {
+		if ( ! class_exists( 'NROS_Writers' ) ) {
+			return $ids;
+		}
+		$w = array_flip( NROS_Writers::ids() );
+		return array_values( array_filter( $ids, function ( $id ) use ( $w ) { return ! isset( $w[ (int) $id ] ); } ) );
 	}
 
 	/**
@@ -388,7 +410,7 @@ class NROS_Chat {
 	 */
 	public static function sync_all( $welcome = true ) {
 		global $wpdb;
-		$rooms = $wpdb->get_results( 'SELECT * FROM ' . self::t( 'rooms' ) . " WHERE kind IN ('family','staff','area')", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$rooms = $wpdb->get_results( 'SELECT * FROM ' . self::t( 'rooms' ) . " WHERE kind IN ('family','staff','area','writers')", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		$n     = 0;
 		foreach ( (array) $rooms as $room ) {
 			$n += count( self::sync_room( $room, $welcome ) );
@@ -425,9 +447,12 @@ class NROS_Chat {
 	protected static function belongs( $room, $u ) {
 		$staff = self::is_staff( $u ) || array_intersect( array( 'administrator', 'meeha_publisher', 'editor' ), (array) $u->roles );
 		$corr  = self::is_correspondent( $u );
+		$wrt   = class_exists( 'NROS_Writers' ) && NROS_Writers::is_writer( $u ); // r47
 		switch ( $room['kind'] ) {
+			case 'writers':
+				return class_exists( 'NROS_Writers' ) && NROS_Writers::belongs( $room, $u, (bool) $staff );
 			case 'family':
-				return $staff || $corr;
+				return $staff || ( $corr && ! $wrt );
 			case 'staff':
 				return (bool) $staff;
 			case 'area':
@@ -435,7 +460,7 @@ class NROS_Chat {
 					return true;
 				}
 				$div = preg_replace( '/^বিভাগ:\s*/u', '', $room['name'] );
-				return $corr && (string) get_user_meta( $u->ID, 'meeha_division', true ) === $div;
+				return $corr && ! $wrt && (string) get_user_meta( $u->ID, 'meeha_division', true ) === $div;
 		}
 		return null;
 	}
@@ -503,7 +528,7 @@ class NROS_Chat {
 		}
 		$rooms = $wpdb->get_results(
 			$wpdb->prepare(
-				'SELECT r.*, m.user_id AS has FROM ' . self::t( 'rooms' ) . ' r LEFT JOIN ' . self::t( 'members' ) . " m ON m.room_id = r.id AND m.user_id = %d WHERE r.kind IN ('family','staff','area')", // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+				'SELECT r.*, m.user_id AS has FROM ' . self::t( 'rooms' ) . ' r LEFT JOIN ' . self::t( 'members' ) . " m ON m.room_id = r.id AND m.user_id = %d WHERE r.kind IN ('family','staff','area','writers')", // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 				$u->ID
 			),
 			ARRAY_A
@@ -565,7 +590,7 @@ class NROS_Chat {
 	 * The division was set or changed: join that area room.
 	 */
 	public static function on_meta( $meta_id, $uid, $key ) {
-		if ( 'meeha_division' === $key ) {
+		if ( 'meeha_division' === $key || 'nros_track' === $key || 'nros_writer_group' === $key ) { // r47: track/group moves rooms too
 			self::on_role_change( (int) $uid );
 		}
 	}
@@ -581,7 +606,7 @@ class NROS_Chat {
 	 * @param int[] $ids  Newcomers.
 	 */
 	protected static function welcome( $room, $ids, $force = false ) {
-		if ( ! in_array( $room['kind'], array( 'family', 'area' ), true ) || ! apply_filters( 'nros_chat_welcome', true, $room, $ids ) ) {
+		if ( ! in_array( $room['kind'], array( 'family', 'area', 'writers' ), true ) || ! apply_filters( 'nros_chat_welcome', true, $room, $ids ) ) {
 			return;
 		}
 		$from  = (int) get_option( 'nros_chat_welcome_from', 0 );
@@ -596,7 +621,7 @@ class NROS_Chat {
 				continue;
 			}
 			update_user_meta( $uid, $key, time() );
-			if ( 'area' === $room['kind'] && ! self::is_correspondent( $u ) ) {
+			if ( in_array( $room['kind'], array( 'area', 'writers' ), true ) && ! self::is_correspondent( $u ) ) {
 				continue;
 			}
 			// joined the team before the chat existed: no fuss
@@ -625,6 +650,10 @@ class NROS_Chat {
 			} else {
 				$body = "🎉 মিহা পরিবারে নতুন মুখ: {$who}! সবাইকে স্বাগতম, শুভেচ্ছা জানাই 👋";
 			}
+		} elseif ( 'writers' === $room['kind'] ) {
+			$body = 'writers-all' === $room['slug']
+				? "✒️ মিহা কলমে স্বাগতম {$who}! ফিচার, গল্প, কবিতা, প্রবন্ধ — আপনার লেখা অ্যাপের “লিখুন” থেকে পাঠান। প্রতি শুক্রবার এখানে সপ্তাহের লেখার আহ্বান আসবে, আর ডেস্ক এই রুমেই আছে।"
+				: "✒️ {$room['name']} রুমে স্বাগতম {$who}! এখানে একই অঙ্গনের লেখকদের সঙ্গে আলাপ, আইডিয়া আর লেখার খবর।";
 		} else {
 			$body = "📍 {$room['name']} রুমে স্বাগতম {$who}! এই বিভাগের খবর, মিটিং আর জরুরি বার্তা এখানে পাবেন।";
 		}
@@ -834,7 +863,8 @@ class NROS_Chat {
 		$r( '/chat/messages/(?P<id>\d+)/react', 'POST', 'react', $app );
 		$r( '/chat/messages/(?P<id>\d+)/pin', 'POST', 'pin', $app );
 		$r( '/chat/desk', 'POST', 'open_desk', $app );
-		$r( '/chat/dm', 'POST', 'open_dm', $stf ); // r43 — person to person (Editors & Publishers)
+		$r( '/chat/dm', 'POST', 'open_dm', $app ); // r43 staff↔staff; r47 also publisher↔correspondent (checked inside)
+		$r( '/chat/publishers', 'GET', 'list_publishers', $app ); // r47 — so a correspondent can open that private line
 		$r( '/chat/people', 'GET', 'people_search', $stf );
 		$r( '/chat/files', 'POST', 'upload', $app );
 		register_rest_route(
@@ -1718,7 +1748,7 @@ class NROS_Chat {
 	public static function sync_now( $request ) {
 		$u    = self::me( $request );
 		$room = self::room( (int) $request['id'] );
-		if ( ! $room || ! in_array( $room['kind'], array( 'family', 'staff', 'area' ), true ) || ! self::is_admin( $room, $u ) ) {
+		if ( ! $room || ! in_array( $room['kind'], array( 'family', 'staff', 'area', 'writers' ), true ) || ! self::is_admin( $room, $u ) ) {
 			return new WP_Error( 'nros_forbidden', 'এটা করতে পারেন রুমের অ্যাডমিন।', array( 'status' => 403 ) );
 		}
 		$ids = self::sync_room( $room, false );
@@ -1859,8 +1889,15 @@ class NROS_Chat {
 		global $wpdb;
 		$u     = self::me( $request );
 		$other = get_userdata( (int) $request->get_param( 'user_id' ) );
-		if ( ! $other || (int) $other->ID === (int) $u->ID || ! self::is_staff( $other ) ) {
-			return new WP_Error( 'nros_bad', 'ব্যক্তিগত মেসেজ শুধু এডিটর ও পাবলিশারদের মধ্যে।', array( 'status' => 400 ) );
+		// Staff ↔ staff (r43), and r47: publisher ↔ correspondent — a truly private line with
+		// no other editor or publisher in it (a dm room is readable by its two members only).
+		$ok = $other && (int) $other->ID !== (int) $u->ID && (
+			( self::is_staff( $u ) && self::is_staff( $other ) )
+			|| ( self::is_publisher( $u ) && self::is_correspondent( $other ) )
+			|| ( self::is_correspondent( $u ) && self::is_publisher( $other ) )
+		);
+		if ( ! $ok ) {
+			return new WP_Error( 'nros_bad', 'ব্যক্তিগত মেসেজ: এডিটর-পাবলিশারদের মধ্যে, অথবা পাবলিশার ও সংবাদদাতার মধ্যে।', array( 'status' => 400 ) );
 		}
 		$a    = min( (int) $u->ID, (int) $other->ID );
 		$b    = max( (int) $u->ID, (int) $other->ID );
@@ -1875,6 +1912,27 @@ class NROS_Chat {
 			}
 		}
 		return rest_ensure_response( array( 'id' => $id ) );
+	}
+
+	/**
+	 * r47 — GET /chat/publishers: the publishers, so a correspondent can open the private
+	 * publisher line. Names and avatars only — nothing a correspondent can't already see.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response
+	 */
+	public static function list_publishers( $request ) {
+		self::me( $request );
+		$out = array();
+		foreach ( get_users( array( 'capability' => 'nros_publisher', 'number' => 20 ) ) as $p ) {
+			$out[] = self::person( (int) $p->ID );
+		}
+		if ( ! $out ) { // single-admin installs: the administrators are the publishers
+			foreach ( get_users( array( 'role' => 'administrator', 'number' => 5 ) ) as $p ) {
+				$out[] = self::person( (int) $p->ID );
+			}
+		}
+		return rest_ensure_response( array( 'items' => $out ) );
 	}
 
 	/**

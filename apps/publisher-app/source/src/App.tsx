@@ -41,6 +41,12 @@ const IdCards = lazy(() => import('./pages/IdCards'))
 const FieldDesk = lazy(() => import('./pages/FieldDesk'))
 // r46 — টিপস: গোপন তথ্য from the website's tipline
 const Tips = lazy(() => import('./pages/Tips'))
+// r47 — বিজ্ঞাপন ব্যবস্থাপনা: the website's ad slots managed here
+const AdsManager = lazy(() => import('./pages/AdsManager'))
+// r47 — নিউজ এলার্ট: visitor web-push settings
+const Alerts = lazy(() => import('./pages/Alerts'))
+// r47 — শিক্ষা/ক্যাম্পাস: the campus run from here
+const Campus = lazy(() => import('./pages/Campus'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
@@ -171,6 +177,30 @@ export default function App() {
         <Route path="correspondents" element={<Correspondents />} />
         <Route path="applications" element={<Applications />} />
         <Route path="ad-clients" element={<AdClients />} />
+        <Route
+          path="ads"
+          element={
+            <Suspense fallback={<Spinner className="mt-16 mx-auto" />}>
+              <AdsManager />
+            </Suspense>
+          }
+        />
+        <Route
+          path="campus"
+          element={
+            <Suspense fallback={<Spinner className="mt-10" />}>
+              <Campus />
+            </Suspense>
+          }
+        />
+        <Route
+          path="alerts"
+          element={
+            <Suspense fallback={<Spinner className="mt-10" />}>
+              <Alerts />
+            </Suspense>
+          }
+        />
         <Route path="finance" element={<Finance />} />
         <Route path="investigations" element={<Investigations />} />
         <Route path="suspensions" element={<Suspensions />} />

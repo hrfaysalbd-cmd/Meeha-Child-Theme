@@ -139,6 +139,8 @@ export default function ChatBox({
   const [newRoom, setNewRoom] = useState(false)
   const [deskPick, setDeskPick] = useState(false)
   const [dmPick, setDmPick] = useState(false)
+  // r47 — the correspondent's private publisher line: the publishers to choose from (null = closed)
+  const [pubPick, setPubPick] = useState<Person[] | null>(null)
   const [pushOpen, setPushOpen] = useState(false)
   const push = usePush()
   const [selected, setSelected] = useState<number | null>(roomId)
@@ -230,6 +232,19 @@ export default function ChatBox({
     }
   }
 
+  // r47 — open (or offer) the private publisher line: one publisher opens at once,
+  // several show a small chooser. A dm room is readable by its two people only.
+  const openPublisherDm = async () => {
+    try {
+      const r = await ChatApi.publishers()
+      if (!r.items.length) return alert('পাবলিশার পাওয়া যায়নি।')
+      if (r.items.length === 1) return void openDesk(r.items[0].id, true)
+      setPubPick(r.items)
+    } catch (e) {
+      alert((e as Error).message)
+    }
+  }
+
   const labels = data?.labels?.length ? data.labels : (DEFAULT_LABELS as unknown as ChatLabel[])
   const me = data?.me ?? { id: 0, staff: false, publisher: false }
   const current = data?.rooms.find((r) => r.id === selected)
@@ -254,6 +269,17 @@ export default function ChatBox({
             🔔
             {push.state && push.state !== 'on' && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />}
           </button>
+          {!me.staff && (
+            <button
+              type="button"
+              onClick={() => void openPublisherDm()}
+              className="h-9 px-3 rounded-xl bg-brand-600 text-white text-[13px] font-semibold whitespace-nowrap"
+              title="পাবলিশারের সঙ্গে একান্ত আলাপ — অন্য কোনো এডিটর দেখবেন না"
+              data-testid="chat-publisher-dm"
+            >
+              🔒 পাবলিশার
+            </button>
+          )}
           {me.staff && (
             <div className="relative">
               <button type="button" onClick={() => setNewMenu((v) => !v)} className="h-9 px-3 rounded-xl bg-brand-600 text-white text-[13px] font-semibold whitespace-nowrap" data-testid="chat-new">
@@ -397,6 +423,29 @@ export default function ChatBox({
             open(id)
           }}
         />
+      )}
+      {pubPick && (
+        <Sheet open title="কোন পাবলিশারকে লিখবেন?" onClose={() => setPubPick(null)}>
+          <div className="p-2 space-y-1">
+            {pubPick.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-neutral-50 text-left"
+                onClick={() => {
+                  setPubPick(null)
+                  void openDesk(p.id, true)
+                }}
+              >
+                <Avatar p={p} size={36} />
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-medium truncate">{p.name}</span>
+                  <span className="block text-[11.5px] text-neutral-500">একান্ত আলাপ — শুধু আপনি আর তিনি</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </Sheet>
       )}
       {dmPick && (
         <PeoplePicker

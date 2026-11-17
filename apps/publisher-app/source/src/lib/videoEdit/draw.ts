@@ -1956,12 +1956,15 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   const bottom = r.y + r.h - 20 * s
   const avail = bottom - top
   const font = (px: number) => bodyFont(700, px)
-  // round 29: the biggest size that shows the whole title in 1, 2 or (tall bands) 3 lines
-  const tries = hk >= 1.3 ? [1, 2, 3] : [1, 2]
-  let fit = fitText(ctx, title, font, maxW, 2, Math.min(46 * s0 * hk, avail / 2.45), 26 * s0)
+  // round 29: the biggest size that shows the whole title in 1, 2 or 3 lines.
+  // r47 (field report): long Bengali titles used to bottom out at a tiny size next to a big
+  // frame — the caps and the floor are higher now, and three lines are always allowed, so the
+  // title stays in proportion with the band instead of shrinking to fit two lines.
+  const tries = [1, 2, 3]
+  let fit = fitText(ctx, title, font, maxW, 3, Math.min(54 * s0 * hk, avail / 2.2), 30 * s0)
   for (const n of tries) {
-    const cap = n === 1 ? Math.min(58 * s0 * hk, avail * 0.8) : Math.min((n === 2 ? 50 : 44) * s0 * hk, avail / (n * 1.24))
-    const f2 = fitText(ctx, title, font, maxW, n, cap, Math.min(cap, (n === 1 ? 40 : 26) * s0))
+    const cap = n === 1 ? Math.min(68 * s0 * hk, avail * 0.8) : Math.min((n === 2 ? 58 : 50) * s0 * hk, avail / (n * 1.15))
+    const f2 = fitText(ctx, title, font, maxW, n, cap, Math.min(cap, (n === 1 ? 44 : 30) * s0))
     ctx.font = font(f2.size)
     const whole = f2.lines.length > 0 && !f2.lines[f2.lines.length - 1].endsWith('…') && f2.lines.every((l) => ctx.measureText(l).width <= maxW + 0.5)
     if (whole && f2.size > fit.size) fit = f2

@@ -29,6 +29,8 @@ function meeha_ad_slots() {
 			'article_side'   => array( 'খবরের পাশে, ডেস্কটপ (৩০০ × ৬০০)', 'half', 0 ),
 			'archive_infeed' => array( 'বিভাগ পাতা — ৬ নম্বর খবরের পরে', 'leader', 0 ),
 			'archive_side'   => array( 'বিভাগ পাতার পাশে (৩০০ × ২৫০)', 'mpu', 0 ),
+			'article_end'    => array( 'খবরের শেষে, ফুটনোটের আগে (৩০০ × ২৫০)', 'mpu', 0 ), // r47
+			'footer_leader'  => array( 'ফুটারের ওপরে (লিডারবোর্ড)', 'leader', 0 ), // r47
 		)
 	);
 }
@@ -60,11 +62,19 @@ function meeha_ad_fields() {
 			'default' => 'image',
 			'options' => array(
 				'image'     => 'ছবি + লিংক',
+				'house'     => 'হাউস কার্ড (মিহার নিজের অ্যানিমেটেড বিজ্ঞাপন)', // r47
 				'html'      => 'HTML কোড',
 				'shortcode' => 'শর্টকোড (যেমন [adinserter block="1"])',
 				'gam'       => 'Google Ad Manager ইউনিট',
 			),
 		);
+		$house_options = array( '' => '— বাছাই করুন —' );
+		if ( function_exists( 'meeha_house_ads' ) ) {
+			foreach ( meeha_house_ads() as $hid => $hc ) {
+				$house_options[ $hid ] = $hc['label'];
+			}
+		}
+		$fields[] = array( 'key' => $slot . '_house', 'type' => 'select', 'label' => 'হাউস কার্ড', 'default' => '', 'options' => $house_options );
 		$fields[] = array( 'key' => $slot . '_image', 'type' => 'image', 'label' => 'ছবি (ডেস্কটপ / সব)' );
 		if ( 'leader' === $def[1] ) {
 			$fields[] = array( 'key' => $slot . '_image_m', 'type' => 'image', 'label' => 'ছবি (মোবাইল ৩২০ × ১০০)', 'desc' => 'ফাঁকা রাখলে ওপরের ছবিই মোবাইলে দেখাবে।' );

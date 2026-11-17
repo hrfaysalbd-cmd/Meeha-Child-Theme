@@ -27,6 +27,8 @@ import {
   IconIdBadge,
   IconStationery,
   IconLock,
+  IconAd,
+  IconBolt,
 } from '../components/Icon'
 import { NotificationsProvider, useNotifications } from '../lib/notifications'
 import NotificationBell, { NotificationToasts } from '../components/NotificationBell'
@@ -69,6 +71,9 @@ const NAV: NavItem[] = [
   { to: '/app/correspondents', label: 'সংবাদদাতা', icon: IconUsers },
   { to: '/app/applications', label: 'আবেদন', icon: IconFileCheck, count: 'applications' },
   { to: '/app/ad-clients', label: 'বিজ্ঞাপনদাতা', icon: IconBuildingStore },
+  { to: '/app/ads', label: 'বিজ্ঞাপন ব্যবস্থাপনা', icon: IconAd },
+  { to: '/app/alerts', label: 'নিউজ এলার্ট', icon: IconBolt },
+  { to: '/app/campus', label: 'শিক্ষা/ক্যাম্পাস', icon: IconListDetails },
   { to: '/app/finance', label: 'ফাইন্যান্স', icon: IconWalletCoins, count: 'withdrawals' },
   { to: '/app/investigations', label: 'তদন্ত', icon: IconShieldSearch },
   { to: '/app/suspensions', label: 'সাসপেনশন', icon: IconBan },

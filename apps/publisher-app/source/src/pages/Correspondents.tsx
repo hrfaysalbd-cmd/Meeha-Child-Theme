@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/AuthContext'
-import { ApiError, CorrespondentsApi, type Correspondent, type CorrespondentDetail } from '../lib/api'
+import { ApiError, CorrespondentsApi, WRITER_GROUP_LABEL, WriterTrackApi, type Correspondent, type CorrespondentDetail } from '../lib/api'
 import { Badge, Banner, Button, Card, EmptyState, Field, Modal, PageHeader, Spinner, Table, Td, Th, bnNumber, inputClass } from '../components/ui'
 
 const suspensionLabels: Record<string, string> = {
@@ -33,6 +33,11 @@ export default function Correspondents() {
   const [titleNotice, setTitleNotice] = useState('')
   const [q, setQ] = useState('')
   const [div, setDiv] = useState('')
+  // r47 — মিহা কলম: সাংবাদিক / লেখক filter + switch
+  const [track, setTrack] = useState<'' | 'journalist' | 'writer'>('')
+  const [trackGroup, setTrackGroup] = useState('student')
+  const [trackSaving, setTrackSaving] = useState(false)
+  const [trackNotice, setTrackNotice] = useState('')
 
   useEffect(() => {
     CorrespondentsApi.list()
@@ -51,6 +56,8 @@ export default function Correspondents() {
     try {
       const d = await CorrespondentsApi.detail(id)
       setDetail(d)
+      setTrackNotice('')
+      setTrackGroup(d.writer_group || 'student')
       setTitleInput(d.title ?? '')
       setSalaryInput(d.monthly_salary ? String(d.monthly_salary) : '')
       setRateInput(d.default_post_rate ? String(d.default_post_rate) : '')
@@ -139,8 +146,26 @@ export default function Correspondents() {
   const shown = items.filter(
     (c) =>
       (!div || c.division === div) &&
+      (!track || (c.track ?? 'journalist') === track) &&
       (!needle || [c.name, c.email, c.phone, c.title, c.division].filter(Boolean).some((v) => String(v).toLowerCase().includes(needle))),
   )
+
+  async function saveTrack(next: 'journalist' | 'writer') {
+    if (!detail) return
+    setTrackSaving(true)
+    setTrackNotice('')
+    try {
+      const res = await WriterTrackApi.set(detail.id, next, next === 'writer' ? trackGroup : '')
+      const patch = { track: res.track as 'journalist' | 'writer', writer_group: res.group }
+      setDetail({ ...detail, ...patch })
+      setItems((prev) => prev.map((c) => (c.id === detail.id ? { ...c, ...patch } : c)))
+      setTrackNotice(next === 'writer' ? 'মিহা কলমে নেওয়া হয়েছে — লেখকদের চ্যাটরুমে যুক্ত হয়েছেন।' : 'সাংবাদিক হিসেবে ফেরানো হয়েছে — এলাকার চ্যাটরুমে যুক্ত হয়েছেন।')
+    } catch (e) {
+      setTrackNotice(e instanceof ApiError ? e.message : 'বদলানো যায়নি।')
+    } finally {
+      setTrackSaving(false)
+    }
+  }
 
   async function promoteToEditor() {
     if (!detail) return
@@ -180,6 +205,13 @@ export default function Correspondents() {
                 </option>
               ))}
             </select>
+            <div className="flex rounded-lg border border-neutral-200 overflow-hidden text-[12.5px]" data-testid="corr-track">
+              {([['', 'সবাই'], ['journalist', '📰 সাংবাদিক'], ['writer', '✒️ মিহা কলম']] as const).map(([k, l]) => (
+                <button key={k} type="button" onClick={() => setTrack(k)} className={`px-3 py-1.5 ${track === k ? 'bg-brand-600 text-white' : 'bg-white text-neutral-600 hover:bg-neutral-50'}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
             <span className="text-[12px] text-neutral-500">{bnNumber(shown.length)} জন</span>
           </div>
           <Table>
@@ -199,6 +231,12 @@ export default function Correspondents() {
                   <Td className="font-medium text-neutral-900">
                     {c.name}
                     <div className={`text-[11.5px] font-normal ${c.title ? 'text-brand-700' : 'text-neutral-300'}`}>{c.title || 'পদবি নেই'}</div>
+                    {c.track === 'writer' && (
+                      <div className="mt-0.5 text-[11px] font-normal text-violet-700">
+                        ✒️ মিহা কলম · {WRITER_GROUP_LABEL[c.writer_group ?? ''] ?? 'লেখক'}
+                        {c.institution ? ` · ${c.institution}` : ''}
+                      </div>
+                    )}
                   </Td>
                   <Td>{c.email}</Td>
                   <Td>{c.division || '—'}</Td>
@@ -290,11 +328,13 @@ export default function Correspondents() {
                   <details className="mt-2 text-[11.5px] text-neutral-500">
                     <summary className="cursor-pointer">আগের পদবি ({bnNumber(detail.title_log.length)})</summary>
                     <ul className="mt-1 space-y-0.5">
-                      {detail.title_log.map((l, i) => (
-                        <li key={i}>
-                          {l.from || '—'} → <b className="text-neutral-700">{l.to || '(সরানো)'}</b> · {l.by} · {l.at.slice(0, 16)}
-                        </li>
-                      ))}
+                      {detail.title_log
+                        .filter((l) => l && typeof l === 'object')
+                        .map((l, i) => (
+                          <li key={i}>
+                            {l.from || '—'} → <b className="text-neutral-700">{l.to || '(সরানো)'}</b> · {l.by || ''} · {(l.at || '').slice(0, 16)}
+                          </li>
+                        ))}
                     </ul>
                   </details>
                 )}
@@ -401,6 +441,31 @@ export default function Correspondents() {
                       <Badge key={s} tone="red">{suspensionLabels[s] ?? s}</Badge>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {isPublisher && (
+                <div className="pt-2 border-t border-neutral-100" data-testid="track-switch">
+                  <p className="text-[12px] font-medium text-neutral-500 mb-1.5">
+                    ধরন: {detail.track === 'writer' ? `✒️ মিহা কলম (${WRITER_GROUP_LABEL[detail.writer_group ?? ''] ?? 'লেখক'})` : '📰 সাংবাদিক'}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select value={trackGroup} onChange={(e) => setTrackGroup(e.target.value)} className={`${inputClass} max-w-[180px]`}>
+                      {Object.entries(WRITER_GROUP_LABEL).map(([k, l]) => (
+                        <option key={k} value={k}>{l}</option>
+                      ))}
+                    </select>
+                    <Button variant="secondary" size="sm" disabled={trackSaving} onClick={() => saveTrack('writer')}>
+                      {detail.track === 'writer' ? 'লেখক গ্রুপ বদলান' : 'মিহা কলমে নিন'}
+                    </Button>
+                    {detail.track === 'writer' && (
+                      <Button variant="secondary" size="sm" disabled={trackSaving} onClick={() => saveTrack('journalist')}>
+                        সাংবাদিক করুন
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-[11.5px] text-neutral-400 mt-1.5">ধরন বদলালে চ্যাটরুমও নিজে থেকে বদলে যাবে (লেখকরা এলাকা/পরিবার রুমে থাকেন না)।</p>
+                  {trackNotice && <p className="text-[11.5px] text-neutral-500 mt-1">{trackNotice}</p>}
                 </div>
               )}
 

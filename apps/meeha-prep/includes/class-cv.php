@@ -1627,8 +1627,12 @@ class MHP_CV {
 		if ( ! $force && get_option( 'mhp_cv_seeded' ) ) {
 			return 0;
 		}
-		$n = 0;
-		foreach ( (array) include MHP_DIR . '/data/cv-templates.php' as $p ) {
+		$n    = 0;
+		$pkgs = (array) include MHP_DIR . '/data/cv-templates.php';
+		if ( is_readable( MHP_DIR . '/data/cv-templates-r47.php' ) ) { // r47: five more designs, same upsert-by-key flow.
+			$pkgs = array_merge( $pkgs, (array) include MHP_DIR . '/data/cv-templates-r47.php' );
+		}
+		foreach ( $pkgs as $p ) {
 			$pkg = self::package( $p, true );
 			if ( is_wp_error( $pkg ) ) {
 				continue;

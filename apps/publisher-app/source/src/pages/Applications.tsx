@@ -1,8 +1,18 @@
 import { useEffect, useState } from 'react'
-import { ApplicationsApi, describeError, type Application } from '../lib/api'
+import { ApplicationsApi, WRITER_GENRE_LABEL, WRITER_GROUP_LABEL, describeError, type Application } from '../lib/api'
 import { Badge, Banner, Button, Card, EmptyState, Field, Modal, PageHeader, Spinner, bnDate, bnNumber, inputClass } from '../components/ui'
 import { IconRefresh } from '../components/Icon'
 import { useOptionalNotifications } from '../lib/notifications'
+
+/** r47 — মিহা কলম: the উপাধি the publisher gives on approval */
+const DEFAULT_WRITER_TITLE: Record<string, string> = {
+  student: 'শিক্ষার্থী লেখক',
+  teacher: 'অতিথি লেখক',
+  professional: 'অতিথি লেখক',
+  general: 'লেখক',
+}
+const WRITER_TITLES = ['লেখক', 'শিক্ষার্থী লেখক', 'অতিথি লেখক', 'কলামিস্ট', 'কবি', 'গল্পকার', 'ফিচার লেখক', 'ক্যাম্পাস লেখক']
+const REPORTER_TITLES = ['জেলা প্রতিনিধি', 'উপজেলা প্রতিনিধি', 'নিজস্ব প্রতিবেদক', 'ক্যাম্পাস প্রতিনিধি', 'স্টাফ রিপোর্টার']
 
 const statusTone: Record<string, 'amber' | 'emerald' | 'red'> = {
   pending: 'amber',
@@ -42,6 +52,10 @@ export default function Applications() {
   const [rejecting, setRejecting] = useState<Application | null>(null)
   const [reason, setReason] = useState('')
   const [opening, setOpening] = useState('')
+  // r47 — approval sheet (উপাধি) and the journalist / মিহা কলম filter
+  const [approving, setApproving] = useState<Application | null>(null)
+  const [title, setTitle] = useState('')
+  const [trackFilter, setTrackFilter] = useState<'all' | 'journalist' | 'writer'>('all')
   const notifVersion = useOptionalNotifications()?.version ?? 0
 
   function load(quiet = false) {
@@ -60,11 +74,12 @@ export default function Applications() {
     if (notifVersion) load(true)
   }, [notifVersion])
 
-  async function approve(app: Application) {
+  async function approve(app: Application, title = '') {
     setBusyId(app.id)
     try {
-      await ApplicationsApi.approve(app.id)
+      await ApplicationsApi.approve(app.id, title)
       setItems((prev) => prev.map((i) => (i.id === app.id ? { ...i, status: 'approved' } : i)))
+      setApproving(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'সমস্যা হয়েছে।')
     } finally {
@@ -107,13 +122,16 @@ export default function Applications() {
 
   const counts: Record<Tab, number> = { pending: 0, approved: 0, rejected: 0, all: items.length }
   items.forEach((i) => counts[i.status]++)
-  const shown = tab === 'all' ? items : items.filter((i) => i.status === tab)
+  const shown = (tab === 'all' ? items : items.filter((i) => i.status === tab)).filter(
+    (i) => trackFilter === 'all' || (i.track ?? 'journalist') === trackFilter,
+  )
+  const writerCount = items.filter((i) => i.track === 'writer' && i.status === 'pending').length
 
   return (
     <div>
       <PageHeader
-        title="সংবাদদাতা আবেদন"
-        subtitle="নতুন সংবাদদাতা হওয়ার আবেদন পর্যালোচনা করুন"
+        title="আবেদন"
+        subtitle="সাংবাদিক ও মিহা কলমের লেখক — নতুন আবেদন পর্যালোচনা করুন"
         actions={
           <Button variant="secondary" size="sm" onClick={() => load()}>
             <IconRefresh className="w-4 h-4" /> রিফ্রেশ
@@ -138,6 +156,24 @@ export default function Applications() {
         ))}
       </div>
 
+      <div className="flex gap-1.5 mb-4">
+        {(
+          [
+            ['all', 'সব'],
+            ['journalist', '📰 সাংবাদিক'],
+            ['writer', `✒️ মিহা কলম${writerCount ? ` (${bnNumber(writerCount)})` : ''}`],
+          ] as const
+        ).map(([v, l]) => (
+          <button
+            key={v}
+            onClick={() => setTrackFilter(v)}
+            className={`px-3 py-1 rounded-lg text-[12.5px] font-medium border ${trackFilter === v ? 'bg-brand-50 border-brand-500 text-brand-700' : 'bg-white border-neutral-200 text-neutral-600'}`}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <Spinner className="mt-10" />
       ) : shown.length === 0 ? (
@@ -153,7 +189,10 @@ export default function Applications() {
                   <p className="text-[15px] font-semibold text-neutral-900 truncate">{app.full_name}</p>
                   <p className="text-[12px] text-neutral-400">{bnDate(app.created_at)}</p>
                 </div>
-                <Badge tone={statusTone[app.status]}>{statusLabel[app.status]}</Badge>
+                <div className="flex flex-col items-end gap-1">
+                  <Badge tone={statusTone[app.status]}>{statusLabel[app.status]}</Badge>
+                  <Badge tone={app.track === 'writer' ? 'blue' : 'neutral'}>{app.track === 'writer' ? '✒️ মিহা কলম' : '📰 সাংবাদিক'}</Badge>
+                </div>
               </div>
               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px] mb-3">
                 <dt className="text-neutral-400">ইমেইল</dt>
@@ -166,6 +205,38 @@ export default function Applications() {
                 </dd>
                 <dt className="text-neutral-400">এলাকা</dt>
                 <dd className="text-neutral-800">{[app.division, app.district, app.upazila].filter(Boolean).join(' › ') || '—'}</dd>
+                {app.track === 'writer' && (
+                  <>
+                    <dt className="text-neutral-400">পরিচয়</dt>
+                    <dd className="text-neutral-800">{WRITER_GROUP_LABEL[app.writer_group ?? ''] ?? 'লেখক'}{app.designation ? ` · ${app.designation}` : ''}</dd>
+                    {app.institution && (
+                      <>
+                        <dt className="text-neutral-400">প্রতিষ্ঠান</dt>
+                        <dd className="text-neutral-800">{app.institution}</dd>
+                      </>
+                    )}
+                    <dt className="text-neutral-400">লিখবেন</dt>
+                    <dd className="text-neutral-800">
+                      {(app.genres ?? '')
+                        .split(',')
+                        .filter(Boolean)
+                        .map((g) => WRITER_GENRE_LABEL[g] ?? g)
+                        .join(', ') || '—'}
+                    </dd>
+                    {app.pen_name && (
+                      <>
+                        <dt className="text-neutral-400">ছদ্মনাম</dt>
+                        <dd className="text-neutral-800">{app.pen_name}</dd>
+                      </>
+                    )}
+                    {app.sample && (
+                      <>
+                        <dt className="text-neutral-400">পরিচিতি</dt>
+                        <dd className="text-neutral-800 whitespace-pre-line break-words">{app.sample}</dd>
+                      </>
+                    )}
+                  </>
+                )}
                 {app.status === 'rejected' && app.reject_reason && (
                   <>
                     <dt className="text-neutral-400">কারণ</dt>
@@ -190,7 +261,15 @@ export default function Applications() {
               )}
               {app.status === 'pending' && (
                 <div className="flex gap-2">
-                  <Button variant="success" disabled={busyId === app.id} onClick={() => approve(app)} className="flex-1">
+                  <Button
+                    variant="success"
+                    disabled={busyId === app.id}
+                    onClick={() => {
+                      setTitle(app.track === 'writer' ? DEFAULT_WRITER_TITLE[app.writer_group ?? ''] ?? 'লেখক' : '')
+                      setApproving(app)
+                    }}
+                    className="flex-1"
+                  >
                     অনুমোদন
                   </Button>
                   <Button variant="danger" disabled={busyId === app.id} onClick={() => setRejecting(app)} className="flex-1">
@@ -201,6 +280,35 @@ export default function Applications() {
             </Card>
           ))}
         </div>
+      )}
+
+      {approving && (
+        <Modal title={`অনুমোদন — ${approving.full_name}`} onClose={() => setApproving(null)}>
+          <Field label="উপাধি (ওয়েবসাইটে নামের নিচে দেখাবে)">
+            <input className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={approving.track === 'writer' ? 'যেমন: শিক্ষার্থী লেখক' : 'যেমন: উপজেলা প্রতিনিধি'} />
+          </Field>
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {(approving.track === 'writer' ? WRITER_TITLES : REPORTER_TITLES).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTitle(t)}
+                className={`px-2.5 py-1 rounded-lg text-[12.5px] border ${title === t ? 'bg-brand-50 border-brand-500 text-brand-700 font-medium' : 'border-neutral-200'}`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          <p className="text-[12px] text-neutral-500 mb-3">
+            {approving.track === 'writer'
+              ? 'অনুমোদনের পর ইনি “মিহা কলম” ও নিজের গ্রুপের চ্যাটরুমে যুক্ত হবেন — সংবাদদাতাদের রুম বা রাত ৮টার রিমাইন্ডারে নয়।'
+              : 'অনুমোদনের পর ইনি মিহা পরিবার ও নিজের বিভাগের রুমে যুক্ত হবেন।'}{' '}
+            উপাধি পরে সংবাদদাতা তালিকা থেকেও বদলানো যাবে।
+          </p>
+          <Button onClick={() => void approve(approving, title.trim())} disabled={busyId === approving.id} className="w-full" data-testid="approve-confirm">
+            অনুমোদন নিশ্চিত করুন
+          </Button>
+        </Modal>
       )}
 
       {rejecting && (
