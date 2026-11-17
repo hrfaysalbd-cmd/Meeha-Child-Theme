@@ -545,4 +545,63 @@ class MHP_Lessons {
 			}
 		}
 	}
+
+	/**
+	 * r47 lesson pack: fifteen checked lessons across the subjects, installed PUBLISHED (the
+	 * publisher's standing instruction: verify the content, publish directly, fix later if
+	 * needed). Deduped by seed key, so running again never duplicates.
+	 *
+	 * @return int Created.
+	 */
+	public static function seed_r47() {
+		$file = MHP_DIR . '/data/lessons-r47.php';
+		if ( ! is_readable( $file ) ) {
+			return 0;
+		}
+		$n = 0;
+		foreach ( (array) include $file as $r ) {
+			if ( empty( $r['key'] ) ) {
+				continue;
+			}
+			$have = get_posts(
+				array(
+					'post_type'      => 'mh_lesson',
+					'post_status'    => array( 'publish', 'draft', 'pending', 'private', 'future', 'trash' ),
+					'posts_per_page' => 1,
+					'fields'         => 'ids',
+					'no_found_rows'  => true,
+					'meta_key'       => '_mhp_seed_key', // phpcs:ignore WordPress.DB.SlowDBQuery
+					'meta_value'     => $r['key'], // phpcs:ignore WordPress.DB.SlowDBQuery
+				)
+			);
+			if ( $have ) {
+				continue;
+			}
+			$id = wp_insert_post(
+				array(
+					'post_type'    => 'mh_lesson',
+					'post_status'  => 'publish',
+					'post_title'   => $r['title'],
+					'post_excerpt' => $r['excerpt'],
+					'post_content' => $r['content'],
+					'menu_order'   => (int) $r['order'],
+				),
+				true
+			);
+			if ( is_wp_error( $id ) ) {
+				continue;
+			}
+			update_post_meta( $id, '_mhp_seed_key', $r['key'] );
+			update_post_meta( $id, '_mhp_minutes', (int) $r['minutes'] );
+			if ( ! empty( $r['subject'] ) ) {
+				$t = term_exists( $r['subject'], 'mh_subject' );
+				if ( $t ) {
+					wp_set_object_terms( $id, array( (int) $t['term_id'] ), 'mh_subject' );
+				}
+			}
+			++$n;
+		}
+		delete_transient( 'mhp_lesson_day' ); // The daily pick sees the new pool at once.
+		return $n;
+	}
 }

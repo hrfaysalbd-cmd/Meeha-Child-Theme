@@ -401,7 +401,9 @@ export default function ChatBox({
       {dmPick && (
         <PeoplePicker
           title="কাকে ব্যক্তিগত মেসেজ দেবেন?"
-          onlyStaff
+          // r47: the publisher can open a truly private line with a correspondent too —
+          // no other editor or publisher can read a dm room.
+          onlyStaff={!me.publisher}
           exclude={[me.id]}
           onClose={() => setDmPick(false)}
           onPick={async ([uid]) => {

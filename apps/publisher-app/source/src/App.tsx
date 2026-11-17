@@ -45,6 +45,8 @@ const Tips = lazy(() => import('./pages/Tips'))
 const AdsManager = lazy(() => import('./pages/AdsManager'))
 // r47 — নিউজ এলার্ট: visitor web-push settings
 const Alerts = lazy(() => import('./pages/Alerts'))
+// r47 — শিক্ষা/ক্যাম্পাস: the campus run from here
+const Campus = lazy(() => import('./pages/Campus'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
@@ -180,6 +182,14 @@ export default function App() {
           element={
             <Suspense fallback={<Spinner className="mt-16 mx-auto" />}>
               <AdsManager />
+            </Suspense>
+          }
+        />
+        <Route
+          path="campus"
+          element={
+            <Suspense fallback={<Spinner className="mt-10" />}>
+              <Campus />
             </Suspense>
           }
         />

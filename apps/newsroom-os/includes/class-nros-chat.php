@@ -834,7 +834,8 @@ class NROS_Chat {
 		$r( '/chat/messages/(?P<id>\d+)/react', 'POST', 'react', $app );
 		$r( '/chat/messages/(?P<id>\d+)/pin', 'POST', 'pin', $app );
 		$r( '/chat/desk', 'POST', 'open_desk', $app );
-		$r( '/chat/dm', 'POST', 'open_dm', $stf ); // r43 — person to person (Editors & Publishers)
+		$r( '/chat/dm', 'POST', 'open_dm', $app ); // r43 staff↔staff; r47 also publisher↔correspondent (checked inside)
+		$r( '/chat/publishers', 'GET', 'list_publishers', $app ); // r47 — so a correspondent can open that private line
 		$r( '/chat/people', 'GET', 'people_search', $stf );
 		$r( '/chat/files', 'POST', 'upload', $app );
 		register_rest_route(
@@ -1859,8 +1860,15 @@ class NROS_Chat {
 		global $wpdb;
 		$u     = self::me( $request );
 		$other = get_userdata( (int) $request->get_param( 'user_id' ) );
-		if ( ! $other || (int) $other->ID === (int) $u->ID || ! self::is_staff( $other ) ) {
-			return new WP_Error( 'nros_bad', 'ব্যক্তিগত মেসেজ শুধু এডিটর ও পাবলিশারদের মধ্যে।', array( 'status' => 400 ) );
+		// Staff ↔ staff (r43), and r47: publisher ↔ correspondent — a truly private line with
+		// no other editor or publisher in it (a dm room is readable by its two members only).
+		$ok = $other && (int) $other->ID !== (int) $u->ID && (
+			( self::is_staff( $u ) && self::is_staff( $other ) )
+			|| ( self::is_publisher( $u ) && self::is_correspondent( $other ) )
+			|| ( self::is_correspondent( $u ) && self::is_publisher( $other ) )
+		);
+		if ( ! $ok ) {
+			return new WP_Error( 'nros_bad', 'ব্যক্তিগত মেসেজ: এডিটর-পাবলিশারদের মধ্যে, অথবা পাবলিশার ও সংবাদদাতার মধ্যে।', array( 'status' => 400 ) );
 		}
 		$a    = min( (int) $u->ID, (int) $other->ID );
 		$b    = max( (int) $u->ID, (int) $other->ID );
@@ -1875,6 +1883,27 @@ class NROS_Chat {
 			}
 		}
 		return rest_ensure_response( array( 'id' => $id ) );
+	}
+
+	/**
+	 * r47 — GET /chat/publishers: the publishers, so a correspondent can open the private
+	 * publisher line. Names and avatars only — nothing a correspondent can't already see.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response
+	 */
+	public static function list_publishers( $request ) {
+		self::me( $request );
+		$out = array();
+		foreach ( get_users( array( 'capability' => 'nros_publisher', 'number' => 20 ) ) as $p ) {
+			$out[] = self::person( (int) $p->ID );
+		}
+		if ( ! $out ) { // single-admin installs: the administrators are the publishers
+			foreach ( get_users( array( 'role' => 'administrator', 'number' => 5 ) ) as $p ) {
+				$out[] = self::person( (int) $p->ID );
+			}
+		}
+		return rest_ensure_response( array( 'items' => $out ) );
 	}
 
 	/**

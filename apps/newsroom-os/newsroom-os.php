@@ -9,7 +9,7 @@
  *                     and area (division/upazila) lookups. Reuses the active theme's
  *                     existing data (engagement meta, area helpers, edit-request CPT,
  *                     submission safety-net) wherever possible instead of duplicating it.
- * Version:           1.28.2
+ * Version:           1.29.0
  * Author:             Meeha News
  * Text Domain:        newsroom-os
  *
@@ -24,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Core constants
 // ---------------------------------------------------------------------------
 
-define( 'NROS_VERSION', '1.28.2' );
+define( 'NROS_VERSION', '1.29.0' );
 // Bumped whenever create_tables()/register_roles() need to re-run on an
 // already-active install (see NROS_Core::maybe_upgrade()) — bump this any
 // time a future change adds/changes a table or role.
@@ -55,6 +55,7 @@ require_once NROS_DIR . 'includes/class-nros-admin-posts.php';
 require_once NROS_DIR . 'includes/class-nros-ad-leads.php';
 require_once NROS_DIR . 'includes/class-nros-ads-manager.php';
 require_once NROS_DIR . 'includes/class-nros-alerts.php';
+require_once NROS_DIR . 'includes/class-nros-campus.php';
 require_once NROS_DIR . 'includes/class-nros-prompts.php';
 require_once NROS_DIR . 'includes/class-nros-videos.php';
 require_once NROS_DIR . 'includes/class-nros-editorial.php';
@@ -76,6 +77,7 @@ require_once NROS_DIR . 'includes/class-nros-chat.php';
 require_once NROS_DIR . 'includes/class-nros-push.php';
 require_once NROS_DIR . 'includes/class-nros-app-landing.php'; // 1.22.0 [meeha_app_landing]
 require_once NROS_DIR . 'includes/class-nros-chat-tasks.php'; // 1.23.0 টু-ডু + chat automation
+require_once NROS_DIR . 'includes/class-nros-chat-briefing.php'; // r47 — ৮টার ব্রিফিং + রিমাইন্ডার
 require_once NROS_DIR . 'includes/class-nros-chat-templates.php'; // 1.24.0 message templates + “/” news
 require_once NROS_DIR . 'includes/class-nros-brand.php'; // 1.26.0 মিহার তথ্য + স্টেশনারি
 require_once NROS_DIR . 'includes/class-nros-idcards.php'; // 1.26.0 সাংবাদিক আইডি কার্ড
@@ -120,6 +122,7 @@ add_action(
 		NROS_Ad_Leads::init();
 		NROS_Ads_Manager::init();
 		NROS_Alerts::init();
+		NROS_Campus::init();
 		NROS_Prompts::init();
 		NROS_Videos::init();
 		NROS_Editorial::init();
@@ -140,6 +143,7 @@ add_action(
 		NROS_Push::init();
 		NROS_App_Landing::init();
 		NROS_Chat_Tasks::init();
+		NROS_Chat_Briefing::init();
 		NROS_Chat_Templates::init();
 		NROS_Brand::init();
 		NROS_ID_Cards::init();

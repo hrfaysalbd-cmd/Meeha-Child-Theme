@@ -67,6 +67,20 @@ class MHP_Install {
 			self::grant_caps();
 			update_option( 'mhp_db_version', MHP_DB_VERSION, false );
 			MHP_Cron::schedule();
+			self::seed_r47();
+		}
+	}
+
+	/**
+	 * r47 content top-up: the new lesson pack (published) and the five new CV designs.
+	 * Both are deduped by key, so this is safe to run more than once.
+	 */
+	public static function seed_r47() {
+		if ( class_exists( 'MHP_Lessons' ) && method_exists( 'MHP_Lessons', 'seed_r47' ) ) {
+			MHP_Lessons::seed_r47();
+		}
+		if ( class_exists( 'MHP_CV' ) && method_exists( 'MHP_CV', 'seed' ) ) {
+			MHP_CV::seed( true );
 		}
 	}
 

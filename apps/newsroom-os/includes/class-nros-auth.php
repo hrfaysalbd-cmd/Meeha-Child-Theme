@@ -861,6 +861,56 @@ class NROS_Auth {
 	}
 
 	/**
+	 * r47 security — throttle keys for the login brute-force guard: one per identifier,
+	 * one per client IP (behind a proxy the first X-Forwarded-For hop, as Nginx passes it).
+	 *
+	 * @param string $identifier Login identifier.
+	 * @return string[] Transient keys.
+	 */
+	protected static function login_throttle_keys( $identifier ) {
+		$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? (string) $_SERVER['REMOTE_ADDR'] : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+		return array(
+			'id' => 'nros_lt_i_' . md5( wp_salt( 'auth' ) . mb_strtolower( trim( $identifier ) ) ),
+			'ip' => 'nros_lt_a_' . md5( wp_salt( 'auth' ) . $ip ),
+		);
+	}
+
+	/**
+	 * Is this login attempt refused by the throttle?
+	 *
+	 * @param string $identifier Login identifier.
+	 * @return true|WP_Error
+	 */
+	protected static function login_throttled( $identifier ) {
+		$k = self::login_throttle_keys( $identifier );
+		if ( (int) get_transient( $k['id'] ) >= 8 || (int) get_transient( $k['ip'] ) >= 30 ) {
+			return new WP_Error( 'nros_too_many', 'অনেকবার ভুল চেষ্টা হয়েছে — ১৫ মিনিট পরে আবার চেষ্টা করুন।', array( 'status' => 429 ) );
+		}
+		return true;
+	}
+
+	/**
+	 * One more failed attempt for this identifier/IP (15-minute window).
+	 *
+	 * @param string $identifier Login identifier.
+	 */
+	protected static function login_failed_mark( $identifier ) {
+		foreach ( self::login_throttle_keys( $identifier ) as $key ) {
+			set_transient( $key, (int) get_transient( $key ) + 1, 15 * MINUTE_IN_SECONDS );
+		}
+	}
+
+	/**
+	 * A successful login clears the identifier's counter (the IP one expires on its own).
+	 *
+	 * @param string $identifier Login identifier.
+	 */
+	protected static function login_failed_clear( $identifier ) {
+		$k = self::login_throttle_keys( $identifier );
+		delete_transient( $k['id'] );
+	}
+
+	/**
 	 * POST /auth/login — accepts an email, username, or phone identifier
 	 * plus password. Deliberately returns the same generic error for "no
 	 * such user" and "wrong password" so login can't be used to enumerate
@@ -879,6 +929,14 @@ class NROS_Auth {
 
 		if ( '' === $identifier || '' === $password ) {
 			return new WP_Error( 'nros_bad_request', 'পরিচয় ও পাসওয়ার্ড দিন।', array( 'status' => 400 ) );
+		}
+
+		// r47 security — brute-force throttle for every account (not only OTP ones): after 8
+		// wrong passwords for the same identifier (or 30 from one IP) within 15 minutes, this
+		// endpoint refuses for 15 minutes. Cleared by a successful login.
+		$thr = self::login_throttled( $identifier );
+		if ( is_wp_error( $thr ) ) {
+			return $thr;
 		}
 
 		$user = false;
@@ -917,8 +975,10 @@ class NROS_Auth {
 			if ( $otp_user ) {
 				do_action( 'wp_login_failed', $user->user_login, new WP_Error( 'incorrect_password', 'ভুল পাসওয়ার্ড' ) );
 			}
+			self::login_failed_mark( $identifier );
 			return $generic_error;
 		}
+		self::login_failed_clear( $identifier );
 
 		if ( ! self::has_app_access( $user ) ) {
 			return $generic_error;

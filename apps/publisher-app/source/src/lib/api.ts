@@ -2816,3 +2816,56 @@ export const AlertsApi = {
   send: (postId: number) =>
     request<{ ok: true; post: number; subscribers: number }>('/admin/alerts/send', { method: 'POST', body: { post_id: postId } }),
 }
+
+// ---------------------------------------------------------------------------
+// r47 — শিক্ষা/ক্যাম্পাস (meeha-prep managed from the publisher app)
+
+export interface CampusLesson {
+  id: number
+  title: string
+  excerpt: string
+  status: 'publish' | 'draft' | 'pending'
+  subject: string
+  subject_name: string
+  minutes: number
+  order: number
+  feature_date: string
+  url: string
+}
+
+export interface CampusOverview {
+  campus_url: string
+  today: { id: number; title: string } | null
+  stats: {
+    lessons_publish: number
+    lessons_draft: number
+    cv_templates: number
+    jobs: number
+    tests: number
+    questions: number
+  }
+  lessons: CampusLesson[]
+  subjects: { slug: string; name: string }[]
+  cv: { id: number; name: string; status: string; price: number; pages: number }[]
+}
+
+export type CampusLessonInput = Partial<{
+  title: string
+  excerpt: string
+  content: string
+  subject: string
+  minutes: number
+  order: number
+  status: 'publish' | 'draft'
+  feature_date: string
+}>
+
+export const CampusApi = {
+  overview: () => request<CampusOverview>('/admin/campus'),
+  createLesson: (body: CampusLessonInput) =>
+    request<{ ok: true; lesson: CampusLesson }>('/admin/campus/lessons', { method: 'POST', body: body as Record<string, unknown> }),
+  updateLesson: (id: number, body: CampusLessonInput) =>
+    request<{ ok: true; lesson: CampusLesson }>(`/admin/campus/lessons/${id}`, { method: 'PATCH', body: body as Record<string, unknown> }),
+  deleteLesson: (id: number) => request<{ ok: true }>(`/admin/campus/lessons/${id}`, { method: 'DELETE' }),
+  seed: () => request<{ ok: true; lessons: number; cv: number }>('/admin/campus/seed', { method: 'POST', body: {} }),
+}
