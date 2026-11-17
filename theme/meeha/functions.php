@@ -33,6 +33,7 @@ foreach ( array(
 	'icons',
 	'template-tags',
 	'chrome',
+	'house-ads',
 	'ads',
 	'assets',
 	'perf',

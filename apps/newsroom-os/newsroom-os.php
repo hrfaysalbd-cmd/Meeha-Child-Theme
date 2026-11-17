@@ -53,6 +53,8 @@ require_once NROS_DIR . 'includes/class-nros-admin.php';
 require_once NROS_DIR . 'includes/class-nros-admin-api.php';
 require_once NROS_DIR . 'includes/class-nros-admin-posts.php';
 require_once NROS_DIR . 'includes/class-nros-ad-leads.php';
+require_once NROS_DIR . 'includes/class-nros-ads-manager.php';
+require_once NROS_DIR . 'includes/class-nros-alerts.php';
 require_once NROS_DIR . 'includes/class-nros-prompts.php';
 require_once NROS_DIR . 'includes/class-nros-videos.php';
 require_once NROS_DIR . 'includes/class-nros-editorial.php';
@@ -116,6 +118,8 @@ add_action(
 		NROS_Admin_API::init();
 		NROS_Admin_Posts::init();
 		NROS_Ad_Leads::init();
+		NROS_Ads_Manager::init();
+		NROS_Alerts::init();
 		NROS_Prompts::init();
 		NROS_Videos::init();
 		NROS_Editorial::init();

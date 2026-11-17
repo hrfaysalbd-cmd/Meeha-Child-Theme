@@ -156,6 +156,13 @@ function meeha_ad( $slot ) {
 			$link  = isset( $o[ $slot . '_link' ] ) ? $o[ $slot . '_link' ] : '';
 			$inner = $link ? '<a href="' . esc_url( $link ) . '" rel="sponsored noopener" target="_blank">' . $tag . '</a>' : $tag;
 			break;
+		case 'house': // r47 — Meeha's own animated feature card.
+			$card  = isset( $o[ $slot . '_house' ] ) ? (string) $o[ $slot . '_house' ] : '';
+			$inner = '' !== $card && function_exists( 'meeha_house_ad_html' ) ? meeha_house_ad_html( $card, $size ) : '';
+			if ( '' === $inner ) {
+				return '';
+			}
+			break;
 		case 'html':
 			$code = isset( $o[ $slot . '_code' ] ) ? trim( (string) $o[ $slot . '_code' ] ) : '';
 			if ( '' === $code ) {
@@ -191,7 +198,7 @@ function meeha_ad( $slot ) {
 	}
 	$device = isset( $o[ $slot . '_device' ] ) ? $o[ $slot . '_device' ] : 'all';
 	$cls    = 'm-ad m-ad--' . $size . ( 'mobile' === $device ? ' m-show-m' : ( 'desktop' === $device ? ' m-hide-m' : '' ) );
-	$label  = ! isset( $o[ $slot . '_label' ] ) || ! empty( $o[ $slot . '_label' ] );
+	$label  = 'house' !== $type && ( ! isset( $o[ $slot . '_label' ] ) || ! empty( $o[ $slot . '_label' ] ) ); // house = self-promo, never labelled "বিজ্ঞাপন".
 	$html   = '<aside class="' . esc_attr( $cls ) . '" aria-label="বিজ্ঞাপন" data-ad-slot="' . esc_attr( $slot ) . '">' .
 		( $label ? '<span class="m-ad__label">বিজ্ঞাপন</span>' : '' ) .
 		'<div class="m-ad__box"' . $style . '>' . $inner . '</div></aside>';

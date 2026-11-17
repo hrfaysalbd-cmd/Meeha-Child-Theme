@@ -2693,3 +2693,126 @@ export const TipsApi = {
   people: (q = '', district = '') =>
     request<{ items: TipPerson[] }>(`/admin/tips/people?q=${encodeURIComponent(q)}&district=${encodeURIComponent(district)}`),
 }
+
+// ---------------------------------------------------------------------------
+// r47 — বিজ্ঞাপন ব্যবস্থাপনা (theme ad slots managed from the publisher app)
+
+export interface AdImage {
+  id: number
+  url: string
+  w: number
+  h: number
+  bytes: number
+  mime: string
+}
+
+export interface AdSlot {
+  id: string
+  label: string
+  size: 'leader' | 'mpu' | 'half'
+  size_text: string
+  group: 'header' | 'home' | 'article' | 'archive' | 'footer' | 'other'
+  on: boolean
+  type: 'image' | 'house' | 'html' | 'shortcode' | 'gam'
+  house: string
+  image: AdImage | null
+  image_m: AdImage | null
+  link: string
+  alt: string
+  device: 'all' | 'mobile' | 'desktop'
+  start: string
+  end: string
+  label_on: boolean
+  code: string
+  shortcode: string
+  gam: string
+}
+
+export interface HouseCard {
+  id: string
+  label: string
+  title: string
+  line: string
+  cta: string
+  url: string
+  preview: { leader: string; mpu: string }
+}
+
+export interface AdStripRow {
+  label: string
+  image: AdImage | null
+  link: string
+  on: boolean
+}
+
+export interface AdsOverview {
+  theme_ok: boolean
+  slots: AdSlot[]
+  strip: AdStripRow[]
+  house: HouseCard[]
+  house_css: string
+  gif_limit: number
+  size_guide: { name: string; px: string; note: string }[]
+}
+
+export type AdSlotPatch = Partial<{
+  on: 0 | 1
+  type: AdSlot['type']
+  house: string
+  image: number
+  image_m: number
+  link: string
+  alt: string
+  device: AdSlot['device']
+  start: string
+  end: string
+  label: 0 | 1
+  code: string
+  shortcode: string
+  gam: string
+}>
+
+export const AdsApi = {
+  overview: () => request<AdsOverview>('/admin/ads-manager'),
+  saveSlot: (slot: string, patch: AdSlotPatch) =>
+    request<{ ok: true; slot: string }>(`/admin/ads-manager/slot/${slot}`, { method: 'POST', body: patch as Record<string, unknown> }),
+  saveStrip: (rows: { label: string; image: number; link: string; on: 0 | 1 }[]) =>
+    request<{ ok: true; count: number }>('/admin/ads-manager/strip', { method: 'POST', body: { rows } }),
+  enableHouseEverywhere: () =>
+    request<{ ok: true; slots: { slot: string; card: string }[] }>('/admin/ads-manager/enable-house', { method: 'POST', body: {} }),
+}
+
+// ---------------------------------------------------------------------------
+// r47 — নিউজ এলার্ট (visitor web push settings)
+
+export interface AlertSettings {
+  enabled: boolean
+  question: string
+  yes: string
+  no: string
+  thanks: string
+  icon: number
+  icon_url: string
+  delay: number
+  snooze: number
+  auto: 'all' | 'breaking' | 'off'
+  hourly_cap: number
+  categories: number[]
+  title_prefix: string
+}
+
+export interface AlertsOverview {
+  supported: boolean
+  subscribers: number
+  settings: AlertSettings
+  categories_all: { id: number; name: string }[]
+  last_send: { post: number; title: string; sent: number; started: number } | null
+}
+
+export const AlertsApi = {
+  get: () => request<AlertsOverview>('/admin/alerts'),
+  save: (patch: Partial<AlertSettings>) =>
+    request<{ ok: true }>('/admin/alerts', { method: 'POST', body: patch as Record<string, unknown> }),
+  send: (postId: number) =>
+    request<{ ok: true; post: number; subscribers: number }>('/admin/alerts/send', { method: 'POST', body: { post_id: postId } }),
+}

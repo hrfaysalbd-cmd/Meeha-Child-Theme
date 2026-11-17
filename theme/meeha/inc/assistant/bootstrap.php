@@ -17,7 +17,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-foreach ( array( 'settings', 'intents', 'answer', 'ai', 'log', 'rest', 'render' ) as $meeha_as_file ) {
+foreach ( array( 'settings', 'intents', 'kb', 'answer', 'ai', 'log', 'rest', 'render' ) as $meeha_as_file ) {
 	require_once __DIR__ . '/' . $meeha_as_file . '.php';
 }
 unset( $meeha_as_file );

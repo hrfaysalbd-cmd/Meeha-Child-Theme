@@ -396,6 +396,16 @@ function meeha_as_detect( $question, $ctx = array() ) {
 		return $r;
 	}
 
+	// r47 — questions ABOUT Meeha (কি/কীভাবে): the knowledge base answers before any news intent.
+	if ( function_exists( 'meeha_as_kb_match' ) ) {
+		$kb = meeha_as_kb_match( $q );
+		if ( $kb ) {
+			$r['intent'] = 'kb';
+			$r['kb']     = $kb;
+			return $r;
+		}
+	}
+
 	// "আমার জেলা".
 	$mine = meeha_as_any( $q, $kw['mine'] );
 	if ( $mine ) {

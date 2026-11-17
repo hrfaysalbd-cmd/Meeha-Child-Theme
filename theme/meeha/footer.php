@@ -8,6 +8,12 @@
 
 defined( 'ABSPATH' ) || exit;
 ?>
+<?php
+$meeha_footer_ad = function_exists( 'meeha_ad' ) ? meeha_ad( 'footer_leader' ) : ''; // r47
+if ( '' !== $meeha_footer_ad ) {
+	echo '<div class="m-container">' . $meeha_footer_ad . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput -- built in meeha_ad().
+}
+?>
 <footer class="m-footer" id="m-footer">
 	<?php
 	get_template_part( 'template-parts/footer/newsletter' );

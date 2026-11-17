@@ -100,7 +100,7 @@ function meeha_as_public_answer( $a ) {
  */
 function meeha_as_answer( $question, $ctx = array(), $allow_ai = true ) {
 	$in  = meeha_as_detect( $question, $ctx );
-	$ai  = $allow_ai && meeha_as_ai_on() && ! in_array( $in['intent'], array( 'help', 'ask_district' ), true );
+	$ai  = $allow_ai && meeha_as_ai_on() && ! in_array( $in['intent'], array( 'help', 'ask_district', 'kb' ), true );
 	$out = meeha_as_basic_answer( $in, $ai ? 8 : 6 );
 	$out['mode'] = 'basic';
 	if ( $ai ) {

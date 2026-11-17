@@ -61,6 +61,8 @@ $meeha_dek  = '' !== $meeha_dek ? $meeha_dek : ( has_excerpt( $meeha_p ) && ! po
 			}
 			?>
 
+			<?php echo function_exists( 'meeha_ad' ) ? meeha_ad( 'article_end' ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- built in meeha_ad(). r47. ?>
+
 			<footer class="m-article__foot">
 				<?php
 				meeha_single_tags( $meeha_p );

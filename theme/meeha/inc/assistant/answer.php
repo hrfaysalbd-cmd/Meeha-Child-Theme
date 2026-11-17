@@ -263,7 +263,7 @@ function meeha_as_area_posts( $name, $level, $today, $topic = '', $n = 6 ) {
  */
 function meeha_as_help_answer() {
 	return array(
-		'text'  => "আমি মিহা নিউজের প্রকাশিত খবর থেকে উত্তর দিই। যেমন জিজ্ঞেস করতে পারেন:\n• আজকের ট্রেন্ডিং খবর\n• আজ দেশে কী হচ্ছে\n• কোনো জেলার খবর — যেমন \"কুমিল্লার খবর\"\n• বিভাগের খবর — খেলা, বিনোদন, রাজনীতি…\n• এখন কী লাইভ চলছে\n• যেকোনো বিষয়ে সর্বশেষ — যেমন \"ডেঙ্গু নিয়ে সর্বশেষ\"",
+		'text'  => "আমি মিহা নিউজের প্রকাশিত খবর থেকে উত্তর দিই, আর মিহা সম্পর্কিত প্রশ্নেরও। যেমন জিজ্ঞেস করতে পারেন:\n• আজকের ট্রেন্ডিং খবর\n• আজ দেশে কী হচ্ছে\n• কোনো জেলার খবর — যেমন \"কুমিল্লার খবর\"\n• বিভাগের খবর — খেলা, বিনোদন, রাজনীতি…\n• এখন কী লাইভ চলছে\n• যেকোনো বিষয়ে সর্বশেষ — যেমন \"ডেঙ্গু নিয়ে সর্বশেষ\"\n• মিহা নিউজ কী, কিভাবে লেখা পাঠাব, ভুল পেলে কিভাবে রিপোর্ট করব",
 		'cards' => array(),
 		'chips' => array( 'আজকের ট্রেন্ডিং', 'আজ দেশে কী হচ্ছে', 'আমার জেলার খবর', 'লাইভ', 'খেলা', 'বিনোদন' ),
 	);
@@ -303,6 +303,19 @@ function meeha_as_basic_answer( $in, $n = 6 ) {
 	$extra  = array();
 
 	switch ( $intent ) {
+		case 'kb':
+			$kb    = isset( $in['kb'] ) ? $in['kb'] : array( 'text' => '', 'links' => array() );
+			$cards = array();
+			foreach ( (array) $kb['links'] as $l ) {
+				$cards[] = array( 'id' => 0, 'title' => $l['t'], 'url' => $l['u'], 'time' => '', 'thumb' => '', 'kicker' => 'লিংক', 'live' => false );
+			}
+			return array(
+				'intent' => 'kb',
+				'text'   => (string) $kb['text'],
+				'cards'  => $cards,
+				'chips'  => array( 'আজকের ট্রেন্ডিং', 'আজ দেশে কী হচ্ছে' ),
+				'posts'  => array(),
+			);
 		case 'help':
 			return array_merge( meeha_as_help_answer(), array( 'intent' => 'help', 'posts' => array() ) );
 
