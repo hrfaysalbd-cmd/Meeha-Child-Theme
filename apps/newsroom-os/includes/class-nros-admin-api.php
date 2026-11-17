@@ -571,6 +571,10 @@ class NROS_Admin_API {
 					'division'     => get_user_meta( $u->ID, 'meeha_division', true ),
 					'title'        => (string) get_user_meta( $u->ID, 'meeha_author_title', true ),
 					'suspensions'  => NROS_Core::active_suspension_types( $u->ID ),
+					// r47 — মিহা কলম
+					'track'        => 'writer' === get_user_meta( $u->ID, 'nros_track', true ) ? 'writer' : 'journalist',
+					'writer_group' => (string) get_user_meta( $u->ID, 'nros_writer_group', true ),
+					'institution'  => (string) get_user_meta( $u->ID, 'nros_writer_institution', true ),
 				);
 
 				// Round 7 — the correspondent's standing per-post rate, shown
@@ -632,6 +636,17 @@ class NROS_Admin_API {
 			'title_presets' => self::title_presets(),
 			'post_counts'   => $counts,
 			'suspensions'   => NROS_Core::active_suspension_types( $id ),
+			// r47 — মিহা কলম
+			'track'         => 'writer' === get_user_meta( $id, 'nros_track', true ) ? 'writer' : 'journalist',
+			'writer_group'  => (string) get_user_meta( $id, 'nros_writer_group', true ),
+			'institution'   => (string) get_user_meta( $id, 'nros_writer_institution', true ),
+			'writer'        => array(
+				'group'       => (string) get_user_meta( $id, 'nros_writer_group', true ),
+				'institution' => (string) get_user_meta( $id, 'nros_writer_institution', true ),
+				'designation' => (string) get_user_meta( $id, 'nros_writer_designation', true ),
+				'pen_name'    => (string) get_user_meta( $id, 'nros_writer_pen_name', true ),
+				'genres'      => (string) get_user_meta( $id, 'nros_writer_genres', true ),
+			),
 		);
 
 		if ( NROS_Core::financial_visible_to( $current ) ) {
@@ -653,7 +668,7 @@ class NROS_Admin_API {
 	public static function title_presets() {
 		return (array) apply_filters(
 			'nros_title_presets',
-			array( 'জেলা প্রতিনিধি', 'উপজেলা প্রতিনিধি', 'নিজস্ব প্রতিবেদক', 'স্টাফ রিপোর্টার', 'বিশেষ প্রতিনিধি', 'ক্যাম্পাস প্রতিনিধি', 'বিশ্ববিদ্যালয় প্রতিনিধি', 'আঞ্চলিক প্রতিনিধি', 'ব্যুরো প্রধান', 'সিনিয়র রিপোর্টার', 'অনুসন্ধানী প্রতিবেদক', 'ফটো সাংবাদিক', 'ভিডিও জার্নালিস্ট', 'প্রবাস প্রতিনিধি', 'শিক্ষানবিশ প্রতিবেদক' )
+			array( 'জেলা প্রতিনিধি', 'উপজেলা প্রতিনিধি', 'নিজস্ব প্রতিবেদক', 'স্টাফ রিপোর্টার', 'বিশেষ প্রতিনিধি', 'ক্যাম্পাস প্রতিনিধি', 'বিশ্ববিদ্যালয় প্রতিনিধি', 'আঞ্চলিক প্রতিনিধি', 'ব্যুরো প্রধান', 'সিনিয়র রিপোর্টার', 'অনুসন্ধানী প্রতিবেদক', 'ফটো সাংবাদিক', 'ভিডিও জার্নালিস্ট', 'প্রবাস প্রতিনিধি', 'শিক্ষানবিশ প্রতিবেদক', 'লেখক', 'শিক্ষার্থী লেখক', 'অতিথি লেখক', 'কলামিস্ট', 'কবি', 'গল্পকার', 'ফিচার লেখক', 'ক্যাম্পাস লেখক' )
 		);
 	}
 

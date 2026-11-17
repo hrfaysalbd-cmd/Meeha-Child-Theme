@@ -11,7 +11,7 @@
 defined( 'ABSPATH' ) || exit;
 
 if ( ! defined( 'MEEHA_VERSION' ) ) {
-	define( 'MEEHA_VERSION', '2.5.0' );
+	define( 'MEEHA_VERSION', '2.6.0' );
 }
 if ( ! defined( 'MEEHA_DIR' ) ) {
 	define( 'MEEHA_DIR', untrailingslashit( get_template_directory() ) );

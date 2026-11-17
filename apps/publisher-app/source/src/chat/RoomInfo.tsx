@@ -39,7 +39,7 @@ export default function RoomInfo({ room, me, onClose, onChanged, onLeft, onShowP
   // a desk line and a ব্যক্তিগত মেসেজ are both 1:1 talks: no member management
   const isDesk = room.kind === 'desk' || room.kind === 'dm'
   const admin = room.is_admin && !isDesk
-  const auto = room.kind === 'family' || room.kind === 'staff' || room.kind === 'area'
+  const auto = room.kind === 'family' || room.kind === 'staff' || room.kind === 'area' || room.kind === 'writers'
   const [note, setNote] = useState('')
 
   const load = () =>

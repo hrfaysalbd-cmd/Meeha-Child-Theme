@@ -28,7 +28,8 @@ define( 'NROS_VERSION', '1.29.0' );
 // Bumped whenever create_tables()/register_roles() need to re-run on an
 // already-active install (see NROS_Core::maybe_upgrade()) — bump this any
 // time a future change adds/changes a table or role.
-define( 'NROS_DB_VERSION', '17' ); // 17 — r46 গোপন তথ্য (nros_tips, nros_tips_files, nros_tips_notes)
+define( 'NROS_DB_VERSION', '18' ); // 18 — r47 মিহা কলম: applications.track/writer_group/institution/designation/pen_name/genres/sample
+// 17 — r46 গোপন তথ্য (nros_tips, nros_tips_files, nros_tips_notes)
 define( 'NROS_DIR', plugin_dir_path( __FILE__ ) );
 define( 'NROS_URL', plugin_dir_url( __FILE__ ) );
 define( 'NROS_PRIVATE_DIR', WP_CONTENT_DIR . '/nros-private' );
@@ -78,6 +79,7 @@ require_once NROS_DIR . 'includes/class-nros-push.php';
 require_once NROS_DIR . 'includes/class-nros-app-landing.php'; // 1.22.0 [meeha_app_landing]
 require_once NROS_DIR . 'includes/class-nros-chat-tasks.php'; // 1.23.0 টু-ডু + chat automation
 require_once NROS_DIR . 'includes/class-nros-chat-briefing.php'; // r47 — ৮টার ব্রিফিং + রিমাইন্ডার
+require_once NROS_DIR . 'includes/class-nros-writers.php'; // r47 — মিহা কলম (writer track)
 require_once NROS_DIR . 'includes/class-nros-chat-templates.php'; // 1.24.0 message templates + “/” news
 require_once NROS_DIR . 'includes/class-nros-brand.php'; // 1.26.0 মিহার তথ্য + স্টেশনারি
 require_once NROS_DIR . 'includes/class-nros-idcards.php'; // 1.26.0 সাংবাদিক আইডি কার্ড
@@ -144,6 +146,7 @@ add_action(
 		NROS_App_Landing::init();
 		NROS_Chat_Tasks::init();
 		NROS_Chat_Briefing::init();
+		NROS_Writers::init();
 		NROS_Chat_Templates::init();
 		NROS_Brand::init();
 		NROS_ID_Cards::init();

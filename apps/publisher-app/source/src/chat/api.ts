@@ -7,7 +7,7 @@
 import { apiRequest } from '../lib/api'
 
 /** 'dm' (1.26.0) — one Editor/Publisher to another, person to person */
-export type RoomKind = 'family' | 'staff' | 'area' | 'desk' | 'room' | 'dm'
+export type RoomKind = 'family' | 'staff' | 'area' | 'writers' | 'desk' | 'room' | 'dm'
 export type LabelKey = 'urgent' | 'meeting' | 'notice' | 'task' | 'info' | 'general'
 
 export interface ChatLabel {

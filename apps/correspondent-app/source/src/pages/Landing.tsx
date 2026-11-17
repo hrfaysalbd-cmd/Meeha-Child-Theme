@@ -26,15 +26,23 @@ export default function Landing() {
           <IconEdit className="w-5 h-5" />
           সংবাদদাতা আবেদন
         </button>
+        {/* r47 — মিহা কলম: the writers' way in */}
+        <button
+          onClick={() => navigate('/apply?track=writer')}
+          className="w-full rounded-2xl border-2 border-brand-600 text-brand-700 py-3.5 text-[15px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition"
+          data-testid="landing-writer"
+        >
+          ✒️ মিহা কলম — লেখা পাঠাতে চাই
+        </button>
         <button
           onClick={() => navigate('/login')}
           className="w-full rounded-2xl bg-neutral-100 text-neutral-800 py-4 text-[16px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition"
         >
           <IconUser className="w-5 h-5" />
-          সংবাদদাতা লগইন
+          লগইন
         </button>
         <p className="text-center text-[12px] text-neutral-400 mt-2">
-          ইতিমধ্যে অনুমোদিত সংবাদদাতা হলে "লগইন" চাপুন। নতুন হলে "আবেদন" করুন — NID সহ প্রয়োজনীয় তথ্য দিয়ে।
+          ইতিমধ্যে অনুমোদিত সংবাদদাতা হলে "লগইন" চাপুন। নতুন হলে "আবেদন" করুন — সাংবাদিক হতে NID লাগবে; ফিচার-গল্প-কবিতা পাঠাতে "মিহা কলম" বেছে নিন।
         </p>
       </div>
     </div>

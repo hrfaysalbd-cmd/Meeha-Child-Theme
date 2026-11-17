@@ -614,6 +614,14 @@ export interface Application {
   created_at: string
   // Round 18 (plugin 1.3.0+): which KYC files were sent ('nid', 'cv', 'certificate').
   files?: string[]
+  // r47 — মিহা কলম: which way in, and the writer's details
+  track?: 'journalist' | 'writer'
+  writer_group?: string
+  institution?: string
+  designation?: string
+  pen_name?: string
+  genres?: string
+  sample?: string | null
 }
 
 export interface Correspondent {
@@ -625,6 +633,10 @@ export interface Correspondent {
   /** r46: পদবি shown under the name on the website (WordPress user field). */
   title?: string
   suspensions: string[]
+  // r47 — মিহা কলম
+  track?: 'journalist' | 'writer'
+  writer_group?: string
+  institution?: string
   // Round 7 — only present when the viewer has finance visibility (same
   // gate as every other money figure in this API).
   default_post_rate?: number | null
@@ -1286,7 +1298,9 @@ export const ApplicationsApi = {
   // Round 18: the KYC files are private (staff-only, bearer token), so they
   // are fetched with the token and opened from a blob URL.
   file: (id: number, field: string) => requestBlob(`/applications/${id}/files/${field}`),
-  approve: (id: number) => request<{ ok: true; user_id: number }>(`/applications/${id}/approve`, { method: 'POST' }),
+  // r47: optional উপাধি set at approval ('' = the writer group's default)
+  approve: (id: number, title = '') =>
+    request<{ ok: true; user_id: number }>(`/applications/${id}/approve`, { method: 'POST', body: title ? { title } : {} }),
   reject: (id: number, reason: string) =>
     request<{ ok: true }>(`/applications/${id}/reject`, { method: 'POST', body: { reason } }),
 }
@@ -2868,4 +2882,30 @@ export const CampusApi = {
     request<{ ok: true; lesson: CampusLesson }>(`/admin/campus/lessons/${id}`, { method: 'PATCH', body: body as Record<string, unknown> }),
   deleteLesson: (id: number) => request<{ ok: true }>(`/admin/campus/lessons/${id}`, { method: 'DELETE' }),
   seed: () => request<{ ok: true; lessons: number; cv: number }>('/admin/campus/seed', { method: 'POST', body: {} }),
+}
+
+// ---------------------------------------------------------------------------
+// r47 — মিহা কলম (writer track)
+
+export const WRITER_GROUP_LABEL: Record<string, string> = {
+  student: 'শিক্ষার্থী',
+  teacher: 'শিক্ষক / অধ্যাপক',
+  professional: 'পেশাজীবী',
+  general: 'সাধারণ লেখক',
+}
+
+export const WRITER_GENRE_LABEL: Record<string, string> = {
+  feature: 'ফিচার',
+  story: 'গল্প',
+  poem: 'কবিতা',
+  essay: 'প্রবন্ধ',
+  opinion: 'মতামত / কলাম',
+  travel: 'ভ্রমণ',
+  kids: 'শিশু-কিশোর',
+  campus: 'ক্যাম্পাস',
+}
+
+export const WriterTrackApi = {
+  set: (id: number, track: 'journalist' | 'writer', group = '') =>
+    request<{ ok: true; track: string; group: string }>(`/admin/correspondents/${id}/track`, { method: 'POST', body: { track, group } }),
 }

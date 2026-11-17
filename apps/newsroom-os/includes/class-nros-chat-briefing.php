@@ -163,7 +163,7 @@ class NROS_Chat_Briefing {
 		$lines[] = '';
 		$lines[] = 'ছবি-ভিডিওসহ পাঠান, আর জরুরি কিছু পেলে আগে ডেস্ককে জানান। শুভ দিন! 💙';
 
-		NROS_Chat::bot_say( $room, implode( "\n", $lines ), array(), 'দিনের ব্রিফিং' );
+		NROS_Chat::bot_say( $room, implode( "\n", $lines ), array(), 'notice' );
 	}
 
 	/**
@@ -200,6 +200,9 @@ class NROS_Chat_Briefing {
 		foreach ( array_map( 'intval', (array) $ids ) as $uid ) {
 			if ( class_exists( 'NROS_Core' ) && NROS_Core::active_suspension_types( $uid ) ) {
 				continue; // a suspended account is not reminded to submit
+			}
+			if ( class_exists( 'NROS_Writers' ) && NROS_Writers::is_writer( $uid ) ) {
+				continue; // মিহা কলম writers are not daily reporters; they get the Friday writing call instead
 			}
 			$last = self::last_submission( $uid );
 			$days = (int) floor( ( strtotime( $today ) - strtotime( substr( $last, 0, 10 ) ) ) / DAY_IN_SECONDS );

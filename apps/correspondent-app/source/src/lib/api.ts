@@ -689,6 +689,12 @@ export const AreasApi = {
 
 // ---- Applications (public KYC apply) ----
 
+export interface WriterOptions {
+  name: string
+  groups: { id: string; label: string }[]
+  genres: { id: string; label: string }[]
+}
+
 export const ApplicationsApi = {
   submit: (form: FormData) =>
     request<{ ok: true; application_id: number }>('/applications', {
@@ -696,6 +702,8 @@ export const ApplicationsApi = {
       body: form,
       auth: false,
     }),
+  /** r47 — মিহা কলম: writer groups and genres for the apply form */
+  writerOptions: () => request<WriterOptions>('/writers/options', { auth: false }),
 }
 
 // ---- Submissions ----

@@ -156,8 +156,38 @@ class NROS_Applications {
 			return new WP_Error( 'nros_bad_request', 'নাম, ইমেইল ও ফোন নম্বর আবশ্যক।', array( 'status' => 400 ) );
 		}
 
+		// r47 — two ways in: সাংবাদিক (journalist, as before) or মিহা কলম (writer).
+		$track  = 'writer' === $request->get_param( 'track' ) ? 'writer' : 'journalist';
+		$writer = array(
+			'writer_group' => '',
+			'institution'  => '',
+			'designation'  => '',
+			'pen_name'     => '',
+			'genres'       => '',
+			'sample'       => '',
+		);
+		if ( 'writer' === $track ) {
+			$groups = class_exists( 'NROS_Writers' ) ? NROS_Writers::groups() : array( 'general' => array() );
+			$genres = class_exists( 'NROS_Writers' ) ? NROS_Writers::genres() : array();
+			$g      = sanitize_key( (string) $request->get_param( 'writer_group' ) );
+			$writer['writer_group'] = isset( $groups[ $g ] ) ? $g : 'general';
+			$writer['institution']  = mb_substr( sanitize_text_field( (string) $request->get_param( 'institution' ) ), 0, 190 );
+			$writer['designation']  = mb_substr( sanitize_text_field( (string) $request->get_param( 'designation' ) ), 0, 190 );
+			$writer['pen_name']     = mb_substr( sanitize_text_field( (string) $request->get_param( 'pen_name' ) ), 0, 190 );
+			$picked                 = array_filter( array_map( 'sanitize_key', explode( ',', (string) $request->get_param( 'genres' ) ) ), function ( $k ) use ( $genres ) { return isset( $genres[ $k ] ); } );
+			$writer['genres']       = implode( ',', array_slice( array_unique( $picked ), 0, 8 ) );
+			$writer['sample']       = mb_substr( sanitize_textarea_field( (string) $request->get_param( 'sample' ) ), 0, 2000 );
+			if ( in_array( $writer['writer_group'], array( 'student', 'teacher' ), true ) && '' === $writer['institution'] ) {
+				return new WP_Error( 'nros_bad_request', 'শিক্ষার্থী ও শিক্ষকদের জন্য প্রতিষ্ঠানের নাম আবশ্যক।', array( 'status' => 400 ) );
+			}
+			if ( '' === $writer['genres'] ) {
+				return new WP_Error( 'nros_bad_request', 'কী ধরনের লেখা পাঠাবেন — অন্তত একটি বেছে নিন।', array( 'status' => 400 ) );
+			}
+		}
+
 		$files = $request->get_file_params();
-		foreach ( self::REQUIRED as $field ) {
+		// r47 — a writer (often a student without an NID yet) may apply without it; reporters still need it.
+		foreach ( 'writer' === $track ? array() : self::REQUIRED as $field ) {
 			if ( empty( $files[ $field ] ) || UPLOAD_ERR_OK !== $files[ $field ]['error'] ) {
 				$too_big = ! empty( $files[ $field ] ) && in_array( (int) $files[ $field ]['error'], array( UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE ), true );
 				return new WP_Error(
@@ -202,6 +232,7 @@ class NROS_Applications {
 				'division'  => $division,
 				'district'  => $district,
 				'upazila'   => $upazila,
+				'track'     => $track,
 				'status'    => 'pending',
 				'created_at' => $now,
 				'updated_at' => $now,
@@ -211,6 +242,9 @@ class NROS_Applications {
 		// (missing/old table, a 4-byte character in a non-utf8mb4 table…)
 		// still told the applicant "submitted" while nothing reached the
 		// publisher app. Repair the table once and retry; otherwise say so.
+		if ( 'writer' === $track ) {
+			$row = array_merge( $row, $writer );
+		}
 		$inserted = $wpdb->insert( $table, $row );
 		if ( false === $inserted ) {
 			NROS_Core::create_tables();
@@ -252,7 +286,7 @@ class NROS_Applications {
 		if ( $admin_email ) {
 			wp_mail(
 				$admin_email,
-				'নতুন সংবাদদাতা আবেদন — ' . $full_name,
+				( 'writer' === $track ? 'নতুন লেখক আবেদন (মিহা কলম) — ' : 'নতুন সংবাদদাতা আবেদন — ' ) . $full_name,
 				"নতুন একটি সংবাদদাতা আবেদন জমা হয়েছে।\n\nনাম: {$full_name}\nইমেইল: {$email}\nফোন: {$phone}\n\nওয়ার্ডপ্রেস অ্যাডমিন থেকে যাচাই করুন।"
 			);
 		}
@@ -474,7 +508,7 @@ class NROS_Applications {
 
 		$existing_id = email_exists( $app['email'] );
 		if ( $existing_id ) {
-			return self::upgrade_existing_user( $app, (int) $existing_id );
+			return self::upgrade_existing_user( $app, (int) $existing_id, sanitize_text_field( (string) $request->get_param( 'title' ) ) );
 		}
 
 		$username = sanitize_user( current( explode( '@', $app['email'] ) ) . '-' . wp_generate_password( 4, false ), true );
@@ -495,12 +529,16 @@ class NROS_Applications {
 		}
 
 		self::apply_application_meta( $user_id, $app );
+		if ( class_exists( 'NROS_Writers' ) ) { // r47 — track, writer fields, উপাধি (publisher's choice or the group default)
+			NROS_Writers::apply_from_application( $user_id, $app, sanitize_text_field( (string) $request->get_param( 'title' ) ) );
+		}
 		self::mark_approved( $id, $user_id );
 
+		$is_writer = isset( $app['track'] ) && 'writer' === $app['track'];
 		wp_mail(
 			$app['email'],
-			'মিহা নিউজ — সংবাদদাতা একাউন্ট অনুমোদিত হয়েছে',
-			"প্রিয় {$app['full_name']},\n\nআপনার সংবাদদাতা আবেদন অনুমোদিত হয়েছে।\n\nলগইন: {$username}\nপাসওয়ার্ড: {$password}\n\nhttps://correspondent.meeha.news থেকে লগইন করুন।"
+			$is_writer ? 'মিহা নিউজ — মিহা কলমে লেখক একাউন্ট অনুমোদিত হয়েছে' : 'মিহা নিউজ — সংবাদদাতা একাউন্ট অনুমোদিত হয়েছে',
+			"প্রিয় {$app['full_name']},\n\n" . ( $is_writer ? 'মিহা কলমে আপনার লেখক আবেদন অনুমোদিত হয়েছে। অ্যাপ থেকে ফিচার, গল্প, কবিতা, প্রবন্ধ পাঠাতে পারবেন।' : 'আপনার সংবাদদাতা আবেদন অনুমোদিত হয়েছে।' ) . "\n\nলগইন: {$username}\nপাসওয়ার্ড: {$password}\n\nhttps://correspondent.meeha.news থেকে লগইন করুন।"
 		);
 
 		return new WP_REST_Response(
@@ -530,9 +568,10 @@ class NROS_Applications {
 	 *
 	 * @param array $app     Application row.
 	 * @param int   $user_id Existing user id.
+	 * @param string $title   r47 — the publisher's উপাধি ('' = group default for writers).
 	 * @return WP_REST_Response|WP_Error
 	 */
-	protected static function upgrade_existing_user( $app, $user_id ) {
+	protected static function upgrade_existing_user( $app, $user_id, $title = '' ) {
 		$user = get_userdata( $user_id );
 		if ( ! $user ) {
 			return new WP_Error( 'nros_not_found', 'ব্যবহারকারী পাওয়া যায়নি।', array( 'status' => 404 ) );
@@ -558,6 +597,9 @@ class NROS_Applications {
 		$user->add_role( 'correspondent' );
 
 		self::fill_blank_profile( get_userdata( $user_id ), $app );
+		if ( class_exists( 'NROS_Writers' ) ) { // r47
+			NROS_Writers::apply_from_application( $user_id, $app, $title );
+		}
 		self::mark_approved( (int) $app['id'], $user_id );
 
 		$reset_url     = wp_lostpassword_url();
