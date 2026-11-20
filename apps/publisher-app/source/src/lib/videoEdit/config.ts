@@ -497,6 +497,10 @@ export interface EditConfig {
     bottom: number
     /** Round 27: 'lively' adds a light sweep and accent motion; 'calm' is the old look. */
     motion: FrameMotion
+    /** r48: title size on top of the automatic fit (0.7–1.5, 1 = automatic). */
+    titleScale: number
+    /** r48: the title's typeface — 'sans' (Noto Sans Bengali) or 'display' (Baloo Da 2, rounder and heavier). */
+    titleFont: 'sans' | 'display'
   }
   /** Round 28: the Meeha News watermark that fades from place to place over the news. */
   watermark: {
@@ -554,7 +558,7 @@ export const DEFAULT_CONFIG: EditConfig = {
   fit: 'blur',
   quality: '1080',
   fileSize: 'balanced',
-  frame: { id: 'none', title: '', kicker: '', date: true, footer: 'ticker', ticker: '', adText: '', adImage: null, size: 'auto', top: 1, bottom: 1, motion: 'lively', titlePos: 'top' },
+  frame: { id: 'none', title: '', kicker: '', date: true, footer: 'ticker', ticker: '', adText: '', adImage: null, size: 'auto', top: 1, bottom: 1, motion: 'lively', titlePos: 'top', titleScale: 1, titleFont: 'sans' },
   logo: { on: false, style: 'reveal', corner: 'tr', size: 6, every: 12, plate: true, opacity: 1 },
   watermark: { on: true, style: 'hop', size: 6, every: 9, opacity: 0.42, site: true },
   intro: { id: 'none', text: '', clip: null, cover: true },
@@ -999,6 +1003,8 @@ export function normalizeConfig(raw: unknown): EditConfig {
       titlePos: oneOf(frame.titlePos, ['top', 'bottom'] as const, 'top'),
       bottom: num(frame.bottom, 1, 1, 2),
       motion: oneOf(frame.motion, ['lively', 'calm'] as const, d.frame.motion),
+      titleScale: num(frame.titleScale, 1, 0.7, 1.5),
+      titleFont: oneOf(frame.titleFont, ['sans', 'display'] as const, 'sans'),
     },
     watermark: {
       on: bool(o.watermark?.on, d.watermark.on),

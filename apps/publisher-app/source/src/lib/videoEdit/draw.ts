@@ -17,7 +17,7 @@ import { drawFreezeOverlay, drawSticker, drawTransition, transitionAt, transitio
 import { BRAND, FONT_BODY, FONT_DISPLAY, type LogoAsset } from './assets'
 import type { SfxId } from './sfxlib'
 import { EMPTY_HOUSE, drawHouseAd, netIcon, type HouseAdId, type HouseInfo } from './houseads'
-import { clamp, ease, fillRoundRect, fitText, lerp, rnd, win, type Ctx } from './motion'
+import { HEADER_ART, clamp, ease, fillRoundRect, fitText, lerp, rnd, win, type Ctx } from './motion'
 import { PACK_SCENE_SFX, PACK_THEMES, drawLowerThird, drawPackScene, isLowerThird, packSettledAt } from './pack'
 import { pipActive, segSource, segSourceEnd, type Layout, type Rect, type SceneId, type Segment, type Timeline } from './timeline'
 
@@ -802,25 +802,27 @@ const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
       ])
       ctx.fillRect(r.x, r.y, r.w, r.h)
       // two ribbons drifting at the right end
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(r.x, r.y, r.w, r.h)
-      ctx.clip()
-      const drift = Math.sin(t * 0.8) * 18 * s
-      const rib = (x: number, w: number, color: string) => {
+      if (HEADER_ART) {
+        ctx.save()
         ctx.beginPath()
-        ctx.moveTo(x + r.h * 0.5, r.y)
-        ctx.lineTo(x + r.h * 0.5 + w, r.y)
-        ctx.lineTo(x + w, r.y + r.h)
-        ctx.lineTo(x, r.y + r.h)
-        ctx.closePath()
-        ctx.fillStyle = color
-        ctx.fill()
+        ctx.rect(r.x, r.y, r.w, r.h)
+        ctx.clip()
+        const drift = Math.sin(t * 0.8) * 18 * s
+        const rib = (x: number, w: number, color: string) => {
+          ctx.beginPath()
+          ctx.moveTo(x + r.h * 0.5, r.y)
+          ctx.lineTo(x + r.h * 0.5 + w, r.y)
+          ctx.lineTo(x + w, r.y + r.h)
+          ctx.lineTo(x, r.y + r.h)
+          ctx.closePath()
+          ctx.fillStyle = color
+          ctx.fill()
+        }
+        rib(r.x + r.w - 150 * s + drift, 46 * s, 'rgba(249,115,22,0.85)')
+        rib(r.x + r.w - 92 * s + drift * 0.6, 24 * s, 'rgba(2,90,178,0.85)')
+        rib(r.x + r.w - 220 * s - drift * 0.5, 14 * s, 'rgba(2,90,178,0.18)')
+        ctx.restore()
       }
-      rib(r.x + r.w - 150 * s + drift, 46 * s, 'rgba(249,115,22,0.85)')
-      rib(r.x + r.w - 92 * s + drift * 0.6, 24 * s, 'rgba(2,90,178,0.85)')
-      rib(r.x + r.w - 220 * s - drift * 0.5, 14 * s, 'rgba(2,90,178,0.18)')
-      ctx.restore()
     },
     footerBg: (ctx, r) => {
       ctx.fillStyle = BRAND.blue
@@ -1257,16 +1259,18 @@ const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
       ], -0.3)
       ctx.fillRect(r.x, r.y, r.w, r.h)
       // the red disc of the flag, rising gently at the right
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(r.x, r.y, r.w, r.h)
-      ctx.clip()
-      const rr = r.h * 0.42
-      ctx.fillStyle = '#F42A41'
-      ctx.beginPath()
-      ctx.arc(r.x + r.w - rr * 1.6, r.y + r.h * 0.55 - Math.min(1, t / 1.5) * r.h * 0.05, rr, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.restore()
+      if (HEADER_ART) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(r.x, r.y, r.w, r.h)
+        ctx.clip()
+        const rr = r.h * 0.42
+        ctx.fillStyle = '#F42A41'
+        ctx.beginPath()
+        ctx.arc(r.x + r.w - rr * 1.6, r.y + r.h * 0.55 - Math.min(1, t / 1.5) * r.h * 0.05, rr, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+      }
       sweep(ctx, r, t, 7, 0.1)
     },
     footerBg: (ctx, r, _t, s) => {
@@ -1293,30 +1297,32 @@ const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
         [1, '#38A3E8'],
       ], Math.PI / 2)
       ctx.fillRect(r.x, r.y, r.w, r.h)
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(r.x, r.y, r.w, r.h)
-      ctx.clip()
-      // a sun behind slow clouds at the right
-      const sx = r.x + r.w - r.h * 0.9
-      const sy = r.y + r.h * 0.45
-      ctx.fillStyle = 'rgba(255,214,90,0.9)'
-      ctx.beginPath()
-      ctx.arc(sx, sy, r.h * 0.26, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.fillStyle = 'rgba(255,255,255,0.75)'
-      const zone = Math.min(r.w * 0.3, r.h * 2.2)
-      for (let i = 0; i < 3; i++) {
-        const cx = r.x + r.w - zone + ((zone * (0.1 + i * 0.3) + t * (10 + i * 5) * s) % (zone * 0.85))
-        const cy = r.y + r.h * (0.35 + (i % 2) * 0.3)
-        const cr = Math.min(r.h * (0.1 + (i % 3) * 0.025), zone * 0.07)
+      if (HEADER_ART) {
+        ctx.save()
         ctx.beginPath()
-        ctx.arc(cx, cy, cr, 0, Math.PI * 2)
-        ctx.arc(cx + cr * 1.1, cy - cr * 0.3, cr * 1.2, 0, Math.PI * 2)
-        ctx.arc(cx + cr * 2.2, cy, cr * 0.9, 0, Math.PI * 2)
+        ctx.rect(r.x, r.y, r.w, r.h)
+        ctx.clip()
+        // a sun behind slow clouds at the right
+        const sx = r.x + r.w - r.h * 0.9
+        const sy = r.y + r.h * 0.45
+        ctx.fillStyle = 'rgba(255,214,90,0.9)'
+        ctx.beginPath()
+        ctx.arc(sx, sy, r.h * 0.26, 0, Math.PI * 2)
         ctx.fill()
+        ctx.fillStyle = 'rgba(255,255,255,0.75)'
+        const zone = Math.min(r.w * 0.3, r.h * 2.2)
+        for (let i = 0; i < 3; i++) {
+          const cx = r.x + r.w - zone + ((zone * (0.1 + i * 0.3) + t * (10 + i * 5) * s) % (zone * 0.85))
+          const cy = r.y + r.h * (0.35 + (i % 2) * 0.3)
+          const cr = Math.min(r.h * (0.1 + (i % 3) * 0.025), zone * 0.07)
+          ctx.beginPath()
+          ctx.arc(cx, cy, cr, 0, Math.PI * 2)
+          ctx.arc(cx + cr * 1.1, cy - cr * 0.3, cr * 1.2, 0, Math.PI * 2)
+          ctx.arc(cx + cr * 2.2, cy, cr * 0.9, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        ctx.restore()
       }
-      ctx.restore()
       sweep(ctx, r, t, 8, 0.1)
     },
     footerBg: (ctx, r, _t, s) => {
@@ -1399,40 +1405,42 @@ const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
         [1, '#0EA5A0'],
       ], -0.3)
       ctx.fillRect(r.x, r.y, r.w, r.h)
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(r.x, r.y, r.w, r.h)
-      ctx.clip()
-      // a heartbeat line running across the right half
-      const w = Math.max(0, Math.min(r.w * 0.3, r.h * 3.3) - r.h * 0.9)
-      const x0 = r.x + r.w - w - r.h * 0.9
-      const cy = r.y + r.h * 0.55
-      const head = (t * 0.35) % 1
-      ctx.strokeStyle = 'rgba(255,255,255,0.55)'
-      ctx.lineWidth = 4 * s
-      ctx.lineJoin = 'round'
-      ctx.beginPath()
-      const n = 60
-      for (let i = 0; i <= n; i++) {
-        const u = i / n
-        const ph = (u * 3) % 1
-        let y = 0
-        if (ph > 0.4 && ph < 0.45) y = -0.3
-        else if (ph >= 0.45 && ph < 0.5) y = 0.45
-        else if (ph >= 0.5 && ph < 0.55) y = -0.15
-        const x = x0 + u * w
-        const fade = u <= head ? 1 : 0.25
-        if (i === 0) ctx.moveTo(x, cy + y * r.h)
-        else ctx.lineTo(x, cy + y * r.h * fade)
+      if (HEADER_ART) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(r.x, r.y, r.w, r.h)
+        ctx.clip()
+        // a heartbeat line running across the right half
+        const w = Math.max(0, Math.min(r.w * 0.3, r.h * 3.3) - r.h * 0.9)
+        const x0 = r.x + r.w - w - r.h * 0.9
+        const cy = r.y + r.h * 0.55
+        const head = (t * 0.35) % 1
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)'
+        ctx.lineWidth = 4 * s
+        ctx.lineJoin = 'round'
+        ctx.beginPath()
+        const n = 60
+        for (let i = 0; i <= n; i++) {
+          const u = i / n
+          const ph = (u * 3) % 1
+          let y = 0
+          if (ph > 0.4 && ph < 0.45) y = -0.3
+          else if (ph >= 0.45 && ph < 0.5) y = 0.45
+          else if (ph >= 0.5 && ph < 0.55) y = -0.15
+          const x = x0 + u * w
+          const fade = u <= head ? 1 : 0.25
+          if (i === 0) ctx.moveTo(x, cy + y * r.h)
+          else ctx.lineTo(x, cy + y * r.h * fade)
+        }
+        ctx.stroke()
+        // the white cross
+        const cx = r.x + r.w - r.h * 0.45
+        const k = r.h * 0.11
+        ctx.fillStyle = 'rgba(255,255,255,0.9)'
+        ctx.fillRect(cx - k, r.y + r.h * 0.18, k * 2, k * 6)
+        ctx.fillRect(cx - k * 3, r.y + r.h * 0.18 + k * 2, k * 6, k * 2)
+        ctx.restore()
       }
-      ctx.stroke()
-      // the white cross
-      const cx = r.x + r.w - r.h * 0.45
-      const k = r.h * 0.11
-      ctx.fillStyle = 'rgba(255,255,255,0.9)'
-      ctx.fillRect(cx - k, r.y + r.h * 0.18, k * 2, k * 6)
-      ctx.fillRect(cx - k * 3, r.y + r.h * 0.18 + k * 2, k * 6, k * 2)
-      ctx.restore()
     },
     footerBg: (ctx, r, _t, s) => {
       ctx.fillStyle = '#FFFFFF'
@@ -1458,32 +1466,34 @@ const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
         [1, '#0B1E4A'],
       ], 0)
       ctx.fillRect(r.x, r.y, r.w, r.h)
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(r.x, r.y, r.w, r.h)
-      ctx.clip()
-      // circuit traces with pulses of light running along them
-      ctx.strokeStyle = 'rgba(34,211,238,0.22)'
-      ctx.lineWidth = 2 * s
-      for (let i = 0; i < 7; i++) {
-        const y = r.y + r.h * (0.12 + i * 0.13)
-        const x0 = r.x + r.w * (0.68 + rnd(i) * 0.08)
-        const bend = r.x + r.w * (0.8 + rnd(i + 9) * 0.1)
+      if (HEADER_ART) {
+        ctx.save()
         ctx.beginPath()
-        ctx.moveTo(x0, y)
-        ctx.lineTo(bend, y)
-        ctx.lineTo(bend + 20 * s, y + 20 * s * (i % 2 ? 1 : -1))
-        ctx.lineTo(r.x + r.w, y + 20 * s * (i % 2 ? 1 : -1))
-        ctx.stroke()
-        const p = (t * (0.25 + rnd(i + 3) * 0.2) + rnd(i + 5)) % 1
-        const px = x0 + (r.x + r.w - x0) * p
-        const py = px < bend ? y : y + 20 * s * (i % 2 ? 1 : -1)
-        ctx.fillStyle = 'rgba(34,211,238,0.9)'
-        ctx.beginPath()
-        ctx.arc(px, py, 4 * s, 0, Math.PI * 2)
-        ctx.fill()
+        ctx.rect(r.x, r.y, r.w, r.h)
+        ctx.clip()
+        // circuit traces with pulses of light running along them
+        ctx.strokeStyle = 'rgba(34,211,238,0.22)'
+        ctx.lineWidth = 2 * s
+        for (let i = 0; i < 7; i++) {
+          const y = r.y + r.h * (0.12 + i * 0.13)
+          const x0 = r.x + r.w * (0.68 + rnd(i) * 0.08)
+          const bend = r.x + r.w * (0.8 + rnd(i + 9) * 0.1)
+          ctx.beginPath()
+          ctx.moveTo(x0, y)
+          ctx.lineTo(bend, y)
+          ctx.lineTo(bend + 20 * s, y + 20 * s * (i % 2 ? 1 : -1))
+          ctx.lineTo(r.x + r.w, y + 20 * s * (i % 2 ? 1 : -1))
+          ctx.stroke()
+          const p = (t * (0.25 + rnd(i + 3) * 0.2) + rnd(i + 5)) % 1
+          const px = x0 + (r.x + r.w - x0) * p
+          const py = px < bend ? y : y + 20 * s * (i % 2 ? 1 : -1)
+          ctx.fillStyle = 'rgba(34,211,238,0.9)'
+          ctx.beginPath()
+          ctx.arc(px, py, 4 * s, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        ctx.restore()
       }
-      ctx.restore()
       sweep(ctx, r, t, 6, 0.08)
     },
     footerBg: (ctx, r, _t, s) => {
@@ -1510,33 +1520,35 @@ const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
         [1, NIL.royal],
       ], -0.2)
       ctx.fillRect(r.x, r.y, r.w, r.h)
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(r.x, r.y, r.w, r.h)
-      ctx.clip()
-      // a turning wire globe at the right
-      const R = r.h * 0.62
-      const cx = r.x + r.w - R * 0.9
-      const cy = r.y + r.h * 0.6
-      ctx.strokeStyle = 'rgba(255,255,255,0.22)'
-      ctx.lineWidth = 2 * s
-      ctx.beginPath()
-      ctx.arc(cx, cy, R, 0, Math.PI * 2)
-      ctx.stroke()
-      for (let i = 0; i < 5; i++) {
-        const ph = ((i / 5) * Math.PI + t * 0.5) % Math.PI
+      if (HEADER_ART) {
+        ctx.save()
         ctx.beginPath()
-        ctx.ellipse(cx, cy, Math.max(0.5, Math.abs(Math.cos(ph)) * R), R, 0, 0, Math.PI * 2)
-        ctx.stroke()
-      }
-      for (let i = -2; i <= 2; i++) {
-        const y = cy + (R * i) / 3
-        const rw = Math.sqrt(Math.max(0, R * R - (y - cy) * (y - cy)))
+        ctx.rect(r.x, r.y, r.w, r.h)
+        ctx.clip()
+        // a turning wire globe at the right
+        const R = r.h * 0.62
+        const cx = r.x + r.w - R * 0.9
+        const cy = r.y + r.h * 0.6
+        ctx.strokeStyle = 'rgba(255,255,255,0.22)'
+        ctx.lineWidth = 2 * s
         ctx.beginPath()
-        ctx.ellipse(cx, y, rw, rw * 0.1, 0, 0, Math.PI * 2)
+        ctx.arc(cx, cy, R, 0, Math.PI * 2)
         ctx.stroke()
+        for (let i = 0; i < 5; i++) {
+          const ph = ((i / 5) * Math.PI + t * 0.5) % Math.PI
+          ctx.beginPath()
+          ctx.ellipse(cx, cy, Math.max(0.5, Math.abs(Math.cos(ph)) * R), R, 0, 0, Math.PI * 2)
+          ctx.stroke()
+        }
+        for (let i = -2; i <= 2; i++) {
+          const y = cy + (R * i) / 3
+          const rw = Math.sqrt(Math.max(0, R * R - (y - cy) * (y - cy)))
+          ctx.beginPath()
+          ctx.ellipse(cx, y, rw, rw * 0.1, 0, 0, Math.PI * 2)
+          ctx.stroke()
+        }
+        ctx.restore()
       }
-      ctx.restore()
       sweep(ctx, r, t, 7, 0.1)
     },
     footerBg: (ctx, r, _t, s) => {
@@ -1902,8 +1914,9 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   const minimal = env.cfg.frame.id === 'minimal'
   // room kept free for the campus frame's ribbons
   const fid = env.cfg.frame.id
-  const extraR =
-    fid === 'campus'
+  const extraR = !HEADER_ART
+    ? 0
+    : fid === 'campus'
       ? 170 * s
       : fid === 'national'
         ? Math.min(r.h * 0.9, 190 * s)
@@ -1955,20 +1968,8 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   const top = hasRow ? r.y + 84 * s : r.y + 18 * s
   const bottom = r.y + r.h - 20 * s
   const avail = bottom - top
-  const font = (px: number) => bodyFont(700, px)
-  // round 29: the biggest size that shows the whole title in 1, 2 or 3 lines.
-  // r47 (field report): long Bengali titles used to bottom out at a tiny size next to a big
-  // frame — the caps and the floor are higher now, and three lines are always allowed, so the
-  // title stays in proportion with the band instead of shrinking to fit two lines.
-  const tries = [1, 2, 3]
-  let fit = fitText(ctx, title, font, maxW, 3, Math.min(54 * s0 * hk, avail / 2.2), 30 * s0)
-  for (const n of tries) {
-    const cap = n === 1 ? Math.min(68 * s0 * hk, avail * 0.8) : Math.min((n === 2 ? 58 : 50) * s0 * hk, avail / (n * 1.15))
-    const f2 = fitText(ctx, title, font, maxW, n, cap, Math.min(cap, (n === 1 ? 44 : 30) * s0))
-    ctx.font = font(f2.size)
-    const whole = f2.lines.length > 0 && !f2.lines[f2.lines.length - 1].endsWith('…') && f2.lines.every((l) => ctx.measureText(l).width <= maxW + 0.5)
-    if (whole && f2.size > fit.size) fit = f2
-  }
+  const font = env.cfg.frame.titleFont === 'display' ? (px: number) => `800 ${px}px ${FONT_DISPLAY}` : (px: number) => bodyFont(700, px)
+  const fit = headerFit(ctx, title, font, maxW, avail, s0, hk, env.cfg.frame.titleScale)
   const blockH = fit.lines.length * fit.lineHeight
   const y0 = top + (avail - blockH) / 2
   ctx.save()
@@ -1990,7 +1991,7 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   // lively: a TV-style colour bar wipes across each line and leaves the text behind it
   // (round 29: the text is already there; the bar runs over it once at the start)
   fit.lines.forEach((line, i) => {
-    const lw = Math.min(maxW, ctx.measureText(line).width)
+    const lw = Math.min(maxW, fit.widths[i])
     const cy = y0 + fit.lineHeight * (i + 0.5)
     const a = 0.25 + i * 0.12
     const grow = ease.outCubic(win(open, a, a + 0.32))
@@ -2004,6 +2005,36 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
     }
   })
   ctx.restore()
+}
+
+/**
+ * r48 — the header title's size and line breaks, worked out once per title/size/width and then
+ * reused: it used to be measured again on every frame (a few hundred measureText calls per frame,
+ * 36,000 frames in a 20-minute video). `scale` is the publisher's size slider on top of the fit.
+ */
+const headerFitCache = new Map<string, { size: number; lines: string[]; lineHeight: number; widths: number[] }>()
+function headerFit(ctx: Ctx, title: string, font: (px: number) => string, maxW: number, avail: number, s0: number, hk: number, scale: number) {
+  const key = `${font(10)}|${title}|${Math.round(maxW)}|${Math.round(avail)}|${s0.toFixed(4)}|${hk.toFixed(4)}|${scale}`
+  const hit = headerFitCache.get(key)
+  if (hit) return hit
+  const k = scale > 0 ? scale : 1
+  // round 29: the biggest size that shows the whole title in 1, 2 or 3 lines.
+  // r47 (field report): long Bengali titles used to bottom out at a tiny size next to a big
+  // frame — the caps and the floor are higher now, and three lines are always allowed.
+  // r48: with no icon beside it the title has the full width; the size slider scales caps and floor.
+  let fit = fitText(ctx, title, font, maxW, 3, Math.min(54 * s0 * hk * k, avail / 2.2), 30 * s0 * Math.min(1, k))
+  for (const n of [1, 2, 3]) {
+    const cap = n === 1 ? Math.min(68 * s0 * hk * k, avail * 0.8) : Math.min((n === 2 ? 58 : 50) * s0 * hk * k, avail / (n * 1.15))
+    const f2 = fitText(ctx, title, font, maxW, n, cap, Math.min(cap, (n === 1 ? 44 : 30) * s0 * Math.min(1, k)))
+    ctx.font = font(f2.size)
+    const whole = f2.lines.length > 0 && !f2.lines[f2.lines.length - 1].endsWith('…') && f2.lines.every((l) => ctx.measureText(l).width <= maxW + 0.5)
+    if (whole && f2.size > fit.size) fit = f2
+  }
+  ctx.font = font(fit.size)
+  const out = { size: fit.size, lines: fit.lines, lineHeight: fit.lineHeight, widths: fit.lines.map((l) => ctx.measureText(l).width) }
+  if (headerFitCache.size > 200) headerFitCache.clear()
+  headerFitCache.set(key, out)
+  return out
 }
 
 // ---------------------------------------------------------------------------

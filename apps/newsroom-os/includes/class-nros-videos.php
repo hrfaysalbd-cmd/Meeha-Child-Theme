@@ -938,6 +938,27 @@ class NROS_Videos {
 		}
 		$post_id = (int) $post_id;
 
+		// r48 (1.30.0) — a video moving from an uploaded file to a YouTube link remembers its files,
+		// so the publisher's স্টোরেজ ম্যানেজার knows they belong to a news that now plays from YouTube
+		// and can be deleted from the server.
+		if ( $post && 'upload' === $current_source && 'youtube' === $source ) {
+			$prev = array_filter(
+				array(
+					(int) get_post_meta( $post_id, '_meeha_video_attachment_id', true ),
+					(int) get_post_meta( $post_id, '_meeha_video_original_id', true ),
+				)
+			);
+			$foot = json_decode( (string) get_post_meta( $post_id, '_meeha_video_footage', true ), true );
+			foreach ( is_array( $foot ) ? $foot : array() as $fid ) {
+				$prev[] = (int) $fid;
+			}
+			$old = json_decode( (string) get_post_meta( $post_id, '_meeha_video_prev_media', true ), true );
+			$prev = array_values( array_unique( array_filter( array_merge( is_array( $old ) ? array_map( 'intval', $old ) : array(), $prev ) ) ) );
+			if ( $prev ) {
+				$meta_set['_meeha_video_prev_media'] = wp_json_encode( $prev );
+			}
+		}
+
 		foreach ( $meta_set as $key => $value ) {
 			update_post_meta( $post_id, $key, $value );
 		}

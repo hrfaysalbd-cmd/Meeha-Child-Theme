@@ -10,13 +10,11 @@
  * post; the original file and the settings are kept on the post so the
  * edit can be reopened or undone (NROS_Videos `edit`).
  */
-import { applyAutoStyle } from '../lib/videoEdit/autostyle'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   AdminVideosApi,
   ApiError,
-  CategoriesApi,
   MediaApi,
   PhotocardApi,
   VideoKitApi,
@@ -34,7 +32,8 @@ import { EMPTY_HOUSE, HOUSE_ADS, houseInfo, type HouseAdId, type HouseInfo } fro
 import { bnClock, bnDate } from '../lib/videoEdit/motion'
 import { PreviewPlayer, probeUrl, type PreviewState } from '../lib/videoEdit/preview'
 import { prepareVoices } from '../lib/videoEdit/audio'
-import { RenderCancelled, exportCapability, pickBitrate, renderAudioPreview, renderEdit, type RenderProgress } from '../lib/videoEdit/render'
+import { RenderCancelled, exportCapability, pickBitrate, probeClip, renderAudioPreview, renderEdit, type RenderProgress, type RenderTiming } from '../lib/videoEdit/render'
+import { recallOriginal, rememberOriginal, saveToComputer, videoExt } from '../lib/videoEdit/sessionFiles'
 import { musicBuffer } from '../lib/videoEdit/music'
 import { AnalysisCancelled, reframeTrack, waveformPeaks, type Waveform } from '../lib/videoEdit/analyse'
 import { grabFrame, thumbnailJpeg, thumbSource } from '../lib/videoEdit/thumb'
@@ -51,7 +50,10 @@ import {
   IconArrowLeft,
   IconBadgeLogo,
   IconBolt,
+  IconBrandYoutube,
   IconCheck,
+  IconExternalLink,
+  IconUpload,
   IconDeviceFloppy,
   IconDownload,
   IconLayoutRows,
@@ -149,7 +151,7 @@ type Job =
    * (the পোস্টে বসান button); `note` says why an upload stopped; `restored`:
    * kept in the browser from an earlier visit.
    */
-  | { stage: 'done'; url: string; size: number; attached: boolean; filename: string; tooLarge: boolean; extras: Extra[]; canAttach?: boolean; note?: string | null; restored?: number | null; mime?: string }
+  | { stage: 'done'; url: string; size: number; attached: boolean; filename: string; tooLarge: boolean; extras: Extra[]; canAttach?: boolean; note?: string | null; restored?: number | null; mime?: string; timing?: RenderTiming; posterUrl?: string | null; youtube?: string | null }
   /** `resume`: the render is kept, only the upload is tried again. */
   | { stage: 'error'; message: string; resume?: boolean }
 
@@ -217,12 +219,6 @@ export default function VideoStudio() {
   const [extraFormats, setExtraFormats] = useState<FormatId[]>([])
   const analysisRef = useRef<{ wave: AbortController | null; reframe: AbortController | null }>({ wave: null, reframe: null })
   const [job, setJob] = useState<Job | null>(null)
-  // round 28: upload only on পোস্টে বসান, unless this is ticked (round 30: remembered)
-  const [attach, setAttachRaw] = useState(() => readJson('meeha-studio:auto-attach') === true)
-  const setAttach = (v: boolean) => {
-    setAttachRaw(v)
-    writeJson('meeha-studio:auto-attach', v)
-  }
   // round 30: the render dialog folded away while the job goes on in the background
   const [bg, setBg] = useState(false)
   // round 30: what the studio shows (the tick bar at the top)
@@ -277,9 +273,16 @@ export default function VideoStudio() {
   const abortRef = useRef<AbortController | null>(null)
   const blobCache = useRef(new Map<string, Blob>())
   const resultUrl = useRef<string | null>(null)
+  const posterUrl = useRef<string | null>(null)
   const pendingRef = useRef<Pending | null>(null)
   const extraUrls = useRef<string[]>([])
   const capability = useMemo(() => exportCapability(), [])
+  // r48: the original on this computer — the studio plays and renders from it, never streaming
+  // or downloading it from the server again
+  const [localSrc, setLocalSrc] = useState<{ url: string; name: string; size: number } | null>(null)
+  const [origJob, setOrigJob] = useState<null | { pct: number } | { error: string }>(null)
+  const localFileRef = useRef<HTMLInputElement>(null)
+  const origAbort = useRef<AbortController | null>(null)
 
   // ---- load everything ----
   useEffect(() => {
@@ -324,9 +327,8 @@ export default function VideoStudio() {
           const style = readJson(STYLE_KEY)
           initial = style ? normalizeConfig(style) : { ...DEFAULT_CONFIG }
           initial = { ...initial, frame: { ...initial.frame, ticker: kitRes?.ticker ?? '', adText: initial.frame.adText || kitRes?.ad_text || '' } }
-          // r46: a first edit gets music, frame, intro, outro and name plate picked from its category and title
-          const catName = video.category_id ? ((await CategoriesApi.list().catch(() => [])) as { id: number; name: string }[]).find((c) => c.id === video.category_id)?.name ?? '' : ''
-          initial = applyAutoStyle(initial, catName, video.title)
+          // r48 (Hafiz): no automatic style any more — it often picked the wrong look. A first edit
+          // starts from the publisher's last used style (or the default) and they pick the rest.
         }
         if (cancelled) return
         setKit(kitRes)
@@ -351,6 +353,19 @@ export default function VideoStudio() {
       cancelled = true
     }
   }, [videoId])
+
+  // r48: the original downloaded on the post page (same tab) is used straight away
+  useEffect(() => {
+    if (!loaded) return
+    const kept = recallOriginal(loaded.originalId)
+    if (!kept) return
+    blobCache.current.set(`m${loaded.originalId}`, kept.blob)
+    const url = URL.createObjectURL(kept.blob)
+    setLocalSrc((old) => {
+      if (old) URL.revokeObjectURL(old.url)
+      return { url, name: kept.name, size: kept.blob.size }
+    })
+  }, [loaded?.originalId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- config updates with undo ----
   const set = useCallback((fn: (c: EditConfig) => EditConfig) => {
@@ -401,7 +416,7 @@ export default function VideoStudio() {
   const urls = useMemo(() => {
     const u: Partial<Record<ClipKey, string>> = {}
     if (!loaded) return u
-    u.main = loaded.mainUrl
+    u.main = localSrc?.url ?? loaded.mainUrl
     if (cfg.intro.id === 'meeha-logo') u.intro = BUILTIN_CLIPS['meeha-logo']
     else if (cfg.intro.id === 'custom' && cfg.intro.clip) u.intro = cfg.intro.clip.url
     if (cfg.outro.id === 'meeha-social') u.outro = BUILTIN_CLIPS['meeha-social']
@@ -411,7 +426,7 @@ export default function VideoStudio() {
     })
     if (cfg.pip?.clip) u.pip = cfg.pip.clip.url
     return u
-  }, [loaded, cfg.intro, cfg.outro, cfg.ads, cfg.pip])
+  }, [loaded, localSrc, cfg.intro, cfg.outro, cfg.ads, cfg.pip])
 
   useEffect(() => {
     for (const url of Object.values(urls)) {
@@ -616,24 +631,82 @@ export default function VideoStudio() {
   )
 
   // ---- keyboard ----
+  // r48: a fuller desktop set — J K L, Home/End, I/O trim at the playhead, Ctrl+Enter render,
+  // Alt+1…9 switch panels, ? shows the list. Nothing fires while typing in a field.
+  const [keysOpen, setKeysOpen] = useState(false)
+  const [flash, setFlash] = useState('')
+  const flashTimer = useRef<number | undefined>(undefined)
+  const say = (m: string) => {
+    setFlash(m)
+    window.clearTimeout(flashTimer.current)
+    flashTimer.current = window.setTimeout(() => setFlash(''), 1800)
+  }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName
-      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) {
+      const el = e.target as HTMLElement
+      const tag = el?.tagName
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!el?.isContentEditable
+      const mod = e.ctrlKey || e.metaKey
+      const k = e.key.toLowerCase()
+      const p = playerRef.current
+      if (mod && k === 'z' && !typing) {
         e.preventDefault()
         if (e.shiftKey) redo()
         else undo()
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y' && !typing) {
+      } else if (mod && k === 'y' && !typing) {
         e.preventDefault()
         redo()
-      } else if (e.code === 'Space' && !typing && !job) {
+      } else if (mod && k === 's') {
         e.preventDefault()
-        playerRef.current?.toggle()
-      } else if (!typing && !job && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === ',' || e.key === '.')) {
+        say('এডিট নিজে থেকেই এই ব্রাউজারে সেভ হচ্ছে ✓')
+      } else if (mod && e.key === 'Enter') {
+        e.preventDefault()
+        if (!job && loaded) {
+          setBg(false)
+          setJob({ stage: 'options' })
+        } else if (job) setBg(false)
+      } else if (typing || mod) {
+        return
+      } else if (e.altKey && /^Digit[1-9]$/.test(e.code)) {
+        const shown = TABS.filter((t) => !ui.hiddenTabs.includes(t.id))
+        const t = shown[Number(e.code.slice(5)) - 1]
+        if (t) {
+          e.preventDefault()
+          setTab(t.id)
+        }
+      } else if (e.key === '?') {
+        e.preventDefault()
+        setKeysOpen((v) => !v)
+      } else if (e.key === 'Escape' && keysOpen) {
+        setKeysOpen(false)
+      } else if (job || !p) {
+        return
+      } else if (e.code === 'Space' || k === 'k') {
+        e.preventDefault()
+        p.toggle()
+      } else if (k === 'j' || k === 'l') {
+        e.preventDefault()
+        p.seek(p.time + (k === 'j' ? -5 : 5))
+      } else if (e.key === 'Home' || e.key === 'End') {
+        e.preventDefault()
+        p.pause()
+        p.seek(e.key === 'Home' ? 0 : (tl?.duration ?? 0) - 0.05)
+      } else if ((k === 'i' || k === 'o') && tl && loaded) {
+        const src = outputToSource(tl, p.time)
+        if (src === null) {
+          say('এই জায়গাটি মূল ভিডিওর ভেতরে নয় (ইন্ট্রো/বিজ্ঞাপন)')
+          return
+        }
+        e.preventDefault()
+        const dur = loaded.main.duration
+        set((c) =>
+          k === 'i'
+            ? { ...c, trim: { ...c.trim, start: Math.max(0, Math.min(src, (c.trim.end ?? dur) - 0.5)) } }
+            : { ...c, trim: { ...c.trim, end: Math.max(src, c.trim.start + 0.5) >= dur - 0.05 ? null : Math.max(src, c.trim.start + 0.5) } },
+        )
+        say(k === 'i' ? `শুরু কাটা: ${bnClock(src)}` : `শেষ কাটা: ${bnClock(src)}`)
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === ',' || e.key === '.') {
         // ← → one second (Shift: five), , . one frame
-        const p = playerRef.current
-        if (!p) return
         e.preventDefault()
         const step = e.key === ',' || e.key === '.' ? 1 / 30 : e.shiftKey ? 5 : 1
         p.pause()
@@ -642,7 +715,8 @@ export default function VideoStudio() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [undo, redo, job])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [undo, redo, job, set, tl, loaded, ui.hiddenTabs, keysOpen])
 
   // round 27: keep the screen (and so the tab) awake while rendering / uploading
   const working = !!job && job.stage !== 'options' && job.stage !== 'done' && job.stage !== 'error'
@@ -782,6 +856,57 @@ export default function VideoStudio() {
     getBlob(`m${loaded!.originalId}`, (p) => downloadMediaFile(loaded!.originalId, p, signal), 'মূল ভিডিও নামানো হচ্ছে…', signal, report)
   const withPct = (label: string, ratio: number) => (ratio > 0 ? `${label} ${bnNumber(Math.round(ratio * 100))}%` : label)
 
+  /** r48: from now on the studio uses these bytes (preview, sound wave, thumbnail, render). */
+  function adoptLocal(blob: Blob, name: string) {
+    if (!loaded) return
+    blobCache.current.set(`m${loaded.originalId}`, blob)
+    rememberOriginal(loaded.originalId, blob, name)
+    const url = URL.createObjectURL(blob)
+    setLocalSrc((old) => {
+      if (old) URL.revokeObjectURL(old.url)
+      return { url, name, size: blob.size }
+    })
+  }
+
+  /** r48 step 1: the original goes to the computer first, and the studio keeps working from it. */
+  async function downloadOriginal() {
+    if (!loaded) return
+    origAbort.current?.abort()
+    const ctrl = new AbortController()
+    origAbort.current = ctrl
+    setOrigJob({ pct: 0 })
+    try {
+      const blob = await mainBlob(ctrl.signal, (_l, ratio) => setOrigJob({ pct: Math.round(ratio * 100) }))
+      const slug = (loaded.video.slug ? decodeURIComponent(loaded.video.slug) : 'meeha-video').slice(0, 60)
+      const name = `${slug}-original.${videoExt(blob, loaded.mainUrl)}`
+      saveToComputer(blob, name)
+      adoptLocal(blob, name)
+      setOrigJob(null)
+    } catch (err) {
+      setOrigJob(ctrl.signal.aborted ? null : { error: errText(err) })
+    } finally {
+      if (origAbort.current === ctrl) origAbort.current = null
+    }
+  }
+
+  /** r48: after a reload — pick the original that was saved on the computer. */
+  async function openLocalFile(file: File) {
+    if (!loaded) return
+    setOrigJob(null)
+    try {
+      const m = await probeClip(file)
+      if (Math.abs(m.duration - loaded.main.duration) > 2) {
+        setOrigJob({
+          error: `এই ফাইলটি (${bnClock(m.duration)}) এই খবরের মূল ভিডিও (${bnClock(loaded.main.duration)}) নয় বলে মনে হচ্ছে — সঠিক ফাইলটি বেছে নিন।`,
+        })
+        return
+      }
+      adoptLocal(file, file.name)
+    } catch {
+      setOrigJob({ error: 'ফাইলটি পড়া যাচ্ছে না — mp4/webm ভিডিও বেছে নিন।' })
+    }
+  }
+
   // ---- the main video's sound on the timeline ----
   async function loadWave() {
     if (!loaded) return
@@ -911,7 +1036,8 @@ export default function VideoStudio() {
         env: { ...env, scratch: makeScratch() },
         clips,
         voices,
-        maxBytes: loaded.maxBytes,
+        // r48: the file goes to the computer and YouTube, not to our server — no size cap
+        maxBytes: null,
         posterAt: tl.mainStart + Math.min(2.5, tl.mainDuration / 3),
         signal,
         onProgress: (p) => setJob({ stage: 'render', p, part: others.length ? `${bnNumber(L.W)}×${bnNumber(L.H)} (১/${bnNumber(others.length + 1)})` : undefined }),
@@ -936,7 +1062,7 @@ export default function VideoStudio() {
           env: { ...env, cfg: c2, L: L2, tl: tl2, scratch: makeScratch() },
           clips,
           voices,
-          maxBytes: loaded.maxBytes,
+          maxBytes: null,
           posterAt: tl2.mainStart + Math.min(2.5, tl2.mainDuration / 3),
           signal,
           onProgress: (p) => setJob({ stage: 'render', p, part: `${f.name} (${bnNumber(n + 2)}/${bnNumber(others.length + 1)})` }),
@@ -991,13 +1117,9 @@ export default function VideoStudio() {
         attachmentId: null,
         savedAt: Date.now(),
       })
-      setJob({ stage: 'done', url: resultUrl.current, size: result.blob.size, attached: false, filename, tooLarge, extras: extras(), canAttach: true, mime: result.mime })
-      if (attach) {
-        // round 30 fix: the render's own controller must be let go first, or
-        // attachNow() sees a job still running and does nothing
-        if (abortRef.current === ctrl) abortRef.current = null
-        void attachNow()
-      }
+      if (posterUrl.current) URL.revokeObjectURL(posterUrl.current)
+      posterUrl.current = poster ? URL.createObjectURL(poster) : null
+      setJob({ stage: 'done', url: resultUrl.current, size: result.blob.size, attached: false, filename, tooLarge, extras: extras(), canAttach: true, mime: result.mime, timing: result.timing, posterUrl: posterUrl.current })
     } catch (err) {
       if (signal.aborted && pendingRef.current) {
         setJob({ stage: 'error', message: 'আপলোড থামানো হয়েছে। রেন্ডার করা ভিডিও রাখা আছে — আবার চালু করলে যেখানে থেমেছিল সেখান থেকে চলবে।', resume: true })
@@ -1160,6 +1282,34 @@ export default function VideoStudio() {
     } finally {
       if (abortRef.current === ctrl) abortRef.current = null
     }
+  }
+
+  /**
+   * r48 — the last step: the edited video is on YouTube, and the news on the website plays it from
+   * there. The server keeps no copy of the render; the original can then go from স্টোরেজ ম্যানেজার.
+   */
+  async function saveYoutube(link: string, withThumb: boolean) {
+    if (!loaded) return
+    const pend = pendingRef.current
+    let thumbId: number | undefined
+    if (withThumb && pend?.poster) {
+      try {
+        const t = await MediaApi.upload(new File([pend.poster], `${pend.slug}-thumbnail.jpg`, { type: 'image/jpeg' }))
+        thumbId = t.id
+      } catch {
+        // the link matters more than the picture
+      }
+    }
+    const saved = await AdminVideosApi.update(loaded.video.id, {
+      source: 'youtube',
+      video_url: link.trim(),
+      ...(pend ? { duration: Math.round(pend.duration), orientation: pend.height >= pend.width ? 'portrait' : 'landscape' } : {}),
+      ...(thumbId ? { thumbnail_id: thumbId } : {}),
+    })
+    writeJson(draftKey(videoId, loaded.originalId), null)
+    void dropKept(videoId)
+    setLoaded((l) => (l ? { ...l, video: saved } : l))
+    setJob((j) => (j?.stage === 'done' ? { ...j, youtube: saved.video_url } : j))
   }
 
   /** Round 28 — throws away the render kept from an earlier visit. */
@@ -1381,6 +1531,12 @@ export default function VideoStudio() {
 
   return (
     <div className="pb-10">
+      {flash && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-full bg-neutral-900/90 text-white text-[12.5px] px-4 py-2 shadow-lg" data-testid="studio-flash">
+          {flash}
+        </div>
+      )}
+      {keysOpen && <ShortcutsDialog tabs={TABS.filter((t) => !ui.hiddenTabs.includes(t.id)).map((t) => t.name)} onClose={() => setKeysOpen(false)} />}
       {/* header */}
       <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
         <div className="min-w-0">
@@ -1447,6 +1603,75 @@ export default function VideoStudio() {
       </div>
 
       {!capability.ok && <Banner kind="error">{capability.reason}</Banner>}
+
+      {/* r48: the four steps — original to the computer, edit, render + download, YouTube link */}
+      <div className="mb-4 rounded-2xl border border-neutral-200 bg-white p-3 flex flex-wrap items-center gap-x-4 gap-y-2" data-testid="studio-steps">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className={`w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-bold shrink-0 ${localSrc ? 'bg-emerald-600 text-white' : 'bg-brand-600 text-white'}`}>
+            {localSrc ? <IconCheck className="w-4 h-4" /> : '১'}
+          </span>
+          <div className="min-w-0">
+            {localSrc ? (
+              <>
+                <p className="text-[13px] font-semibold text-emerald-800" data-testid="local-source">মূল ভিডিও আপনার কম্পিউটার থেকে চলছে</p>
+                <p className="text-[11.5px] text-neutral-500 truncate">
+                  {localSrc.name} · {bnFileSize(localSrc.size)} — প্রিভিউ ও রেন্ডারে সার্ভার থেকে কিছু নামাতে হবে না
+                </p>
+              </>
+            ) : origJob && 'pct' in origJob ? (
+              <>
+                <p className="text-[13px] font-semibold text-neutral-800">মূল ভিডিও নামানো হচ্ছে… {bnNumber(origJob.pct)}%</p>
+                <div className="mt-1 h-1.5 w-56 max-w-full rounded-full bg-neutral-100 overflow-hidden">
+                  <div className="h-full bg-brand-600 transition-[width] duration-200" style={{ width: `${origJob.pct}%` }} />
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-[13px] font-semibold text-neutral-800">মূল ভিডিও আগে কম্পিউটারে রাখুন</p>
+                <p className="text-[11.5px] text-neutral-500">একবার নামালে সেটাই আপনার কপি, আর এডিট-রেন্ডার চলবে সেটা থেকেই — দ্রুত হবে।</p>
+              </>
+            )}
+            {origJob && 'error' in origJob && <p className="text-[11.5px] text-red-600 mt-0.5">{origJob.error}</p>}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {!localSrc && !(origJob && 'pct' in origJob) && (
+            <Button size="sm" onClick={downloadOriginal} data-testid="download-original">
+              <IconDownload className="w-4 h-4" />
+              মূল ভিডিও ডাউনলোড
+            </Button>
+          )}
+          {origJob && 'pct' in origJob && (
+            <Button size="sm" variant="secondary" onClick={() => origAbort.current?.abort()}>
+              থামান
+            </Button>
+          )}
+          <Button size="sm" variant="secondary" onClick={() => localFileRef.current?.click()} data-testid="open-local">
+            <IconUpload className="w-4 h-4" />
+            {localSrc ? 'অন্য ফাইল' : 'কম্পিউটার থেকে খুলুন'}
+          </Button>
+          <input
+            ref={localFileRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              e.target.value = ''
+              if (f) void openLocalFile(f)
+            }}
+          />
+        </div>
+        <ol className="hidden xl:flex items-center gap-1.5 text-[11.5px] text-neutral-500 shrink-0" aria-label="ধাপ">
+          <li className="px-2 py-1 rounded-full bg-neutral-100">২ এডিট</li>
+          <li aria-hidden>→</li>
+          <li className="px-2 py-1 rounded-full bg-neutral-100">৩ রেন্ডার ও ডাউনলোড</li>
+          <li aria-hidden>→</li>
+          <li className="px-2 py-1 rounded-full bg-neutral-100 inline-flex items-center gap-1">
+            <IconBrandYoutube className="w-3.5 h-3.5 text-red-600" />৪ YouTube লিংক
+          </li>
+        </ol>
+      </div>
       {loaded.restored === 'draft' && (
         <Banner kind="info">
           আগের অসমাপ্ত এডিট ফিরিয়ে আনা হয়েছে।{' '}
@@ -1506,10 +1731,10 @@ export default function VideoStudio() {
       </div>
       )}
 
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_400px] gap-5 items-start">
-        {/* preview */}
-        <Card className="p-4">
-          <div className="relative rounded-xl bg-[#0b0d12] flex items-center justify-center overflow-hidden" style={{ height: 'min(62vh, 640px)' }}>
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_460px] gap-5 items-start">
+        {/* preview — r48: stays in view on a desktop while the panels scroll, and grows with the screen */}
+        <Card className="p-4 lg:sticky lg:top-3">
+          <div className="relative rounded-xl bg-[#0b0d12] flex items-center justify-center overflow-hidden h-[min(62vh,640px)] lg:h-[clamp(300px,calc(100vh-340px),860px)]">
             <canvas
               ref={canvasRef}
               onClick={() => playerRef.current?.toggle()}
@@ -1586,13 +1811,16 @@ export default function VideoStudio() {
           )}
           {ui.tips && (
           <p className="mt-2 text-[11.5px] text-neutral-400">
-            স্পেসবার = চালান/থামান · ← → এক সেকেন্ড (Shift: পাঁচ) · , . এক ফ্রেম · প্রিভিউ যা দেখাচ্ছে, রেন্ডারে ঠিক তা-ই হবে।
+            স্পেসবার/K = চালান/থামান · J L পাঁচ সেকেন্ড · ← → এক সেকেন্ড · , . এক ফ্রেম · I O = এখান থেকে শুরু/শেষ কাটা · Ctrl+Enter = রেন্ডার ·{' '}
+            <button type="button" className="underline" onClick={() => setKeysOpen(true)} data-testid="keys-open">
+              ? সব শর্টকাট
+            </button>
           </p>
           )}
         </Card>
 
         {/* panels */}
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden lg:sticky lg:top-3">
           <div className={`grid ${TAB_COLS[Math.min(5, shownTabs.length)]} border-b border-neutral-100 px-1`} role="tablist">
             {shownTabs.map((t) => (
               <button
@@ -1610,7 +1838,7 @@ export default function VideoStudio() {
               </button>
             ))}
           </div>
-          <div className="p-4 max-h-none lg:max-h-[calc(100vh-180px)] lg:overflow-y-auto">
+          <div className="p-4 max-h-none lg:max-h-[calc(100vh-110px)] lg:overflow-y-auto">
             {tab === 'frame' && (
               <FramePanel cfg={cfg} set={set} postTitle={postTitle} thumb={thumb} thumbRatio={thumbRatio} thumbKey={thumbKey} onPickAdImage={() => setImagePicker('ad')} />
             )}
@@ -1739,7 +1967,7 @@ export default function VideoStudio() {
         </button>
         {thumbOpen && (
           <div className="px-4 pb-4 border-t border-neutral-100 pt-3">
-            <ThumbPanel wide cfg={cfg} set={set} env={thumbEnv ?? env} mainUrl={loaded.mainUrl} range={range} playhead={playheadSrc} face={facePic} onPickFace={() => setImagePicker('face')} getMain={mainBlob} />
+            <ThumbPanel wide cfg={cfg} set={set} env={thumbEnv ?? env} mainUrl={localSrc?.url ?? loaded.mainUrl} range={range} playhead={playheadSrc} face={facePic} onPickFace={() => setImagePicker('face')} getMain={mainBlob} />
           </div>
         )}
       </Card>
@@ -1792,8 +2020,6 @@ export default function VideoStudio() {
             setBg(true)
             if (notifyState === 'default' && ui.browser) void askNotify().then(() => setNotifyState(notifyPermission()))
           }}
-          attach={attach}
-          setAttach={setAttach}
           setThumb={setThumb}
           onSetThumb={setSetThumb}
           duration={tl.duration}
@@ -1804,11 +2030,11 @@ export default function VideoStudio() {
           designedThumb={cfg.thumb.on}
           onStart={startRender}
           onResume={attachNow}
+          onYoutube={saveYoutube}
           onDiscard={discardKept}
           fileSize={cfg.fileSize}
           onFileSize={(v) => set((c) => ({ ...c, fileSize: v }))}
-          estimate={(size) => Math.round(((pickBitrate(L.W, L.H, tl.duration, loaded.maxBytes, size) + 160_000) * tl.duration) / 8)}
-          maxBytes={loaded.maxBytes}
+          estimate={(size) => Math.round(((pickBitrate(L.W, L.H, tl.duration, null, size) + 160_000) * tl.duration) / 8)}
           keptUrl={pendingRef.current ? resultUrl.current : null}
           keptName={pendingRef.current?.filename ?? null}
           onCancel={() => abortRef.current?.abort()}
@@ -1838,6 +2064,48 @@ async function shareFile(url: string, filename: string, mime: string) {
   const file = new File([blob], filename, { type: mime || blob.type })
   if (!navigator.canShare({ files: [file] })) throw new Error('এই ব্রাউজার ফাইল শেয়ার করতে পারে না — ডাউনলোড করে নিন।')
   await navigator.share({ files: [file], title: filename })
+}
+
+/** r48 — every keyboard shortcut of the studio, opened with ? (desktop/laptop). */
+function ShortcutsDialog({ tabs, onClose }: { tabs: string[]; onClose: () => void }) {
+  const rows: [string, string][] = [
+    ['Space / K', 'চালান / থামান'],
+    ['J / L', 'পাঁচ সেকেন্ড পিছনে / সামনে'],
+    ['← / →', 'এক সেকেন্ড (Shift চেপে পাঁচ)'],
+    [', / .', 'এক ফ্রেম পিছনে / সামনে'],
+    ['Home / End', 'একদম শুরুতে / শেষে'],
+    ['I / O', 'প্লে-হেড যেখানে, সেখান থেকে ভিডিওর শুরু / শেষ কাটা'],
+    ['Ctrl + Z / Ctrl + Y', 'আগের অবস্থায় / আবার করুন'],
+    ['Ctrl + Enter', 'রেন্ডারের ঘর খুলুন'],
+    ['Ctrl + S', 'এডিট নিজে থেকেই সেভ হয় — চাপলে শুধু জানিয়ে দেয়'],
+    ['Alt + ১…৯', `প্যানেল বদলান (${tabs.slice(0, 9).map((n, i) => `${bnNumber(i + 1)} ${n}`).join(', ')})`],
+    ['?', 'এই তালিকা খুলুন / বন্ধ করুন'],
+  ]
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl p-5" onClick={(e) => e.stopPropagation()} data-testid="shortcuts-dialog">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-[15px] font-semibold">কিবোর্ড শর্টকাট</h2>
+          <button type="button" onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-[13px]">
+            বন্ধ
+          </button>
+        </div>
+        <table className="w-full text-[13px]">
+          <tbody>
+            {rows.map(([k, v]) => (
+              <tr key={k} className="border-t border-neutral-100">
+                <td className="py-1.5 pr-3 whitespace-nowrap align-top">
+                  <kbd className="rounded bg-neutral-100 border border-neutral-200 px-1.5 py-0.5 text-[12px] font-mono">{k}</kbd>
+                </td>
+                <td className="py-1.5 text-neutral-700">{v}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="mt-3 text-[11.5px] text-neutral-400">কোনো লেখার ঘরে টাইপ করার সময় শর্টকাট কাজ করে না।</p>
+      </div>
+    </div>
+  )
 }
 
 function BackLink({ id }: { id: number }) {
@@ -1910,10 +2178,9 @@ function JobDock({ job, onOpen, onCancel, onDismiss }: { job: Job; onOpen: () =>
 }
 
 function RenderDialog({
+  onYoutube,
   onBackground,
   job,
-  attach,
-  setAttach,
   setThumb,
   onSetThumb,
   duration,
@@ -1932,9 +2199,9 @@ function RenderDialog({
   fileSize,
   onFileSize,
   estimate,
-  maxBytes,
   keptUrl,
 }: {
+  onYoutube: (link: string, withThumb: boolean) => Promise<void>
   onBackground: () => void
   onResume: () => void
   onDiscard: () => void
@@ -1942,11 +2209,8 @@ function RenderDialog({
   fileSize: FileSize
   onFileSize: (v: FileSize) => void
   estimate: (size: FileSize) => number
-  maxBytes: number | null
   keptUrl: string | null
   job: Job
-  attach: boolean
-  setAttach: (v: boolean) => void
   setThumb: boolean
   onSetThumb: (v: boolean) => void
   duration: number
@@ -1984,16 +2248,9 @@ function RenderDialog({
               {size} · দৈর্ঘ্য {bnClock(duration)} — ভিডিও আপনার ব্রাউজারেই তৈরি হবে (সার্ভারে চাপ পড়বে না)। সাধারণত ভিডিওর দৈর্ঘ্যের চেয়ে কম সময় লাগে।
             </p>
             <label className="flex items-start gap-2.5 py-2">
-              <input type="checkbox" checked={attach} onChange={(e) => setAttach(e.target.checked)} className="mt-1 accent-[#b91c1c]" data-testid="auto-attach" />
-              <span>
-                <span className="block text-[13.5px] text-neutral-800">রেন্ডার শেষে নিজে থেকেই পোস্টে বসান</span>
-                <span className="block text-[11.5px] text-neutral-400">না দিলে রেন্ডার শেষে “ডাউনলোড” ও “পোস্টে বসান” বাটন আসবে। মূল ভিডিও মুছবে না।</span>
-              </span>
-            </label>
-            <label className="flex items-start gap-2.5 py-2">
               <input type="checkbox" checked={setThumb} onChange={(e) => onSetThumb(e.target.checked)} className="mt-1 accent-[#b91c1c]" />
               <span>
-                <span className="block text-[13.5px] text-neutral-800">পোস্টে বসালে থাম্বনেইলও নতুন করুন</span>
+                <span className="block text-[13.5px] text-neutral-800">YouTube লিংক বসালে খবরের থাম্বনেইলও নতুন করুন</span>
                 <span className="block text-[11.5px] text-neutral-400">
                   {designedThumb ? '“থাম্বনেইল” ট্যাবের ডিজাইন করা থাম্বনেইল বসবে।' : 'ফ্রেমসহ সংবাদের একটি দৃশ্য থাম্বনেইল হবে।'}
                 </span>
@@ -2012,9 +2269,7 @@ function RenderDialog({
                   </span>
                 </label>
               ))}
-              {maxBytes && (
-                <p className="text-[11px] text-neutral-400 mt-1">সার্ভারের সীমা {bnFileSize(maxBytes)} — বড় হলে নিজে থেকেই ছোট করে আপলোড হবে। আপলোড টুকরো টুকরো যায়, নেট কাটলে যেখানে থেমেছে সেখান থেকে আবার চলে।</p>
-              )}
+              <p className="text-[11px] text-neutral-400 mt-1">ফাইল আপনার কম্পিউটারে নামবে, সার্ভারে যাবে না — তাই কোনো আকারের সীমা নেই। ছোট ফাইল YouTube-এ দ্রুত ওঠে।</p>
             </div>
             {multi.length > 0 && (
               <div className="mt-2 rounded-xl border border-neutral-200 p-3" data-testid="multi-format">
@@ -2038,7 +2293,7 @@ function RenderDialog({
             )}
             <div className="flex gap-2 mt-4">
               <Button className="flex-1" onClick={onStart}>
-                {attach ? 'রেন্ডার করে পোস্টে বসান' : 'রেন্ডার শুরু করুন'}
+                রেন্ডার শুরু করুন
               </Button>
               <Button variant="secondary" onClick={onClose}>
                 বাতিল
@@ -2112,7 +2367,7 @@ function RenderDialog({
           </div>
         )}
 
-        {job.stage === 'done' && <DoneView job={job} onResume={onResume} onDiscard={onDiscard} onClose={onClose} onBack={onBack} />}
+        {job.stage === 'done' && <DoneView job={job} onYoutube={onYoutube} withThumb={setThumb} onDiscard={onDiscard} onClose={onClose} onBack={onBack} />}
         {job.stage === 'error' && (
           <>
             <p className="text-[13px] text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3">{job.message}</p>
@@ -2147,51 +2402,141 @@ function RenderDialog({
   )
 }
 
-/** Round 28 — the ready screen: watch, download, share, পোস্টে বসান. */
-function DoneView({ job, onResume, onDiscard, onClose, onBack }: { job: Extract<Job, { stage: 'done' }>; onResume: () => void; onDiscard: () => void; onClose: () => void; onBack: () => void }) {
+/** r48 — the ready screen: watch, download, put it on YouTube, and give the website its link. */
+function DoneView({
+  job,
+  onYoutube,
+  withThumb,
+  onDiscard,
+  onClose,
+  onBack,
+}: {
+  job: Extract<Job, { stage: 'done' }>
+  onYoutube: (link: string, withThumb: boolean) => Promise<void>
+  withThumb: boolean
+  onDiscard: () => void
+  onClose: () => void
+  onBack: () => void
+}) {
   const [shareErr, setShareErr] = useState('')
+  const [link, setLink] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
   const share = canShareFile(job.url)
+  const ytOk = /^(https?:\/\/)?(www\.|m\.|music\.)?(youtube\.com\/(watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)[\w-]{6,}/i.test(link.trim())
+  const t = job.timing
   return (
     <>
-      <video src={job.url} controls playsInline className="w-full max-h-[42vh] rounded-xl bg-black mb-3" data-testid="render-result" />
-      {job.attached ? (
-        <p className="text-[13px] text-emerald-700 mb-3">এডিট করা ভিডিও পোস্টে বসানো হয়েছে ({bnFileSize(job.size)})। মূল ভিডিও সংরক্ষিত আছে।</p>
-      ) : job.restored ? (
+      <video src={job.url} controls playsInline className="w-full max-h-[36vh] rounded-xl bg-black mb-3" data-testid="render-result" />
+      {job.restored ? (
         <p className="text-[13px] text-neutral-700 mb-3" data-testid="kept-render">
           আগে রেন্ডার করা ভিডিও এই ব্রাউজারে রাখা আছে ({bnFileSize(job.size)} · {bnDate(new Date(job.restored))}) — আবার রেন্ডার লাগবে না।
         </p>
       ) : (
-        <p className="text-[13px] text-neutral-700 mb-3">ভিডিও তৈরি হয়েছে ({bnFileSize(job.size)})। এখনই ডাউনলোড করে সোশ্যাল মিডিয়ায় দিতে পারেন।</p>
+        <p className="text-[13px] text-neutral-700 mb-1">ভিডিও তৈরি হয়েছে ({bnFileSize(job.size)})।</p>
       )}
-      {job.note && (
-        <p className="text-[12px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-3" data-testid="upload-note">
-          {job.note}
+      {t && t.total > 0 && (
+        <p className="text-[11px] text-neutral-400 mb-3 tabular-nums" data-testid="render-timing">
+          সময় লেগেছে {bnClock(t.total)} — ছবি পড়া {bnClock(t.decode)} · আঁকা {bnClock(t.draw)} · এনকোড {bnClock(t.encode)} · শব্দ {bnClock(t.audio + t.loudness)}
         </p>
       )}
-      <div className="grid grid-cols-2 gap-2" data-testid="done-actions">
-        <a
-          href={job.url}
-          download={job.filename}
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl bg-neutral-900 text-white text-[14px] font-semibold hover:bg-neutral-800"
-          data-testid="download-main"
-        >
-          <IconDownload className="w-5 h-5" />
-          ডাউনলোড
-        </a>
-        {job.attached ? (
-          <Button className="!py-3 !rounded-xl" onClick={onBack}>
-            ভিডিও পোস্টে ফিরুন
-          </Button>
-        ) : job.canAttach ? (
-          <Button className="!py-3 !rounded-xl" onClick={onResume} data-testid="attach-now">
-            {job.note ? 'আবার চালু করুন' : 'পোস্টে বসান'}
-          </Button>
+
+      <ol className="space-y-2" data-testid="done-actions">
+        <li className="flex items-center gap-2">
+          <span className="w-6 h-6 rounded-full bg-neutral-900 text-white text-[12px] font-bold flex items-center justify-center shrink-0">৩</span>
+          <a
+            href={job.url}
+            download={job.filename}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-neutral-900 text-white text-[14px] font-semibold hover:bg-neutral-800"
+            data-testid="download-main"
+          >
+            <IconDownload className="w-5 h-5" />
+            ভিডিও ডাউনলোড
+          </a>
+          {job.posterUrl && (
+            <a
+              href={job.posterUrl}
+              download={job.filename.replace(/\.(mp4|webm)$/, '-thumbnail.jpg')}
+              className="inline-flex items-center gap-1 px-3 py-2.5 rounded-xl border border-neutral-200 text-[12.5px] font-semibold text-neutral-700 hover:bg-neutral-50"
+              data-testid="download-thumb"
+            >
+              <IconDownload className="w-4 h-4" />
+              থাম্বনেইল
+            </a>
+          )}
+        </li>
+        <li className="flex items-center gap-2">
+          <span className="w-6 h-6 rounded-full bg-red-600 text-white text-[12px] font-bold flex items-center justify-center shrink-0">৪</span>
+          <a
+            href="https://studio.youtube.com/"
+            target="_blank"
+            rel="noreferrer"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 bg-red-50 text-red-700 text-[13.5px] font-semibold hover:bg-red-100"
+            data-testid="open-youtube"
+          >
+            <IconBrandYoutube className="w-5 h-5" />
+            YouTube Studio-তে আপলোড করুন
+            <IconExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </li>
+      </ol>
+
+      <div className="mt-3 rounded-xl border border-neutral-200 p-3" data-testid="youtube-link">
+        {job.youtube ? (
+          <>
+            <p className="text-[13px] font-semibold text-emerald-700">✓ ওয়েবসাইটে এখন YouTube থেকে ভিডিও চলবে।</p>
+            <p className="text-[11.5px] text-neutral-500 mt-0.5 break-all">{job.youtube}</p>
+            <p className="text-[11.5px] text-neutral-500 mt-1.5">
+              সার্ভারে রাখা মূল ভিডিও আর লাগবে না —{' '}
+              <Link to="/app/storage" className="font-semibold text-brand-700 underline">
+                স্টোরেজ ম্যানেজার
+              </Link>{' '}
+              থেকে মুছে জায়গা খালি করুন।
+            </p>
+            <Button className="w-full mt-2" onClick={onBack}>
+              ভিডিও পোস্টে ফিরুন
+            </Button>
+          </>
         ) : (
-          <Button variant="secondary" className="!py-3 !rounded-xl" onClick={onClose}>
-            এডিটরে ফিরুন
-          </Button>
+          <>
+            <p className="text-[13px] font-medium text-neutral-800 mb-1.5">YouTube-এ তোলার পর লিংকটা এখানে দিন</p>
+            <div className="flex gap-2">
+              <input
+                value={link}
+                onChange={(e) => {
+                  setLink(e.target.value)
+                  setErr('')
+                }}
+                placeholder="https://youtu.be/…"
+                inputMode="url"
+                className="flex-1 min-w-0 rounded-lg border border-neutral-200 px-3 py-2 text-[13.5px] focus:outline-none focus:border-brand-500"
+                data-testid="youtube-input"
+              />
+              <Button
+                disabled={!ytOk || saving}
+                onClick={async () => {
+                  setSaving(true)
+                  setErr('')
+                  try {
+                    await onYoutube(link, withThumb)
+                  } catch (e) {
+                    setErr(describeError(e).message)
+                  } finally {
+                    setSaving(false)
+                  }
+                }}
+                data-testid="youtube-save"
+              >
+                {saving ? 'বসানো হচ্ছে…' : 'ওয়েবসাইটে বসান'}
+              </Button>
+            </div>
+            {link.trim() && !ytOk && <p className="text-[11.5px] text-amber-700 mt-1">লিংকটি চেনা যাচ্ছে না — youtu.be/… বা youtube.com/watch?v=… লিংক দিন।</p>}
+            {err && <p className="text-[11.5px] text-red-600 mt-1">{err}</p>}
+            <p className="text-[11px] text-neutral-400 mt-1.5">লিংক বসালে খবরটি YouTube থেকে চলবে{withThumb ? ', আর এই এডিটের থাম্বনেইল খবরে বসবে' : ''}। ভিডিও ফাইল সার্ভারে যায় না।</p>
+          </>
         )}
       </div>
+
       {share && (
         <button
           type="button"
@@ -2214,10 +2559,7 @@ function DoneView({ job, onResume, onDiscard, onClose, onBack }: { job: Extract<
             <div key={x.format} className="flex items-center justify-between gap-2 px-3 py-2">
               <span className="min-w-0">
                 <span className="block text-[13px] text-neutral-800">{x.name}</span>
-                <span className="block text-[11px] text-neutral-400">
-                  {bnFileSize(x.size)}
-                  {x.uploaded ? ' · মিডিয়া লাইব্রেরিতে রাখা হয়েছে' : ''}
-                </span>
+                <span className="block text-[11px] text-neutral-400">{bnFileSize(x.size)}</span>
               </span>
               <a href={x.url} download={x.filename} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-brand-700 shrink-0">
                 <IconDownload className="w-4 h-4" />
@@ -2228,12 +2570,10 @@ function DoneView({ job, onResume, onDiscard, onClose, onBack }: { job: Extract<
         </div>
       )}
       <div className="flex justify-between gap-2 mt-3">
-        {!job.attached && (
-          <button type="button" onClick={onClose} className="text-[12.5px] text-neutral-500 hover:text-neutral-800">
-            এডিটরে ফিরুন
-          </button>
-        )}
-        {job.restored && !job.attached && (
+        <button type="button" onClick={onClose} className="text-[12.5px] text-neutral-500 hover:text-neutral-800">
+          এডিটরে ফিরুন
+        </button>
+        {job.restored && (
           <button type="button" onClick={onDiscard} className="text-[12.5px] text-red-600 hover:text-red-700" data-testid="discard-kept">
             রাখা ভিডিও মুছে ফেলুন
           </button>

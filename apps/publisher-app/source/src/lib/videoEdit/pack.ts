@@ -15,7 +15,7 @@ import { BRAND, FONT_BODY, FONT_DISPLAY, type LogoAsset } from './assets'
 import type { Caption, CaptionStyle, LowerThirdId, PackIntroId, PackOutroId, StingerId } from './config'
 import type { DrawEnv, Theme } from './draw'
 import { netIcon } from './houseads'
-import { clamp, ease, fillRoundRect, fitText, lerp, rnd, roundRect, win, type Ctx } from './motion'
+import { HEADER_ART, clamp, ease, fillRoundRect, fitText, lerp, rnd, roundRect, win, type Ctx } from './motion'
 import type { SfxId } from './sfxlib'
 import type { Rect, SceneId } from './timeline'
 
@@ -447,8 +447,10 @@ export const PACK_THEMES: Record<'vote' | 'budget' | 'court' | 'accident' | 'med
         x += w
       })
       glint(ctx, r, t, 6, 0.08)
-      const { cx, cy, u } = iconSpot(r)
-      ballotIcon(ctx, cx, cy, u, t, '#E5E7EB', '#12A150')
+      if (HEADER_ART) {
+        const { cx, cy, u } = iconSpot(r)
+        ballotIcon(ctx, cx, cy, u, t, '#E5E7EB', '#12A150')
+      }
     },
     footerBg: (ctx, r, t, s) => {
       fill(ctx, r, '#0A1F3C')
@@ -488,15 +490,17 @@ export const PACK_THEMES: Record<'vote' | 'budget' | 'court' | 'accident' | 'med
         else ctx.lineTo(r.x + x, y)
       }
       ctx.stroke()
-      const { cx, cy, u } = iconSpot(r)
-      barsIcon(ctx, cx, cy, u, t, ['#34D399', '#22D3EE', '#F59E0B', '#34D399'])
-      ctx.save()
-      ctx.font = dispFont(800, u * 0.9)
-      ctx.fillStyle = '#FDE68A'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText('৳', cx - u * 1.35, cy - u * 0.15)
-      ctx.restore()
+      if (HEADER_ART) {
+        const { cx, cy, u } = iconSpot(r)
+        barsIcon(ctx, cx, cy, u, t, ['#34D399', '#22D3EE', '#F59E0B', '#34D399'])
+        ctx.save()
+        ctx.font = dispFont(800, u * 0.9)
+        ctx.fillStyle = '#FDE68A'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('৳', cx - u * 1.35, cy - u * 0.15)
+        ctx.restore()
+      }
     },
     footerBg: (ctx, r, t, s) => {
       fill(ctx, r, '#081530')
@@ -523,8 +527,10 @@ export const PACK_THEMES: Record<'vote' | 'budget' | 'court' | 'accident' | 'med
       for (let x = r.x + 40 * s; x < r.x + r.w; x += 120 * s) ctx.fillRect(x, r.y, 26 * s, r.h)
       fill(ctx, { x: r.x, y: r.y + r.h - 5 * s, w: r.w, h: 5 * s }, '#D4AF37')
       glint(ctx, r, t, 8, 0.06)
-      const { cx, cy, u } = iconSpot(r)
-      scalesIcon(ctx, cx, cy, u, Math.sin(t * 1.3) * 0.12, '#D4AF37')
+      if (HEADER_ART) {
+        const { cx, cy, u } = iconSpot(r)
+        scalesIcon(ctx, cx, cy, u, Math.sin(t * 1.3) * 0.12, '#D4AF37')
+      }
     },
     footerBg: (ctx, r, t, s) => {
       fill(ctx, r, '#1A0508')
@@ -547,8 +553,10 @@ export const PACK_THEMES: Record<'vote' | 'budget' | 'court' | 'accident' | 'med
     headerBg: (ctx, r, t, s) => {
       fill(ctx, r, grad(ctx, r, [[0, '#1C1C1E'], [1, '#2C2C30']], 0.3))
       hazard(ctx, { x: r.x, y: r.y + r.h - 14 * s, w: r.w, h: 14 * s }, t, s, '#F59E0B', '#111111', 40)
-      const { cx, cy, u } = iconSpot(r)
-      beaconIcon(ctx, cx, cy, u, t)
+      if (HEADER_ART) {
+        const { cx, cy, u } = iconSpot(r)
+        beaconIcon(ctx, cx, cy, u, t)
+      }
     },
     footerBg: (ctx, r, t, s) => {
       fill(ctx, r, '#111113')
@@ -594,8 +602,10 @@ export const PACK_THEMES: Record<'vote' | 'budget' | 'court' | 'accident' | 'med
         else ctx.lineTo(r.x + x, base + y * s * 0.8)
       }
       ctx.stroke()
-      const { cx, cy, u } = iconSpot(r)
-      crossIcon(ctx, cx, cy - r.h * 0.05, u * 0.9, t, '#E11D48')
+      if (HEADER_ART) {
+        const { cx, cy, u } = iconSpot(r)
+        crossIcon(ctx, cx, cy - r.h * 0.05, u * 0.9, t, '#E11D48')
+      }
     },
     footerBg: (ctx, r, t, s) => {
       fill(ctx, r, '#0D9488')
@@ -633,8 +643,10 @@ export const PACK_THEMES: Record<'vote' | 'budget' | 'court' | 'accident' | 'med
       ctx.stroke()
       fill(ctx, { x: r.x, y: r.y + r.h - 6 * s, w: r.w, h: 6 * s }, '#FBBF24')
       glint(ctx, r, t, 7, 0.08)
-      const { cx, cy, u } = iconSpot(r)
-      capIcon(ctx, cx, cy, u, t, '#F8FAFC', '#FBBF24')
+      if (HEADER_ART) {
+        const { cx, cy, u } = iconSpot(r)
+        capIcon(ctx, cx, cy, u, t, '#F8FAFC', '#FBBF24')
+      }
     },
     footerBg: (ctx, r, t, s) => {
       fill(ctx, r, '#17154F')
@@ -674,8 +686,10 @@ export const PACK_THEMES: Record<'vote' | 'budget' | 'court' | 'accident' | 'med
         ctx.fill()
       }
       fill(ctx, { x: r.x, y: r.y + r.h - 6 * s, w: r.w, h: 6 * s }, '#E11D48')
-      const { cx, cy, u } = iconSpot(r)
-      ballIcon(ctx, cx, cy, u, t)
+      if (HEADER_ART) {
+        const { cx, cy, u } = iconSpot(r)
+        ballIcon(ctx, cx, cy, u, t)
+      }
     },
     footerBg: (ctx, r, t, s) => {
       fill(ctx, r, '#0B0F0D')
@@ -716,14 +730,16 @@ export const PACK_THEMES: Record<'vote' | 'budget' | 'court' | 'accident' | 'med
       }
       sparkles(ctx, r, t, s, 22, '#F5C542', 3)
       fill(ctx, { x: r.x, y: r.y + r.h - 4 * s, w: r.w, h: 4 * s }, '#F5C542')
-      const { cx, cy, u } = iconSpot(r)
-      ctx.save()
-      ctx.translate(cx, cy)
-      ctx.rotate(Math.sin(t) * 0.15)
-      ctx.fillStyle = '#F5C542'
-      star(ctx, 0, 0, u * 0.85)
-      ctx.fill()
-      ctx.restore()
+      if (HEADER_ART) {
+        const { cx, cy, u } = iconSpot(r)
+        ctx.save()
+        ctx.translate(cx, cy)
+        ctx.rotate(Math.sin(t) * 0.15)
+        ctx.fillStyle = '#F5C542'
+        star(ctx, 0, 0, u * 0.85)
+        ctx.fill()
+        ctx.restore()
+      }
     },
     footerBg: (ctx, r, t, s) => {
       fill(ctx, r, '#120004')
@@ -745,8 +761,10 @@ export const PACK_THEMES: Record<'vote' | 'budget' | 'court' | 'accident' | 'med
     headerBg: (ctx, r, t, s) => {
       fill(ctx, r, grad(ctx, r, [[0, '#14532D'], [1, '#166534']], -0.3))
       paddy(ctx, r, t, s, 'rgba(163,230,53,0.45)', 'rgba(250,204,21,0.7)')
-      const { cx, cy, u } = iconSpot(r)
-      sunIcon(ctx, cx, cy - r.h * 0.08, u * 0.9, t, '#FACC15')
+      if (HEADER_ART) {
+        const { cx, cy, u } = iconSpot(r)
+        sunIcon(ctx, cx, cy - r.h * 0.08, u * 0.9, t, '#FACC15')
+      }
     },
     footerBg: (ctx, r, t, s) => {
       fill(ctx, r, '#0F3D21')
@@ -771,11 +789,13 @@ export const PACK_THEMES: Record<'vote' | 'budget' | 'court' | 'accident' | 'med
       lattice(ctx, r, s, 'rgba(231,200,115,0.09)')
       glint(ctx, r, t, 8, 0.07)
       fill(ctx, { x: r.x, y: r.y + r.h - 5 * s, w: r.w, h: 5 * s }, '#E7C873')
-      const { cx, cy, u } = iconSpot(r)
-      crescent(ctx, cx, cy, u, '#E7C873', '#0A2A3A')
-      ctx.fillStyle = '#E7C873'
-      star(ctx, cx + u * 0.45, cy - u * 0.35, u * 0.22 * (0.85 + 0.15 * Math.sin(t * 3)))
-      ctx.fill()
+      if (HEADER_ART) {
+        const { cx, cy, u } = iconSpot(r)
+        crescent(ctx, cx, cy, u, '#E7C873', '#0A2A3A')
+        ctx.fillStyle = '#E7C873'
+        star(ctx, cx + u * 0.45, cy - u * 0.35, u * 0.22 * (0.85 + 0.15 * Math.sin(t * 3)))
+        ctx.fill()
+      }
     },
     footerBg: (ctx, r, t, s) => {
       fill(ctx, r, '#082029')
