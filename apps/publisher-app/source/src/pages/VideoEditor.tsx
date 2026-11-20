@@ -24,6 +24,7 @@ import {
   type VideoOrientation,
   type VideoSource,
 } from '../lib/api'
+import { rememberOriginal } from '../lib/videoEdit/sessionFiles'
 import { useAuth } from '../lib/AuthContext'
 import { bnDuration, bnFileSize, decodeSlug, initialDateInput, inputToWpDate, usePostPermissions } from '../lib/postMeta'
 import {
@@ -923,7 +924,8 @@ export default function VideoEditor() {
                   {/* round 29: take the finished video and its thumbnail straight to social media */}
                   {upload.status !== 'uploading' && (attachmentId || thumbnailId) && fileIsSaved && (
                     <SaveFiles
-                      videoId={attachmentId}
+                      videoId={fileIsSaved ? (video?.edit?.original_attachment_id ?? video?.hd_attachment_id ?? attachmentId) : attachmentId}
+                      original={fileIsSaved && !!video}
                       thumbId={thumbnailId}
                       name={(decodeSlug(video?.slug ?? '') || title || 'meeha-video').slice(0, 60)}
                     />
@@ -1326,7 +1328,7 @@ async function shrinkTarget(file: File, maxBytes: number | null, fast: boolean):
 }
 
 /** Round 29 — ভিডিও / থাম্বনেইল ডাউনলোড (through the API, so it works across domains). */
-function SaveFiles({ videoId, thumbId, name }: { videoId: number | null; thumbId: number | null; name: string }) {
+function SaveFiles({ videoId, thumbId, name, original = false }: { videoId: number | null; thumbId: number | null; name: string; original?: boolean }) {
   const [busy, setBusy] = useState<null | { what: 'video' | 'thumb'; pct: number }>(null)
   const [err, setErr] = useState('')
   const save = async (what: 'video' | 'thumb', id: number) => {
@@ -1335,10 +1337,12 @@ function SaveFiles({ videoId, thumbId, name }: { videoId: number | null; thumbId
     try {
       const blob = await downloadMediaFile(id, (loaded, total) => setBusy({ what, pct: total ? Math.round((loaded / total) * 100) : 0 }))
       const ext = what === 'thumb' ? (blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg') : blob.type.includes('webm') ? 'webm' : 'mp4'
+      // r48: the studio previews and renders from these same bytes — no second download from the server
+      if (what === 'video') rememberOriginal(id, blob, `${name}-original.${ext}`)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${name}${what === 'thumb' ? '-thumbnail' : ''}.${ext}`
+      a.download = `${name}${what === 'thumb' ? '-thumbnail' : original ? '-original' : ''}.${ext}`
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -1354,7 +1358,7 @@ function SaveFiles({ videoId, thumbId, name }: { videoId: number | null; thumbId
       {videoId && (
         <Button size="sm" variant="secondary" onClick={() => save('video', videoId)} disabled={!!busy} data-testid="download-video">
           <IconDownload className="w-3.5 h-3.5" />
-          {busy?.what === 'video' ? `ডাউনলোড হচ্ছে… ${bnNumber(busy.pct)}%` : 'ভিডিও ডাউনলোড'}
+          {busy?.what === 'video' ? `ডাউনলোড হচ্ছে… ${bnNumber(busy.pct)}%` : original ? 'মূল ভিডিও ডাউনলোড (এডিটের আগে)' : 'ভিডিও ডাউনলোড'}
         </Button>
       )}
       {thumbId && (
@@ -1362,6 +1366,11 @@ function SaveFiles({ videoId, thumbId, name }: { videoId: number | null; thumbId
           <IconDownload className="w-3.5 h-3.5" />
           {busy?.what === 'thumb' ? 'ডাউনলোড হচ্ছে…' : 'থাম্বনেইল ডাউনলোড'}
         </Button>
+      )}
+      {original && videoId && (
+        <p className="text-[11.5px] text-neutral-500 w-full leading-snug">
+          ধাপ ১: মূল ভিডিও আগে কম্পিউটারে নামিয়ে রাখুন। তারপর “এডিট ভিডিও” খুললে এই ফাইল থেকেই চলবে — সার্ভার থেকে আবার নামাতে হবে না। রেন্ডার শেষে ডাউনলোড করে YouTube-এ দিন, তারপর লিংকটা এখানে বসান।
+        </p>
       )}
       {err && <p className="text-[12px] text-red-600 w-full">{err}</p>}
     </div>

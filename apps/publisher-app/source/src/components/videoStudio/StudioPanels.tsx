@@ -16,7 +16,6 @@ import {
   INTROS,
   LIMITS,
   LOWER_THIRDS,
-  MUSIC,
   LOGO_STYLES,
   QUICK_LOOKS,
   WATERMARK_STYLES,
@@ -36,7 +35,6 @@ import { IconPlus, IconTrash, IconUsers, IconX } from '../Icon'
 import PeoplePicker from './StudioPeople'
 import { ChoiceCard, Group, Section, Segmented, Slider, SwitchRow, TextInput, TimeField, useGroups } from './StudioFields'
 import { HOUSE_ADS, type HouseAdId } from '../../lib/videoEdit/houseads'
-import { AUTO_LOOKS, applyAutoStyle, detectTopic } from '../../lib/videoEdit/autostyle'
 import AssetBrowser from './AssetBrowser'
 
 export type Setter = (fn: (c: EditConfig) => EditConfig) => void
@@ -78,26 +76,6 @@ export function FramePanel({
   const setF = (patch: Partial<EditConfig['frame']>) => set((c) => ({ ...c, frame: { ...c.frame, ...patch } }))
   return (
     <div>
-      <Section title="অটো স্টাইল" hint="শিরোনাম ও ক্যাটেগরি পড়ে খবরের ধরন বুঝে মিলিয়ে দেয় — মিউজিক, ফ্রেম, ইন্ট্রো, আউট্রো ও নাম-পট্টি, আর কথার সময় মিউজিক নিচু। লেখা ও কাটা অংশ বদলায় না।">
-        {(() => {
-          const cat = f.kicker
-          const ttl = f.title || postTitle
-          const look = AUTO_LOOKS[detectTopic(cat, ttl)]
-          return (
-            <div className="flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50/50 px-3 py-2.5">
-              <div className="flex-1 min-w-0">
-                <p className="text-[12.5px] font-semibold text-neutral-800">ধরন: {look.name}</p>
-                <p className="text-[11px] text-neutral-500 truncate">
-                  {MUSIC.find((m) => m.id === look.music)?.name} · {FRAMES.find((x) => x.id === look.frame)?.name} · {INTROS.find((x) => x.id === look.intro)?.name}
-                </p>
-              </div>
-              <button type="button" onClick={() => set((c) => applyAutoStyle(c, c.frame.kicker, c.frame.title || postTitle))} className="shrink-0 rounded-lg bg-brand-600 text-white text-[12.5px] font-semibold px-3 py-1.5" data-testid="auto-style">
-                অটো স্টাইল দিন
-              </button>
-            </div>
-          )
-        })()}
-      </Section>
       <Section title="এক ক্লিকে সাজান" hint="ফ্রেম, ইন্ট্রো, আউট্রো ও মাপ একসাথে বসে। আপনার লেখা, কাটা অংশ ও ক্যাপশন যেমন আছে থাকবে; পরে যেকোনোটা বদলানো যায়।">
         <div className="grid grid-cols-2 gap-2" data-testid="quick-looks">
           {QUICK_LOOKS.map((q) => (
@@ -162,6 +140,28 @@ export function FramePanel({
           </Section>
           <Section title={f.titlePos === 'bottom' ? 'শিরোনাম পট্টি' : 'উপরের অংশ'}>
             <TextInput label="শিরোনাম / নিজের লেখা" value={f.title} onChange={(v) => setF({ title: v })} max={LIMITS.title} placeholder={postTitle || 'ভিডিওর শিরোনাম'} testId="frame-title" />
+            <div className="mb-3" data-testid="title-style">
+              <Slider
+                label="শিরোনামের আকার"
+                value={Math.round(f.titleScale * 100)}
+                min={70}
+                max={150}
+                step={5}
+                onChange={(v) => setF({ titleScale: v / 100 })}
+                format={(v) => (v === 100 ? 'স্বয়ংক্রিয়' : `${bnNumber(v)}%`)}
+              />
+              <p className="text-[11.5px] text-neutral-500 mt-1 mb-1">শিরোনামের ফন্ট</p>
+              <Segmented
+                value={f.titleFont}
+                options={[
+                  { id: 'sans', name: 'নোটো সান্স (পরিষ্কার)' },
+                  { id: 'display', name: 'বালু দা (মোটা, গোল)' },
+                ]}
+                onChange={(v) => setF({ titleFont: v })}
+                size="sm"
+              />
+              <p className="text-[11px] text-neutral-400 mt-1">ফ্রেমের উপরে শুধু শিরোনাম থাকে — পাশে কোনো আইকন নেই। লেখা পুরো জায়গায় যতটা বড় ধরে ততটা বসে; আকার দিয়ে আরও বড়/ছোট করুন।</p>
+            </div>
             <TextInput label="ক্যাটেগরি / লেবেল (ঐচ্ছিক)" value={f.kicker} onChange={(v) => setF({ kicker: v })} max={LIMITS.kicker} placeholder="যেমন: জাতীয়, খেলা, ক্যাম্পাস" />
             <SwitchRow label="তারিখ দেখান" checked={f.date} onChange={(v) => setF({ date: v })} />
           </Section>

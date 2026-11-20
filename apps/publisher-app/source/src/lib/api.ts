@@ -2909,3 +2909,53 @@ export const WriterTrackApi = {
   set: (id: number, track: 'journalist' | 'writer', group = '') =>
     request<{ ok: true; track: string; group: string }>(`/admin/correspondents/${id}/track`, { method: 'POST', body: { track, group } }),
 }
+
+// ---- r48: স্টোরেজ ম্যানেজার ----
+
+export interface StorageFolder { bytes: number; files: number; partial: boolean }
+export type StorageVideoStatus = 'on_youtube' | 'needs_link' | 'unused' | 'asset'
+export interface StorageVideoNews {
+  id: number
+  title: string
+  status: string
+  source: 'upload' | 'youtube' | string
+  youtube: string
+  roles: string[]
+}
+export interface StorageVideo {
+  id: number
+  name: string
+  size: number
+  missing: boolean
+  date: string
+  by: string
+  mime: string
+  url: string
+  status: StorageVideoStatus
+  news: StorageVideoNews[]
+}
+export interface StorageOverview {
+  disk: {
+    uploads: StorageFolder
+    upload_temp: StorageFolder
+    private: StorageFolder
+    free: number | null
+    total: number | null
+    counted_at: string
+  }
+  videos: StorageVideo[]
+  sum: Record<'all' | StorageVideoStatus, number>
+  count: Record<'all' | StorageVideoStatus, number>
+}
+export type StorageCleanTarget = 'upload_temp' | 'transients' | 'page_cache' | 'object_cache'
+
+export const StorageApi = {
+  overview: (refresh = false) => request<StorageOverview>(`/admin/storage${refresh ? '?refresh=1' : ''}`),
+  deleteVideos: (ids: number[], orphans = false) =>
+    request<{ deleted: number[]; skipped: { id: number; why: string }[]; freed: number }>('/admin/storage/videos/delete', {
+      method: 'POST',
+      body: { ids, orphans },
+    }),
+  clean: (what: StorageCleanTarget) =>
+    request<{ ok: true; message: string }>('/admin/storage/clean', { method: 'POST', body: { what } }),
+}

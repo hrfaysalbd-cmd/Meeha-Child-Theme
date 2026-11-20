@@ -130,3 +130,10 @@ export function bnClock(sec: number, tenths = false) {
   const base = `${m}:${String(whole).padStart(2, '0')}`
   return bnDigits(tenths ? `${base}.${Math.floor((r - whole) * 10)}` : base)
 }
+
+/**
+ * r48 (Hafiz): the frame's top band shows the title alone — no icons or pictures (ballot box, sun,
+ * globe, ribbons…) beside it, so the title gets the full width. Kept as one switch so the old
+ * decorations are not lost if they are ever wanted back.
+ */
+export const HEADER_ART = false
