@@ -769,8 +769,15 @@ class NROS_Ads_Manager {
 	private static function landing_pages() {
 		global $wpdb;
 		$out = array();
-		foreach ( array( 'advertise' => 'meeha_advertise', 'specs' => 'meeha_ad_specs', 'app' => 'meeha_app_landing' ) as $kind => $tag ) {
-			$id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'page' AND post_status IN ('publish','draft','private') AND post_content LIKE %s ORDER BY post_status = 'publish' DESC, ID ASC LIMIT 1", '%[' . $wpdb->esc_like( $tag ) . '%' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		// The app page may use the older alias [meeha_correspondent_app] (e.g. meeha.news/app/).
+		foreach ( array( 'advertise' => array( 'meeha_advertise' ), 'specs' => array( 'meeha_ad_specs' ), 'app' => array( 'meeha_app_landing', 'meeha_correspondent_app' ) ) as $kind => $tags ) {
+			$id = 0;
+			foreach ( $tags as $tag ) {
+				$id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'page' AND post_status IN ('publish','draft','private') AND post_content LIKE %s ORDER BY post_status = 'publish' DESC, ID ASC LIMIT 1", '%[' . $wpdb->esc_like( $tag ) . '%' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+				if ( $id ) {
+					break;
+				}
+			}
 			$out[ $kind ] = $id ? array(
 				'id'     => $id,
 				'url'    => (string) get_permalink( $id ),
