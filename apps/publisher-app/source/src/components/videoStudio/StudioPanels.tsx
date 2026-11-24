@@ -268,7 +268,7 @@ function CornerAdSection({ cfg, set, onPick }: { cfg: EditConfig; set: Setter; o
     <div className="border-t border-neutral-100 pt-3 mt-3" data-testid="corner-ad">
       <SwitchRow
         label="কোণার বিজ্ঞাপন (লোগোর পাশে)"
-        hint="একপাশে মিহার এনিমেটেড লোগো, অন্য পাশে বিজ্ঞাপনদাতার ছোট লোগো বা ব্যানার — লোগোর মতোই ছোট, পুরো ভিডিও জুড়ে।"
+        hint="একপাশে মিহার এনিমেটেড লোগো, অন্য পাশে বিজ্ঞাপনদাতার ছোট লোগো বা ব্যানার, সাথে এনিমেটেড শিরোনাম — লোগোর মতোই ছোট, পুরো ভিডিও জুড়ে।"
         checked={a.on}
         // the ad sits opposite the logo, so switching it on brings the logo too
         onChange={(v) => set((c) => ({ ...c, cornerAd: { ...c.cornerAd, on: v }, logo: v ? { ...c.logo, on: true } : c.logo }))}
@@ -296,6 +296,48 @@ function CornerAdSection({ cfg, set, onPick }: { cfg: EditConfig; set: Setter; o
           <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-[11.5px] text-amber-900 mb-3">
             <b>সাইজ গাইড:</b> চওড়া লোগো/ব্যানার ৬০০×২৪০ px, চৌকো লোগো ৪০০×৪০০ px। স্বচ্ছ পটভূমির PNG (বা WebP) সবচেয়ে ভালো, ৩০০ KB-এর মধ্যে। লেখা বড় ও মোটা রাখুন — ভিডিওতে এটি
             ছোট দেখায়।
+          </div>
+          <div className="rounded-lg border border-neutral-200 px-3 py-2.5 mb-3" data-testid="corner-ad-text">
+            <p className="text-[12.5px] font-semibold text-neutral-800 mb-0.5">বিজ্ঞাপনের শিরোনাম (এনিমেশনে)</p>
+            <p className="text-[11px] text-neutral-500 mb-2">
+              {a.image ? 'একই বাক্সে ছবি আর শিরোনাম পালা করে ঘুরে ঘুরে আসে, পুরো ভিডিও জুড়ে।' : 'ছবি ছাড়াও চলে — তখন বাক্সে শুধু শিরোনাম থাকে।'}
+            </p>
+            <TextInput label="শিরোনাম" value={a.text} onChange={(v) => setA({ text: v })} max={LIMITS.cornerAdText} placeholder="যেমন: রহমান ইলেকট্রনিক্স — ঈদে ২০% ছাড়" testId="corner-ad-title" />
+            <TextInput label="দ্বিতীয় লাইন (ইচ্ছা করলে)" value={a.sub} onChange={(v) => setA({ sub: v })} max={LIMITS.cornerAdSub} placeholder="যেমন: ফোন ০১৭১১-০০০০০০" testId="corner-ad-sub" />
+            {a.text.trim() !== '' && (
+              <>
+                <p className="text-[11.5px] text-neutral-600 mt-2 mb-1">কীভাবে বদলাবে</p>
+                <Segmented
+                  value={a.anim}
+                  options={[
+                    { id: 'flip', name: 'কার্ডের মতো ঘুরে' },
+                    { id: 'roll', name: 'ওপরে গড়িয়ে' },
+                    { id: 'fade', name: 'মিলিয়ে' },
+                  ]}
+                  onChange={(v) => setA({ anim: v })}
+                  size="sm"
+                />
+                {a.image && (
+                  <div className="mt-2">
+                    <Slider label="প্রতিটি কত সেকেন্ড থাকবে" value={a.swap} min={2} max={15} step={0.5} onChange={(v) => setA({ swap: v })} format={(v) => `${bnNumber(v)} সে.`} />
+                  </div>
+                )}
+                <p className="text-[11.5px] text-neutral-600 mt-2 mb-1">বিজ্ঞাপনদাতার রং</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {['#E30613', '#F59E0B', '#16A34A', '#2563EB', '#7C3AED', '#DB2777', '#111827'].map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setA({ accent: c })}
+                      aria-label={c}
+                      aria-pressed={a.accent === c}
+                      className={`w-7 h-7 rounded-full border-2 ${a.accent === c ? 'border-neutral-900' : 'border-white shadow'}`}
+                      style={{ background: c }}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
           <Section title="কোথায়">
             <div className="flex flex-wrap gap-1.5">

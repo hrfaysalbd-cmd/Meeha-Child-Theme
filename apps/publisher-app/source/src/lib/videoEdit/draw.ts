@@ -2420,70 +2420,250 @@ export function cornerAdCorner(cfg: EditConfig): 'tr' | 'tl' | 'br' | 'bl' {
   return lc === 'tr' ? 'tl' : lc === 'tl' ? 'tr' : lc === 'br' ? 'bl' : 'br'
 }
 
+/** Cut a line to `maxW` with an ellipsis. */
+function fitLine(ctx: Ctx, s: string, maxW: number) {
+  if (ctx.measureText(s).width <= maxW) return s
+  let t = s
+  while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1)
+  return t.trimEnd() + '…'
+}
+
+/** Split a headline into two balanced lines at a word gap. */
+function twoLines(ctx: Ctx, s: string): [string, string] {
+  const words = s.split(/\s+/).filter(Boolean)
+  if (words.length < 2) return [s, '']
+  let best: [string, string] = [s, '']
+  let bestW = Infinity
+  for (let i = 1; i < words.length; i++) {
+    const l1 = words.slice(0, i).join(' ')
+    const l2 = words.slice(i).join(' ')
+    const w = Math.max(ctx.measureText(l1).width, ctx.measureText(l2).width)
+    if (w < bestW) {
+      bestW = w
+      best = [l1, l2]
+    }
+  }
+  return best
+}
+
+interface CornerText {
+  lines: string[]
+  fs: number
+  sub: string
+  subFs: number
+  w: number
+}
+
+/** Lay out the headline side of the corner ad inside a box of height `boxH`, at most `maxW` wide. */
+function cornerAdText(ctx: Ctx, title: string, sub: string, boxH: number, maxW: number, lead: number): CornerText {
+  const padX = boxH * 0.2
+  const room = maxW - padX * 2 - lead
+  let lines = [title]
+  let fs = boxH * (sub ? 0.36 : 0.44)
+  const subFs = boxH * 0.24
+  ctx.font = bodyFont(800, fs)
+  if (!sub && ctx.measureText(title).width > room) {
+    // a long headline: two lines first, then smaller letters
+    fs = boxH * 0.3
+    ctx.font = bodyFont(800, fs)
+    const two = twoLines(ctx, title)
+    lines = two[1] ? two : [title]
+  }
+  let tw = Math.max(...lines.map((l) => ctx.measureText(l).width))
+  if (tw > room) {
+    fs = Math.max(fs * 0.7, fs * (room / tw))
+    ctx.font = bodyFont(800, fs)
+  }
+  lines = lines.map((l) => fitLine(ctx, l, room))
+  tw = Math.max(...lines.map((l) => ctx.measureText(l).width))
+  let sw = 0
+  let subLine = ''
+  if (sub) {
+    ctx.font = bodyFont(600, subFs)
+    subLine = fitLine(ctx, sub, room)
+    sw = ctx.measureText(subLine).width
+  }
+  return { lines, fs, sub: subLine, subFs, w: Math.min(maxW, Math.max(tw, sw) + padX * 2 + lead) }
+}
+
 /**
  * r49 — the client's small ad in a corner of the picture, opposite the logo: a transparent PNG
- * logo or a short banner, on a white card (or bare), with a tiny "বিজ্ঞাপন" tag. It slides in
+ * logo or a short banner, on a white card (or bare), with a tiny "বিজ্ঞাপন" tag. It comes in
  * softly, and in 'cycle' mode shows for `stay` seconds every `every` seconds.
+ * r49.1 — the box can also carry the ad's headline (and a second line): image and headline take
+ * turns in the same box every `swap` seconds (flip / roll / fade), over and over through the
+ * video. With no image it shows only the headline.
  */
 export function drawCornerAd(ctx: Ctx, env: DrawEnv, t: number) {
   const ca = env.cfg.cornerAd
-  const pic = env.cornerAd
-  if (!ca.on || !pic || pic.w <= 0 || pic.h <= 0) return
+  const pic = env.cornerAd && env.cornerAd.w > 0 && env.cornerAd.h > 0 ? env.cornerAd : null
+  const title = ca.text.trim()
+  if (!ca.on || (!pic && !title)) return
   const t0 = 1
   if (t < t0) return
   const lt = t - t0
   let vis = win(lt, 0, 0.6)
+  let faceT = lt
   if (ca.show === 'cycle') {
     const c = lt % Math.max(ca.every, ca.stay + 2)
     vis = Math.min(win(c, 0, 0.6), 1 - win(c, ca.stay, ca.stay + 0.6))
+    faceT = c
   }
   if (vis <= 0) return
   const v = env.L.video
   const short = Math.min(v.w, v.h)
-  let h = (ca.size / 100) * short
-  let w = (pic.w / pic.h) * h
   const maxW = v.w * 0.42
+  let h = (ca.size / 100) * short
+  let w = pic ? (pic.w / pic.h) * h : 0
   if (w > maxW) {
     h *= maxW / w
     w = maxW
   }
-  const pad = ca.plate ? h * 0.14 : 0
+  // the box keeps one height for both sides; the headline side needs a plate even when the image has none
+  const pad = ca.plate || !pic ? h * 0.14 : 0
+  const boxH = Math.max(h + pad * 2, (ca.size / 100) * short * 1.1)
   const m = short * 0.035
   const corner = cornerAdCorner(env.cfg)
   const right = corner === 'tr' || corner === 'br'
   const bottom = corner === 'br' || corner === 'bl'
-  const tagH = ca.label ? Math.max(10, h * 0.22, short * 0.022) : 0
-  const boxW = w + pad * 2
-  const boxH = h + pad * 2
-  // the same corner as the logo: sit just inside it instead of on top of it
+  const tagH = ca.label ? Math.max(10, boxH * 0.2, short * 0.022) : 0
+  const lead = boxH * 0.1 + boxH * 0.12
+  const txt = title ? cornerAdText(ctx, title, ca.sub.trim(), boxH, maxW, lead) : null
+
+  type Face = 'img' | 'text'
+  const faces: Face[] = []
+  if (pic) faces.push('img')
+  if (txt) faces.push('text')
+  const faceW = (f: Face) => (f === 'img' ? w + pad * 2 : txt!.w)
+
+  // which side shows now, and how far the turn to it has gone
+  const D = 0.6
+  let cur: Face = faces[0]
+  let prev: Face = faces[0]
+  let tp = 1
+  let since = faceT
+  if (faces.length === 2) {
+    const k = Math.floor(faceT / ca.swap)
+    since = faceT - k * ca.swap
+    cur = faces[k % 2]
+    prev = faces[(k + 1) % 2]
+    tp = k === 0 ? 1 : Math.min(1, since / D)
+  }
+  const turning = tp < 1
+  const te = ease.inOutCubic(tp)
+
   let push = 0
   if (env.cfg.logo.on && env.cfg.logo.corner === corner) push = (env.cfg.logo.size / 100) * short * (env.cfg.logo.plate ? 1.52 : 1) + m * 0.5
-  const bx = right ? v.x + v.w - m - boxW : v.x + m
   const by = bottom ? v.y + v.h - m - boxH - push - tagH : v.y + m + push
-  const slide = (1 - ease.outCubic(vis)) * (right ? 1 : -1) * short * 0.04
+  const edge = right ? v.x + v.w - m : v.x + m
+  const xFor = (bw: number) => (right ? edge - bw : edge)
+  const radius = Math.min(boxH * 0.18, 14 * env.L.s)
+  const plated = (f: Face) => f === 'text' || ca.plate
+
+  const card = (f: Face, x: number, bw: number, y: number, alpha: number) => {
+    if (alpha <= 0) return
+    ctx.save()
+    ctx.globalAlpha *= alpha
+    if (plated(f)) {
+      ctx.shadowColor = 'rgba(0,0,0,0.28)'
+      ctx.shadowBlur = boxH * 0.16
+      ctx.shadowOffsetY = boxH * 0.04
+      fillRoundRect(ctx, x, y, bw, boxH, radius, ca.plate ? '#FFFFFF' : 'rgba(10,14,22,0.78)')
+      ctx.shadowColor = 'transparent'
+      ctx.shadowBlur = 0
+      ctx.shadowOffsetY = 0
+    }
+    if (f === 'img' && pic) {
+      if (!ca.plate) {
+        ctx.shadowColor = 'rgba(0,0,0,0.45)'
+        ctx.shadowBlur = h * 0.12
+      }
+      ctx.drawImage(pic.src, x + (bw - w) / 2, y + (boxH - h) / 2, w, h)
+      ctx.shadowColor = 'transparent'
+      ctx.shadowBlur = 0
+    } else if (f === 'text' && txt) {
+      const padX = boxH * 0.2
+      const barW = boxH * 0.1
+      fillRoundRect(ctx, x + padX * 0.7, y + boxH * 0.2, barW, boxH * 0.6, barW / 2, ca.accent)
+      const tx = x + padX * 0.7 + barW + boxH * 0.12
+      const lh = txt.fs * 1.18
+      const blockH = txt.lines.length * lh + (txt.sub ? txt.subFs * 1.25 : 0)
+      let ty = y + (boxH - blockH) / 2
+      ctx.textBaseline = 'middle'
+      ctx.fillStyle = ca.plate ? '#111827' : '#FFFFFF'
+      ctx.font = bodyFont(800, txt.fs)
+      for (const l of txt.lines) {
+        ctx.fillText(l, tx, ty + lh * 0.55)
+        ty += lh
+      }
+      if (txt.sub) {
+        ctx.font = bodyFont(600, txt.subFs)
+        ctx.fillStyle = ca.plate ? ca.accent : 'rgba(255,255,255,0.85)'
+        ctx.fillText(txt.sub, tx, ty + txt.subFs * 0.68)
+      }
+    }
+    // a light shine passes over the box once each time a side settles
+    const sp = (since - D) / 0.9
+    if (faces.length === 2 && sp > 0 && sp < 1 && plated(f)) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.roundRect(x, y, bw, boxH, radius)
+      ctx.clip()
+      const sx = x - boxH + (bw + boxH * 2) * ease.inOutCubic(sp)
+      const g = ctx.createLinearGradient(sx - boxH * 0.6, y, sx + boxH * 0.6, y + boxH)
+      g.addColorStop(0, 'rgba(255,255,255,0)')
+      g.addColorStop(0.5, ca.plate ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.18)')
+      g.addColorStop(1, 'rgba(255,255,255,0)')
+      ctx.fillStyle = g
+      ctx.fillRect(x, y, bw, boxH)
+      ctx.restore()
+    }
+    ctx.restore()
+  }
 
   ctx.save()
-  ctx.globalAlpha = ca.opacity * ease.outCubic(vis)
-  ctx.translate(slide, 0)
-  if (ca.plate) {
-    ctx.shadowColor = 'rgba(0,0,0,0.28)'
-    ctx.shadowBlur = h * 0.18
-    ctx.shadowOffsetY = h * 0.04
-    fillRoundRect(ctx, bx, by, boxW, boxH, Math.min(boxH * 0.18, 14 * env.L.s), '#FFFFFF')
-    ctx.shadowColor = 'transparent'
-    ctx.shadowBlur = 0
-    ctx.shadowOffsetY = 0
+  const ve = ease.outCubic(vis)
+  ctx.globalAlpha = ca.opacity * ve
+  let bw = faceW(cur)
+  if (ca.anim === 'flip') {
+    // the whole card turns round its middle; it pops in at the start
+    const half = tp < 0.5
+    const f = turning && half ? prev : cur
+    bw = faceW(f)
+    const x = xFor(bw)
+    const sx = turning ? Math.max(0.02, Math.abs(Math.cos(Math.PI * tp))) : 1
+    const pop = vis < 1 ? 0.6 + 0.4 * ease.outBack(vis) : 1
+    const cx = x + bw / 2
+    const cy = by + boxH / 2
+    ctx.save()
+    ctx.translate(cx, cy)
+    ctx.scale(sx * pop, pop)
+    ctx.translate(-cx, -cy)
+    card(f, x, bw, by, 1)
+    ctx.restore()
   } else {
-    ctx.shadowColor = 'rgba(0,0,0,0.45)'
-    ctx.shadowBlur = h * 0.12
+    const slide = ca.anim === 'roll' ? (1 - ve) * (right ? 1 : -1) * short * 0.04 : 0
+    ctx.translate(slide, 0)
+    bw = turning ? faceW(prev) + (faceW(cur) - faceW(prev)) * te : faceW(cur)
+    const x = xFor(bw)
+    if (!turning) card(cur, x, bw, by, 1)
+    else if (ca.anim === 'roll') {
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(x - boxH, by, bw + boxH * 2, boxH)
+      ctx.clip()
+      card(prev, x, bw, by - boxH * te, 1 - te)
+      card(cur, x, bw, by + boxH * (1 - te), te)
+      ctx.restore()
+    } else {
+      card(prev, x, bw, by, 1 - te)
+      card(cur, x, bw, by, te)
+    }
   }
-  ctx.drawImage(pic.src, bx + pad, by + pad, w, h)
-  ctx.shadowColor = 'transparent'
-  ctx.shadowBlur = 0
   if (ca.label) {
     ctx.font = bodyFont(700, tagH * 0.72)
     const tw = ctx.measureText('বিজ্ঞাপন').width + tagH * 0.7
-    const tx = right ? bx + boxW - tw : bx
+    const tx = right ? edge - tw : edge
     const ty = by + boxH + tagH * 0.18
     fillRoundRect(ctx, tx, ty, tw, tagH, tagH * 0.3, 'rgba(0,0,0,0.55)')
     ctx.fillStyle = '#FFFFFF'

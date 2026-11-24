@@ -521,6 +521,19 @@ export interface EditConfig {
     show: 'always' | 'cycle'
     every: number
     stay: number
+    /**
+     * r49.1 — the ad's headline (and an optional second line, e.g. an offer or phone number)
+     * that takes turns with the image inside the same corner box, all through the video.
+     * With no image the box shows only the text.
+     */
+    text: string
+    sub: string
+    /** Seconds each side (image / headline) stays before the box turns to the other. */
+    swap: number
+    /** How the box turns: flip (like a card), roll (up), fade. */
+    anim: 'flip' | 'roll' | 'fade'
+    /** The client's colour: the small bar beside the headline. */
+    accent: string
   }
   /** Round 28: the Meeha News watermark that fades from place to place over the news. */
   watermark: {
@@ -579,7 +592,7 @@ export const DEFAULT_CONFIG: EditConfig = {
   quality: '1080',
   fileSize: 'balanced',
   frame: { id: 'none', title: '', kicker: '', date: true, footer: 'ticker', ticker: '', adText: '', adImage: null, size: 'auto', top: 1, bottom: 1, motion: 'lively', titlePos: 'top', titleScale: 1, titleFont: 'sans', badgeMode: 'auto', badge: '' },
-  cornerAd: { on: false, image: null, corner: 'auto', size: 7.5, plate: true, label: true, opacity: 1, show: 'always', every: 30, stay: 12 },
+  cornerAd: { on: false, image: null, corner: 'auto', size: 7.5, plate: true, label: true, opacity: 1, show: 'always', every: 30, stay: 12, text: '', sub: '', swap: 4, anim: 'flip', accent: '#E30613' },
   logo: { on: false, style: 'reveal', corner: 'tr', size: 6, every: 12, plate: true, opacity: 1 },
   watermark: { on: true, style: 'hop', size: 6, every: 9, opacity: 0.42, site: true },
   intro: { id: 'none', text: '', clip: null, cover: true },
@@ -856,6 +869,8 @@ export const LIMITS = {
   thumbTitle: 90,
   thumbBadge: 20,
   frameBadge: 24,
+  cornerAdText: 48,
+  cornerAdSub: 32,
   thumbSub: 60,
   thumbLayers: 12,
   thumbLayerText: 40,
@@ -1042,6 +1057,11 @@ export function normalizeConfig(raw: unknown): EditConfig {
       show: oneOf(o.cornerAd?.show, ['always', 'cycle'] as const, 'always'),
       every: num(o.cornerAd?.every, d.cornerAd.every, 10, 300),
       stay: num(o.cornerAd?.stay, d.cornerAd.stay, 3, 120),
+      text: str(o.cornerAd?.text, LIMITS.cornerAdText),
+      sub: str(o.cornerAd?.sub, LIMITS.cornerAdSub),
+      swap: num(o.cornerAd?.swap, d.cornerAd.swap, 2, 15),
+      anim: oneOf(o.cornerAd?.anim, ['flip', 'roll', 'fade'] as const, 'flip'),
+      accent: typeof o.cornerAd?.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(o.cornerAd.accent) ? o.cornerAd.accent : d.cornerAd.accent,
     },
     watermark: {
       on: bool(o.watermark?.on, d.watermark.on),
