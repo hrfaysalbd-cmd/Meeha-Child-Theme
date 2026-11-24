@@ -1,5 +1,5 @@
 {
-    "generated": "2026-11-16T14:39:17+00:00",
+    "generated": "2026-11-24T17:26:16+00:00",
     "bundles": {
         "core": {
             "css": [
@@ -13,8 +13,8 @@
             "critical": [],
             "deps": [],
             "css_file": "core.min.css",
-            "css_ver": "569fe38fff",
-            "css_bytes": 45573
+            "css_ver": "7c2ad57ecf",
+            "css_bytes": 48951
         },
         "base": {
             "css": [
@@ -43,8 +43,8 @@
             ],
             "deps": [],
             "css_file": "page.min.css",
-            "css_ver": "e13742d1a8",
-            "css_bytes": 3931
+            "css_ver": "d87a641eb1",
+            "css_bytes": 4237
         },
         "404": {
             "css": [
@@ -56,8 +56,8 @@
             ],
             "deps": [],
             "css_file": "404.min.css",
-            "css_ver": "e13742d1a8",
-            "css_bytes": 3931
+            "css_ver": "d87a641eb1",
+            "css_bytes": 4237
         },
         "account": {
             "css": [
@@ -72,8 +72,8 @@
             ],
             "deps": [],
             "css_file": "account.min.css",
-            "css_ver": "c6c4e0766b",
-            "css_bytes": 11678,
+            "css_ver": "2a1f111218",
+            "css_bytes": 11984,
             "js_file": "account.min.js",
             "js_ver": "10dcfd83cc",
             "js_bytes": 11349
@@ -434,6 +434,17 @@
             "js_ver": "bb754eeb0a",
             "js_bytes": 8213
         },
+        "advertise": {
+            "css": [
+                "assets/css/advertise.css"
+            ],
+            "js": [],
+            "critical": [],
+            "deps": [],
+            "css_file": "advertise.min.css",
+            "css_ver": "0a97742616",
+            "css_bytes": 7937
+        },
         "assistant": {
             "css": [
                 "assets/css/assistant.css"
@@ -447,8 +458,8 @@
             "css_ver": "2d40904c73",
             "css_bytes": 4396,
             "js_file": "assistant.min.js",
-            "js_ver": "07f9ad5cd3",
-            "js_bytes": 7082
+            "js_ver": "c625483c87",
+            "js_bytes": 7184
         },
         "assistant-panel": {
             "css": [
@@ -477,8 +488,8 @@
                 "assets/css/components.css",
                 "assets/css/live-badge.css"
             ],
-            "bytes": 45573,
-            "gzip": 9646
+            "bytes": 48951,
+            "gzip": 10466
         },
         "page": {
             "file": "critical-page.min.css",
@@ -490,8 +501,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/page.css"
             ],
-            "bytes": 49504,
-            "gzip": 10394
+            "bytes": 53188,
+            "gzip": 11249
         },
         "404": {
             "file": "critical-404.min.css",
@@ -503,8 +514,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/page.css"
             ],
-            "bytes": 49504,
-            "gzip": 10394
+            "bytes": 53188,
+            "gzip": 11249
         },
         "account": {
             "file": "critical-account.min.css",
@@ -516,8 +527,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/page.css"
             ],
-            "bytes": 49504,
-            "gzip": 10394
+            "bytes": 53188,
+            "gzip": 11249
         },
         "home": {
             "file": "critical-home.min.css",
@@ -530,8 +541,8 @@
                 "assets/css/home.css",
                 "assets/css/liveband.css"
             ],
-            "bytes": 59928,
-            "gzip": 11904
+            "bytes": 63306,
+            "gzip": 12721
         },
         "archive": {
             "file": "critical-archive.min.css",
@@ -543,8 +554,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/archive.css"
             ],
-            "bytes": 55125,
-            "gzip": 11127
+            "bytes": 58503,
+            "gzip": 11974
         },
         "search": {
             "file": "critical-search.min.css",
@@ -556,8 +567,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/archive.css"
             ],
-            "bytes": 55125,
-            "gzip": 11127
+            "bytes": 58503,
+            "gzip": 11974
         },
         "single": {
             "file": "critical-single.min.css",
@@ -569,8 +580,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/single.css"
             ],
-            "bytes": 64326,
-            "gzip": 13027
+            "bytes": 67704,
+            "gzip": 13819
         },
         "literature": {
             "file": "critical-literature.min.css",
@@ -583,8 +594,8 @@
                 "assets/css/literary-font.css",
                 "assets/css/literature.css"
             ],
-            "bytes": 59741,
-            "gzip": 12125
+            "bytes": 63119,
+            "gzip": 12951
         },
         "quotes": {
             "file": "critical-quotes.min.css",
@@ -596,8 +607,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/quotes.css"
             ],
-            "bytes": 59830,
-            "gzip": 13334
+            "bytes": 63208,
+            "gzip": 14144
         },
         "campus": {
             "file": "critical-campus.min.css",
@@ -609,8 +620,8 @@
                 "assets/css/live-badge.css",
                 "assets/css/campus.css"
             ],
-            "bytes": 90449,
-            "gzip": 17819
+            "bytes": 93827,
+            "gzip": 18593
         }
     }
 }

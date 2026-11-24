@@ -101,6 +101,14 @@ export function frameScale(cfg: EditConfig, W: number, H: number) {
   return r >= 1.5 ? 1.4 : r >= 1.1 ? 1.2 : 1
 }
 
+/**
+ * r49 — a title made bigger than automatic grows its band with it. Before, the band stayed the
+ * same height and the title stopped growing ("froze") once it filled the band.
+ */
+export function titleGrow(cfg: EditConfig) {
+  return Math.max(1, cfg.frame.titleScale || 1)
+}
+
 export function computeLayout(cfg: EditConfig, srcW0: number, srcH0: number): Layout {
   const short = cfg.quality === '720' ? 720 : 1080
   const hasHeader = cfg.frame.id !== 'none'
@@ -117,7 +125,7 @@ export function computeLayout(cfg: EditConfig, srcW0: number, srcH0: number): La
     // judge "tall" by the finished picture, bands included
     const k = frameScale(cfg, vw, vh + (hasHeader ? HEADER_UNITS : 0) * (Math.min(vw, vh) / 1080))
     const s = (Math.min(vw, vh) / 1080) * k
-    const hh = hasHeader ? even(HEADER_UNITS * s * cfg.frame.top) : 0
+    const hh = hasHeader ? even(HEADER_UNITS * s * cfg.frame.top * titleGrow(cfg)) : 0
     const fh = hasFooter ? even(FOOTER_UNITS * s * cfg.frame.bottom) : 0
     // round 29: the title band can sit under the picture, just above the ticker
     const low = cfg.frame.titlePos === 'bottom'
@@ -139,7 +147,7 @@ export function computeLayout(cfg: EditConfig, srcW0: number, srcH0: number): La
   const k = frameScale(cfg, W, H)
   const s = (Math.min(W, H) / 1080) * k
   // round 27: taller bands on request, but the picture keeps at least 40% of the height
-  let hh = hasHeader ? HEADER_UNITS * s * cfg.frame.top : 0
+  let hh = hasHeader ? HEADER_UNITS * s * cfg.frame.top * titleGrow(cfg) : 0
   let fh = hasFooter ? FOOTER_UNITS * s * cfg.frame.bottom : 0
   const room = H * 0.6
   if (hh + fh > room) {

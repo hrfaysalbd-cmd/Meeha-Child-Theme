@@ -226,13 +226,29 @@ function meeha_cards_quote_payload( $post ) {
 			'year'          => $q['year'],
 			'speaker_photo' => $q['photo'],
 		),
-		'opts'     => array( 'size' => '1080x1080' ),
+		'opts'     => meeha_cards_quote_opts(),
 		'filename' => 'meeha-quote-' . get_the_date( 'Ymd', $post ) . '-' . $post->ID . '.png',
 		'src'      => meeha_cards_script_src(),
 		'config'   => meeha_cards_config(),
 		'caption'  => '“' . $q['text'] . '”' . ( '' !== (string) $q['speaker'] ? ' — ' . $q['speaker'] : '' ) . "\n\n" . get_permalink( $post ),
 		'title'    => wp_strip_all_tags( get_the_title( $post ) ),
 	);
+}
+
+/**
+ * r49 — card options of a reader's উক্তি download: 1080 × 1080, with the ad strip when it is on.
+ *
+ * @return array
+ */
+function meeha_cards_quote_opts() {
+	$opts = array( 'size' => '1080x1080', 'ad' => false );
+	if ( meeha_studio_opt( 'quote_reader_ad', 0 ) ) {
+		$ad = meeha_studio_reader_ad( 'quote' );
+		if ( $ad ) {
+			$opts['ad'] = $ad;
+		}
+	}
+	return $opts;
 }
 
 /* Admin bar: "ফটোকার্ড বানান" on single posts/quotes for card makers. */

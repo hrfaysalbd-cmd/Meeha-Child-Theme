@@ -50,6 +50,15 @@ class NROS_Storage {
 		);
 		register_rest_route(
 			NROS_API_NS,
+			'/admin/storage/for/(?P<post>\d+)',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'for_post' ),
+				'permission_callback' => $pub,
+			)
+		);
+		register_rest_route(
+			NROS_API_NS,
 			'/admin/storage/clean',
 			array(
 				'methods'             => 'POST',
@@ -317,6 +326,61 @@ class NROS_Storage {
 			'videos' => $videos,
 			'sum'    => $sum,
 			'count'  => $count,
+		);
+	}
+
+	/**
+	 * r49 — GET /admin/storage/for/{post}: the server video files of one news, with whether each
+	 * may go now (the studio's "সার্ভারের ভিডিও মুছুন" after the YouTube link is set).
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return array
+	 */
+	public static function for_post( $request ) {
+		$post  = (int) $request['post'];
+		$index = self::references();
+		$out   = array();
+		$sum   = 0;
+		$free  = 0;
+		foreach ( $index['refs'] as $att => $refs ) {
+			$mine = false;
+			foreach ( $refs as $r ) {
+				if ( (int) $r['post'] === $post ) {
+					$mine = true;
+					break;
+				}
+			}
+			if ( ! $mine || 'attachment' !== get_post_type( $att ) || 0 !== strpos( (string) get_post_mime_type( $att ), 'video/' ) ) {
+				continue;
+			}
+			$file  = get_attached_file( $att );
+			$size  = $file && file_exists( $file ) ? (int) filesize( $file ) : 0;
+			$v     = self::verdict( (int) $att, $index );
+			$sum  += $size;
+			$free += 'on_youtube' === $v['status'] ? $size : 0;
+			$roles = array();
+			foreach ( $refs as $r ) {
+				if ( (int) $r['post'] === $post ) {
+					$roles[] = $r['role'];
+				}
+			}
+			$out[] = array(
+				'id'     => (int) $att,
+				'name'   => $file ? wp_basename( $file ) : get_the_title( $att ),
+				'size'   => $size,
+				'status' => $v['status'],
+				'roles'  => array_values( array_unique( $roles ) ),
+				'shared' => count( $v['news'] ) > 1,
+			);
+		}
+		$p = isset( $index['posts'][ $post ] ) ? $index['posts'][ $post ] : null;
+		return array(
+			'post'      => $post,
+			'source'    => $p ? $p['source'] : '',
+			'youtube'   => $p ? $p['youtube'] : null,
+			'videos'    => $out,
+			'size'      => $sum,
+			'deletable' => $free,
 		);
 	}
 

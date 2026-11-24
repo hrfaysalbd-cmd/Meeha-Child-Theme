@@ -9,7 +9,7 @@
  *                     and area (division/upazila) lookups. Reuses the active theme's
  *                     existing data (engagement meta, area helpers, edit-request CPT,
  *                     submission safety-net) wherever possible instead of duplicating it.
- * Version:           1.30.0
+ * Version:           1.31.0
  * Author:             Meeha News
  * Text Domain:        newsroom-os
  *
@@ -24,11 +24,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Core constants
 // ---------------------------------------------------------------------------
 
-define( 'NROS_VERSION', '1.30.0' );
+define( 'NROS_VERSION', '1.31.0' );
 // Bumped whenever create_tables()/register_roles() need to re-run on an
 // already-active install (see NROS_Core::maybe_upgrade()) — bump this any
 // time a future change adds/changes a table or role.
-define( 'NROS_DB_VERSION', '18' ); // 18 — r47 মিহা কলম: applications.track/writer_group/institution/designation/pen_name/genres/sample
+define( 'NROS_DB_VERSION', '19' ); // 19 — r49 nros_ad_stats (ad views/clicks). Was: 18 — r47 মিহা কলম: applications.track/writer_group/institution/designation/pen_name/genres/sample
 // 17 — r46 গোপন তথ্য (nros_tips, nros_tips_files, nros_tips_notes)
 define( 'NROS_DIR', plugin_dir_path( __FILE__ ) );
 define( 'NROS_URL', plugin_dir_url( __FILE__ ) );
@@ -55,6 +55,7 @@ require_once NROS_DIR . 'includes/class-nros-admin-api.php';
 require_once NROS_DIR . 'includes/class-nros-admin-posts.php';
 require_once NROS_DIR . 'includes/class-nros-ad-leads.php';
 require_once NROS_DIR . 'includes/class-nros-ads-manager.php';
+require_once NROS_DIR . 'includes/class-nros-ad-stats.php'; // r49 বিজ্ঞাপনের দেখা/ক্লিক (DB 19)
 require_once NROS_DIR . 'includes/class-nros-alerts.php';
 require_once NROS_DIR . 'includes/class-nros-campus.php';
 require_once NROS_DIR . 'includes/class-nros-prompts.php';
@@ -63,6 +64,7 @@ require_once NROS_DIR . 'includes/class-nros-editorial.php';
 require_once NROS_DIR . 'includes/class-nros-guest-authors.php';
 require_once NROS_DIR . 'includes/class-nros-notifications.php';
 require_once NROS_DIR . 'includes/class-nros-quotes.php';
+require_once NROS_DIR . 'includes/class-nros-quote-people.php'; // r49 উক্তির ব্যক্তি (টিম / CRM / আগের উক্তি)
 require_once NROS_DIR . 'includes/class-nros-insights.php';
 require_once NROS_DIR . 'includes/class-nros-video-kit.php';
 require_once NROS_DIR . 'includes/class-nros-photocard.php';
@@ -124,6 +126,7 @@ add_action(
 		NROS_Admin_Posts::init();
 		NROS_Ad_Leads::init();
 		NROS_Ads_Manager::init();
+		NROS_Ad_Stats::init();
 		NROS_Alerts::init();
 		NROS_Campus::init();
 		NROS_Prompts::init();
@@ -132,6 +135,7 @@ add_action(
 		NROS_Guest_Authors::init();
 		NROS_Notifications::init();
 		NROS_Quotes::init();
+		NROS_Quote_People::init();
 		NROS_Insights::init();
 		NROS_Video_Kit::init();
 		NROS_Photocard::init();

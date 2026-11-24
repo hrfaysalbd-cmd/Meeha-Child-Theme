@@ -1,0 +1,6 @@
+{
+	"_comment": "r49 — [meeha_advertise] landing page and [meeha_ad_specs] tables (inc/core/advertise.php enqueues it only when a page uses them).",
+	"advertise": {
+		"css": [ "assets/css/advertise.css" ]
+	}
+}

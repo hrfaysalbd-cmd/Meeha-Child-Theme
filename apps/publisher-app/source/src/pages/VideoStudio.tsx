@@ -17,6 +17,7 @@ import {
   ApiError,
   MediaApi,
   PhotocardApi,
+  StorageApi,
   VideoKitApi,
   describeError,
   downloadMediaFile,
@@ -210,7 +211,8 @@ export default function VideoStudio() {
   const [durations, setDurations] = useState<Record<string, number>>({})
   const [adPic, setAdPic] = useState<Picture | null>(null)
   const [picker, setPicker] = useState<null | { kind: 'ad-add' } | { kind: 'ad-replace'; index: number } | { kind: 'intro' | 'outro' | 'pip' }>(null)
-  const [imagePicker, setImagePicker] = useState<null | 'ad' | 'face'>(null)
+  const [imagePicker, setImagePicker] = useState<null | 'ad' | 'face' | 'corner'>(null)
+  const [cornerPic, setCornerPic] = useState<Picture | null>(null)
   const [facePic, setFacePic] = useState<Picture | null>(null)
   const [selectedSticker, setSelectedSticker] = useState<number | null>(null)
   const [wave, setWave] = useState<Waveform | null>(null)
@@ -459,6 +461,23 @@ export default function VideoStudio() {
     }
   }, [cfg.frame.adImage])
 
+  // ---- r49: the client's corner ad ----
+  useEffect(() => {
+    const ref = cfg.cornerAd.image
+    if (!ref) {
+      setCornerPic(null)
+      return
+    }
+    let cancelled = false
+    downloadMediaFile(ref.id)
+      .then((b) => createImageBitmap(b))
+      .then((bmp) => !cancelled && setCornerPic({ src: bmp, w: bmp.width, h: bmp.height }))
+      .catch(() => !cancelled && setCornerPic(null))
+    return () => {
+      cancelled = true
+    }
+  }, [cfg.cornerAd.image])
+
   // ---- thumbnail face photo ----
   useEffect(() => {
     const ref = cfg.thumb.face
@@ -500,6 +519,7 @@ export default function VideoStudio() {
       tl,
       logo: loaded.logo,
       adImage: adPic,
+      cornerAd: cornerPic,
       title,
       introTitle: cfg.intro.text.trim() || title,
       kicker: cfg.frame.kicker,
@@ -510,7 +530,7 @@ export default function VideoStudio() {
       reporter: loaded.video.author?.name,
       scratch,
     }
-  }, [loaded, L, tl, cfg, adPic, kit, postTitle, scratch, house])
+  }, [loaded, L, tl, cfg, adPic, cornerPic, kit, postTitle, scratch, house])
   const thumbEnv = useMemo(() => (env ? { ...env, scratch: thumbScratch } : null), [env, thumbScratch])
 
   // ---- preview player ----
@@ -1842,7 +1862,7 @@ export default function VideoStudio() {
             {tab === 'frame' && (
               <FramePanel cfg={cfg} set={set} postTitle={postTitle} thumb={thumb} thumbRatio={thumbRatio} thumbKey={thumbKey} onPickAdImage={() => setImagePicker('ad')} />
             )}
-            {tab === 'logo' && <LogoPanel cfg={cfg} set={set} customLogo={!!kit?.logo} />}
+            {tab === 'logo' && <LogoPanel cfg={cfg} set={set} customLogo={!!kit?.logo} onPickCornerAd={() => setImagePicker('corner')} />}
             {tab === 'intro' && (
               <IntroOutroPanel cfg={cfg} set={set} postTitle={postTitle} thumb={thumb} thumbRatio={thumbRatio} thumbKey={thumbKey} kit={kit} onPick={(w) => setPicker({ kind: w })} />
             )}
@@ -2002,11 +2022,20 @@ export default function VideoStudio() {
       )}
       {imagePicker && (
         <MediaGallery
-          title={imagePicker === 'face' ? 'থাম্বনেইলের মুখের ছবি — গ্যালারি থেকে বেছে নিন' : 'ফুটারের বিজ্ঞাপন ব্যানার — গ্যালারি থেকে বেছে নিন'}
+          title={
+            imagePicker === 'face'
+              ? 'থাম্বনেইলের মুখের ছবি — গ্যালারি থেকে বেছে নিন'
+              : imagePicker === 'corner'
+                ? 'কোণার বিজ্ঞাপন — স্বচ্ছ PNG লোগো বা ছোট ব্যানার (৬০০×২৪০ / ৪০০×৪০০)'
+                : 'ফুটারের বিজ্ঞাপন ব্যানার (১৯২০×১২০ · রিলে ১০৮০×১৭০)'
+          }
+          upload
+          source={imagePicker === 'face' ? 'media' : 'ads'}
           onClose={() => setImagePicker(null)}
           onSelect={(img: LibraryImage) => {
             const ref = { id: img.id, url: img.url, title: img.title }
             if (imagePicker === 'face') set((c) => ({ ...c, thumb: { ...c.thumb, on: true, face: ref } }))
+            else if (imagePicker === 'corner') set((c) => ({ ...c, cornerAd: { ...c.cornerAd, on: true, image: ref } }))
             else set((c) => ({ ...c, frame: { ...c.frame, footer: 'ad-image', adImage: ref } }))
             setImagePicker(null)
           }}
@@ -2040,6 +2069,7 @@ export default function VideoStudio() {
           onCancel={() => abortRef.current?.abort()}
           onClose={() => setJob(null)}
           onBack={() => navigate(`/app/videos/${videoId}`, { state: { notice: 'এডিট করা ভিডিও পোস্টে বসানো হয়েছে।' } })}
+          postId={loaded?.video.id ?? 0}
         />
       )}
     </div>
@@ -2193,6 +2223,7 @@ function RenderDialog({
   onCancel,
   onClose,
   onBack,
+  postId,
   onResume,
   onDiscard,
   keptName,
@@ -2223,6 +2254,7 @@ function RenderDialog({
   onCancel: () => void
   onClose: () => void
   onBack: () => void
+  postId: number
 }) {
   const busy = job.stage === 'download' || job.stage === 'render' || job.stage === 'upload' || job.stage === 'saving' || job.stage === 'shrink'
   const bar = (ratio: number) => (
@@ -2367,7 +2399,7 @@ function RenderDialog({
           </div>
         )}
 
-        {job.stage === 'done' && <DoneView job={job} onYoutube={onYoutube} withThumb={setThumb} onDiscard={onDiscard} onClose={onClose} onBack={onBack} />}
+        {job.stage === 'done' && <DoneView job={job} onYoutube={onYoutube} withThumb={setThumb} onDiscard={onDiscard} onClose={onClose} onBack={onBack} postId={postId} />}
         {job.stage === 'error' && (
           <>
             <p className="text-[13px] text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3">{job.message}</p>
@@ -2403,6 +2435,69 @@ function RenderDialog({
 }
 
 /** r48 — the ready screen: watch, download, put it on YouTube, and give the website its link. */
+/**
+ * r49 — right after the YouTube link is on the news: the server's copies of this news' video can
+ * go from here (no trip to স্টোরেজ ম্যানেজার). Only files the server itself says are safe
+ * (the news now plays from YouTube) are offered, and only after "the original is on my computer".
+ */
+function ServerCleanup({ postId }: { postId: number }) {
+  type Info = Awaited<ReturnType<typeof StorageApi.forPost>>
+  const [info, setInfo] = useState<Info | null>(null)
+  const [err, setErr] = useState('')
+  const [have, setHave] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState('')
+  const load = () =>
+    StorageApi.forPost(postId)
+      .then(setInfo)
+      .catch((e) => setErr(describeError(e).message))
+  useEffect(() => {
+    void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postId])
+  if (err) return <p className="text-[11.5px] text-neutral-500 mt-1.5">সার্ভারের ফাইলের হিসাব আনা যায়নি ({err})। <Link to="/app/storage" className="font-semibold text-brand-700 underline">স্টোরেজ ম্যানেজার</Link> থেকে মুছুন।</p>
+  if (!info) return <p className="text-[11.5px] text-neutral-400 mt-1.5">সার্ভারের ফাইল দেখা হচ্ছে…</p>
+  const ok = info.videos.filter((v) => v.status === 'on_youtube')
+  const kept = info.videos.filter((v) => v.status !== 'on_youtube')
+  const mb = (n: number) => `${bnNumber((n / 1024 / 1024).toFixed(n > 1024 * 1024 * 100 ? 0 : 1))} MB`
+  const del = async () => {
+    setBusy(true)
+    setErr('')
+    try {
+      const r = await StorageApi.deleteVideos(ok.map((v) => v.id))
+      setDone(`${bnNumber(r.deleted.length)}টি ফাইল মোছা হলো, ${mb(r.freed)} জায়গা খালি হলো।${r.skipped.length ? ` ${bnNumber(r.skipped.length)}টি রাখা হয়েছে: ${r.skipped[0].why}` : ''}`)
+      await load()
+    } catch (e) {
+      setErr(describeError(e).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="mt-2 rounded-lg bg-neutral-50 border border-neutral-200 p-2.5" data-testid="server-cleanup">
+      {done && <p className="text-[12px] text-emerald-700 mb-1">✓ {done}</p>}
+      {ok.length === 0 ? (
+        <p className="text-[11.5px] text-neutral-500">
+          {info.videos.length === 0 ? 'এই খবরের কোনো ভিডিও ফাইল সার্ভারে নেই।' : `সার্ভারে এই খবরের ${bnNumber(kept.length)}টি ফাইল আছে, কিন্তু এখন মোছা নিরাপদ নয় (অন্য খবরে বা লাইব্রেরিতে ব্যবহার হচ্ছে)।`}
+        </p>
+      ) : (
+        <>
+          <p className="text-[12px] text-neutral-700">
+            সার্ভারে এই খবরের {bnNumber(ok.length)}টি ভিডিও ফাইল ({mb(ok.reduce((a, v) => a + v.size, 0))}) আর লাগবে না।
+          </p>
+          <label className="flex items-start gap-2 mt-1.5 text-[12px] text-neutral-700">
+            <input type="checkbox" checked={have} onChange={(e) => setHave(e.target.checked)} className="mt-0.5" data-testid="cleanup-confirm" />
+            মূল ভিডিও (HD) আমার কম্পিউটারে নামানো আছে — মুছলে আর ফেরত আনা যাবে না।
+          </label>
+          <Button variant="danger" size="sm" className="w-full mt-1.5" disabled={!have || busy} onClick={() => void del()} data-testid="cleanup-delete">
+            {busy ? 'মোছা হচ্ছে…' : `সার্ভারের ভিডিও মুছুন (${mb(ok.reduce((a, v) => a + v.size, 0))})`}
+          </Button>
+        </>
+      )}
+    </div>
+  )
+}
+
 function DoneView({
   job,
   onYoutube,
@@ -2410,7 +2505,9 @@ function DoneView({
   onDiscard,
   onClose,
   onBack,
+  postId = 0,
 }: {
+  postId?: number
   job: Extract<Job, { stage: 'done' }>
   onYoutube: (link: string, withThumb: boolean) => Promise<void>
   withThumb: boolean
@@ -2486,13 +2583,7 @@ function DoneView({
           <>
             <p className="text-[13px] font-semibold text-emerald-700">✓ ওয়েবসাইটে এখন YouTube থেকে ভিডিও চলবে।</p>
             <p className="text-[11.5px] text-neutral-500 mt-0.5 break-all">{job.youtube}</p>
-            <p className="text-[11.5px] text-neutral-500 mt-1.5">
-              সার্ভারে রাখা মূল ভিডিও আর লাগবে না —{' '}
-              <Link to="/app/storage" className="font-semibold text-brand-700 underline">
-                স্টোরেজ ম্যানেজার
-              </Link>{' '}
-              থেকে মুছে জায়গা খালি করুন।
-            </p>
+            {postId > 0 && <ServerCleanup postId={postId} />}
             <Button className="w-full mt-2" onClick={onBack}>
               ভিডিও পোস্টে ফিরুন
             </Button>
@@ -2527,7 +2618,7 @@ function DoneView({
                 }}
                 data-testid="youtube-save"
               >
-                {saving ? 'বসানো হচ্ছে…' : 'ওয়েবসাইটে বসান'}
+                {saving ? 'বসানো হচ্ছে…' : 'পোস্টে বসান'}
               </Button>
             </div>
             {link.trim() && !ytOk && <p className="text-[11.5px] text-amber-700 mt-1">লিংকটি চেনা যাচ্ছে না — youtu.be/… বা youtube.com/watch?v=… লিংক দিন।</p>}

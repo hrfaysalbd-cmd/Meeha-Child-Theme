@@ -9,21 +9,62 @@
  * it — and "আরও দেখুন" keeps paging (the old 50-image cap is gone).
  */
 import { useEffect, useRef, useState } from 'react'
-import { MediaApi, type LibraryImage } from '../lib/api'
+import { AdsApi, MediaApi, type LibraryImage } from '../lib/api'
 import { ErrorRetry, Spinner, bnNumber } from './ui'
-import { IconSearch } from './Icon'
+import { IconSearch, IconPhoto } from './Icon'
 
 const SEARCH_DEBOUNCE_MS = 350
 
+/**
+ * r49 — `upload` adds a "নতুন ছবি আপলোড" button (the new file is selected at once), and
+ * `source="ads"` opens on the ad gallery (every image ever used as an ad, in use first) with a
+ * switch to all images; whatever is picked or uploaded there joins the ad gallery.
+ */
 export default function MediaGallery({
   title = 'গ্যালারি থেকে ছবি বেছে নিন',
   onSelect,
   onClose,
+  upload = false,
+  source = 'media',
 }: {
   title?: string
   onSelect: (image: LibraryImage) => void
   onClose: () => void
+  upload?: boolean
+  source?: 'media' | 'ads'
 }) {
+  const [tab, setTab] = useState<'media' | 'ads'>(source)
+  const [uploading, setUploading] = useState(false)
+  const [upErr, setUpErr] = useState('')
+  const adsMode = source === 'ads'
+  const choose = (img: LibraryImage) => {
+    if (adsMode) void AdsApi.libraryMark(img.id).catch(() => undefined)
+    onSelect(img)
+  }
+  const pickFile = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/png,image/jpeg,image/webp,image/gif'
+    input.onchange = async () => {
+      const f = input.files?.[0]
+      if (!f) return
+      if (adsMode && f.type === 'image/gif' && f.size > 150 * 1024) {
+        setUpErr('GIF ছবিটি ১৫০ KB-এর বেশি — পাতা ভারী হয়ে যাবে। WebP বা ছোট GIF দিন।')
+        return
+      }
+      setUploading(true)
+      setUpErr('')
+      try {
+        const up = await MediaApi.upload(f, { alt: adsMode ? 'বিজ্ঞাপন' : '' })
+        choose({ id: up.id, url: up.url, thumb: up.url, alt: up.alt, caption: up.caption, title: f.name, date: new Date().toISOString() })
+      } catch (e) {
+        setUpErr(e instanceof Error ? e.message : 'আপলোড হয়নি।')
+      } finally {
+        setUploading(false)
+      }
+    }
+    input.click()
+  }
   const [items, setItems] = useState<LibraryImage[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -41,7 +82,7 @@ export default function MediaGallery({
     else setLoadingMore(true)
     setError(null)
     try {
-      const res = await MediaApi.library(offset, term)
+      const res = tab === 'ads' ? await AdsApi.library(offset, term) : await MediaApi.library(offset, term)
       if (mine !== seq.current) return
       setItems((prev) => (offset === 0 ? res.items : [...prev, ...res.items]))
       setHasMore(res.has_more)
@@ -67,7 +108,7 @@ export default function MediaGallery({
     )
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query])
+  }, [query, tab])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -95,6 +136,44 @@ export default function MediaGallery({
         </div>
 
         <div className="px-5 pt-4">
+          {(adsMode || upload) && (
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              {adsMode && (
+                <div className="inline-flex rounded-xl bg-neutral-100 p-1 text-[12.5px]" role="tablist">
+                  {(
+                    [
+                      ['ads', 'বিজ্ঞাপনের ছবি'],
+                      ['media', 'সব ছবি'],
+                    ] as const
+                  ).map(([v, l]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      role="tab"
+                      aria-selected={tab === v}
+                      onClick={() => setTab(v)}
+                      className={`px-3 py-1.5 rounded-lg ${tab === v ? 'bg-white shadow-sm font-semibold text-neutral-900' : 'text-neutral-500'}`}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {upload && (
+                <button
+                  type="button"
+                  onClick={pickFile}
+                  disabled={uploading}
+                  data-testid="gallery-upload"
+                  className="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-brand-600 text-white px-3.5 py-2 text-[13px] font-semibold hover:bg-brand-700 disabled:opacity-60"
+                >
+                  <IconPhoto className="w-4 h-4" />
+                  {uploading ? 'আপলোড হচ্ছে…' : 'নতুন ছবি আপলোড'}
+                </button>
+              )}
+            </div>
+          )}
+          {upErr && <p className="mb-2 text-[12.5px] text-red-600">{upErr}</p>}
           <div className="relative">
             <input
               type="search"
@@ -118,7 +197,11 @@ export default function MediaGallery({
             <ErrorRetry error={error} onRetry={() => loadPage(0)} />
           ) : items.length === 0 ? (
             <p className="py-10 text-center text-[13px] text-neutral-400">
-              {search ? `“${search}” দিয়ে কোনো ছবি পাওয়া যায়নি — অন্য শব্দ দিয়ে খুঁজুন।` : 'এখনো কোনো ছবি আপলোড করা হয়নি।'}
+              {search
+                ? `“${search}” দিয়ে কোনো ছবি পাওয়া যায়নি — অন্য শব্দ দিয়ে খুঁজুন।`
+                : tab === 'ads'
+                  ? 'বিজ্ঞাপনের গ্যালারি এখনো খালি — “নতুন ছবি আপলোড” চাপুন বা “সব ছবি” থেকে বেছে নিন।'
+                  : 'এখনো কোনো ছবি আপলোড করা হয়নি।'}
             </p>
           ) : (
             <>
@@ -127,7 +210,7 @@ export default function MediaGallery({
                   <button
                     key={img.id}
                     type="button"
-                    onClick={() => onSelect(img)}
+                    onClick={() => choose(img)}
                     title={img.caption || img.title}
                     className="group text-left rounded-xl overflow-hidden border border-neutral-200 hover:border-brand-500 hover:ring-2 hover:ring-brand-500/30 focus:outline-none focus:ring-2 focus:ring-brand-500"
                   >

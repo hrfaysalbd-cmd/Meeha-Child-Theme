@@ -19,7 +19,7 @@ import type { SfxId } from './sfxlib'
 import { EMPTY_HOUSE, drawHouseAd, netIcon, type HouseAdId, type HouseInfo } from './houseads'
 import { HEADER_ART, clamp, ease, fillRoundRect, fitText, lerp, rnd, win, type Ctx } from './motion'
 import { PACK_SCENE_SFX, PACK_THEMES, drawLowerThird, drawPackScene, isLowerThird, packSettledAt } from './pack'
-import { pipActive, segSource, segSourceEnd, type Layout, type Rect, type SceneId, type Segment, type Timeline } from './timeline'
+import { pipActive, segSource, segSourceEnd, titleGrow, type Layout, type Rect, type SceneId, type Segment, type Timeline } from './timeline'
 
 export interface Picture {
   src: CanvasImageSource
@@ -33,6 +33,8 @@ export interface DrawEnv {
   tl: Timeline
   logo: LogoAsset
   adImage: Picture | null
+  /** r49: the client's corner ad (beside / opposite the logo). */
+  cornerAd?: Picture | null
   /** Header title (custom text, else the post title). */
   title: string
   /** Intro title (custom intro text, else the header title). */
@@ -1767,6 +1769,24 @@ export function themeOf(id: FrameId): Theme | null {
 // Header band
 // ---------------------------------------------------------------------------
 
+/**
+ * r49 — the frame's tag: the design's own word ("নির্বাচন", "খেলা"…), the publisher's own words
+ * (any frame works for any news — no frame is tied to one category), or none.
+ */
+function frameBadge(env: DrawEnv, theme: Theme): Theme['badge'] {
+  const f = env.cfg.frame
+  if (f.badgeMode === 'off') return undefined
+  if (f.badgeMode === 'custom') {
+    const text = (f.badge || '').trim()
+    if (!text) return undefined
+    const base = theme.badge
+    // a "gold" (text-only) tag keeps its look; otherwise the design's colours on a tape
+    if (base) return { ...base, text }
+    return { text, bg: theme.accent, fg: '#FFFFFF', kind: 'tape' }
+  }
+  return theme.badge
+}
+
 function drawBadge(ctx: Ctx, theme: Theme, x: number, cy: number, h: number, t: number, s: number, appear: number) {
   const b = theme.badge!
   ctx.save()
@@ -1889,8 +1909,10 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   const open = t0
   const t = t0 + FRAME_SETTLE
   // round 29: a taller band (frame.top) makes everything in it bigger, not just the title
-  const hk = clamp(r.h / (210 * s0), 1, 2.2)
+  // r49: the part of the height added for a bigger title (titleGrow) goes to the title only
+  const hk = clamp(r.h / (210 * s0 * titleGrow(env.cfg)), 1, 2.2)
   const s = s0 * (1 + (hk - 1) * 0.55)
+  const badge = frameBadge(env, theme)
   const enter = win(t, 0, 0.5)
   // background wipes in from the left on the first frames of the video
   ctx.save()
@@ -1936,8 +1958,8 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   }
 
   let hasRow = false
-  if (theme.badge) {
-    const w = drawBadge(ctx, theme, x, rowCy, rowH, t, s, win(t, 0.2, 0.55))
+  if (badge) {
+    const w = drawBadge(ctx, { ...theme, badge }, x, rowCy, rowH, t, s, win(t, 0.2, 0.55))
     x += w + 16 * s
     hasRow = true
   }
@@ -2106,7 +2128,8 @@ function drawFooter(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   if (f.footer === 'ad-image' && env.adImage) {
     ctx.save()
     ctx.globalAlpha = fade
-    drawPicture(ctx, env, env.adImage, r, 'cover')
+    // r49: the whole banner shows (no cropping), on a soft blurred copy of itself
+    drawPicture(ctx, env, env.adImage, r, 'blur')
     ctx.font = bodyFont(700, 18 * s)
     const tw = ctx.measureText('বিজ্ঞাপন').width + 16 * s
     fillRoundRect(ctx, r.x + 8 * s, r.y + 8 * s, tw, 28 * s, 6 * s, 'rgba(0,0,0,0.6)')
@@ -2146,7 +2169,9 @@ function drawFooter(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   }
 
   const isAd = f.footer === 'ad-text'
-  const label = isAd ? 'বিজ্ঞাপন' : info?.label ?? 'শিরোনাম'
+  // r49: the ticker's label follows the publisher's own tag (a frame is not tied to one category)
+  const ownTag = f.badgeMode === 'custom' && f.badge.trim() ? f.badge.trim() : ''
+  const label = isAd ? 'বিজ্ঞাপন' : ownTag || (f.badgeMode === 'off' ? 'শিরোনাম' : info?.label ?? 'শিরোনাম')
   const lw = drawLabel(ctx, label, r, theme.labelBg, theme.labelFg, s, win(t, 0.3, 0.7), fk)
   if (lively) lightSweep(ctx, { x: r.x, y: r.y, w: lw, h: r.h }, t, 6, 1.5, 0.35)
   const text = (isAd ? f.adText : env.ticker).trim()
@@ -2386,6 +2411,88 @@ export function drawWatermark(ctx: Ctx, env: DrawEnv, t: number) {
  * pulse:  the full logo, with a light sweep + small bounce every `every` s.
  * static: the full logo, fading in once.
  */
+/** r49 — which corner the client's ad takes ('auto' = the logo's side mirrored). */
+export function cornerAdCorner(cfg: EditConfig): 'tr' | 'tl' | 'br' | 'bl' {
+  const c = cfg.cornerAd.corner
+  if (c !== 'auto') return c
+  if (!cfg.logo.on) return 'tl'
+  const lc = cfg.logo.corner
+  return lc === 'tr' ? 'tl' : lc === 'tl' ? 'tr' : lc === 'br' ? 'bl' : 'br'
+}
+
+/**
+ * r49 — the client's small ad in a corner of the picture, opposite the logo: a transparent PNG
+ * logo or a short banner, on a white card (or bare), with a tiny "বিজ্ঞাপন" tag. It slides in
+ * softly, and in 'cycle' mode shows for `stay` seconds every `every` seconds.
+ */
+export function drawCornerAd(ctx: Ctx, env: DrawEnv, t: number) {
+  const ca = env.cfg.cornerAd
+  const pic = env.cornerAd
+  if (!ca.on || !pic || pic.w <= 0 || pic.h <= 0) return
+  const t0 = 1
+  if (t < t0) return
+  const lt = t - t0
+  let vis = win(lt, 0, 0.6)
+  if (ca.show === 'cycle') {
+    const c = lt % Math.max(ca.every, ca.stay + 2)
+    vis = Math.min(win(c, 0, 0.6), 1 - win(c, ca.stay, ca.stay + 0.6))
+  }
+  if (vis <= 0) return
+  const v = env.L.video
+  const short = Math.min(v.w, v.h)
+  let h = (ca.size / 100) * short
+  let w = (pic.w / pic.h) * h
+  const maxW = v.w * 0.42
+  if (w > maxW) {
+    h *= maxW / w
+    w = maxW
+  }
+  const pad = ca.plate ? h * 0.14 : 0
+  const m = short * 0.035
+  const corner = cornerAdCorner(env.cfg)
+  const right = corner === 'tr' || corner === 'br'
+  const bottom = corner === 'br' || corner === 'bl'
+  const tagH = ca.label ? Math.max(10, h * 0.22, short * 0.022) : 0
+  const boxW = w + pad * 2
+  const boxH = h + pad * 2
+  // the same corner as the logo: sit just inside it instead of on top of it
+  let push = 0
+  if (env.cfg.logo.on && env.cfg.logo.corner === corner) push = (env.cfg.logo.size / 100) * short * (env.cfg.logo.plate ? 1.52 : 1) + m * 0.5
+  const bx = right ? v.x + v.w - m - boxW : v.x + m
+  const by = bottom ? v.y + v.h - m - boxH - push - tagH : v.y + m + push
+  const slide = (1 - ease.outCubic(vis)) * (right ? 1 : -1) * short * 0.04
+
+  ctx.save()
+  ctx.globalAlpha = ca.opacity * ease.outCubic(vis)
+  ctx.translate(slide, 0)
+  if (ca.plate) {
+    ctx.shadowColor = 'rgba(0,0,0,0.28)'
+    ctx.shadowBlur = h * 0.18
+    ctx.shadowOffsetY = h * 0.04
+    fillRoundRect(ctx, bx, by, boxW, boxH, Math.min(boxH * 0.18, 14 * env.L.s), '#FFFFFF')
+    ctx.shadowColor = 'transparent'
+    ctx.shadowBlur = 0
+    ctx.shadowOffsetY = 0
+  } else {
+    ctx.shadowColor = 'rgba(0,0,0,0.45)'
+    ctx.shadowBlur = h * 0.12
+  }
+  ctx.drawImage(pic.src, bx + pad, by + pad, w, h)
+  ctx.shadowColor = 'transparent'
+  ctx.shadowBlur = 0
+  if (ca.label) {
+    ctx.font = bodyFont(700, tagH * 0.72)
+    const tw = ctx.measureText('বিজ্ঞাপন').width + tagH * 0.7
+    const tx = right ? bx + boxW - tw : bx
+    const ty = by + boxH + tagH * 0.18
+    fillRoundRect(ctx, tx, ty, tw, tagH, tagH * 0.3, 'rgba(0,0,0,0.55)')
+    ctx.fillStyle = '#FFFFFF'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('বিজ্ঞাপন', tx + tagH * 0.35, ty + tagH * 0.54)
+  }
+  ctx.restore()
+}
+
 export function drawLogoBug(ctx: Ctx, env: DrawEnv, t: number) {
   const lg = env.cfg.logo
   if (!lg.on) return
@@ -4715,6 +4822,7 @@ function drawMain(ctx: Ctx, env: DrawEnv, seg: Segment, local: number, pic: Pict
   }
 
   drawLogoBug(ctx, env, mainT)
+  drawCornerAd(ctx, env, mainT)
   drawWatermark(ctx, env, mainT)
   const srcEnd = env.tl.segments.reduce((m, x) => (x.kind === 'main' ? Math.max(m, segSourceEnd(x)) : m), 0)
   const stacks: Record<string, number> = {}

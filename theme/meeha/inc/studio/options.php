@@ -410,6 +410,20 @@ function meeha_studio_settings_fields() {
 			'label' => 'বিজ্ঞাপনের ছবি (১০৮০ × ১২০)',
 			'desc'  => 'খালি থাকলে আগের থিমের ফটোকার্ড বিজ্ঞাপন, না থাকলে মিহা থিম › বিজ্ঞাপন › card_strip-এর ছবি বসে।',
 		),
+		// r49 — the same strip under a reader's downloaded উক্তি card.
+		array(
+			'key'     => 'quote_reader_ad',
+			'type'    => 'checkbox',
+			'label'   => 'পাঠকের উক্তি কার্ডে বিজ্ঞাপন',
+			'default' => 0,
+			'desc'    => 'চালু থাকলে উক্তির পাতা থেকে পাঠক যে ছবি ডাউনলোড করেন তার নিচে ১০৮০ × ১২০ বিজ্ঞাপন স্ট্রিপ বসে।',
+		),
+		array(
+			'key'   => 'quote_reader_ad_image',
+			'type'  => 'image',
+			'label' => 'উক্তি কার্ডের বিজ্ঞাপনের ছবি (১০৮০ × ১২০)',
+			'desc'  => 'খালি থাকলে নিউজ কার্ডের বিজ্ঞাপনের ছবিই বসে।',
+		),
 		array( 'type' => 'heading', 'label' => 'টেমপ্লেটের ডিফল্ট লেখা' ),
 		array(
 			'key'     => 'morning_titles',
@@ -646,11 +660,14 @@ function meeha_studio_legacy_reader_ad() {
 
 /**
  * Ad strip for reader downloads: the tab's own image → legacy photocard ad → first card_strip creative.
+ * r49: `quote` uses its own image first (then the news card's).
  *
+ * @param string $kind news|quote.
  * @return array|null url, fallback
  */
-function meeha_studio_reader_ad() {
-	$id = (int) meeha_studio_opt( 'news_reader_ad_image', 0 );
+function meeha_studio_reader_ad( $kind = 'news' ) {
+	$id = 'quote' === $kind ? (int) meeha_studio_opt( 'quote_reader_ad_image', 0 ) : 0;
+	$id = $id ? $id : (int) meeha_studio_opt( 'news_reader_ad_image', 0 );
 	$u  = $id ? wp_get_attachment_image_url( $id, 'full' ) : '';
 	if ( $u ) {
 		return array(

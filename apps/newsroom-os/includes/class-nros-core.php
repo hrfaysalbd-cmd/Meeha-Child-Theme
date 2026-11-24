@@ -506,6 +506,11 @@ class NROS_Core {
 				dbDelta( $tips_sql );
 			}
 		}
+
+		// DB 19 (r49) — বিজ্ঞাপনের দেখা/ক্লিক, দিন + জায়গা + ক্লায়েন্ট অনুযায়ী।
+		if ( class_exists( 'NROS_Ad_Stats' ) ) {
+			dbDelta( NROS_Ad_Stats::schema( $charset_collate ) );
+		}
 	}
 
 	/**

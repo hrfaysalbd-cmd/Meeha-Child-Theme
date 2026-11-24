@@ -1506,6 +1506,32 @@ export interface QuoteFrameInfo {
 
 export const QUOTE_TEXT_MAX = 600
 
+// r49 — উক্তির ব্যক্তি: pick a speaker from the team, প্রোফাইল ডেস্ক or earlier quotes.
+export interface QuotePerson {
+  src: 'team' | 'crm' | 'past'
+  id: number
+  name: string
+  role: string
+  kind: string
+  photo: string
+  photo_id: number
+  has_photo?: boolean
+  restricted?: boolean
+}
+
+export const QuotePeopleApi = {
+  search: (q: string, src: 'all' | 'team' | 'crm' | 'past' = 'all') =>
+    request<{ team: QuotePerson[]; crm: QuotePerson[]; past: QuotePerson[]; crm_ok: boolean }>(
+      `/admin/quotes/people?src=${src}${q ? `&q=${encodeURIComponent(q)}` : ''}`,
+    ),
+  crmPhoto: (id: number) => request<{ id: number; url: string }>('/admin/quotes/people/photo', { method: 'POST', body: { src: 'crm', id } }),
+  toCrm: (body: { name: string; role: string; photo_id: number; category: string; force?: boolean }) =>
+    request<{ ok: true; id: number; warning: string }>('/admin/quotes/people/to-crm', {
+      method: 'POST',
+      body: { ...body, force: body.force ? 1 : 0 },
+    }),
+}
+
 export const QuotesApi = {
   list: (params: { search?: string; type?: number; status?: '' | QuoteStatus; page?: number }) => {
     const q = new URLSearchParams()
@@ -2723,9 +2749,9 @@ export interface AdImage {
 export interface AdSlot {
   id: string
   label: string
-  size: 'leader' | 'mpu' | 'half'
+  size: 'leader' | 'mpu' | 'half' | 'float' | 'corner' | 'popup'
   size_text: string
-  group: 'header' | 'home' | 'article' | 'archive' | 'footer' | 'other'
+  group: 'header' | 'home' | 'article' | 'archive' | 'footer' | 'floating' | 'other'
   on: boolean
   type: 'image' | 'house' | 'html' | 'shortcode' | 'gam'
   house: string
@@ -2740,6 +2766,73 @@ export interface AdSlot {
   code: string
   shortcode: string
   gam: string
+  /** r49 — which client (ad_clients id) this placement is sold to; 0 = none. */
+  client?: number
+  /** r49 — the slot takes a separate phone image. */
+  mobile_ok?: boolean
+  /** r49 — on, inside its dates and has something to show. */
+  live?: boolean
+}
+
+export interface AdGlobals {
+  label_style: 'corner' | 'side' | 'top' | 'none'
+  popup_delay: number
+  popup_every: number
+  popup_pages: 'all' | 'single' | 'home'
+  float_every: number
+  ad_phone: string
+  ad_whatsapp: string
+  ad_email: string
+  stats_on: boolean
+}
+
+export interface AdReader {
+  available: boolean
+  news_on: boolean
+  news_image: AdImage | null
+  quote_on: boolean
+  quote_image: AdImage | null
+}
+
+export interface AdSpec {
+  id: string
+  group: 'web' | 'video' | 'card'
+  name: string
+  where: string
+  desktop: string
+  mobile: string
+  formats: string
+  note: string
+}
+
+export interface AdStats {
+  from: string
+  days: number
+  imp: number
+  clk: number
+  ctr?: number
+  slots: { slot: string; label: string; imp: number; clk: number; ctr: number }[]
+  clients: { client: number; name: string; imp: number; clk: number; ctr: number }[]
+  daily: { day: string; imp: number; clk: number }[]
+  enabled?: boolean
+  csv?: string
+}
+
+export interface AdLandingPage {
+  id: number
+  url: string
+  status: string
+  title: string
+  canvas: boolean
+}
+
+export interface AdLibraryImage extends AdImage {
+  thumb: string
+  alt: string
+  caption: string
+  title: string
+  date: string
+  in_use: boolean
 }
 
 export interface HouseCard {
@@ -2767,6 +2860,13 @@ export interface AdsOverview {
   house_css: string
   gif_limit: number
   size_guide: { name: string; px: string; note: string }[]
+  // r49 (newsroom-os 1.31.0+) — older plugins leave these out
+  globals?: AdGlobals
+  reader?: AdReader
+  clients?: { id: number; name: string; phone: string; status: string }[]
+  specs?: AdSpec[]
+  stats?: AdStats | null
+  pages?: Record<'advertise' | 'specs' | 'app', AdLandingPage | null>
 }
 
 export type AdSlotPatch = Partial<{
@@ -2784,6 +2884,7 @@ export type AdSlotPatch = Partial<{
   code: string
   shortcode: string
   gam: string
+  client: number
 }>
 
 export const AdsApi = {
@@ -2794,6 +2895,24 @@ export const AdsApi = {
     request<{ ok: true; count: number }>('/admin/ads-manager/strip', { method: 'POST', body: { rows } }),
   enableHouseEverywhere: () =>
     request<{ ok: true; slots: { slot: string; card: string }[] }>('/admin/ads-manager/enable-house', { method: 'POST', body: {} }),
+  // r49
+  saveGlobals: (patch: Partial<AdGlobals>) =>
+    request<{ ok: true; globals: AdGlobals }>('/admin/ads-manager/globals', {
+      method: 'POST',
+      body: { ...patch, ...(patch.stats_on !== undefined ? { stats_on: patch.stats_on ? 1 : 0 } : {}) } as Record<string, unknown>,
+    }),
+  saveReader: (patch: Partial<{ news_on: 0 | 1; news_image: number; quote_on: 0 | 1; quote_image: number }>) =>
+    request<{ ok: true; reader: AdReader }>('/admin/ads-manager/reader', { method: 'POST', body: patch as Record<string, unknown> }),
+  library: (offset = 0, search = '') =>
+    request<{ items: AdLibraryImage[]; has_more: boolean; total: number }>(
+      `/admin/ads-manager/library?offset=${offset}${search ? `&search=${encodeURIComponent(search)}` : ''}`,
+    ),
+  libraryMark: (id: number, remove = false) =>
+    request<{ ok: true }>('/admin/ads-manager/library', { method: 'POST', body: { id, remove: remove ? 1 : 0 } }),
+  report: (days: number, client = 0, csv = false) =>
+    request<AdStats>(`/admin/ads-manager/report?days=${days}${client ? `&client=${client}` : ''}${csv ? '&format=csv' : ''}`),
+  createPage: (kind: 'advertise' | 'specs' | 'app') =>
+    request<{ ok: true; page: AdLandingPage; canvas: boolean }>('/admin/ads-manager/create-page', { method: 'POST', body: { kind } }),
 }
 
 // ---------------------------------------------------------------------------
@@ -2958,4 +3077,14 @@ export const StorageApi = {
     }),
   clean: (what: StorageCleanTarget) =>
     request<{ ok: true; message: string }>('/admin/storage/clean', { method: 'POST', body: { what } }),
+  /** r49 — one news' server video files (for "সার্ভারের ভিডিও মুছুন" in the studio). */
+  forPost: (post: number) =>
+    request<{
+      post: number
+      source: string
+      youtube: string | null
+      videos: { id: number; name: string; size: number; status: StorageVideo['status']; roles: string[]; shared: boolean }[]
+      size: number
+      deletable: number
+    }>(`/admin/storage/for/${post}`),
 }

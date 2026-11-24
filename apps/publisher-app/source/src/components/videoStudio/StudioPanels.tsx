@@ -145,7 +145,7 @@ export function FramePanel({
                 label="শিরোনামের আকার"
                 value={Math.round(f.titleScale * 100)}
                 min={70}
-                max={150}
+                max={200}
                 step={5}
                 onChange={(v) => setF({ titleScale: v / 100 })}
                 format={(v) => (v === 100 ? 'স্বয়ংক্রিয়' : `${bnNumber(v)}%`)}
@@ -160,7 +160,28 @@ export function FramePanel({
                 onChange={(v) => setF({ titleFont: v })}
                 size="sm"
               />
-              <p className="text-[11px] text-neutral-400 mt-1">ফ্রেমের উপরে শুধু শিরোনাম থাকে — পাশে কোনো আইকন নেই। লেখা পুরো জায়গায় যতটা বড় ধরে ততটা বসে; আকার দিয়ে আরও বড়/ছোট করুন।</p>
+              <p className="text-[11px] text-neutral-400 mt-1">
+                লেখা পুরো জায়গায় যতটা বড় ধরে ততটা বসে। ১০০%-এর বেশি দিলে শিরোনামের পট্টিও সেই অনুপাতে উঁচু হয়, তাই লেখা সত্যিই বড় হয় — আর আটকে থাকে না।
+              </p>
+            </div>
+            <div className="mb-3" data-testid="frame-tag">
+              <p className="text-[11.5px] text-neutral-500 mb-1">ফ্রেমের ট্যাগ (যেমন “নির্বাচন”, “ব্রেকিং”)</p>
+              <Segmented
+                value={f.badgeMode}
+                options={[
+                  { id: 'auto', name: 'নকশার নিজের' },
+                  { id: 'custom', name: 'নিজে লিখুন' },
+                  { id: 'off', name: 'ট্যাগ নেই' },
+                ]}
+                onChange={(v) => setF({ badgeMode: v })}
+                size="sm"
+              />
+              {f.badgeMode === 'custom' && (
+                <div className="mt-2">
+                  <TextInput label="ট্যাগের লেখা" value={f.badge} onChange={(v) => setF({ badge: v })} max={LIMITS.frameBadge} placeholder="যেমন: জাতীয়, সরাসরি, বিশেষ খবর" testId="frame-badge" />
+                </div>
+              )}
+              <p className="text-[11px] text-neutral-400 mt-1">যেকোনো ফ্রেম যেকোনো খবরে চলে — শুধু ট্যাগের লেখা বদলে দিন।</p>
             </div>
             <TextInput label="ক্যাটেগরি / লেবেল (ঐচ্ছিক)" value={f.kicker} onChange={(v) => setF({ kicker: v })} max={LIMITS.kicker} placeholder="যেমন: জাতীয়, খেলা, ক্যাম্পাস" />
             <SwitchRow label="তারিখ দেখান" checked={f.date} onChange={(v) => setF({ date: v })} />
@@ -187,11 +208,21 @@ export function FramePanel({
                       </button>
                     </>
                   ) : (
-                    <button type="button" onClick={onPickAdImage} className="text-[12.5px] px-3 py-2 rounded-lg border border-dashed border-neutral-300 text-neutral-600 w-full">
-                      গ্যালারি থেকে ব্যানার ছবি বেছে নিন (চওড়া ছবি সবচেয়ে ভালো — প্রায় ৮:১)
+                    <button type="button" onClick={onPickAdImage} className="text-[12.5px] px-3 py-2 rounded-lg border border-dashed border-neutral-300 text-neutral-600 w-full" data-testid="footer-ad-pick">
+                      ব্যানার ছবি বেছে নিন বা আপলোড করুন
                     </button>
                   )}
                 </div>
+              )}
+              {f.footer === 'ad-image' && (
+                <p className="text-[11px] text-neutral-400 mt-1.5">
+                  মাপ: ১৬:৯ ভিডিওতে ১৯২০×১২০ px, রিলে (৯:১৬) ১০৮০×১৭০ px। PNG/JPG/WebP। পুরো ব্যানার দেখা যায়, কাটা পড়ে না; মাপ না মিললে দুপাশে ঝাপসা পটভূমি বসে।
+                </p>
+              )}
+              {f.footer === 'ad-text' && (
+                <p className="text-[11px] text-neutral-500 mt-1.5">
+                  ছবির ব্যানার দিতে চাইলে ওপরে “বিজ্ঞাপন (ব্যানার ছবি)” বেছে নিন। লোগোর পাশে ছোট বিজ্ঞাপন বসাতে “লোগো” প্যানেলে “কোণার বিজ্ঞাপন” দেখুন।
+                </p>
               )}
             </div>
           </Section>
@@ -222,7 +253,91 @@ export function FramePanel({
 // Logo
 // ---------------------------------------------------------------------------
 
-export function LogoPanel({ cfg, set, customLogo }: { cfg: EditConfig; set: Setter; customLogo: boolean }) {
+/** r49 — the client's small ad in the corner opposite the logo, with its size guide. */
+function CornerAdSection({ cfg, set, onPick }: { cfg: EditConfig; set: Setter; onPick: () => void }) {
+  const a = cfg.cornerAd
+  const setA = (patch: Partial<EditConfig['cornerAd']>) => set((c) => ({ ...c, cornerAd: { ...c.cornerAd, ...patch } }))
+  const corners: { id: EditConfig['cornerAd']['corner']; name: string }[] = [
+    { id: 'auto', name: 'লোগোর উল্টো পাশে' },
+    { id: 'tl', name: 'উপরে বামে' },
+    { id: 'tr', name: 'উপরে ডানে' },
+    { id: 'bl', name: 'নিচে বামে' },
+    { id: 'br', name: 'নিচে ডানে' },
+  ]
+  return (
+    <div className="border-t border-neutral-100 pt-3 mt-3" data-testid="corner-ad">
+      <SwitchRow
+        label="কোণার বিজ্ঞাপন (লোগোর পাশে)"
+        hint="একপাশে মিহার এনিমেটেড লোগো, অন্য পাশে বিজ্ঞাপনদাতার ছোট লোগো বা ব্যানার — লোগোর মতোই ছোট, পুরো ভিডিও জুড়ে।"
+        checked={a.on}
+        // the ad sits opposite the logo, so switching it on brings the logo too
+        onChange={(v) => set((c) => ({ ...c, cornerAd: { ...c.cornerAd, on: v }, logo: v ? { ...c.logo, on: true } : c.logo }))}
+        testId="corner-ad-on"
+      />
+      {a.on && (
+        <div className="mt-3">
+          <div className="flex items-center gap-2 mb-2">
+            {a.image ? (
+              <>
+                <img src={a.image.url} alt="" className="h-12 max-w-[160px] object-contain rounded-lg border border-neutral-200 bg-[repeating-conic-gradient(#f3f4f6_0_25%,#fff_0_50%)] bg-[length:12px_12px]" />
+                <button type="button" onClick={onPick} className="text-[12px] px-2.5 py-1.5 rounded-lg bg-neutral-100">
+                  বদলান
+                </button>
+                <button type="button" onClick={() => setA({ image: null })} className="text-[12px] px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600">
+                  সরান
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={onPick} className="text-[12.5px] px-3 py-2 rounded-lg border border-dashed border-neutral-300 text-neutral-600 w-full" data-testid="corner-ad-pick">
+                বিজ্ঞাপনের ছবি বেছে নিন বা আপলোড করুন
+              </button>
+            )}
+          </div>
+          <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-[11.5px] text-amber-900 mb-3">
+            <b>সাইজ গাইড:</b> চওড়া লোগো/ব্যানার ৬০০×২৪০ px, চৌকো লোগো ৪০০×৪০০ px। স্বচ্ছ পটভূমির PNG (বা WebP) সবচেয়ে ভালো, ৩০০ KB-এর মধ্যে। লেখা বড় ও মোটা রাখুন — ভিডিওতে এটি
+            ছোট দেখায়।
+          </div>
+          <Section title="কোথায়">
+            <div className="flex flex-wrap gap-1.5">
+              {corners.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setA({ corner: c.id })}
+                  aria-pressed={a.corner === c.id}
+                  className={`rounded-lg border px-2 py-1.5 text-[12px] font-medium ${a.corner === c.id ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-neutral-200 text-neutral-600'}`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </Section>
+          <Slider label="আকার (উচ্চতা)" value={a.size} min={4} max={20} step={0.5} onChange={(v) => setA({ size: v })} format={(v) => `${bnNumber(v)}%`} />
+          <Slider label="স্বচ্ছতা" value={Math.round(a.opacity * 100)} min={30} max={100} step={5} onChange={(v) => setA({ opacity: v / 100 })} format={(v) => `${bnNumber(v)}%`} />
+          <SwitchRow label="সাদা কার্ডের ওপর" hint="বন্ধ করলে ছবিটি সরাসরি ভিডিওর ওপর (স্বচ্ছ PNG হলে ভালো দেখায়)" checked={a.plate} onChange={(v) => setA({ plate: v })} />
+          <SwitchRow label="নিচে ছোট “বিজ্ঞাপন” লেখা" checked={a.label} onChange={(v) => setA({ label: v })} />
+          <Segmented
+            value={a.show}
+            options={[
+              { id: 'always', name: 'সব সময়' },
+              { id: 'cycle', name: 'মাঝে মাঝে' },
+            ]}
+            onChange={(v) => setA({ show: v })}
+            size="sm"
+          />
+          {a.show === 'cycle' && (
+            <div className="mt-2">
+              <Slider label="কত সেকেন্ড দেখাবে" value={a.stay} min={3} max={60} onChange={(v) => setA({ stay: v })} format={(v) => `${bnNumber(v)} সে.`} />
+              <Slider label="কত সেকেন্ড পরপর" value={a.every} min={10} max={300} step={5} onChange={(v) => setA({ every: v })} format={(v) => `${bnNumber(v)} সে.`} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function LogoPanel({ cfg, set, customLogo, onPickCornerAd }: { cfg: EditConfig; set: Setter; customLogo: boolean; onPickCornerAd?: () => void }) {
   const l = cfg.logo
   const setL = (patch: Partial<EditConfig['logo']>) => set((c) => ({ ...c, logo: { ...c.logo, ...patch } }))
   const corners: { id: Corner; name: string }[] = [
@@ -304,6 +419,7 @@ export function LogoPanel({ cfg, set, customLogo }: { cfg: EditConfig; set: Sett
           <SwitchRow label="সাদা পটভূমি" hint="বন্ধ করলে সাদা লোগো, ছায়াসহ" checked={l.plate} onChange={(v) => setL({ plate: v })} />
         </div>
       )}
+      {onPickCornerAd && <CornerAdSection cfg={cfg} set={set} onPick={onPickCornerAd} />}
     </div>
   )
 }
@@ -443,6 +559,9 @@ export function AdsPanel({
         title="ভিডিওর মাঝে বিজ্ঞাপন"
         hint="প্রিভিউ থামিয়ে যেখানে বিজ্ঞাপন চান সেখানে “এখানে বিজ্ঞাপন যোগ করুন” দিন — ভিডিও সেখানে ভাগ হয়ে গ্যালারির বিজ্ঞাপন চলবে, তারপর সংবাদ আবার চলবে।"
       >
+        <p className="text-[11.5px] text-neutral-500 mb-2 rounded-lg bg-neutral-50 px-3 py-2">
+          পুরো ভিডিও জুড়ে ছোট বিজ্ঞাপন চাইলে: <b>লোগো</b> প্যানেলে “কোণার বিজ্ঞাপন” (লোগোর উল্টো পাশে), অথবা <b>ফ্রেম</b> প্যানেলের ফুটারে “বিজ্ঞাপন (ব্যানার ছবি)”।
+        </p>
         <button
           type="button"
           onClick={onAdd}

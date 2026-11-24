@@ -31,6 +31,10 @@ function meeha_ad_slots() {
 			'archive_side'   => array( 'বিভাগ পাতার পাশে (৩০০ × ২৫০)', 'mpu', 0 ),
 			'article_end'    => array( 'খবরের শেষে, ফুটনোটের আগে (৩০০ × ২৫০)', 'mpu', 0 ), // r47
 			'footer_leader'  => array( 'ফুটারের ওপরে (লিডারবোর্ড)', 'leader', 0 ), // r47
+			// r49 — floating placements with a close (×) button, printed once per page in wp_footer.
+			'float_bottom'   => array( 'ভাসমান — পর্দার নিচে বার (ক্রস সহ)', 'float', 0 ),
+			'float_side'     => array( 'ভাসমান — পাশের কোণায় (ডেস্কটপ, ক্রস সহ)', 'corner', 0 ),
+			'popup'          => array( 'পপ-আপ (ক্রস সহ)', 'popup', 0 ),
 		)
 	);
 }
@@ -52,6 +56,38 @@ function meeha_ad_fields() {
 			'desc'  => 'প্রতিটি স্লট একটি নির্দিষ্ট মাপের বাক্স — খালি বা বন্ধ থাকলে বাক্সটিই ছাপা হয় না (লেআউট সরে না)। অ্যানিমেটেড GIF ১৫০ KB-এর বেশি হলে গ্রহণ করা হয় না — WebP/MP4 করে আপলোড করুন। HTML কোড শুধু "unfiltered_html" অনুমতি থাকলে হুবহু সংরক্ষিত হয়; তৃতীয় পক্ষের স্ক্রিপ্ট পাতা লোড শেষে চলে।',
 		),
 	);
+	// r49 — how every ad is marked, and how the floating ones behave.
+	$fields[] = array(
+		'key'     => 'label_style',
+		'type'    => 'select',
+		'label'   => '"বিজ্ঞাপন" চিহ্ন',
+		'default' => 'corner',
+		'options' => array(
+			'corner' => 'ছবির কোণায় ছোট ⓘ — ছুঁলে/মাউস নিলে "বিজ্ঞাপন"',
+			'side'   => 'বাঁ পাশে ছোট লেখা',
+			'top'    => 'ওপরে মাঝখানে ছোট লেখা',
+			'none'   => 'দেখাবে না',
+		),
+	);
+	$fields[] = array( 'key' => 'popup_delay', 'type' => 'number', 'label' => 'পপ-আপ — পাতা খোলার কত সেকেন্ড পর', 'default' => 6, 'min' => 0, 'max' => 120 );
+	$fields[] = array( 'key' => 'popup_every', 'type' => 'number', 'label' => 'পপ-আপ — একজনকে আবার দেখানো (ঘণ্টা পর)', 'default' => 12, 'min' => 1, 'max' => 720 );
+	$fields[] = array(
+		'key'     => 'popup_pages',
+		'type'    => 'select',
+		'label'   => 'পপ-আপ কোন পাতায়',
+		'default' => 'all',
+		'options' => array(
+			'all'    => 'সব পাতায়',
+			'single' => 'শুধু খবরের পাতায়',
+			'home'   => 'শুধু প্রথম পাতায়',
+		),
+	);
+	$fields[] = array( 'key' => 'float_every', 'type' => 'number', 'label' => 'ভাসমান বিজ্ঞাপন বন্ধ করলে আবার দেখাবে (ঘণ্টা পর)', 'default' => 6, 'min' => 1, 'max' => 720 );
+	// r49 — who an advertiser contacts ([meeha_advertise] landing page, [meeha_ad_specs]).
+	$fields[] = array( 'type' => 'heading', 'label' => 'বিজ্ঞাপন বিভাগের যোগাযোগ', 'desc' => 'বিজ্ঞাপনদাতাদের পাতায় ([meeha_advertise]) দেখায়। ফাঁকা থাকলে ফুটারের ফোন/ইমেইল।' );
+	$fields[] = array( 'key' => 'ad_phone', 'type' => 'text', 'label' => 'ফোন' );
+	$fields[] = array( 'key' => 'ad_whatsapp', 'type' => 'text', 'label' => 'হোয়াটসঅ্যাপ নম্বর (যেমন 8801XXXXXXXXX)' );
+	$fields[] = array( 'key' => 'ad_email', 'type' => 'email', 'label' => 'ইমেইল' );
 	foreach ( meeha_ad_slots() as $slot => $def ) {
 		$fields[] = array( 'type' => 'heading', 'label' => $def[0], 'desc' => '<code>' . $slot . '</code>' );
 		$fields[] = array( 'key' => $slot . '_on', 'type' => 'checkbox', 'label' => 'চালু', 'default' => (int) $def[2] );
@@ -76,9 +112,10 @@ function meeha_ad_fields() {
 		}
 		$fields[] = array( 'key' => $slot . '_house', 'type' => 'select', 'label' => 'হাউস কার্ড', 'default' => '', 'options' => $house_options );
 		$fields[] = array( 'key' => $slot . '_image', 'type' => 'image', 'label' => 'ছবি (ডেস্কটপ / সব)' );
-		if ( 'leader' === $def[1] ) {
-			$fields[] = array( 'key' => $slot . '_image_m', 'type' => 'image', 'label' => 'ছবি (মোবাইল ৩২০ × ১০০)', 'desc' => 'ফাঁকা রাখলে ওপরের ছবিই মোবাইলে দেখাবে।' );
+		if ( in_array( $def[1], array( 'leader', 'float', 'popup' ), true ) ) {
+			$fields[] = array( 'key' => $slot . '_image_m', 'type' => 'image', 'label' => 'popup' === $def[1] ? 'ছবি (মোবাইল ৩২০ × ৪৮০)' : 'ছবি (মোবাইল ৩২০ × ৫০ বা ৩২০ × ১০০)', 'desc' => 'ফাঁকা রাখলে ওপরের ছবিই মোবাইলে দেখাবে। ছবি যে মাপের, বাক্সও সেই মাপের হয় — কাটা পড়ে না।' );
 		}
+		$fields[] = array( 'key' => $slot . '_client', 'type' => 'number', 'label' => 'বিজ্ঞাপনদাতা (ক্লায়েন্ট আইডি)', 'default' => 0, 'min' => 0 ); // r49 — reports per advertiser
 		$fields[] = array( 'key' => $slot . '_link', 'type' => 'url', 'label' => 'লিংক' );
 		$fields[] = array( 'key' => $slot . '_alt', 'type' => 'text', 'label' => 'ছবির বিকল্প লেখা', 'default' => 'বিজ্ঞাপন' );
 		$fields[] = array( 'key' => $slot . '_code', 'type' => 'code', 'label' => 'HTML কোড' );

@@ -1374,4 +1374,148 @@ class NROS_PD_Files {
 			'duplicate_of' => $dupe,
 		);
 	}
+
+	// ---------------------------------------------------------------------
+	// r49 — উক্তি ↔ প্রোফাইল ডেস্ক (profile photo in and out)
+	// ---------------------------------------------------------------------
+
+	/**
+	 * Decrypts a whole file into $dst.
+	 *
+	 * @param array  $f   Row.
+	 * @param string $dst Destination path.
+	 * @return bool
+	 */
+	protected static function decrypt_to( $f, $dst ) {
+		$path = self::path_of( $f['disk_name'] );
+		$k    = self::key_of( $f );
+		if ( ! $path || ! $k ) {
+			return false;
+		}
+		list( $key, $iv ) = $k;
+		// phpcs:disable WordPress.WP.AlternativeFunctions
+		$in  = fopen( $path, 'rb' );
+		$out = fopen( $dst, 'wb' );
+		if ( ! $in || ! $out ) {
+			return false;
+		}
+		$block = 0;
+		while ( ! feof( $in ) ) {
+			$buf = fread( $in, self::CHUNK );
+			if ( false === $buf || '' === $buf ) {
+				break;
+			}
+			$plain = openssl_decrypt( $buf, 'aes-256-ctr', $key, OPENSSL_RAW_DATA, self::ctr_iv( $iv, $block ) );
+			$block += intdiv( strlen( $buf ), 16 );
+			fwrite( $out, (string) $plain );
+		}
+		fclose( $in );
+		fclose( $out );
+		// phpcs:enable
+		return true;
+	}
+
+	/**
+	 * Puts a profile's photo into the public media library (for a quote card) — only the profile
+	 * photo of a profile this user may see, and never one marked "restricted". The same photo is
+	 * copied once; later calls return the same attachment.
+	 *
+	 * @param int     $entity_id Entity.
+	 * @param WP_User $user      User.
+	 * @return array|WP_Error {id, url}
+	 */
+	public static function profile_photo_to_media( $entity_id, $user ) {
+		global $wpdb;
+		if ( ! NROS_Profile_Desk::can_access( $user ) ) {
+			return new WP_Error( 'nros_forbidden', 'প্রোফাইল ডেস্কের অ্যাক্সেস নেই।', array( 'status' => 403 ) );
+		}
+		$e = NROS_Profile_Desk::entity_row( (int) $entity_id, $user );
+		if ( ! $e || ! (int) $e['photo_file_id'] ) {
+			return new WP_Error( 'nros_not_found', 'এই প্রোফাইলে ছবি নেই।', array( 'status' => 404 ) );
+		}
+		if ( 'restricted' === $e['sensitivity'] ) {
+			return new WP_Error( 'nros_forbidden', 'সংরক্ষিত প্রোফাইলের ছবি ওয়েবসাইটে তোলা যাবে না।', array( 'status' => 403 ) );
+		}
+		$fid = (int) $e['photo_file_id'];
+		$map = (array) get_option( 'nros_pd_photo_media', array() );
+		if ( ! empty( $map[ $fid ] ) && 'attachment' === get_post_type( (int) $map[ $fid ] ) ) {
+			$aid = (int) $map[ $fid ];
+			return array( 'id' => $aid, 'url' => (string) wp_get_attachment_image_url( $aid, 'medium' ) );
+		}
+		$f = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . NROS_Profile_Desk::t( 'files' ) . " WHERE id = %d AND scope = 'entity' AND kind = 'image'", $fid ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		if ( ! $f ) {
+			return new WP_Error( 'nros_not_found', 'ছবির ফাইল পাওয়া যায়নি।', array( 'status' => 404 ) );
+		}
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/media.php';
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+		$ext  = preg_replace( '/[^a-z0-9]/', '', strtolower( (string) $f['ext'] ) );
+		$ext  = in_array( $ext, array( 'jpg', 'jpeg', 'png', 'webp' ), true ) ? $ext : 'jpg';
+		$tmp  = wp_tempnam( 'pd-photo.' . $ext );
+		if ( ! $tmp || ! self::decrypt_to( $f, $tmp ) ) {
+			return new WP_Error( 'nros_pd_decrypt', 'ছবিটি খোলা যায়নি।', array( 'status' => 500 ) );
+		}
+		$name = $e['name_en'] ? sanitize_title( $e['name_en'] ) : 'profile-' . (int) $e['id'];
+		$aid  = media_handle_sideload(
+			array(
+				'name'     => $name . '.' . $ext,
+				'tmp_name' => $tmp,
+			),
+			0,
+			$e['name_bn'] ? $e['name_bn'] : $e['name_en']
+		);
+		if ( is_wp_error( $aid ) ) {
+			wp_delete_file( $tmp );
+			return $aid;
+		}
+		update_post_meta( $aid, '_wp_attachment_image_alt', $e['name_bn'] ? $e['name_bn'] : $e['name_en'] );
+		update_post_meta( $aid, '_nros_pd_entity', (int) $e['id'] );
+		$map[ $fid ] = (int) $aid;
+		update_option( 'nros_pd_photo_media', array_slice( $map, -2000, null, true ), false );
+		NROS_Profile_Desk::audit( $user->ID, 'photo_publish', 'entity', (int) $e['id'], 'উক্তি কার্ডের জন্য ছবি' );
+		return array( 'id' => (int) $aid, 'url' => (string) wp_get_attachment_image_url( $aid, 'medium' ) );
+	}
+
+	/**
+	 * Copies a media-library image into a profile as its (encrypted) photo.
+	 *
+	 * @param int     $attachment_id Attachment.
+	 * @param int     $entity_id     Entity.
+	 * @param WP_User $user          User.
+	 * @return int|WP_Error File id.
+	 */
+	public static function media_to_profile_photo( $attachment_id, $entity_id, $user ) {
+		global $wpdb;
+		$src = get_attached_file( (int) $attachment_id );
+		if ( ! $src || ! file_exists( $src ) || 0 !== strpos( (string) get_post_mime_type( (int) $attachment_id ), 'image/' ) ) {
+			return new WP_Error( 'nros_not_found', 'ছবি পাওয়া যায়নি।', array( 'status' => 404 ) );
+		}
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		$tmp = wp_tempnam( basename( $src ) );
+		if ( ! $tmp || ! copy( $src, $tmp ) ) {
+			return new WP_Error( 'nros_upload_failed', 'ছবি কপি করা যায়নি।', array( 'status' => 500 ) );
+		}
+		$res = self::store_upload(
+			$tmp,
+			array(
+				'name' => basename( $src ),
+				'pd'   => array(
+					'scope'  => 'entity',
+					'folder' => 0,
+					'entity' => (int) $entity_id,
+					'note'   => 'উক্তি থেকে',
+					'source' => 'quote',
+				),
+			),
+			$user
+		);
+		if ( is_wp_error( $res ) ) {
+			return $res;
+		}
+		$wpdb->update( NROS_Profile_Desk::t( 'entities' ), array( 'photo_file_id' => (int) $res['id'] ), array( 'id' => (int) $entity_id ) );
+		$map                        = (array) get_option( 'nros_pd_photo_media', array() );
+		$map[ (int) $res['id'] ]    = (int) $attachment_id;
+		update_option( 'nros_pd_photo_media', array_slice( $map, -2000, null, true ), false );
+		return (int) $res['id'];
+	}
 }
