@@ -254,7 +254,13 @@ export function FramePanel({
 // ---------------------------------------------------------------------------
 
 /** r49 — the client's small ad in the corner opposite the logo, with its size guide. */
-function CornerAdSection({ cfg, set, onPick }: { cfg: EditConfig; set: Setter; onPick: () => void }) {
+export interface CornerAdInfo {
+  busy: string
+  moving: boolean
+  seconds: number
+}
+
+function CornerAdSection({ cfg, set, onPick, onPickClip, info }: { cfg: EditConfig; set: Setter; onPick: () => void; onPickClip?: () => void; info?: CornerAdInfo }) {
   const a = cfg.cornerAd
   const setA = (patch: Partial<EditConfig['cornerAd']>) => set((c) => ({ ...c, cornerAd: { ...c.cornerAd, ...patch } }))
   const corners: { id: EditConfig['cornerAd']['corner']; name: string }[] = [
@@ -293,6 +299,38 @@ function CornerAdSection({ cfg, set, onPick }: { cfg: EditConfig; set: Setter; o
               </button>
             )}
           </div>
+          {onPickClip && (
+            <div className="rounded-lg border border-neutral-200 px-3 py-2.5 mb-3" data-testid="corner-ad-clip">
+              <p className="text-[12.5px] font-semibold text-neutral-800 mb-0.5">চলমান বিজ্ঞাপন (ভিডিও ক্লিপ বা GIF)</p>
+              <p className="text-[11px] text-neutral-500 mb-2">
+                বিজ্ঞাপনদাতার দেওয়া ছোট এনিমেটেড বিজ্ঞাপন (যেমন ব্যাংকের ৫–১০ সেকেন্ডের স্পট) বাক্সের ভেতরে বারবার চলবে, পুরো ভিডিও জুড়ে। ওপরে ছবি হিসেবে GIF বা এনিমেটেড WebP দিলেও সেটা নড়বে।
+              </p>
+              {a.clip ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[12px] text-neutral-700 truncate max-w-[180px]" title={a.clip.title}>
+                    🎬 {a.clip.title || 'ক্লিপ'}
+                  </span>
+                  <button type="button" onClick={onPickClip} className="text-[12px] px-2.5 py-1.5 rounded-lg bg-neutral-100">
+                    বদলান
+                  </button>
+                  <button type="button" onClick={() => setA({ clip: null })} className="text-[12px] px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600" data-testid="corner-ad-clip-remove">
+                    সরান
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={onPickClip} className="text-[12.5px] px-3 py-2 rounded-lg border border-dashed border-neutral-300 text-neutral-600 w-full" data-testid="corner-ad-clip-pick">
+                  ভিডিও ক্লিপ বেছে নিন বা আপলোড করুন (MP4, ১৫ সেকেন্ডের মধ্যে)
+                </button>
+              )}
+              {info?.busy && <p className="text-[11.5px] text-neutral-600 mt-1.5">{info.busy}</p>}
+              {info?.moving && !info.busy && (
+                <p className="text-[11.5px] text-emerald-700 mt-1.5" data-testid="corner-ad-moving">
+                  ✓ চলমান বিজ্ঞাপন চলছে — {bnNumber(Math.round(info.seconds * 10) / 10)} সেকেন্ডের লুপ{a.clip && a.image ? ' (ক্লিপ থাকায় ওপরের স্থির ছবি এখন দেখাবে না)' : ''}
+                </p>
+              )}
+              <p className="text-[11px] text-neutral-400 mt-1.5">ক্লিপের মাপ: চৌকো ৪০০×৪০০ বা ৫০০×৪০০, শব্দ ছাড়া। ১৫ সেকেন্ডের বেশি হলে প্রথম ১৫ সেকেন্ড চলে।</p>
+            </div>
+          )}
           <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-[11.5px] text-amber-900 mb-3">
             <b>সাইজ গাইড:</b> চওড়া লোগো/ব্যানার ৬০০×২৪০ px, চৌকো লোগো ৪০০×৪০০ px। স্বচ্ছ পটভূমির PNG (বা WebP) সবচেয়ে ভালো, ৩০০ KB-এর মধ্যে। লেখা বড় ও মোটা রাখুন — ভিডিওতে এটি
             ছোট দেখায়।
@@ -300,7 +338,7 @@ function CornerAdSection({ cfg, set, onPick }: { cfg: EditConfig; set: Setter; o
           <div className="rounded-lg border border-neutral-200 px-3 py-2.5 mb-3" data-testid="corner-ad-text">
             <p className="text-[12.5px] font-semibold text-neutral-800 mb-0.5">বিজ্ঞাপনের শিরোনাম (এনিমেশনে)</p>
             <p className="text-[11px] text-neutral-500 mb-2">
-              {a.image ? 'একই বাক্সে ছবি আর শিরোনাম পালা করে ঘুরে ঘুরে আসে, পুরো ভিডিও জুড়ে।' : 'ছবি ছাড়াও চলে — তখন বাক্সে শুধু শিরোনাম থাকে।'}
+              {a.image || a.clip ? 'একই বাক্সে ছবি/ক্লিপ আর শিরোনাম পালা করে ঘুরে ঘুরে আসে, পুরো ভিডিও জুড়ে।' : 'ছবি ছাড়াও চলে — তখন বাক্সে শুধু শিরোনাম থাকে।'}
             </p>
             <TextInput label="শিরোনাম" value={a.text} onChange={(v) => setA({ text: v })} max={LIMITS.cornerAdText} placeholder="যেমন: রহমান ইলেকট্রনিক্স — ঈদে ২০% ছাড়" testId="corner-ad-title" />
             <TextInput label="দ্বিতীয় লাইন (ইচ্ছা করলে)" value={a.sub} onChange={(v) => setA({ sub: v })} max={LIMITS.cornerAdSub} placeholder="যেমন: ফোন ০১৭১১-০০০০০০" testId="corner-ad-sub" />
@@ -317,7 +355,7 @@ function CornerAdSection({ cfg, set, onPick }: { cfg: EditConfig; set: Setter; o
                   onChange={(v) => setA({ anim: v })}
                   size="sm"
                 />
-                {a.image && (
+                {(a.image || a.clip) && (
                   <div className="mt-2">
                     <Slider label="প্রতিটি কত সেকেন্ড থাকবে" value={a.swap} min={2} max={15} step={0.5} onChange={(v) => setA({ swap: v })} format={(v) => `${bnNumber(v)} সে.`} />
                   </div>
@@ -379,7 +417,21 @@ function CornerAdSection({ cfg, set, onPick }: { cfg: EditConfig; set: Setter; o
   )
 }
 
-export function LogoPanel({ cfg, set, customLogo, onPickCornerAd }: { cfg: EditConfig; set: Setter; customLogo: boolean; onPickCornerAd?: () => void }) {
+export function LogoPanel({
+  cfg,
+  set,
+  customLogo,
+  onPickCornerAd,
+  onPickCornerClip,
+  cornerInfo,
+}: {
+  cfg: EditConfig
+  set: Setter
+  customLogo: boolean
+  onPickCornerAd?: () => void
+  onPickCornerClip?: () => void
+  cornerInfo?: CornerAdInfo
+}) {
   const l = cfg.logo
   const setL = (patch: Partial<EditConfig['logo']>) => set((c) => ({ ...c, logo: { ...c.logo, ...patch } }))
   const corners: { id: Corner; name: string }[] = [
@@ -461,7 +513,7 @@ export function LogoPanel({ cfg, set, customLogo, onPickCornerAd }: { cfg: EditC
           <SwitchRow label="সাদা পটভূমি" hint="বন্ধ করলে সাদা লোগো, ছায়াসহ" checked={l.plate} onChange={(v) => setL({ plate: v })} />
         </div>
       )}
-      {onPickCornerAd && <CornerAdSection cfg={cfg} set={set} onPick={onPickCornerAd} />}
+      {onPickCornerAd && <CornerAdSection cfg={cfg} set={set} onPick={onPickCornerAd} onPickClip={onPickCornerClip} info={cornerInfo} />}
     </div>
   )
 }

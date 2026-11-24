@@ -512,6 +512,11 @@ export interface EditConfig {
   cornerAd: {
     on: boolean
     image: MediaRef | null
+    /**
+     * r49.2 — a short moving ad (MP4/WebM, up to 15 s) that loops in the box instead of the
+     * still image. An animated GIF/WebP picked as `image` moves on its own too.
+     */
+    clip: MediaRef | null
     corner: 'auto' | Corner
     size: number
     plate: boolean
@@ -592,7 +597,7 @@ export const DEFAULT_CONFIG: EditConfig = {
   quality: '1080',
   fileSize: 'balanced',
   frame: { id: 'none', title: '', kicker: '', date: true, footer: 'ticker', ticker: '', adText: '', adImage: null, size: 'auto', top: 1, bottom: 1, motion: 'lively', titlePos: 'top', titleScale: 1, titleFont: 'sans', badgeMode: 'auto', badge: '' },
-  cornerAd: { on: false, image: null, corner: 'auto', size: 7.5, plate: true, label: true, opacity: 1, show: 'always', every: 30, stay: 12, text: '', sub: '', swap: 4, anim: 'flip', accent: '#E30613' },
+  cornerAd: { on: false, image: null, clip: null, corner: 'auto', size: 7.5, plate: true, label: true, opacity: 1, show: 'always', every: 30, stay: 12, text: '', sub: '', swap: 4, anim: 'flip', accent: '#E30613' },
   logo: { on: false, style: 'reveal', corner: 'tr', size: 6, every: 12, plate: true, opacity: 1 },
   watermark: { on: true, style: 'hop', size: 6, every: 9, opacity: 0.42, site: true },
   intro: { id: 'none', text: '', clip: null, cover: true },
@@ -1049,6 +1054,7 @@ export function normalizeConfig(raw: unknown): EditConfig {
     cornerAd: {
       on: bool(o.cornerAd?.on, d.cornerAd.on),
       image: mediaRef(o.cornerAd?.image),
+      clip: mediaRef(o.cornerAd?.clip),
       corner: oneOf(o.cornerAd?.corner, ['auto', 'tr', 'tl', 'br', 'bl'] as const, 'auto'),
       size: num(o.cornerAd?.size, d.cornerAd.size, 4, 20),
       plate: bool(o.cornerAd?.plate, d.cornerAd.plate),

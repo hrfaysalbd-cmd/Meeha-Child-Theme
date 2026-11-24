@@ -19,6 +19,7 @@ import type { SfxId } from './sfxlib'
 import { EMPTY_HOUSE, drawHouseAd, netIcon, type HouseAdId, type HouseInfo } from './houseads'
 import { HEADER_ART, clamp, ease, fillRoundRect, fitText, lerp, rnd, win, type Ctx } from './motion'
 import { PACK_SCENE_SFX, PACK_THEMES, drawLowerThird, drawPackScene, isLowerThird, packSettledAt } from './pack'
+import { adClipFrame, type AdClip } from './adclip'
 import { pipActive, segSource, segSourceEnd, titleGrow, type Layout, type Rect, type SceneId, type Segment, type Timeline } from './timeline'
 
 export interface Picture {
@@ -29,6 +30,8 @@ export interface Picture {
 
 export interface DrawEnv {
   cfg: EditConfig
+  /** r49.2 — the corner ad's moving clip (video / animated GIF-WebP), looped. */
+  cornerClip?: AdClip | null
   L: Layout
   tl: Timeline
   logo: LogoAsset
@@ -2496,7 +2499,8 @@ function cornerAdText(ctx: Ctx, title: string, sub: string, boxH: number, maxW: 
  */
 export function drawCornerAd(ctx: Ctx, env: DrawEnv, t: number) {
   const ca = env.cfg.cornerAd
-  const pic = env.cornerAd && env.cornerAd.w > 0 && env.cornerAd.h > 0 ? env.cornerAd : null
+  const clip = env.cornerClip && env.cornerClip.frames.length ? env.cornerClip : null
+  const pic = clip ? adClipFrame(clip, 0) : env.cornerAd && env.cornerAd.w > 0 && env.cornerAd.h > 0 ? env.cornerAd : null
   const title = ca.text.trim()
   if (!ca.on || (!pic && !title)) return
   const t0 = 1
@@ -2578,7 +2582,9 @@ export function drawCornerAd(ctx: Ctx, env: DrawEnv, t: number) {
         ctx.shadowColor = 'rgba(0,0,0,0.45)'
         ctx.shadowBlur = h * 0.12
       }
-      ctx.drawImage(pic.src, x + (bw - w) / 2, y + (boxH - h) / 2, w, h)
+      // a moving ad plays on a loop from the moment the box comes in
+      const fp = clip ? adClipFrame(clip, faceT) : pic
+      ctx.drawImage(fp.src, x + (bw - w) / 2, y + (boxH - h) / 2, w, h)
       ctx.shadowColor = 'transparent'
       ctx.shadowBlur = 0
     } else if (f === 'text' && txt) {

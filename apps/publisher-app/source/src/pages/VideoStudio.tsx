@@ -75,6 +75,7 @@ import {
 } from '../components/Icon'
 import MediaGallery from '../components/MediaGallery'
 import VideoLibraryPicker from '../components/videoStudio/VideoLibraryPicker'
+import { adClipFrame, loadAdClip, type AdClip } from '../lib/videoEdit/adclip'
 import StudioTimeline from '../components/videoStudio/StudioTimeline'
 import { AdsPanel, CaptionsPanel, FramePanel, IntroOutroPanel, LayoutPanel, LogoPanel, type ReframeJob, type ThumbPainter } from '../components/videoStudio/StudioPanels'
 import ToolsPanel from '../components/videoStudio/StudioTools'
@@ -210,9 +211,11 @@ export default function VideoStudio() {
   const [pstate, setPstate] = useState<PreviewState>({ time: 0, playing: false, waiting: false })
   const [durations, setDurations] = useState<Record<string, number>>({})
   const [adPic, setAdPic] = useState<Picture | null>(null)
-  const [picker, setPicker] = useState<null | { kind: 'ad-add' } | { kind: 'ad-replace'; index: number } | { kind: 'intro' | 'outro' | 'pip' }>(null)
+  const [picker, setPicker] = useState<null | { kind: 'ad-add' } | { kind: 'ad-replace'; index: number } | { kind: 'intro' | 'outro' | 'pip' | 'corner' }>(null)
   const [imagePicker, setImagePicker] = useState<null | 'ad' | 'face' | 'corner'>(null)
   const [cornerPic, setCornerPic] = useState<Picture | null>(null)
+  const [cornerClip, setCornerClip] = useState<AdClip | null>(null)
+  const [cornerBusy, setCornerBusy] = useState('')
   const [facePic, setFacePic] = useState<Picture | null>(null)
   const [selectedSticker, setSelectedSticker] = useState<number | null>(null)
   const [wave, setWave] = useState<Waveform | null>(null)
@@ -462,21 +465,48 @@ export default function VideoStudio() {
   }, [cfg.frame.adImage])
 
   // ---- r49: the client's corner ad ----
+  // r49.2: a video clip (or an animated GIF/WebP picked as the image) loops in the box
+  const cornerRef = cfg.cornerAd.clip ?? cfg.cornerAd.image
   useEffect(() => {
-    const ref = cfg.cornerAd.image
-    if (!ref) {
+    if (!cornerRef) {
       setCornerPic(null)
+      setCornerClip(null)
       return
     }
     let cancelled = false
-    downloadMediaFile(ref.id)
-      .then((b) => createImageBitmap(b))
-      .then((bmp) => !cancelled && setCornerPic({ src: bmp, w: bmp.width, h: bmp.height }))
-      .catch(() => !cancelled && setCornerPic(null))
+    const ac = new AbortController()
+    const isVideo = cornerRef === cfg.cornerAd.clip
+    setCornerBusy(isVideo ? 'বিজ্ঞাপনের ক্লিপ তৈরি হচ্ছে…' : '')
+    ;(async () => {
+      try {
+        const b = await downloadMediaFile(cornerRef.id, undefined, ac.signal)
+        const clip = await loadAdClip(isVideo && !b.type.startsWith('video/') ? new Blob([b], { type: 'video/mp4' }) : b, ac.signal).catch(() => null)
+        if (cancelled) return
+        if (clip) {
+          setCornerClip(clip)
+          setCornerPic(adClipFrame(clip, 0))
+          setCornerBusy('')
+          return
+        }
+        if (isVideo) throw new Error('clip')
+        const bmp = await createImageBitmap(b)
+        if (cancelled) return
+        setCornerClip(null)
+        setCornerPic({ src: bmp, w: bmp.width, h: bmp.height })
+        setCornerBusy('')
+      } catch {
+        if (cancelled) return
+        setCornerClip(null)
+        setCornerPic(null)
+        setCornerBusy(isVideo ? 'এই ক্লিপটি এই ব্রাউজারে খোলা গেল না — MP4 (H.264) বা WebM দিন।' : '')
+      }
+    })()
     return () => {
       cancelled = true
+      ac.abort()
     }
-  }, [cfg.cornerAd.image])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cornerRef?.id])
 
   // ---- thumbnail face photo ----
   useEffect(() => {
@@ -520,6 +550,7 @@ export default function VideoStudio() {
       logo: loaded.logo,
       adImage: adPic,
       cornerAd: cornerPic,
+      cornerClip,
       title,
       introTitle: cfg.intro.text.trim() || title,
       kicker: cfg.frame.kicker,
@@ -530,7 +561,7 @@ export default function VideoStudio() {
       reporter: loaded.video.author?.name,
       scratch,
     }
-  }, [loaded, L, tl, cfg, adPic, cornerPic, kit, postTitle, scratch, house])
+  }, [loaded, L, tl, cfg, adPic, cornerPic, cornerClip, kit, postTitle, scratch, house])
   const thumbEnv = useMemo(() => (env ? { ...env, scratch: thumbScratch } : null), [env, thumbScratch])
 
   // ---- preview player ----
@@ -1862,7 +1893,7 @@ export default function VideoStudio() {
             {tab === 'frame' && (
               <FramePanel cfg={cfg} set={set} postTitle={postTitle} thumb={thumb} thumbRatio={thumbRatio} thumbKey={thumbKey} onPickAdImage={() => setImagePicker('ad')} />
             )}
-            {tab === 'logo' && <LogoPanel cfg={cfg} set={set} customLogo={!!kit?.logo} onPickCornerAd={() => setImagePicker('corner')} />}
+            {tab === 'logo' && <LogoPanel cfg={cfg} set={set} customLogo={!!kit?.logo} onPickCornerAd={() => setImagePicker('corner')} onPickCornerClip={() => setPicker({ kind: 'corner' })} cornerInfo={{ busy: cornerBusy, moving: !!cornerClip, seconds: cornerClip?.duration ?? 0 }} />}
             {tab === 'intro' && (
               <IntroOutroPanel cfg={cfg} set={set} postTitle={postTitle} thumb={thumb} thumbRatio={thumbRatio} thumbKey={thumbKey} kit={kit} onPick={(w) => setPicker({ kind: w })} />
             )}
@@ -1997,14 +2028,15 @@ export default function VideoStudio() {
       {picker && (
         <VideoLibraryPicker
           title={
-            picker.kind === 'intro' ? 'ইন্ট্রো ভিডিও বেছে নিন' : picker.kind === 'outro' ? 'আউট্রো ভিডিও বেছে নিন' : picker.kind === 'pip' ? 'দ্বিতীয় ভিডিও বেছে নিন' : 'বিজ্ঞাপন ভিডিও বেছে নিন'
+            picker.kind === 'intro' ? 'ইন্ট্রো ভিডিও বেছে নিন' : picker.kind === 'outro' ? 'আউট্রো ভিডিও বেছে নিন' : picker.kind === 'pip' ? 'দ্বিতীয় ভিডিও বেছে নিন' : picker.kind === 'corner' ? 'কোণার বিজ্ঞাপনের ছোট ক্লিপ (১৫ সেকেন্ডের মধ্যে)' : 'বিজ্ঞাপন ভিডিও বেছে নিন'
           }
-          adsFirst={picker.kind === 'ad-add' || picker.kind === 'ad-replace'}
+          adsFirst={picker.kind === 'ad-add' || picker.kind === 'ad-replace' || picker.kind === 'corner'}
           onClose={() => setPicker(null)}
           onSelect={(v) => {
             const ref: MediaRef = { id: v.id, url: v.url, title: v.title, duration: v.duration }
             if (picker.kind === 'ad-add') addAd(v)
             else if (picker.kind === 'ad-replace') addAd(v, picker.index)
+            else if (picker.kind === 'corner') set((c) => ({ ...c, cornerAd: { ...c.cornerAd, on: true, clip: ref }, logo: { ...c.logo, on: true } }))
             else if (picker.kind === 'intro') set((c) => ({ ...c, intro: { ...c.intro, id: 'custom', clip: ref } }))
             else if (picker.kind === 'pip') {
               const at = Math.round((playheadSrc() ?? range.start) * 10) / 10
