@@ -125,6 +125,86 @@ function meeha_ad_label_html( $style ) {
 }
 
 /**
+ * r50 — the tracking id of a placement: MH-<client, 4 digits>-<slot> (MH-0000-… for Meeha's own).
+ * The same id is printed on the box (data-ad-tid), shown on the client's results page and put in
+ * utm_campaign of the ad's link, so the advertiser can find Meeha's visitors in their own analytics.
+ *
+ * @param string $slot   Slot.
+ * @param int    $client Client id.
+ * @return string
+ */
+function meeha_ad_tracking_id( $slot, $client ) {
+	return (string) apply_filters( 'meeha_ad_tracking_id', 'MH-' . str_pad( (string) absint( $client ), 4, '0', STR_PAD_LEFT ) . '-' . sanitize_key( $slot ), $slot, $client );
+}
+
+/**
+ * r50 — add utm_source/medium/campaign/content to an ad link that goes to another site and has no utm yet.
+ *
+ * @param string $link Link.
+ * @param string $tid  Tracking id.
+ * @param string $slot Slot.
+ * @return string
+ */
+function meeha_ad_utm_link( $link, $tid, $slot ) {
+	$o = meeha_opt( 'ads' );
+	if ( '' === $link || ( isset( $o['utm_on'] ) && empty( $o['utm_on'] ) ) || false !== stripos( $link, 'utm_' ) ) {
+		return $link;
+	}
+	$host = strtolower( (string) wp_parse_url( $link, PHP_URL_HOST ) );
+	$self = strtolower( (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
+	if ( '' === $host || $host === $self || ! preg_match( '#^https?://#i', $link ) ) {
+		return $link;
+	}
+	return add_query_arg(
+		array(
+			'utm_source'   => rawurlencode( preg_replace( '/^www\./', '', $self ) ),
+			'utm_medium'   => 'display',
+			'utm_campaign' => rawurlencode( $tid ),
+			'utm_content'  => rawurlencode( $slot ),
+		),
+		$link
+	);
+}
+
+/**
+ * r50 — which part of the site this page is (for the advertiser's breakdown).
+ *
+ * @return string
+ */
+function meeha_ad_section() {
+	if ( is_front_page() || is_home() ) {
+		return 'home';
+	}
+	if ( is_search() ) {
+		return 'search';
+	}
+	$key = function_exists( 'meeha_current_template_key' ) ? meeha_current_template_key() : '';
+	if ( 'literature' === $key ) {
+		return 'literature';
+	}
+	if ( 'quotes' === $key ) {
+		return 'quotes';
+	}
+	if ( is_singular( 'post' ) ) {
+		$v = isset( $GLOBALS['meeha_single_variant'] ) ? (string) $GLOBALS['meeha_single_variant'] : '';
+		if ( 'opinion' === $v ) {
+			return 'opinion';
+		}
+		if ( has_post_format( 'video' ) || get_post_meta( get_the_ID(), '_nros_video_id', true ) ) {
+			return 'video';
+		}
+		return 'article';
+	}
+	if ( is_category() || is_tag() || is_tax() || is_archive() ) {
+		return 'category';
+	}
+	if ( is_page() ) {
+		return 'page';
+	}
+	return 'other';
+}
+
+/**
  * Ad box HTML for a slot, or '' when the slot is off/empty/out of its dates.
  *
  * r49: an image creative keeps its own shape — the box takes the picture's ratio (the phone
@@ -188,7 +268,8 @@ function meeha_ad( $slot ) {
 				$style = ' style="' . esc_attr( implode( ';', $vars ) ) . '"';
 				$boxc  = ' m-ad__box--fit';
 			}
-			$link  = isset( $o[ $slot . '_link' ] ) ? $o[ $slot . '_link' ] : '';
+			$link  = isset( $o[ $slot . '_link' ] ) ? (string) $o[ $slot . '_link' ] : '';
+			$link  = meeha_ad_utm_link( $link, meeha_ad_tracking_id( $slot, isset( $o[ $slot . '_client' ] ) ? (int) $o[ $slot . '_client' ] : 0 ), $slot );
 			$inner = $link ? '<a href="' . esc_url( $link ) . '" rel="sponsored noopener" target="_blank">' . $tag . '</a>' : $tag;
 			break;
 		case 'house': // r47 — Meeha's own animated feature card.
@@ -244,7 +325,7 @@ function meeha_ad( $slot ) {
 	// The corner ⓘ sits inside the box (over the creative); the text marks sit above it.
 	$inbox  = 'corner' === $lstyle ? $lhtml : '';
 	$above  = 'corner' === $lstyle ? '' : $lhtml;
-	$html   = '<aside class="' . esc_attr( $cls ) . '" aria-label="বিজ্ঞাপন" data-ad-slot="' . esc_attr( $slot ) . '"' . ( $client ? ' data-ad-client="' . $client . '"' : '' ) . '>' .
+	$html   = '<aside class="' . esc_attr( $cls ) . '" aria-label="বিজ্ঞাপন" data-ad-slot="' . esc_attr( $slot ) . '" data-ad-tid="' . esc_attr( meeha_ad_tracking_id( $slot, $client ) ) . '"' . ( $client ? ' data-ad-client="' . $client . '"' : '' ) . '>' .
 		$above .
 		'<div class="m-ad__box' . $boxc . '"' . $style . '>' . $inner . $inbox . '</div></aside>';
 	return (string) apply_filters( 'meeha_ad_html', $html, $slot, $type );
@@ -266,53 +347,88 @@ function meeha_ads_floating_allowed() {
 }
 
 /**
- * r49 — the floating bar, the corner box and the pop-up, each with a close (×) button. They start
- * hidden; the small script below shows them (and remembers a close for the set number of hours),
- * so a cached page never shows a pop-up twice to someone who closed it.
+ * r49 — the floating bar, the side box and the pop-up. They start hidden; the small script below
+ * shows them (and remembers a close for the set number of hours), so a cached page never shows a
+ * pop-up twice to someone who closed it.
+ *
+ * r50 — the side box slides in from the right a few seconds after the page opens (phones too: about
+ * half the screen wide; desktop 300 px). A tab with an arrow and "বন্ধ করুন / ভিতরে ঢুকান" tucks it
+ * into the right edge; the tab stays, so the reader can pull it out again. A tucked box stays tucked
+ * on the next pages for the "আবার দেখাবে" hours.
+ *
+ * The same script counts, per placement: ইমপ্রেশন (the box was shown on the page), নিশ্চিত দেখা (half
+ * of it on screen for one second), clicks, and — for the advertiser's results page — the first view of
+ * the day in this browser, the part of the site and where the reader came from. Logged-in readers are
+ * counted like everyone else.
  */
 function meeha_ads_floating() {
-	if ( ! function_exists( 'meeha_opt' ) || ! meeha_ads_floating_allowed() ) {
+	if ( ! function_exists( 'meeha_opt' ) ) {
 		return;
 	}
 	$o     = meeha_opt( 'ads' );
 	$out   = '';
 	$float = max( 1, (int) ( isset( $o['float_every'] ) ? $o['float_every'] : 6 ) );
-	$bar   = meeha_ad( 'float_bottom' );
-	if ( '' !== $bar ) {
-		$out .= '<div class="m-float m-float--bottom" data-float="float_bottom" data-every="' . $float . '" hidden><button type="button" class="m-float__x" aria-label="বিজ্ঞাপন বন্ধ করুন">×</button>' . $bar . '</div>';
+	$lit   = function_exists( 'meeha_current_template_key' ) && 'literature' === meeha_current_template_key();
+	if ( meeha_ads_floating_allowed() && ! $lit ) {
+		$bar = meeha_ad( 'float_bottom' );
+		if ( '' !== $bar ) {
+			$out .= '<div class="m-float m-float--bottom" data-float="float_bottom" data-every="' . $float . '" hidden><button type="button" class="m-float__x" aria-label="বিজ্ঞাপন বন্ধ করুন">×</button>' . $bar . '</div>';
+		}
+		$side = meeha_ad( 'float_side' );
+		if ( '' !== $side ) {
+			$sdelay = max( 0, min( 120, (int) ( isset( $o['side_delay'] ) ? $o['side_delay'] : 8 ) ) );
+			$arrow  = '<svg class="m-sidead__ar" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+			$out   .= '<div class="m-sidead" data-float="float_side" data-every="' . $float . '" data-delay="' . $sdelay . '" hidden>' .
+				'<button type="button" class="m-sidead__tab" aria-expanded="true" aria-controls="m-sidead-box" aria-label="বিজ্ঞাপন বন্ধ করুন — ডান পাশে ভিতরে ঢুকবে">' . $arrow .
+				'<span class="m-sidead__t m-sidead__t--in">বন্ধ করুন<br>ভিতরে ঢুকান</span><span class="m-sidead__t m-sidead__t--out">বিজ্ঞাপন<br>খুলুন</span></button>' .
+				'<div class="m-sidead__box" id="m-sidead-box">' . $side . '</div></div>';
+		}
+		$pages = isset( $o['popup_pages'] ) ? (string) $o['popup_pages'] : 'all';
+		$where = 'all' === $pages || ( 'single' === $pages && is_singular( 'post' ) ) || ( 'home' === $pages && ( is_front_page() || is_home() ) );
+		$pop   = $where ? meeha_ad( 'popup' ) : '';
+		if ( '' !== $pop ) {
+			$delay = max( 0, min( 120, (int) ( isset( $o['popup_delay'] ) ? $o['popup_delay'] : 6 ) ) );
+			$every = max( 1, (int) ( isset( $o['popup_every'] ) ? $o['popup_every'] : 12 ) );
+			$out  .= '<div class="m-adpop" data-float="popup" data-delay="' . $delay . '" data-every="' . $every . '" role="dialog" aria-modal="true" aria-label="বিজ্ঞাপন" hidden><div class="m-adpop__card"><button type="button" class="m-float__x m-adpop__x" aria-label="বিজ্ঞাপন বন্ধ করুন">×</button>' . $pop . '</div></div>';
+		}
 	}
-	$side = meeha_ad( 'float_side' );
-	if ( '' !== $side ) {
-		$out .= '<div class="m-float m-float--side" data-float="float_side" data-every="' . $float . '" hidden><button type="button" class="m-float__x" aria-label="বিজ্ঞাপন বন্ধ করুন">×</button>' . $side . '</div>';
-	}
-	$pages = isset( $o['popup_pages'] ) ? (string) $o['popup_pages'] : 'all';
-	$where = 'all' === $pages || ( 'single' === $pages && is_singular( 'post' ) ) || ( 'home' === $pages && ( is_front_page() || is_home() ) );
-	$pop   = $where ? meeha_ad( 'popup' ) : '';
-	if ( '' !== $pop ) {
-		$delay = max( 0, min( 120, (int) ( isset( $o['popup_delay'] ) ? $o['popup_delay'] : 6 ) ) );
-		$every = max( 1, (int) ( isset( $o['popup_every'] ) ? $o['popup_every'] : 12 ) );
-		$out  .= '<div class="m-adpop" data-float="popup" data-delay="' . $delay . '" data-every="' . $every . '" role="dialog" aria-modal="true" aria-label="বিজ্ঞাপন" hidden><div class="m-adpop__card"><button type="button" class="m-float__x m-adpop__x" aria-label="বিজ্ঞাপন বন্ধ করুন">×</button>' . $pop . '</div></div>';
-	}
-	$beacon = (string) apply_filters( 'meeha_ads_beacon_url', '' );
+	$beacon = is_admin() || is_customize_preview() ? '' : (string) apply_filters( 'meeha_ads_beacon_url', '' );
 	if ( '' === $out && '' === $beacon ) {
 		return;
 	}
 	echo $out; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built by meeha_ad().
-	// Close/remember + pop-up timer + (with newsroom-os) a count of views and clicks per placement.
+	$sec = meeha_ad_section();
 	?>
-<script id="meeha-ads-js">(function(){var d=document,ls;try{ls=window.localStorage}catch(e){}
-function until(k){try{return +(ls&&ls.getItem('m-ad-x-'+k))||0}catch(e){return 0}}
-function hide(el,k,h){el.hidden=true;el.classList.remove('is-on');try{ls&&ls.setItem('m-ad-x-'+k,String(Date.now()+h*36e5))}catch(e){}d.documentElement.classList.remove('m-adpop-open');if(k==='float_bottom')d.documentElement.classList.remove('m-float-open')}
-d.querySelectorAll('[data-float]').forEach(function(el){var k=el.getAttribute('data-float'),h=+el.getAttribute('data-every')||6;if(until(k)>Date.now())return;
-var show=function(){el.hidden=false;requestAnimationFrame(function(){el.classList.add('is-on')});if(k==='float_bottom'){requestAnimationFrame(function(){d.documentElement.style.setProperty('--m-float-h',el.offsetHeight+'px');d.documentElement.classList.add('m-float-open')})}if(k==='popup'){d.documentElement.classList.add('m-adpop-open');var x=el.querySelector('.m-adpop__x');x&&x.focus({preventScroll:true});}};
+<script id="meeha-ads-js">(function(){var d=document,de=d.documentElement,ls;try{ls=window.localStorage}catch(e){}
+function get(k){try{return ls?ls.getItem(k):null}catch(e){return null}}function put(k,v){try{ls&&ls.setItem(k,v)}catch(e){}}
+function until(k){return +(get('m-ad-x-'+k))||0}
+var B=<?php echo wp_json_encode( $beacon ); ?>,SEC=<?php echo wp_json_encode( $sec ); ?>,served={},seen={},qi=[],qv=[],qu=[],t;
+var SRC=(function(){var r=d.referrer,h='';try{h=r?new URL(r).hostname:''}catch(e){}if(!h)return'direct';if(h===location.hostname)return'internal';if(/(^|\.)google\./.test(h))return'google';if(/facebook\.com$|(^|\.)fb\.|messenger\.com$/.test(h))return'facebook';if(/youtube\.com$|youtu\.be$/.test(h))return'youtube';if(/(^|\.)(t\.co|twitter\.com|x\.com|instagram\.com|linkedin\.com|whatsapp\.com|telegram\.org|t\.me|tiktok\.com|threads\.net)$/.test(h))return'social';return'other'})();
+function send(b){if(!B)return;b.s=SEC;b.r=SRC;try{var s=JSON.stringify(b);if(navigator.sendBeacon&&navigator.sendBeacon(B,new Blob([s],{type:'application/json'})))return;fetch(B,{method:'POST',body:s,headers:{'Content-Type':'application/json'},keepalive:true,credentials:'same-origin'})}catch(e){}}
+function flush(){clearTimeout(t);t=0;if(qi.length||qv.length){send({i:qi.splice(0),v:qv.splice(0),u:qu.splice(0)})}}
+function later(){if(!t)t=setTimeout(flush,1500)}
+function covered(a){return de.classList.contains('mvr-lock')&&!a.closest('.mvr')}
+function serve(a){var s=a.getAttribute('data-ad-slot');if(!s||served[s]||covered(a))return;served[s]=1;qi.push(s);later()}
+function today(){var n=new Date();return n.getFullYear()+'-'+(n.getMonth()+1)+'-'+n.getDate()}
+function view(a){var s=a.getAttribute('data-ad-slot');if(seen[s]||covered(a))return;seen[s]=1;serve(a);qv.push(s);var c=a.getAttribute('data-ad-client');if(c&&get('m-ad-u-'+c)!==today()){put('m-ad-u-'+c,today());if(qu.indexOf(c)<0)qu.push(+c)}later()}
+function servedIn(el){el.querySelectorAll('[data-ad-slot]').forEach(serve)}
+function hide(el,k,h){el.hidden=true;el.classList.remove('is-on');put('m-ad-x-'+k,String(Date.now()+h*36e5));de.classList.remove('m-adpop-open');if(k==='float_bottom')de.classList.remove('m-float-open')}
+d.querySelectorAll('[data-float]').forEach(function(el){var k=el.getAttribute('data-float'),h=+el.getAttribute('data-every')||6,dl=+el.getAttribute('data-delay');
+if(k==='float_side'){var tab=el.querySelector('.m-sidead__tab'),tucked=until(k)>Date.now();
+var set=function(tk){el.classList.toggle('is-tucked',tk);tab.setAttribute('aria-expanded',String(!tk));tab.setAttribute('aria-label',tk?'বিজ্ঞাপন খুলুন':'বিজ্ঞাপন বন্ধ করুন — ডান পাশে ভিতরে ঢুকবে');if(!tk)servedIn(el)};
+tab.addEventListener('click',function(){var tk=!el.classList.contains('is-tucked');set(tk);put('m-ad-x-'+k,tk?String(Date.now()+h*36e5):'0')});
+setTimeout(function(){el.hidden=false;set(tucked);requestAnimationFrame(function(){requestAnimationFrame(function(){el.classList.add('is-on')})})},tucked?400:(isNaN(dl)?8:dl)*1000);return}
+if(until(k)>Date.now())return;
+var show=function(){el.hidden=false;servedIn(el);requestAnimationFrame(function(){el.classList.add('is-on')});if(k==='float_bottom'){requestAnimationFrame(function(){de.style.setProperty('--m-float-h',el.offsetHeight+'px');de.classList.add('m-float-open')})}if(k==='popup'){de.classList.add('m-adpop-open');var x=el.querySelector('.m-adpop__x');x&&x.focus({preventScroll:true});}};
 el.addEventListener('click',function(e){if(e.target.closest('.m-float__x')||e.target===el){e.preventDefault();hide(el,k,h)}});
-if(k==='popup'){d.addEventListener('keydown',function(e){if(e.key==='Escape'&&!el.hidden)hide(el,k,h)});setTimeout(show,(+el.getAttribute('data-delay')||0)*1000)}else{setTimeout(show,1200)}});
-var B=<?php echo wp_json_encode( $beacon ); ?>;if(!B||!('IntersectionObserver' in window))return;
-var seen={},q=[],t;function send(body){try{var s=JSON.stringify(body);if(navigator.sendBeacon){navigator.sendBeacon(B,new Blob([s],{type:'application/json'}))}else{fetch(B,{method:'POST',body:s,headers:{'Content-Type':'application/json'},keepalive:true})}}catch(e){}}
-function flush(){if(q.length){send({v:q.splice(0)})}}
-var io=new IntersectionObserver(function(es){es.forEach(function(en){var s=en.target.getAttribute('data-ad-slot');if(!en.isIntersecting){clearTimeout(en.target._mt);return}if(seen[s])return;var tm=setTimeout(function(){if(seen[s])return;seen[s]=1;q.push(s);clearTimeout(t);t=setTimeout(flush,1500)},1000);en.target._mt=tm});},{threshold:.5});
-d.querySelectorAll('[data-ad-slot]').forEach(function(a){io.observe(a);a.addEventListener('click',function(e){if(e.target.closest('a'))send({c:a.getAttribute('data-ad-slot')})})});
-addEventListener('pagehide',flush);})();</script>
+if(k==='popup'){d.addEventListener('keydown',function(e){if(e.key==='Escape'&&!el.hidden)hide(el,k,h)});setTimeout(show,(dl||0)*1000)}else{setTimeout(show,1200)}});
+if(!B)return;
+d.addEventListener('meeha:card-download',function(e){var x=e.detail||{};if(x.ad&&(x.type==='news'||x.type==='quote'))send({p:x.type})});
+var ads=d.querySelectorAll('[data-ad-slot]');
+setTimeout(function(){ads.forEach(function(a){if(!a.closest('[data-float]')&&a.getClientRects().length)serve(a)})},1000);
+ads.forEach(function(a){a.addEventListener('click',function(e){if(e.target.closest('a'))send({c:a.getAttribute('data-ad-slot')})})});
+if('IntersectionObserver' in window){var io=new IntersectionObserver(function(es){es.forEach(function(en){var a=en.target;if(!en.isIntersecting||en.intersectionRatio<.5){clearTimeout(a._mt);a._mt=0;return}if(seen[a.getAttribute('data-ad-slot')]||a._mt)return;a._mt=setTimeout(function(){a._mt=0;if(!d.hidden)view(a)},1000)})},{threshold:[0,.5,1]});ads.forEach(function(a){io.observe(a)})}
+addEventListener('pagehide',flush);d.addEventListener('visibilitychange',function(){if(d.hidden)flush()});})();</script>
 	<?php
 }
 add_action( 'wp_footer', 'meeha_ads_floating', 30 );

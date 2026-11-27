@@ -100,6 +100,7 @@ $meeha_cls = 'm-poem m-litsingle' . ( $meeha_gid ? ' m-g-' . $meeha_gid : '' ) .
 					)
 				);
 				meeha_single_reactions( $meeha_p, 'literature' );
+				echo function_exists( 'meeha_ad' ) ? meeha_ad( 'lit_end' ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- built in meeha_ad(). r50: after the piece and its share/reactions, never inside it.
 				$meeha_bio   = $meeha_uid ? trim( (string) get_the_author_meta( 'description', $meeha_uid ) ) : '';
 				$meeha_count = $meeha_uid ? (int) count_user_posts( $meeha_uid, 'post', true ) : 0;
 				?>

@@ -316,8 +316,13 @@ function meeha_quote_archive_grid( $q = null ) {
 	echo '<div class="m-container m-qarchive">';
 	if ( $q->have_posts() ) {
 		echo '<ul class="m-qgrid" role="list" data-qgrid>';
-		foreach ( $q->posts as $p ) {
+		// r50 — one banner across the grid after the 6th quote, on the first page only (never in "আরও উক্তি").
+		$ad = ( 1 === max( 1, (int) get_query_var( 'paged' ) ) && count( $q->posts ) > 6 && function_exists( 'meeha_ad' ) ) ? meeha_ad( 'quotes_infeed' ) : '';
+		foreach ( $q->posts as $i => $p ) {
 			echo '<li>' . meeha_render_quote_card( $p ) . '</li>'; // phpcs:ignore WordPress.Security.EscapeOutput
+			if ( 5 === $i && '' !== $ad ) {
+				echo '<li class="m-qgrid__ad" data-qgrid-skip>' . $ad . '</li>'; // phpcs:ignore WordPress.Security.EscapeOutput -- built in meeha_ad().
+			}
 		}
 		echo '</ul>';
 		$paged = max( 1, (int) get_query_var( 'paged' ) );

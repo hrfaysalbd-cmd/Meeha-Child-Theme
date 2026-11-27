@@ -114,8 +114,12 @@ export async function uploadClip(file: File, serverMax: number, onStep: (s: Clip
 }
 
 // ---------------------------------------------------------------------------
-// Background HD originals: one at a time, while the app stays open. Survives
-// moving between pages (module state), not closing the app.
+// Background HD originals: one at a time.
+// r50 (field report: "a 26-second video's HD had not come an hour after the 720p"): the queue
+// lived only in memory, so closing the app, the phone killing it in the background, or one
+// failed request lost the HD for good. Now every waiting original is copied into the phone's
+// storage (IndexedDB) and resumes the next time the app opens; failures retry by themselves
+// (and when the line comes back or the app returns to the front).
 // ---------------------------------------------------------------------------
 
 export interface HdJob {
@@ -126,9 +130,61 @@ export interface HdJob {
   percent: number
   state: 'waiting' | 'sending' | 'done' | 'error' | 'paused'
   error?: string
+  /** How many times it has failed (retries stop after MAX_TRIES). */
+  tries?: number
 }
 
 type Listener = () => void
+
+const HD_DB = 'nros-hd'
+const HD_STORE = 'jobs'
+const MAX_TRIES = 6
+const KEEP_DAYS = 4
+
+interface StoredHd {
+  key: string
+  name: string
+  type: string
+  forId: number
+  size: number
+  added: number
+  blob: Blob
+}
+
+function hdDb(): Promise<IDBDatabase | null> {
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open(HD_DB, 1)
+      req.onupgradeneeded = () => req.result.createObjectStore(HD_STORE, { keyPath: 'key' })
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => resolve(null)
+    } catch {
+      resolve(null)
+    }
+  })
+}
+
+async function hdTx<T>(mode: IDBTransactionMode, fn: (st: IDBObjectStore) => IDBRequest<T> | void): Promise<T | null> {
+  const db = await hdDb()
+  if (!db) return null
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(HD_STORE, mode)
+      const r = fn(tx.objectStore(HD_STORE))
+      tx.oncomplete = () => {
+        db.close()
+        resolve(r ? (r.result as T) : null)
+      }
+      tx.onerror = tx.onabort = () => {
+        db.close()
+        resolve(null)
+      }
+    } catch {
+      db.close()
+      resolve(null)
+    }
+  })
+}
 
 class HdQueue {
   private jobs: (HdJob & { file: File })[] = []
@@ -136,6 +192,8 @@ class HdQueue {
   private busy = false
   private ctrl: AbortController | null = null
   private snapshot: HdJob[] = []
+  private restored = false
+  private timer: ReturnType<typeof setTimeout> | null = null
 
   subscribe = (l: Listener) => {
     this.listeners.add(l)
@@ -148,15 +206,48 @@ class HdQueue {
   }
   add(file: File, forId: number) {
     if (hdPref() === 'never') return
-    this.jobs.push({ key: `${forId}-${file.size}`, name: file.name, forId, size: file.size, percent: 0, state: 'waiting', file })
+    const key = `${forId}-${file.size}`
+    if (this.jobs.some((j) => j.key === key)) return
+    this.jobs.push({ key, name: file.name, forId, size: file.size, percent: 0, state: 'waiting', file, tries: 0 })
+    this.emit()
+    // keep a copy on the phone first, so the HD survives the app being closed
+    void hdTx('readwrite', (st) => st.put({ key, name: file.name, type: file.type, forId, size: file.size, added: Date.now(), blob: file } satisfies StoredHd))
+    void this.run()
+  }
+  /**
+   * Picks up the originals that were still waiting when the app was last closed. Called once
+   * when the app shell opens; also hooks "line is back" and "app in front again" to retry.
+   */
+  async restore() {
+    if (this.restored) return
+    this.restored = true
+    window.addEventListener('online', () => this.retryFailed())
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') this.retryFailed()
+    })
+    const all = (await hdTx<StoredHd[]>('readonly', (st) => st.getAll())) ?? []
+    const now = Date.now()
+    for (const r of all) {
+      if (now - r.added > KEEP_DAYS * 86400000 || hdPref() === 'never') {
+        void hdTx('readwrite', (st) => st.delete(r.key))
+        continue
+      }
+      if (this.jobs.some((j) => j.key === r.key)) continue
+      const file = new File([r.blob], r.name, { type: r.type || 'video/mp4' })
+      this.jobs.push({ key: r.key, name: r.name, forId: r.forId, size: r.size, percent: 0, state: 'waiting', file, tries: 0 })
+    }
     this.emit()
     void this.run()
+  }
+  private forget(key: string) {
+    void hdTx('readwrite', (st) => st.delete(key))
   }
   /** Removes a finished/failed job, or cancels one. */
   remove(key: string) {
     const j = this.jobs.find((x) => x.key === key)
     if (j?.state === 'sending') this.ctrl?.abort()
     this.jobs = this.jobs.filter((x) => x.key !== key)
+    this.forget(key)
     this.emit()
   }
   retry(key: string) {
@@ -164,6 +255,21 @@ class HdQueue {
     if (j && (j.state === 'error' || j.state === 'paused')) {
       j.state = 'waiting'
       j.error = undefined
+      j.tries = 0
+      this.emit()
+      void this.run()
+    }
+  }
+  private retryFailed() {
+    let any = false
+    for (const j of this.jobs) {
+      if (j.state === 'error') {
+        j.state = 'waiting'
+        j.error = undefined
+        any = true
+      }
+    }
+    if (any) {
       this.emit()
       void this.run()
     }
@@ -205,10 +311,19 @@ class HdQueue {
           )
           j.state = 'done'
           j.percent = 100
+          this.forget(j.key)
         } catch (err) {
           if (!this.jobs.includes(j)) continue
+          j.tries = (j.tries ?? 0) + 1
           j.state = 'error'
           j.error = err instanceof Error ? err.message : 'HD পাঠানো যায়নি'
+          if (j.tries < MAX_TRIES) {
+            // try again by itself: 15 s, 30 s, 1 min, 2 min, 4 min
+            const wait = 15000 * Math.pow(2, j.tries - 1)
+            j.error = `${j.error} — ${Math.round(wait / 1000)} সেকেন্ড পর আবার চেষ্টা হবে`
+            if (this.timer) clearTimeout(this.timer)
+            this.timer = setTimeout(() => this.retryFailed(), wait)
+          }
         }
         this.emit()
       }

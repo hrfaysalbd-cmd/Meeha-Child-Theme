@@ -107,7 +107,7 @@
           reset(); if (status) status.textContent = '';
         } else {
           const canvas = await MC.render(pl.type, pl.data, pl.opts || {});
-          await MC.download(canvas, pl.filename || 'meeha-card.png');
+          await MC.download(canvas, pl.filename || 'meeha-card.png'); try { document.dispatchEvent(new CustomEvent('meeha:card-download', { detail: { type: pl.type, ad: !!(pl.opts && pl.opts.ad) } })); } catch (er2) {}
           setTip('ডাউনলোড হয়েছে', 'is-tip'); if (status) status.textContent = 'ফটোকার্ড ডাউনলোড হয়েছে।';
           setTimeout(reset, 1800);
         }

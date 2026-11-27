@@ -46,7 +46,7 @@ export default function HdUploads() {
               <div key={j.key} className="flex items-center gap-2 text-[11.5px]">
                 <span className="flex-1 truncate text-white/80">{j.name}</span>
                 <span className="tabular-nums text-white/60">
-                  {j.state === 'done' ? '✓' : j.state === 'sending' ? `${bnNumber(j.percent)}%` : j.state === 'error' ? 'ব্যর্থ' : j.state === 'paused' ? 'Wi-Fi-র অপেক্ষায়' : 'অপেক্ষায়'}
+                  {j.state === 'done' ? '✓' : j.state === 'sending' ? `${bnNumber(j.percent)}%` : j.state === 'error' ? ((j.tries ?? 0) < 6 ? 'আবার চেষ্টা হবে' : 'ব্যর্থ') : j.state === 'paused' ? 'Wi-Fi-র অপেক্ষায়' : 'অপেক্ষায়'}
                 </span>
                 {(j.state === 'error' || j.state === 'paused') && (
                   <button type="button" onClick={() => hdQueue.retry(j.key)} className="text-emerald-300 font-semibold">
@@ -72,7 +72,10 @@ export default function HdUploads() {
                 </button>
               ))}
             </div>
-            <p className="text-[10.5px] text-white/50">অ্যাপ খোলা রাখুন। এডিটর এর মধ্যেই ৭২০p কপি দিয়ে কাজ শুরু করতে পারবেন।</p>
+            <p className="text-[10.5px] text-white/50">
+              পাঠানো শেষ না হওয়া পর্যন্ত অ্যাপ সামনে খোলা রাখলে দ্রুত যায়। অ্যাপ বন্ধ হয়ে গেলেও ফাইলটি ফোনে রাখা থাকে — পরের বার অ্যাপ খুললে নিজে থেকেই আবার পাঠানো শুরু হবে।
+              এডিটর এর মধ্যেই ৭২০p কপি দিয়ে কাজ শুরু করতে পারবেন।
+            </p>
           </div>
         )}
       </div>

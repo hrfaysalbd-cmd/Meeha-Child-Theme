@@ -1776,6 +1776,11 @@ export function themeOf(id: FrameId): Theme | null {
  * r49 — the frame's tag: the design's own word ("নির্বাচন", "খেলা"…), the publisher's own words
  * (any frame works for any news — no frame is tied to one category), or none.
  */
+/** r50 — the design's own tag word (for the studio's tag chips). */
+export function frameOwnTag(id: FrameId): string {
+  return id === 'none' ? '' : (THEMES[id]?.badge?.text ?? '')
+}
+
 function frameBadge(env: DrawEnv, theme: Theme): Theme['badge'] {
   const f = env.cfg.frame
   if (f.badgeMode === 'off') return undefined
@@ -1913,7 +1918,9 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   const t = t0 + FRAME_SETTLE
   // round 29: a taller band (frame.top) makes everything in it bigger, not just the title
   // r49: the part of the height added for a bigger title (titleGrow) goes to the title only
-  const hk = clamp(r.h / (210 * s0 * titleGrow(env.cfg)), 1, 2.2)
+  // r50: judged from the band as it really is — a tall reel or a big footer can squeeze it
+  const units = r.h / (210 * s0)
+  const hk = clamp(Math.min(env.cfg.frame.top, units / titleGrow(env.cfg)), 1, 2.2)
   const s = s0 * (1 + (hk - 1) * 0.55)
   const badge = frameBadge(env, theme)
   const enter = win(t, 0, 0.5)
@@ -1994,7 +2001,9 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   const bottom = r.y + r.h - 20 * s
   const avail = bottom - top
   const font = env.cfg.frame.titleFont === 'display' ? (px: number) => `800 ${px}px ${FONT_DISPLAY}` : (px: number) => bodyFont(700, px)
-  const fit = headerFit(ctx, title, font, maxW, avail, s0, hk, env.cfg.frame.titleScale)
+  // the room the title would have at 100% (the band without the part added for a bigger title)
+  const availBase = Math.max(avail * 0.35, avail - (r.h - 210 * s0 * Math.max(1, Math.min(env.cfg.frame.top, units))))
+  const fit = headerFit(ctx, title, font, maxW, avail, availBase, s0, hk, env.cfg.frame.titleScale)
   const blockH = fit.lines.length * fit.lineHeight
   const y0 = top + (avail - blockH) / 2
   ctx.save()
@@ -2038,28 +2047,89 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
  * 36,000 frames in a 20-minute video). `scale` is the publisher's size slider on top of the fit.
  */
 const headerFitCache = new Map<string, { size: number; lines: string[]; lineHeight: number; widths: number[] }>()
-function headerFit(ctx: Ctx, title: string, font: (px: number) => string, maxW: number, avail: number, s0: number, hk: number, scale: number) {
-  const key = `${font(10)}|${title}|${Math.round(maxW)}|${Math.round(avail)}|${s0.toFixed(4)}|${hk.toFixed(4)}|${scale}`
-  const hit = headerFitCache.get(key)
-  if (hit) return hit
-  const k = scale > 0 ? scale : 1
-  // round 29: the biggest size that shows the whole title in 1, 2 or 3 lines.
-  // r47 (field report): long Bengali titles used to bottom out at a tiny size next to a big
-  // frame — the caps and the floor are higher now, and three lines are always allowed.
-  // r48: with no icon beside it the title has the full width; the size slider scales caps and floor.
-  let fit = fitText(ctx, title, font, maxW, 3, Math.min(54 * s0 * hk * k, avail / 2.2), 30 * s0 * Math.min(1, k))
-  for (const n of [1, 2, 3]) {
-    const cap = n === 1 ? Math.min(68 * s0 * hk * k, avail * 0.8) : Math.min((n === 2 ? 58 : 50) * s0 * hk * k, avail / (n * 1.15))
-    const f2 = fitText(ctx, title, font, maxW, n, cap, Math.min(cap, (n === 1 ? 44 : 30) * s0 * Math.min(1, k)))
+
+/** The 100% title: the biggest size that shows the whole title in 1–4 lines (round 29 / r47 rules). */
+function headerBaseFit(ctx: Ctx, title: string, font: (px: number) => string, maxW: number, avail: number, s0: number, hk: number) {
+  let fit = fitText(ctx, title, font, maxW, 3, Math.min(54 * s0 * hk, avail / 2.2), 30 * s0)
+  for (const n of [1, 2, 3, 4]) {
+    const cap = n === 1 ? Math.min(68 * s0 * hk, avail * 0.8) : Math.min((n === 2 ? 58 : n === 3 ? 50 : 44) * s0 * hk, avail / (n * 1.15))
+    const f2 = fitText(ctx, title, font, maxW, n, cap, Math.min(cap, (n === 1 ? 44 : 30) * s0))
     ctx.font = font(f2.size)
     const whole = f2.lines.length > 0 && !f2.lines[f2.lines.length - 1].endsWith('…') && f2.lines.every((l) => ctx.measureText(l).width <= maxW + 0.5)
     if (whole && f2.size > fit.size) fit = f2
   }
+  return intoBox(ctx, title, font, maxW, avail, fit, s0)
+}
+
+/** Shrinks a fitted title until all its lines fit the band's height (6 lines at most). */
+function intoBox(ctx: Ctx, title: string, font: (px: number) => string, maxW: number, avail: number, fit: { size: number; lines: string[]; lineHeight: number }, s0: number) {
+  if (fit.lines.length * fit.lineHeight <= avail + 0.5) return fit
+  const words = title.split(/\s+/).filter(Boolean)
+  for (let size = fit.size * 0.96; size >= 14 * s0; size *= 0.96) {
+    ctx.font = font(size)
+    const lines = wrapWords(ctx, words, maxW)
+    if (lines.length <= 6 && lines.length * size * 1.22 <= avail + 0.5 && lines.every((l) => ctx.measureText(l).width <= maxW + 0.5)) {
+      return { size, lines, lineHeight: size * 1.22 }
+    }
+  }
+  return fit
+}
+
+/**
+ * r48 — the header title's size and line breaks, worked out once per title/size/width and then
+ * reused (it used to be measured on every frame).
+ * r50 (field report: "the title stops at a fixed edge, the letters don't grow"): the size slider
+ * now multiplies the real 100% letter size. A bigger title wraps onto more lines (up to 6) and
+ * uses the taller band; only when even that has no room does it settle at the biggest size that
+ * fits. Before, the caps were scaled but the width still held the letters back.
+ */
+function headerFit(ctx: Ctx, title: string, font: (px: number) => string, maxW: number, avail: number, availBase: number, s0: number, hk: number, scale: number) {
+  const k = scale > 0 ? scale : 1
+  const key = `${font(10)}|${title}|${Math.round(maxW)}|${Math.round(avail)}|${Math.round(availBase)}|${s0.toFixed(4)}|${hk.toFixed(4)}|${k}`
+  const hit = headerFitCache.get(key)
+  if (hit) return hit
+  const base = headerBaseFit(ctx, title, font, maxW, Math.min(avail, availBase), s0, hk)
+  let fit = base
+  if (Math.abs(k - 1) > 0.001) {
+    const words = title.split(/\s+/).filter(Boolean)
+    const target = base.size * k
+    const floor = k > 1 ? base.size : target * 0.85
+    const step = Math.max(0.5, (target - floor) / 24)
+    let found: typeof base | null = null
+    for (let size = target; size >= floor - 0.01; size -= step) {
+      ctx.font = font(size)
+      const lines = wrapWords(ctx, words, maxW)
+      const lh = size * 1.22
+      if (lines.length <= 6 && lines.length * lh <= avail + 0.5 && lines.every((l) => ctx.measureText(l).width <= maxW + 0.5)) {
+        found = { size, lines, lineHeight: lh }
+        break
+      }
+    }
+    if (found) fit = found
+  }
+  // r50: never taller than the band (a long title in a reel used to spill over the top and bottom)
+  fit = intoBox(ctx, title, font, maxW, avail, fit, s0)
   ctx.font = font(fit.size)
   const out = { size: fit.size, lines: fit.lines, lineHeight: fit.lineHeight, widths: fit.lines.map((l) => ctx.measureText(l).width) }
   if (headerFitCache.size > 200) headerFitCache.clear()
   headerFitCache.set(key, out)
   return out
+}
+
+/** Greedy word wrap (a single over-long word stays on its own line). */
+function wrapWords(ctx: Ctx, words: string[], maxW: number) {
+  const lines: string[] = []
+  let cur = ''
+  for (const w of words) {
+    const t = cur ? `${cur} ${w}` : w
+    if (!cur || ctx.measureText(t).width <= maxW) cur = t
+    else {
+      lines.push(cur)
+      cur = w
+    }
+  }
+  if (cur) lines.push(cur)
+  return lines
 }
 
 // ---------------------------------------------------------------------------
@@ -3012,7 +3082,14 @@ function logoPill(ctx: Ctx, env: DrawEnv, cx: number, cy: number, h: number, app
   ctx.restore()
 }
 
+/** r50 — an intro scene's big word follows the frame tag the publisher wrote (else its own word). */
+function introTag(env: DrawEnv, own: string) {
+  const f = env.cfg.frame
+  return f.badgeMode === 'custom' && f.badge.trim() ? f.badge.trim() : own
+}
+
 function sceneBreaking(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const brk = introTag(env, 'ব্রেকিং')
   const { W, H } = env.L
   const s = Math.min(W, H) / 1080
   const cx = W / 2
@@ -3063,7 +3140,7 @@ function sceneBreaking(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
     ctx.font = dispFont(800, 210 * s)
     let size = 210 * s
     const maxW = W * 0.86
-    const w0 = ctx.measureText('ব্রেকিং').width
+    const w0 = ctx.measureText(brk).width
     if (w0 > maxW) size *= maxW / w0
     ctx.font = dispFont(800, size)
     const sc = lerp(2.3, 1, ease.outCubic(slam))
@@ -3076,15 +3153,15 @@ function sceneBreaking(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
     if (glitch) {
       ctx.globalCompositeOperation = 'lighter'
       ctx.fillStyle = 'rgba(0,255,255,0.6)'
-      ctx.fillText('ব্রেকিং', -8 * s, 0)
+      ctx.fillText(brk, -8 * s, 0)
       ctx.fillStyle = 'rgba(255,0,80,0.6)'
-      ctx.fillText('ব্রেকিং', 8 * s, 0)
+      ctx.fillText(brk, 8 * s, 0)
       ctx.globalCompositeOperation = 'source-over'
     }
     ctx.shadowColor = 'rgba(0,0,0,0.35)'
     ctx.shadowBlur = 24 * s
     ctx.fillStyle = '#FFFFFF'
-    ctx.fillText('ব্রেকিং', 0, 0)
+    ctx.fillText(brk, 0, 0)
     ctx.restore()
   }
   // "নিউজ" box slides in
@@ -3244,7 +3321,7 @@ function sceneSpecial(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
     ctx.save()
     let size = 120 * s
     ctx.font = dispFont(800, size)
-    const text = 'বিশেষ প্রতিবেদন'
+    const text = introTag(env, 'বিশেষ প্রতিবেদন')
     const tw = ctx.measureText(text).width
     if (tw > W * 0.8) size *= (W * 0.8) / tw
     ctx.font = dispFont(800, size)
@@ -3903,7 +3980,7 @@ function sceneInvestigation(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
   g.addColorStop(1, 'rgba(255,230,160,0)')
   ctx.fillStyle = g
   ctx.fillRect(0, 0, W, H)
-  const word = 'অনুসন্ধান'
+  const word = introTag(env, 'অনুসন্ধান')
   const chars = [...word]
   const n = Math.floor(chars.length * win(t, 0.3, 1.2))
   ctx.save()
@@ -4280,7 +4357,7 @@ function sceneShatter(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
     ctx.fillStyle = '#FFFFFF'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText('ব্রেকিং নিউজ', 0, 4 * s, sw * 0.92)
+    ctx.fillText(introTag(env, 'ব্রেকিং নিউজ'), 0, 4 * s, sw * 0.92)
     ctx.restore()
   }
   ctx.restore()

@@ -26,14 +26,23 @@ function meeha_ad_slots() {
 			'home_mpu_2'     => array( 'হোম — মতামতের পরে, শুধু মোবাইল (৩০০ × ২৫০)', 'mpu', 0 ),
 			'article_1'      => array( 'খবরের ভেতরে — ৩য় অনুচ্ছেদের পরে (৩০০ × ২৫০)', 'mpu', 0 ),
 			'article_2'      => array( 'খবরের ভেতরে — ৮ম অনুচ্ছেদের পরে (৩০০ × ২৫০)', 'mpu', 0 ),
+			'article_3'      => array( 'লম্বা খবরে — ১৪তম অনুচ্ছেদের পরে (৩০০ × ২৫০, শুধু ১৮+ অনুচ্ছেদের খবরে)', 'mpu', 0 ), // r50
 			'article_side'   => array( 'খবরের পাশে, ডেস্কটপ (৩০০ × ৬০০)', 'half', 0 ),
 			'archive_infeed' => array( 'বিভাগ পাতা — ৬ নম্বর খবরের পরে', 'leader', 0 ),
 			'archive_side'   => array( 'বিভাগ পাতার পাশে (৩০০ × ২৫০)', 'mpu', 0 ),
 			'article_end'    => array( 'খবরের শেষে, ফুটনোটের আগে (৩০০ × ২৫০)', 'mpu', 0 ), // r47
+			'lit_end'        => array( 'সাহিত্য — লেখার শেষে, শেয়ারের পরে (৩০০ × ২৫০)', 'mpu', 0 ), // r50 — the only ad inside a literary piece's page
+			// r50 — video, একনজর and উক্তি pages.
+			'video_side'     => array( 'ভিডিও পাতা — বাঁ পাশে, শেয়ারের নিচে (ডেস্কটপ, ৩০০ × ২৫০)', 'mpu', 0 ),
+			'video_below'    => array( 'ভিডিও পাতা — প্লেয়ারের নিচে (লিডারবোর্ড, ফোনেও)', 'leader', 0 ),
+			'glance_infeed'  => array( 'একনজর — ৬ নম্বর খবরের পরে (লিডারবোর্ড)', 'leader', 0 ),
+			'glance_side'    => array( 'একনজর — পাশে, এলাকার খবরের ওপরে (৩০০ × ২৫০)', 'mpu', 0 ),
+			'quotes_infeed'  => array( 'উক্তি — তালিকায় ৬টি উক্তির পরে (লিডারবোর্ড)', 'leader', 0 ),
+			'quote_single'   => array( 'উক্তির পাতা — শেয়ারের নিচে (৩০০ × ২৫০)', 'mpu', 0 ),
 			'footer_leader'  => array( 'ফুটারের ওপরে (লিডারবোর্ড)', 'leader', 0 ), // r47
 			// r49 — floating placements with a close (×) button, printed once per page in wp_footer.
 			'float_bottom'   => array( 'ভাসমান — পর্দার নিচে বার (ক্রস সহ)', 'float', 0 ),
-			'float_side'     => array( 'ভাসমান — পাশের কোণায় (ডেস্কটপ, ক্রস সহ)', 'corner', 0 ),
+			'float_side'     => array( 'ভাসমান — ডান পাশ থেকে আসে (ফোন ও ডেস্কটপ, ভেতরে ঢোকানো যায়)', 'corner', 0 ), // r50
 			'popup'          => array( 'পপ-আপ (ক্রস সহ)', 'popup', 0 ),
 		)
 	);
@@ -83,6 +92,20 @@ function meeha_ad_fields() {
 		),
 	);
 	$fields[] = array( 'key' => 'float_every', 'type' => 'number', 'label' => 'ভাসমান বিজ্ঞাপন বন্ধ করলে আবার দেখাবে (ঘণ্টা পর)', 'default' => 6, 'min' => 1, 'max' => 720 );
+	// r50 — the right-side slide-in, tracking links and the literature pages.
+	$fields[] = array( 'key' => 'side_delay', 'type' => 'number', 'label' => 'ডান পাশের ভাসমান বিজ্ঞাপন — পাতা খোলার কত সেকেন্ড পর আসবে', 'default' => 8, 'min' => 0, 'max' => 120 );
+	$fields[] = array( 'key' => 'utm_on', 'type' => 'checkbox', 'label' => 'বিজ্ঞাপনের লিংকে ট্র্যাকিং আইডি (utm_source=meeha.news, utm_campaign=MH-…) যোগ করুন', 'default' => 1 );
+	$fields[] = array( 'key' => 'stats_on', 'type' => 'checkbox', 'label' => 'বিজ্ঞাপনের ইমপ্রেশন, দেখা ও ক্লিক গোনা', 'default' => 1 );
+	$fields[] = array(
+		'key'     => 'lit_ads',
+		'type'    => 'select',
+		'label'   => 'সাহিত্যের পাতায় বিজ্ঞাপন',
+		'default' => 'gentle',
+		'options' => array(
+			'gentle' => 'হালকা — হেডার, লেখার শেষে ও ফুটারে; লেখার ভেতরে, ভাসমান বা পপ-আপ নয়',
+			'none'   => 'একদম নয়',
+		),
+	);
 	// r49 — who an advertiser contacts ([meeha_advertise] landing page, [meeha_ad_specs]).
 	$fields[] = array( 'type' => 'heading', 'label' => 'বিজ্ঞাপন বিভাগের যোগাযোগ', 'desc' => 'বিজ্ঞাপনদাতাদের পাতায় ([meeha_advertise]) দেখায়। ফাঁকা থাকলে ফুটারের ফোন/ইমেইল।' );
 	$fields[] = array( 'key' => 'ad_phone', 'type' => 'text', 'label' => 'ফোন' );

@@ -163,7 +163,7 @@ class NROS_Ads_Manager {
 			'mpu'    => '৩০০×২৫০ (মিডিয়াম রেক্ট্যাঙ্গেল)',
 			'half'   => '৩০০×৬০০ (হাফ পেজ) — ৩০০×২৫০-ও চলে',
 			'float'  => 'মোবাইল ৩২০×৫০ (বা ৩২০×১০০) · ডেস্কটপ ৭২৮×৯০ — পর্দার নিচে ভাসে, ক্রস চাপলে বন্ধ',
-			'corner' => '৩০০×২৫০ — ডেস্কটপে ডান দিকের নিচের কোণায়, ক্রস সহ',
+			'corner' => '৩০০×২৫০ — ডান পাশ থেকে আসে (ফোনে পর্দার অর্ধেক চওড়া), তীর চাপলে ভিতরে ঢোকে',
 			'popup'  => 'ডেস্কটপ ৬০০×৫০০ · মোবাইল ৩০০×২৫০ বা ৩২০×৪৮০ — কয়েক সেকেন্ড পরে খোলে, ক্রস সহ',
 		);
 		return isset( $map[ $size ] ) ? $map[ $size ] : '';
@@ -190,6 +190,18 @@ class NROS_Ads_Manager {
 		}
 		if ( 0 === strpos( $slot, 'footer' ) ) {
 			return 'footer';
+		}
+		if ( 0 === strpos( $slot, 'video' ) ) {
+			return 'video';
+		}
+		if ( 0 === strpos( $slot, 'glance' ) ) {
+			return 'glance';
+		}
+		if ( 0 === strpos( $slot, 'quote' ) ) {
+			return 'quotes';
+		}
+		if ( 0 === strpos( $slot, 'lit_' ) ) {
+			return 'lit';
 		}
 		if ( 0 === strpos( $slot, 'float' ) || 'popup' === $slot ) {
 			return 'floating';
@@ -365,6 +377,10 @@ class NROS_Ads_Manager {
 			return new WP_Error( 'nros_empty', 'কিছু পাঠানো হয়নি।', array( 'status' => 400 ) );
 		}
 		meeha_opt_update( 'ads', $values );
+		// r50 — a placement sold to a client makes that client's private results page (once).
+		if ( ! empty( $values[ $slot . '_client' ] ) && class_exists( 'NROS_Ad_Insight' ) ) {
+			NROS_Ad_Insight::link( (int) $values[ $slot . '_client' ] );
+		}
 		foreach ( array( $slot . '_image', $slot . '_image_m' ) as $k ) {
 			if ( ! empty( $values[ $k ] ) ) {
 				self::mark_creative( $values[ $k ] );
@@ -508,6 +524,9 @@ class NROS_Ads_Manager {
 			'popup_every' => (int) $g( 'popup_every', 12 ),
 			'popup_pages' => (string) $g( 'popup_pages', 'all' ),
 			'float_every' => (int) $g( 'float_every', 6 ),
+			'side_delay'  => (int) $g( 'side_delay', 8 ),
+			'utm_on'      => ! isset( $o['utm_on'] ) || ! empty( $o['utm_on'] ),
+			'lit_ads'     => (string) $g( 'lit_ads', 'gentle' ),
 			'ad_phone'    => (string) $g( 'ad_phone', '' ),
 			'ad_whatsapp' => (string) $g( 'ad_whatsapp', '' ),
 			'ad_email'    => (string) $g( 'ad_email', '' ),
@@ -536,6 +555,9 @@ class NROS_Ads_Manager {
 			'popup_every' => $num( 1, 720 ),
 			'popup_pages' => function ( $v ) { return in_array( $v, array( 'all', 'single', 'home' ), true ) ? $v : 'all'; },
 			'float_every' => $num( 1, 720 ),
+			'side_delay'  => $num( 0, 120 ),
+			'utm_on'      => function ( $v ) { return empty( $v ) ? 0 : 1; },
+			'lit_ads'     => function ( $v ) { return in_array( $v, array( 'gentle', 'none' ), true ) ? $v : 'gentle'; },
 			'ad_phone'    => 'sanitize_text_field',
 			'ad_whatsapp' => function ( $v ) { return preg_replace( '/[^\d]/', '', (string) $v ); },
 			'ad_email'    => 'sanitize_email',
@@ -573,6 +595,8 @@ class NROS_Ads_Manager {
 			'news_image'  => self::image( $get( 'news_reader_ad_image', 0 ) ),
 			'quote_on'    => ! empty( $get( 'quote_reader_ad', 0 ) ),
 			'quote_image' => self::image( $get( 'quote_reader_ad_image', 0 ) ),
+			'news_client'  => absint( $get( 'news_reader_ad_client', 0 ) ),
+			'quote_client' => absint( $get( 'quote_reader_ad_client', 0 ) ),
 		);
 	}
 
@@ -591,6 +615,8 @@ class NROS_Ads_Manager {
 			'news_image'  => 'news_reader_ad_image',
 			'quote_on'    => 'quote_reader_ad',
 			'quote_image' => 'quote_reader_ad_image',
+			'news_client'  => 'news_reader_ad_client',
+			'quote_client' => 'quote_reader_ad_client',
 		);
 		$values = array();
 		foreach ( $map as $in => $key ) {
@@ -600,6 +626,11 @@ class NROS_Ads_Manager {
 			}
 			if ( '_on' === substr( $in, -3 ) ) {
 				$values[ $key ] = empty( $v ) ? 0 : 1;
+			} elseif ( '_client' === substr( $in, -7 ) ) {
+				$values[ $key ] = absint( $v );
+				if ( $values[ $key ] && class_exists( 'NROS_Ad_Insight' ) ) {
+					NROS_Ad_Insight::link( $values[ $key ] ); // r50 — the client's results page is ready at once
+				}
 			} else {
 				$values[ $key ] = absint( $v );
 				$ok             = self::check_creative( $values[ $key ] );

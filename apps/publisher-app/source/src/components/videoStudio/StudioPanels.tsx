@@ -29,6 +29,7 @@ import {
   type OutroId,
 } from '../../lib/videoEdit/config'
 import { bnClock } from '../../lib/videoEdit/motion'
+import { frameOwnTag } from '../../lib/videoEdit/draw'
 import type { VideoKit } from '../../lib/api'
 import { bnNumber } from '../ui'
 import { IconPlus, IconTrash, IconUsers, IconX } from '../Icon'
@@ -55,6 +56,8 @@ export type ThumbPainter = (kind: 'frame' | 'intro' | 'outro' | 'house', id: str
 // Frame
 // ---------------------------------------------------------------------------
 
+const TAG_PRESETS = ['বিশেষ', 'অনুসন্ধান', 'ব্রেকিং', 'সর্বশেষ', 'ক্যাম্পাস', 'জাতীয়', 'সরাসরি', 'এক্সক্লুসিভ', 'আন্তর্জাতিক', 'খেলা', 'বিনোদন', 'রাজনীতি']
+
 export function FramePanel({
   cfg,
   set,
@@ -74,6 +77,7 @@ export function FramePanel({
 }) {
   const f = cfg.frame
   const setF = (patch: Partial<EditConfig['frame']>) => set((c) => ({ ...c, frame: { ...c.frame, ...patch } }))
+  const frameTagName = frameOwnTag(f.id)
   return (
     <div>
       <Section title="এক ক্লিকে সাজান" hint="ফ্রেম, ইন্ট্রো, আউট্রো ও মাপ একসাথে বসে। আপনার লেখা, কাটা অংশ ও ক্যাপশন যেমন আছে থাকবে; পরে যেকোনোটা বদলানো যায়।">
@@ -138,6 +142,47 @@ export function FramePanel({
             />
             <p className="text-[11px] text-neutral-400 mt-1">প্রথম ফ্রেম থেকেই পুরো ফ্রেম দেখা যায় (কালো দিয়ে শুরু হয় না)। প্রাণবন্ত: শুরুতে শিরোনামের উপর দিয়ে রঙের বার যায়, মাঝে মাঝে আলোর ঝলক।</p>
           </Section>
+          <Section title="ফ্রেমের ট্যাগ" hint="ফ্রেমের ওপরের ছোট ট্যাগ — বিশেষ, অনুসন্ধান, ব্রেকিং, সর্বশেষ, ক্যাম্পাস… যেকোনো ফ্রেমে যেকোনো লেখা। ইন্ট্রোর বড় শব্দও এটাই নেয়।">
+            <div data-testid="frame-tag">
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                <button
+                  type="button"
+                  onClick={() => setF({ badgeMode: 'auto' })}
+                  aria-pressed={f.badgeMode === 'auto'}
+                  className={`rounded-full border px-2.5 py-1 text-[12px] font-medium ${f.badgeMode === 'auto' ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-neutral-200 text-neutral-600'}`}
+                >
+                  নকশার নিজের{frameTagName ? ` (${frameTagName})` : ''}
+                </button>
+                {TAG_PRESETS.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setF({ badgeMode: 'custom', badge: t })}
+                    aria-pressed={f.badgeMode === 'custom' && f.badge.trim() === t}
+                    className={`rounded-full border px-2.5 py-1 text-[12px] font-medium ${f.badgeMode === 'custom' && f.badge.trim() === t ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-neutral-200 text-neutral-600'}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setF({ badgeMode: 'off' })}
+                  aria-pressed={f.badgeMode === 'off'}
+                  className={`rounded-full border px-2.5 py-1 text-[12px] font-medium ${f.badgeMode === 'off' ? 'border-red-400 bg-red-50 text-red-700' : 'border-neutral-200 text-neutral-500'}`}
+                >
+                  ট্যাগ নেই
+                </button>
+              </div>
+              <TextInput
+                label="নিজের ট্যাগ লিখুন"
+                value={f.badgeMode === 'custom' ? f.badge : ''}
+                onChange={(v) => setF(v.trim() ? { badgeMode: 'custom', badge: v } : { badgeMode: 'auto', badge: '' })}
+                max={LIMITS.frameBadge}
+                placeholder="যেমন: জাতীয়, বিশেষ খবর, সরাসরি"
+                testId="frame-badge"
+              />
+            </div>
+          </Section>
           <Section title={f.titlePos === 'bottom' ? 'শিরোনাম পট্টি' : 'উপরের অংশ'}>
             <TextInput label="শিরোনাম / নিজের লেখা" value={f.title} onChange={(v) => setF({ title: v })} max={LIMITS.title} placeholder={postTitle || 'ভিডিওর শিরোনাম'} testId="frame-title" />
             <div className="mb-3" data-testid="title-style">
@@ -163,25 +208,6 @@ export function FramePanel({
               <p className="text-[11px] text-neutral-400 mt-1">
                 লেখা পুরো জায়গায় যতটা বড় ধরে ততটা বসে। ১০০%-এর বেশি দিলে শিরোনামের পট্টিও সেই অনুপাতে উঁচু হয়, তাই লেখা সত্যিই বড় হয় — আর আটকে থাকে না।
               </p>
-            </div>
-            <div className="mb-3" data-testid="frame-tag">
-              <p className="text-[11.5px] text-neutral-500 mb-1">ফ্রেমের ট্যাগ (যেমন “নির্বাচন”, “ব্রেকিং”)</p>
-              <Segmented
-                value={f.badgeMode}
-                options={[
-                  { id: 'auto', name: 'নকশার নিজের' },
-                  { id: 'custom', name: 'নিজে লিখুন' },
-                  { id: 'off', name: 'ট্যাগ নেই' },
-                ]}
-                onChange={(v) => setF({ badgeMode: v })}
-                size="sm"
-              />
-              {f.badgeMode === 'custom' && (
-                <div className="mt-2">
-                  <TextInput label="ট্যাগের লেখা" value={f.badge} onChange={(v) => setF({ badge: v })} max={LIMITS.frameBadge} placeholder="যেমন: জাতীয়, সরাসরি, বিশেষ খবর" testId="frame-badge" />
-                </div>
-              )}
-              <p className="text-[11px] text-neutral-400 mt-1">যেকোনো ফ্রেম যেকোনো খবরে চলে — শুধু ট্যাগের লেখা বদলে দিন।</p>
             </div>
             <TextInput label="ক্যাটেগরি / লেবেল (ঐচ্ছিক)" value={f.kicker} onChange={(v) => setF({ kicker: v })} max={LIMITS.kicker} placeholder="যেমন: জাতীয়, খেলা, ক্যাম্পাস" />
             <SwitchRow label="তারিখ দেখান" checked={f.date} onChange={(v) => setF({ date: v })} />

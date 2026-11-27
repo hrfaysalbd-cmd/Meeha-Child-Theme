@@ -106,7 +106,9 @@ export function frameScale(cfg: EditConfig, W: number, H: number) {
  * same height and the title stopped growing ("froze") once it filled the band.
  */
 export function titleGrow(cfg: EditConfig) {
-  return Math.max(1, cfg.frame.titleScale || 1)
+  // r50: letters k× bigger also need more lines, so the band grows faster than k
+  // (150% → 1.84×, 200% → 2.83× the band); the layout still keeps 40% of the height for the picture
+  return Math.pow(Math.max(1, cfg.frame.titleScale || 1), 1.5)
 }
 
 export function computeLayout(cfg: EditConfig, srcW0: number, srcH0: number): Layout {

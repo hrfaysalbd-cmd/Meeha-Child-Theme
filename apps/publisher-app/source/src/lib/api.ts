@@ -2751,7 +2751,7 @@ export interface AdSlot {
   label: string
   size: 'leader' | 'mpu' | 'half' | 'float' | 'corner' | 'popup'
   size_text: string
-  group: 'header' | 'home' | 'article' | 'archive' | 'footer' | 'floating' | 'other'
+  group: 'header' | 'home' | 'article' | 'archive' | 'footer' | 'floating' | 'video' | 'glance' | 'quotes' | 'lit' | 'other'
   on: boolean
   type: 'image' | 'house' | 'html' | 'shortcode' | 'gam'
   house: string
@@ -2780,6 +2780,12 @@ export interface AdGlobals {
   popup_every: number
   popup_pages: 'all' | 'single' | 'home'
   float_every: number
+  /** r50 — seconds before the right-side box slides in. */
+  side_delay?: number
+  /** r50 — add utm_source/medium/campaign (the tracking id) to ad links. */
+  utm_on?: boolean
+  /** r50 — ads on literature pages: header/footer/after the piece, or none. */
+  lit_ads?: 'gentle' | 'none'
   ad_phone: string
   ad_whatsapp: string
   ad_email: string
@@ -2792,6 +2798,9 @@ export interface AdReader {
   news_image: AdImage | null
   quote_on: boolean
   quote_image: AdImage | null
+  /** r50 — whose strip it is (for the client's results page). */
+  news_client?: number
+  quote_client?: number
 }
 
 export interface AdSpec {
@@ -2808,14 +2817,59 @@ export interface AdSpec {
 export interface AdStats {
   from: string
   days: number
+  /** r50 — ইমপ্রেশন: the box was shown on the page. `imp` = নিশ্চিত দেখা (½ on screen for 1 s). */
+  srv?: number
   imp: number
   clk: number
   ctr?: number
-  slots: { slot: string; label: string; imp: number; clk: number; ctr: number }[]
-  clients: { client: number; name: string; imp: number; clk: number; ctr: number }[]
-  daily: { day: string; imp: number; clk: number }[]
+  view_rate?: number
+  reach?: number
+  slots: { slot: string; label: string; client?: number; tid?: string; srv?: number; imp: number; clk: number; ctr: number }[]
+  clients: { client: number; name: string; srv?: number; imp: number; clk: number; ctr: number; reach?: number }[]
+  daily: { day: string; srv?: number; imp: number; clk: number }[]
+  devices?: { val: string; imp: number; clk: number }[]
   enabled?: boolean
   csv?: string
+}
+
+/** r50 — off-site promotion the publisher enters by hand (video corner ad on YouTube/Facebook, print…). */
+export interface AdOffsiteEntry {
+  id?: string
+  date: string
+  kind: 'video' | 'youtube' | 'facebook' | 'photocard' | 'print' | 'other'
+  title: string
+  link: string
+  views: number
+  clicks: number
+  note: string
+}
+
+/** r50 — the site's reader profile, typed in from Google Analytics (never guessed). */
+export interface AdAudience {
+  on: boolean
+  male: number
+  female: number
+  ages: Record<'13-17' | '18-24' | '25-34' | '35-44' | '45-54' | '55+', number>
+  source: string
+  updated: string
+}
+
+export interface AdInsightClient {
+  id: number
+  name: string
+  phone: string
+  whatsapp: string
+  status: string
+  active: boolean
+  link: string
+  slots: { slot: string; label: string; tid: string; live: boolean; start: string; end: string; days_left: number | null }[]
+  offsite: AdOffsiteEntry[]
+}
+
+export interface AdInsightOverview {
+  clients: AdInsightClient[]
+  audience: AdAudience | null
+  page: string
 }
 
 export interface AdLandingPage {
@@ -2899,9 +2953,13 @@ export const AdsApi = {
   saveGlobals: (patch: Partial<AdGlobals>) =>
     request<{ ok: true; globals: AdGlobals }>('/admin/ads-manager/globals', {
       method: 'POST',
-      body: { ...patch, ...(patch.stats_on !== undefined ? { stats_on: patch.stats_on ? 1 : 0 } : {}) } as Record<string, unknown>,
+      body: {
+        ...patch,
+        ...(patch.stats_on !== undefined ? { stats_on: patch.stats_on ? 1 : 0 } : {}),
+        ...(patch.utm_on !== undefined ? { utm_on: patch.utm_on ? 1 : 0 } : {}),
+      } as Record<string, unknown>,
     }),
-  saveReader: (patch: Partial<{ news_on: 0 | 1; news_image: number; quote_on: 0 | 1; quote_image: number }>) =>
+  saveReader: (patch: Partial<{ news_on: 0 | 1; news_image: number; quote_on: 0 | 1; quote_image: number; news_client: number; quote_client: number }>) =>
     request<{ ok: true; reader: AdReader }>('/admin/ads-manager/reader', { method: 'POST', body: patch as Record<string, unknown> }),
   library: (offset = 0, search = '') =>
     request<{ items: AdLibraryImage[]; has_more: boolean; total: number }>(
@@ -2911,6 +2969,14 @@ export const AdsApi = {
     request<{ ok: true }>('/admin/ads-manager/library', { method: 'POST', body: { id, remove: remove ? 1 : 0 } }),
   report: (days: number, client = 0, csv = false) =>
     request<AdStats>(`/admin/ads-manager/report?days=${days}${client ? `&client=${client}` : ''}${csv ? '&format=csv' : ''}`),
+  /** r50 — every client's private results-page link, placements and off-site entries; the site audience. */
+  insight: () => request<AdInsightOverview>('/admin/ads-manager/insight'),
+  insightLink: (client: number, rotate = false) =>
+    request<{ ok: true; link: string }>('/admin/ads-manager/insight', { method: 'POST', body: { client, rotate: rotate ? 1 : 0 } }),
+  saveOffsite: (client: number, entries: AdOffsiteEntry[]) =>
+    request<{ ok: true; entries: AdOffsiteEntry[] }>('/admin/ads-manager/offsite', { method: 'POST', body: { client, entries } as unknown as Record<string, unknown> }),
+  saveAudience: (a: AdAudience) =>
+    request<{ ok: true; audience: AdAudience }>('/admin/ads-manager/audience', { method: 'POST', body: a as unknown as Record<string, unknown> }),
   createPage: (kind: 'advertise' | 'specs' | 'app') =>
     request<{ ok: true; page: AdLandingPage; canvas: boolean }>('/admin/ads-manager/create-page', { method: 'POST', body: { kind } }),
 }

@@ -3901,6 +3901,8 @@
 			doc.body.appendChild( a ); a.click(); setTimeout( function () { a.remove(); }, 1000 );
 			pv.status.textContent = 'ছবি ডাউনলোড হচ্ছে।'; flash( pv.dl, 'ডাউনলোড হয়েছে' );
 			if ( c.onDownload ) { try { c.onDownload(); } catch ( e ) { /* ignore */ } }
+			// r50 — the page's ad script counts a download that carries an advertiser's strip.
+			try { doc.dispatchEvent( new root.CustomEvent( 'meeha:card-download', { detail: { type: c.type, ad: !! c.ad } } ) ); } catch ( e ) { /* old browsers */ }
 		} );
 		pv.copyImg.addEventListener( 'click', function () {
 			var c = pv.cur; if ( ! c || ! c.blob ) { return; }
@@ -3924,7 +3926,7 @@
 		pl = pl || {}; po = po || {};
 		if ( pl.config ) { configure( pl.config ); }
 		var P = previewDialog(), d = P.el;
-		var cur = { opener: po.opener || doc.activeElement, onDownload: po.onDownload, filename: pl.filename || filename( pl.type || 'card', pl.title || ( pl.data && pl.data.title ) ), caption: str( pl.caption ) ? strKeepNl( pl.caption ) : '' };
+		var cur = { type: pl.type, ad: !! ( pl.opts && pl.opts.ad ), opener: po.opener || doc.activeElement, onDownload: po.onDownload, filename: pl.filename || filename( pl.type || 'card', pl.title || ( pl.data && pl.data.title ) ), caption: str( pl.caption ) ? strKeepNl( pl.caption ) : '' };
 		if ( P.cur && P.cur.url ) { URL.revokeObjectURL( P.cur.url ); }
 		P.cur = cur;
 		P.title.textContent = 'quote' === pl.type ? 'উক্তির ছবি' : 'ফটোকার্ড';

@@ -321,8 +321,27 @@
 .m-float { position: fixed; z-index: 60; transition: transform .35s cubic-bezier(.2,.8,.2,1), opacity .35s; opacity: 0; }
 .m-float.is-on { opacity: 1; transform: none !important; }
 .m-float--bottom { left: 0; right: 0; bottom: 0; display: grid; justify-items: center; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: var(--m-paper); box-shadow: 0 -6px 20px rgba(0,0,0,.12); transform: translateY(110%); }
-.m-float--side { right: 16px; bottom: 16px; width: 300px; padding: 6px; border-radius: 12px; background: var(--m-paper); box-shadow: 0 10px 30px rgba(0,0,0,.18); transform: translateY(30px); }
-@media (max-width: 1023.98px) { .m-float--side { display: none !important; } }
+/* r50 — side box: slides in from the right; the arrow tab tucks it into the right edge and pulls it out again. */
+.m-sidead { --sw: 300px; --tab: 62px; position: fixed; z-index: 58; right: 0; top: 42%; width: var(--sw); transform: translate(calc(100% + var(--tab) + 8px), -50%); transition: transform .5s cubic-bezier(.2,.8,.2,1); }
+.m-sidead.is-on { transform: translate(0, -50%); }
+.m-sidead.is-on.is-tucked { transform: translate(100%, -50%); }
+.m-sidead__box { padding: 6px; border-radius: 14px 0 0 14px; background: var(--m-paper); box-shadow: -8px 10px 30px rgba(0,0,0,.2); max-height: 70vh; overflow: hidden; }
+.m-sidead__box .m-ad { gap: 2px; max-width: none; }
+.m-sidead__tab { position: absolute; top: 12px; right: 100%; display: grid; justify-items: center; gap: 1px; width: var(--tab); padding: 8px 2px 7px; border: 0; border-radius: 12px 0 0 12px; background: #111827; color: #fff; box-shadow: -4px 6px 16px rgba(0,0,0,.22); cursor: pointer; font: inherit; }
+.m-sidead__ar { transition: transform .35s; }
+.m-sidead.is-tucked .m-sidead__ar { transform: rotate(180deg); }
+.m-sidead__t { font-size: 9.5px; line-height: 1.3; text-align: center; white-space: nowrap; letter-spacing: -.01em; }
+.m-sidead__t--out, .m-sidead.is-tucked .m-sidead__t--in { display: none; }
+.m-sidead.is-tucked .m-sidead__t--out { display: block; }
+.m-sidead__tab:focus-visible { outline: 2px solid var(--m-blue); outline-offset: 2px; }
+@media (max-width: 767.98px) {
+  /* phones: about half the screen wide, a fair height (the creative's own ratio, at most 60% of the screen) */
+  .m-sidead { --sw: clamp(160px, 50vw, 240px); --tab: 56px; top: 44%; }
+  .m-sidead__box { padding: 4px; max-height: 60vh; }
+  .m-sidead__t { font-size: 8.5px; }
+}
+html.m-adpop-open .m-sidead { visibility: hidden; }
+@media print { .m-sidead, .m-float, .m-adpop { display: none !important; } }
 .m-float .m-ad { gap: 2px; }
 .m-float__x { position: absolute; z-index: 3; top: -12px; right: 10px; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: #111827; color: #fff; font: 700 17px/1 system-ui, sans-serif; box-shadow: 0 2px 8px rgba(0,0,0,.25); cursor: pointer; }
 .m-float--side .m-float__x { top: -10px; right: -10px; }
@@ -337,7 +356,7 @@ html.m-adpop-open { overflow: hidden; }
 html.m-float-open .m-footer { padding-bottom: calc(var(--m-float-h, 70px) + 16px); }
 /* the assistant bubble and other bottom-right buttons step up above the floating bar */
 html.m-float-open .m-as { bottom: calc(var(--m-float-h, 70px) + 12px + env(safe-area-inset-bottom)) !important; }
-@media (prefers-reduced-motion: reduce) { .m-float, .m-adpop, .m-adpop__card { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .m-float, .m-sidead, .m-sidead__ar, .m-adpop, .m-adpop__card { transition: none; } }
 .m-story__kicker { justify-self: start; }
 .m-story__flag .m-icon { width: 14px; height: 14px; }
 
@@ -413,3 +432,8 @@ html.m-float-open .m-as { bottom: calc(var(--m-float-h, 70px) + 12px + env(safe-
 .m-prose .wp-block-file__button { padding: 6px 14px; border-radius: var(--m-r-pill); background: var(--m-blue); color: var(--m-on-blue); text-decoration: none; font-size: var(--m-fs-sm); }
 .m-prose .wp-block-details summary { cursor: pointer; font-weight: 600; color: var(--m-ink); }
 .m-prose .wp-block-shortcode { margin: 0; }
+/* r50 — ad boxes inside lists: the উক্তি grid (full row) and the একনজর timeline */
+.m-qgrid > .m-qgrid__ad { grid-column: 1 / -1; display: grid; justify-items: center; padding: 4px 0; }
+.m-gl__ad { list-style: none; margin: 14px 0; display: grid; justify-items: center; }
+.m-gl__aside > .m-ad { margin-bottom: 18px; }
+.m-qinfo .m-ad, .m-qactions ~ .m-ad { margin: 18px 0 0; }

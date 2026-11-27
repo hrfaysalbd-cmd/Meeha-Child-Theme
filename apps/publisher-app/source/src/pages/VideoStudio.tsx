@@ -204,6 +204,7 @@ export default function VideoStudio() {
   const navigate = useNavigate()
 
   const [loaded, setLoaded] = useState<Loaded | null>(null)
+  const logoSrcRef = useRef<Blob | null>(null)
   const [loadError, setLoadError] = useState('')
   const [cfg, setCfg] = useState<EditConfig>(DEFAULT_CONFIG)
   // round 30: open on the first tab the tick bar keeps
@@ -308,7 +309,9 @@ export default function VideoStudio() {
             await loadFonts()
             if (kitRes?.logo) {
               try {
-                return await loadLogo(await downloadMediaFile(kitRes.logo.id))
+                const lb = await downloadMediaFile(kitRes.logo.id)
+                logoSrcRef.current = lb
+                return await loadLogo(lb)
               } catch {
                 // fall back to the bundled logo
               }
@@ -1068,6 +1071,10 @@ export default function VideoStudio() {
 
   async function startRender() {
     if (!loaded || !env || !tl || !L) return
+    // r50: a fresh copy of the logo for every render (and for the preview after it) — see loadLogo
+    const freshLogo = await loadLogo(logoSrcRef.current ?? undefined).catch(() => loaded.logo)
+    setLoaded((l) => (l ? { ...l, logo: freshLogo } : l))
+    const renv: DrawEnv = { ...env, logo: freshLogo }
     stopAudition()
     pendingRef.current = null
     const ctrl = new AbortController()
@@ -1084,7 +1091,7 @@ export default function VideoStudio() {
       const result = await renderEdit({
         cfg,
         tl,
-        env: { ...env, scratch: makeScratch() },
+        env: { ...renv, scratch: makeScratch() },
         clips,
         voices,
         // r48: the file goes to the computer and YouTube, not to our server — no size cap
@@ -1110,7 +1117,7 @@ export default function VideoStudio() {
         const r2 = await renderEdit({
           cfg: c2,
           tl: tl2,
-          env: { ...env, cfg: c2, L: L2, tl: tl2, scratch: makeScratch() },
+          env: { ...renv, cfg: c2, L: L2, tl: tl2, scratch: makeScratch() },
           clips,
           voices,
           maxBytes: null,
@@ -1130,7 +1137,7 @@ export default function VideoStudio() {
         try {
           const src = thumbSource(cfg, range.start, range.end)
           const pic = await grabFrame(clips.main, src)
-          poster = (await thumbnailJpeg({ ...env, scratch: makeScratch() }, pic, facePic, src)) ?? poster
+          poster = (await thumbnailJpeg({ ...renv, scratch: makeScratch() }, pic, facePic, src)) ?? poster
         } catch {
           // fall back to the plain frame
         }

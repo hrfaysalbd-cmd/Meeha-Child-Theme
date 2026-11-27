@@ -87,7 +87,7 @@
           if (lab) lab.textContent = orig;
         } else {
           const c = await MC.render(pl.type, pl.data, pl.opts || {});
-          await MC.download(c, pl.filename || 'meeha-quote.png');
+          await MC.download(c, pl.filename || 'meeha-quote.png'); try { document.dispatchEvent(new CustomEvent('meeha:card-download', { detail: { type: pl.type, ad: !!(pl.opts && pl.opts.ad) } })); } catch (er2) {}
           if (lab) lab.textContent = 'ডাউনলোড হয়েছে'; if (status) status.textContent = 'ছবি ডাউনলোড হয়েছে।';
           track();
         }

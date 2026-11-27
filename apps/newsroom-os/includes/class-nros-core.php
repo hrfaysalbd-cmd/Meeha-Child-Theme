@@ -511,6 +511,9 @@ class NROS_Core {
 		if ( class_exists( 'NROS_Ad_Stats' ) ) {
 			dbDelta( NROS_Ad_Stats::schema( $charset_collate ) );
 		}
+		if ( class_exists( 'NROS_Ad_Insight' ) ) {
+			dbDelta( NROS_Ad_Insight::schema( $charset_collate ) );
+		}
 	}
 
 	/**

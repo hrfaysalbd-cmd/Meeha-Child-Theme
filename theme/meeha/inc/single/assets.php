@@ -70,12 +70,22 @@ add_filter(
 	}
 );
 
-/* No ads on literature pages (editorial dignity, DESIGN-SPEC §10.2 / §22). */
+/*
+ * Literature pages (editorial dignity, DESIGN-SPEC §10.2 / §22): never inside a poem or story, never
+ * floating or a pop-up. r50 — "হালকা" (default) allows the header and footer banners and one box after
+ * the piece (lit_end); "একদম নয়" keeps the old rule of no ads at all.
+ */
 add_filter(
 	'meeha_ad_html',
-	function ( $html ) {
-		return ( ! is_admin() && 'literature' === meeha_current_template_key() ) ? '' : $html;
-	}
+	function ( $html, $slot = '' ) {
+		if ( is_admin() || 'literature' !== meeha_current_template_key() ) {
+			return 'lit_end' === $slot && ! is_admin() ? '' : $html; // lit_end belongs to literature pages only
+		}
+		$mode = (string) meeha_opt( 'ads', 'lit_ads', 'gentle' );
+		return ( 'none' !== $mode && in_array( $slot, array( 'header_leader', 'footer_leader', 'lit_end' ), true ) ) ? $html : '';
+	},
+	10,
+	2
 );
 
 /* Body classes. */

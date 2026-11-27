@@ -915,7 +915,8 @@ function chip(ctx: Ctx, text: string, cx: number, cy: number, h: number, bg: str
   ctx.restore()
 }
 
-const kickerOr = (env: DrawEnv, def: string) => env.kicker.trim() || def
+// r50: the frame tag the publisher wrote also names the pack's intro word
+const kickerOr = (env: DrawEnv, def: string) => env.kicker.trim() || (env.cfg.frame.badgeMode === 'custom' ? env.cfg.frame.badge.trim() : '') || def
 
 // ---------------------------------------------------------------------------
 // Intros

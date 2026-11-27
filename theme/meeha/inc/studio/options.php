@@ -424,6 +424,9 @@ function meeha_studio_settings_fields() {
 			'label' => 'উক্তি কার্ডের বিজ্ঞাপনের ছবি (১০৮০ × ১২০)',
 			'desc'  => 'খালি থাকলে নিউজ কার্ডের বিজ্ঞাপনের ছবিই বসে।',
 		),
+		// r50 — whose strip it is (for the advertiser's results page; 0 = Meeha's own).
+		array( 'key' => 'news_reader_ad_client', 'type' => 'number', 'label' => 'খবরের কার্ডের স্ট্রিপ — বিজ্ঞাপনদাতা (ক্লায়েন্ট আইডি)', 'default' => 0, 'min' => 0 ),
+		array( 'key' => 'quote_reader_ad_client', 'type' => 'number', 'label' => 'উক্তি কার্ডের স্ট্রিপ — বিজ্ঞাপনদাতা (ক্লায়েন্ট আইডি)', 'default' => 0, 'min' => 0 ),
 		array( 'type' => 'heading', 'label' => 'টেমপ্লেটের ডিফল্ট লেখা' ),
 		array(
 			'key'     => 'morning_titles',

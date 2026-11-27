@@ -9,6 +9,8 @@
  *  - ফটোকার্ড: the reader-side strip under "ফটোকার্ড ডাউনলোড" for news AND quote cards, plus the
  *    studio's strip rows.
  *  - রিপোর্ট: views and clicks per placement and per client (7/30/90 days, CSV for the client).
+ *    r50: ইমপ্রেশন (shown) vs নিশ্চিত দেখা (viewable), people reached, tracking ids, each client's
+ *    private results page (copy / WhatsApp / new link), off-site entries and the site audience.
  *  - মাপ ও নীতি: the full size guide (web, video, photocard), the "বিজ্ঞাপন" label style, the ad
  *    desk's contact, and one-click landing pages ([meeha_advertise], [meeha_ad_specs], app).
  */
@@ -22,6 +24,9 @@ import {
   type AdSlotPatch,
   type AdsOverview,
   type AdStats,
+  type AdAudience,
+  type AdInsightClient,
+  type AdOffsiteEntry,
   type HouseCard,
   type LibraryImage,
 } from '../lib/api'
@@ -46,6 +51,10 @@ const GROUPS: { id: AdSlot['group']; label: string }[] = [
   { id: 'home', label: 'প্রথম পাতা' },
   { id: 'article', label: 'খবরের ভেতরে ও পাশে' },
   { id: 'archive', label: 'বিভাগ পাতা' },
+  { id: 'video', label: 'ভিডিও পাতা' },
+  { id: 'glance', label: 'একনজর' },
+  { id: 'quotes', label: 'উক্তি' },
+  { id: 'lit', label: 'সাহিত্য' },
   { id: 'footer', label: 'ফুটার (সব পাতায়)' },
   { id: 'other', label: 'অন্যান্য' },
 ]
@@ -442,7 +451,7 @@ export default function AdsManager() {
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <KpiCard label="এখন চলছে" value={`${bnNumber(liveCount)} / ${bnNumber(data.slots.length)}`} icon={<IconAd className="w-5 h-5" />} />
-        <KpiCard label="৭ দিনে দেখা" value={stats ? bnNumber(stats.imp) : '—'} icon={<IconEye className="w-5 h-5" />} tint="bg-emerald-50 text-emerald-600" />
+        <KpiCard label="৭ দিনে নিশ্চিত দেখা" value={stats ? bnNumber(stats.imp) : '—'} icon={<IconEye className="w-5 h-5" />} tint="bg-emerald-50 text-emerald-600" />
         <KpiCard label="৭ দিনে ক্লিক" value={stats ? bnNumber(stats.clk) : '—'} icon={<IconChartBar className="w-5 h-5" />} tint="bg-amber-50 text-amber-600" />
         <KpiCard label="ক্লায়েন্ট" value={bnNumber(clients.filter((c) => c.status === 'active').length)} icon={<IconSparkles className="w-5 h-5" />} tint="bg-violet-50 text-violet-600" />
       </div>
@@ -523,7 +532,7 @@ export default function AdsManager() {
 
       {tab === 'cards' && (
         <>
-          {data.reader ? <ReaderCards reader={data.reader} onSaved={load} /> : <Banner kind="info">পাঠকের ফটোকার্ড বিজ্ঞাপনের সেটিংসের জন্য প্লাগইন ১.৩১.০ বসান।</Banner>}
+          {data.reader ? <ReaderCards reader={data.reader} clients={clients} onSaved={load} /> : <Banner kind="info">পাঠকের ফটোকার্ড বিজ্ঞাপনের সেটিংসের জন্য প্লাগইন ১.৩১.০ বসান।</Banner>}
           <StripEditor data={data} onSaved={load} />
         </>
       )}
@@ -545,7 +554,15 @@ function FloatingSettings({ globals, onSaved }: { globals: AdGlobals; onSaved: (
     setBusy(true)
     setMsg(null)
     try {
-      await AdsApi.saveGlobals({ float_every: g.float_every, popup_delay: g.popup_delay, popup_every: g.popup_every, popup_pages: g.popup_pages })
+      await AdsApi.saveGlobals({
+        float_every: g.float_every,
+        popup_delay: g.popup_delay,
+        popup_every: g.popup_every,
+        popup_pages: g.popup_pages,
+        side_delay: g.side_delay ?? 8,
+        lit_ads: g.lit_ads ?? 'gentle',
+        utm_on: g.utm_on ?? true,
+      })
       setMsg({ k: 'success', t: 'সংরক্ষিত ✓' })
       onSaved()
     } catch (e) {
@@ -554,7 +571,7 @@ function FloatingSettings({ globals, onSaved }: { globals: AdGlobals; onSaved: (
       setBusy(false)
     }
   }
-  const num = (k: 'float_every' | 'popup_delay' | 'popup_every', v: string) => setG((x) => ({ ...x, [k]: Math.max(0, Number(v) || 0) }))
+  const num = (k: 'float_every' | 'popup_delay' | 'popup_every' | 'side_delay', v: string) => setG((x) => ({ ...x, [k]: Math.max(0, Number(v) || 0) }))
   return (
     <Card>
       <p className="text-[13.5px] font-semibold mb-3">কখন দেখাবে</p>
@@ -572,6 +589,21 @@ function FloatingSettings({ globals, onSaved }: { globals: AdGlobals; onSaved: (
           <input type="number" min={1} max={720} className={inputClass} value={g.popup_every} onChange={(e) => num('popup_every', e.target.value)} />
         </label>
         <label className="space-y-1">
+          <span className="block font-medium">ডান পাশের বিজ্ঞাপন আসবে (পাতা খোলার কত সেকেন্ড পরে)</span>
+          <input type="number" min={0} max={120} className={inputClass} value={g.side_delay ?? 8} onChange={(e) => num('side_delay', e.target.value)} data-testid="side-delay" />
+        </label>
+        <label className="space-y-1">
+          <span className="block font-medium">সাহিত্যের পাতায় বিজ্ঞাপন</span>
+          <select className={inputClass} value={g.lit_ads ?? 'gentle'} onChange={(e) => setG((x) => ({ ...x, lit_ads: e.target.value as 'gentle' | 'none' }))}>
+            <option value="gentle">হালকা — হেডার, লেখার শেষে ও ফুটারে</option>
+            <option value="none">একদম নয়</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 sm:col-span-2">
+          <input type="checkbox" checked={g.utm_on ?? true} onChange={(e) => setG((x) => ({ ...x, utm_on: e.target.checked }))} />
+          <span>বিজ্ঞাপনের লিংকে ট্র্যাকিং আইডি যোগ হবে (utm_campaign=MH-…) — বিজ্ঞাপনদাতা নিজের Google Analytics-এ মিহা থেকে আসা ভিজিটর আলাদা দেখতে পাবেন</span>
+        </label>
+        <label className="space-y-1">
           <span className="block font-medium">পপ-আপ কোন পাতায়</span>
           <select className={inputClass} value={g.popup_pages} onChange={(e) => setG((x) => ({ ...x, popup_pages: e.target.value as AdGlobals['popup_pages'] }))}>
             <option value="all">সব পাতায়</option>
@@ -581,7 +613,8 @@ function FloatingSettings({ globals, onSaved }: { globals: AdGlobals; onSaved: (
         </label>
       </div>
       <p className="mt-2 text-[11.5px] text-neutral-500">
-        পরামর্শ: পপ-আপ দিনে এক-দুবারের বেশি নয় (১২ ঘণ্টা বা বেশি)। বেশি দেখালে পাঠক বিরক্ত হন, আর Google-এর নিয়মে মোবাইলে পুরো পর্দা ঢাকা পপ-আপ র‍্যাঙ্কিং কমাতে পারে।
+        ডান পাশের বিজ্ঞাপন ফোনে পর্দার প্রায় অর্ধেক চওড়া, ডেস্কটপে ৩০০ px। পাঠক তীর চাপলে ডান পাশে ভিতরে ঢুকে যায় — একটা ছোট ট্যাব থাকে, চাপলে আবার বের হয়।
+        ভিতরে ঢোকালে ওপরের “আবার দেখাবে” সময় পর্যন্ত পরের পাতাগুলোতেও ভিতরেই থাকে। পরামর্শ: পপ-আপ দিনে এক-দুবারের বেশি নয় (১২ ঘণ্টা বা বেশি)। বেশি দেখালে পাঠক বিরক্ত হন, আর Google-এর নিয়মে মোবাইলে পুরো পর্দা ঢাকা পপ-আপ র‍্যাঙ্কিং কমাতে পারে।
       </p>
       <div className="mt-3 flex items-center gap-3">
         <Button onClick={() => void save()} disabled={busy} data-testid="floating-save">
@@ -594,7 +627,7 @@ function FloatingSettings({ globals, onSaved }: { globals: AdGlobals; onSaved: (
 }
 
 /** The reader-side strip under "ফটোকার্ড ডাউনলোড" (news + quote cards). */
-function ReaderCards({ reader, onSaved }: { reader: AdReader; onSaved: () => void }) {
+function ReaderCards({ reader, clients, onSaved }: { reader: AdReader; clients: NonNullable<AdsOverview['clients']>; onSaved: () => void }) {
   const [r, setR] = useState(reader)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ k: 'success' | 'error'; t: string } | null>(null)
@@ -608,6 +641,8 @@ function ReaderCards({ reader, onSaved }: { reader: AdReader; onSaved: () => voi
         news_image: r.news_image?.id ?? 0,
         quote_on: r.quote_on ? 1 : 0,
         quote_image: r.quote_image?.id ?? 0,
+        news_client: r.news_client ?? 0,
+        quote_client: r.quote_client ?? 0,
       })
       setMsg({ k: 'success', t: 'সংরক্ষিত ✓' })
       onSaved()
@@ -637,6 +672,7 @@ function ReaderCards({ reader, onSaved }: { reader: AdReader; onSaved: () => voi
             onClear={() => setR((x) => ({ ...x, news_image: null }))}
             testid="reader-news-img"
           />
+          <ClientSelect clients={clients} value={r.news_client ?? 0} onChange={(v) => setR((x) => ({ ...x, news_client: v }))} />
         </div>
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-[13px] font-medium">
@@ -649,6 +685,7 @@ function ReaderCards({ reader, onSaved }: { reader: AdReader; onSaved: () => voi
             onPick={(i) => setR((x) => ({ ...x, quote_image: i }))}
             onClear={() => setR((x) => ({ ...x, quote_image: null }))}
           />
+          <ClientSelect clients={clients} value={r.quote_client ?? 0} onChange={(v) => setR((x) => ({ ...x, quote_client: v }))} />
         </div>
       </div>
       <div className="mt-3 flex items-center gap-3">
@@ -658,6 +695,23 @@ function ReaderCards({ reader, onSaved }: { reader: AdReader; onSaved: () => voi
         {msg && <span className={`text-[12.5px] ${msg.k === 'success' ? 'text-emerald-700' : 'text-red-600'}`}>{msg.t}</span>}
       </div>
     </Card>
+  )
+}
+
+/** r50 — a client picker (0 = Meeha's own / none). */
+function ClientSelect({ clients, value, onChange }: { clients: NonNullable<AdsOverview['clients']>; value: number; onChange: (v: number) => void }) {
+  return (
+    <label className="block space-y-1 text-[12.5px]">
+      <span className="block text-neutral-600">বিজ্ঞাপনদাতা (তাঁর ফলাফলের পাতায় ডাউনলোড গোনা হবে)</span>
+      <select className={inputClass} value={value} onChange={(e) => onChange(Number(e.target.value))}>
+        <option value={0}>কেউ না / মিহার নিজের</option>
+        {clients.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }
 
@@ -712,8 +766,11 @@ function Report({
     }
   }
 
-  const pct = (n: number) => `${bnNumber(n.toFixed(2))}%`
-  const max = Math.max(1, ...(data?.daily ?? []).map((d) => d.imp))
+  const pct = (n: number, d = 2) => `${bnNumber(n.toFixed(d))}%`
+  const daily = data?.daily ?? []
+  const max = Math.max(1, ...daily.map((d) => d.srv ?? d.imp))
+  const devTotal = (data?.devices ?? []).reduce((a, r) => a + r.imp, 0)
+  const DEV: Record<string, string> = { mobile: 'মোবাইল', desktop: 'কম্পিউটার', tablet: 'ট্যাবলেট' }
 
   return (
     <div className="space-y-4" data-testid="ads-report">
@@ -740,32 +797,70 @@ function Report({
             ))}
           </select>
           <Button variant="secondary" onClick={() => void csv()}>
-            <IconDownload className="w-4 h-4" /> CSV (ক্লায়েন্টকে পাঠান)
+            <IconDownload className="w-4 h-4" /> CSV
           </Button>
           {busy && <Spinner />}
           <label className="ml-auto flex items-center gap-2 text-[12.5px]">
-            <input type="checkbox" checked={statsOn} onChange={() => void toggle()} /> দেখা ও ক্লিক গোনা চালু
+            <input type="checkbox" checked={statsOn} onChange={() => void toggle()} /> গোনা চালু
           </label>
         </div>
         <p className="mt-2 text-[11.5px] text-neutral-500">
-          “দেখা” মানে বিজ্ঞাপনের অন্তত অর্ধেক অংশ এক সেকেন্ড পর্দায় ছিল। কোনো পাঠকের তথ্য, আইপি বা কুকি রাখা হয় না — শুধু দিন আর জায়গা অনুযায়ী মোট সংখ্যা। পাতার ক্যাশ
-          থাকলেও গোনা চলে।
+          <b>ইমপ্রেশন</b> = বিজ্ঞাপন পাতায় দেখানো হয়েছে। <b>নিশ্চিত দেখা</b> = অন্তত অর্ধেক অংশ টানা ১ সেকেন্ড পর্দায় ছিল। <b>মানুষ</b> = দিনে প্রতিটি ফোন/কম্পিউটার
+          একবার। লগইন করা পাঠকও গোনা হন; সার্চ ইঞ্জিন ও বট বাদ। কোনো পাঠকের তথ্য, আইপি বা কুকি রাখা হয় না। সংখ্যা যা মাপা হয়েছে ঠিক তাই — বাড়িয়ে দেখানো হয় না।
         </p>
       </Card>
       {err && <Banner kind="error">{err}</Banner>}
       {data && (
         <>
-          <div className="grid gap-3 grid-cols-3">
-            <KpiCard label="দেখা" value={bnNumber(data.imp)} />
-            <KpiCard label="ক্লিক" value={bnNumber(data.clk)} />
-            <KpiCard label="ক্লিক হার" value={pct(data.ctr ?? 0)} />
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-6">
+            <KpiCard label="ইমপ্রেশন" value={bnNumber(data.srv ?? data.imp)} />
+            <KpiCard label="নিশ্চিত দেখা" value={bnNumber(data.imp)} tint="bg-blue-50 text-blue-600" />
+            <KpiCard label="মানুষ (আনুমানিক)" value={bnNumber(data.reach ?? 0)} tint="bg-violet-50 text-violet-600" />
+            <KpiCard label="ক্লিক" value={bnNumber(data.clk)} tint="bg-orange-50 text-orange-600" />
+            <KpiCard label="ক্লিক হার" value={pct(data.ctr ?? 0)} tint="bg-pink-50 text-pink-600" />
+            <KpiCard label="দৃশ্যমানতা" value={pct(data.view_rate ?? 0, 0)} tint="bg-emerald-50 text-emerald-600" />
           </div>
-          {data.daily.length > 0 && (
+          {daily.length > 0 && (
             <Card>
-              <p className="text-[13px] font-semibold mb-2">দিন অনুযায়ী দেখা</p>
-              <div className="flex items-end gap-1 h-28" aria-label="দিনভিত্তিক দেখা">
-                {data.daily.map((d) => (
-                  <div key={d.day} className="flex-1 min-w-[4px] bg-brand-500/80 rounded-t" style={{ height: `${Math.max(3, (d.imp / max) * 100)}%` }} title={`${d.day}: ${d.imp} দেখা, ${d.clk} ক্লিক`} />
+              <div className="flex flex-wrap items-center gap-4 mb-2 text-[12px]">
+                <p className="text-[13px] font-semibold mr-auto">দিন অনুযায়ী</p>
+                <span className="flex items-center gap-1.5">
+                  <i className="inline-block w-3 h-3 rounded-sm bg-[#00b894]/40" /> ইমপ্রেশন
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <i className="inline-block w-3 h-3 rounded-sm bg-[#257de0]" /> নিশ্চিত দেখা
+                </span>
+              </div>
+              <div className="flex items-end gap-1 h-32" aria-label="দিনভিত্তিক ইমপ্রেশন ও নিশ্চিত দেখা">
+                {daily.map((d) => (
+                  <div
+                    key={d.day}
+                    className="relative flex-1 min-w-[4px] h-full flex items-end"
+                    title={`${d.day}: ${d.srv ?? d.imp} ইমপ্রেশন, ${d.imp} নিশ্চিত দেখা, ${d.clk} ক্লিক`}
+                  >
+                    <div className="absolute inset-x-0 bottom-0 rounded-t bg-[#00b894]/40" style={{ height: `${Math.max(2, ((d.srv ?? d.imp) / max) * 100)}%` }} />
+                    <div className="absolute inset-x-[18%] bottom-0 rounded-t bg-[#257de0]" style={{ height: `${Math.max(d.imp ? 2 : 0, (d.imp / max) * 100)}%` }} />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+          {devTotal > 0 && (
+            <Card>
+              <p className="text-[13px] font-semibold mb-2">ডিভাইস (নিশ্চিত দেখা)</p>
+              <div className="flex h-7 gap-0.5 rounded-lg overflow-hidden text-[11.5px] text-white">
+                {(data.devices ?? []).map((r, i) => (
+                  <div key={r.val} className="grid place-items-center" style={{ flex: r.imp, background: ['#257de0', '#f47230', '#00b894'][i % 3] }} title={`${DEV[r.val] ?? r.val}: ${r.imp}`}>
+                    {r.imp / devTotal >= 0.12 ? pct((100 * r.imp) / devTotal, 0) : ''}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-4 text-[12px]">
+                {(data.devices ?? []).map((r, i) => (
+                  <span key={r.val} className="flex items-center gap-1.5">
+                    <i className="inline-block w-3 h-3 rounded-sm" style={{ background: ['#257de0', '#f47230', '#00b894'][i % 3] }} />
+                    {DEV[r.val] ?? r.val} {pct((100 * r.imp) / devTotal, 0)}
+                  </span>
                 ))}
               </div>
             </Card>
@@ -773,21 +868,26 @@ function Report({
           <Card className="overflow-x-auto">
             <p className="text-[13px] font-semibold mb-2">জায়গা অনুযায়ী</p>
             {data.slots.length === 0 ? (
-              <p className="text-[12.5px] text-neutral-400 py-4">এই সময়ে কোনো হিসাব নেই। থিম ২.৭.০ বসানোর পর থেকে গোনা শুরু হয়।</p>
+              <p className="text-[12.5px] text-neutral-400 py-4">এই সময়ে কোনো হিসাব নেই।</p>
             ) : (
               <table className="w-full text-[12.5px]">
                 <thead>
                   <tr className="text-left text-neutral-500">
-                    <th className="py-1.5 pr-3">জায়গা</th>
-                    <th className="py-1.5 pr-3 text-right">দেখা</th>
+                    <th className="py-1.5 pr-3">জায়গা ও ট্র্যাকিং আইডি</th>
+                    <th className="py-1.5 pr-3 text-right">ইমপ্রেশন</th>
+                    <th className="py-1.5 pr-3 text-right">নিশ্চিত দেখা</th>
                     <th className="py-1.5 pr-3 text-right">ক্লিক</th>
                     <th className="py-1.5 text-right">হার</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.slots.map((s) => (
-                    <tr key={s.slot} className="border-t border-neutral-100">
-                      <td className="py-1.5 pr-3">{s.label}</td>
+                    <tr key={s.slot + ':' + (s.client ?? 0)} className="border-t border-neutral-100">
+                      <td className="py-1.5 pr-3">
+                        {s.label}
+                        {s.tid && <code className="ml-2 rounded bg-neutral-100 px-1.5 py-0.5 text-[11px] text-neutral-600">{s.tid}</code>}
+                      </td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{bnNumber(s.srv ?? s.imp)}</td>
                       <td className="py-1.5 pr-3 text-right tabular-nums">{bnNumber(s.imp)}</td>
                       <td className="py-1.5 pr-3 text-right tabular-nums">{bnNumber(s.clk)}</td>
                       <td className="py-1.5 text-right tabular-nums">{pct(s.ctr)}</td>
@@ -797,26 +897,277 @@ function Report({
               </table>
             )}
           </Card>
-          {data.clients.length > 0 && (
-            <Card className="overflow-x-auto">
-              <p className="text-[13px] font-semibold mb-2">ক্লায়েন্ট অনুযায়ী</p>
-              <table className="w-full text-[12.5px]">
-                <tbody>
-                  {data.clients.map((c) => (
-                    <tr key={c.client} className="border-t border-neutral-100 first:border-0">
-                      <td className="py-1.5 pr-3">{c.name}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">{bnNumber(c.imp)} দেখা</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">{bnNumber(c.clk)} ক্লিক</td>
-                      <td className="py-1.5 text-right tabular-nums">{pct(c.ctr)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
-          )}
         </>
       )}
+      <InsightLinks />
     </div>
+  )
+}
+
+const KIND_LABEL: Record<AdOffsiteEntry['kind'], string> = {
+  video: 'ভিডিওর কোণে বিজ্ঞাপন',
+  youtube: 'YouTube',
+  facebook: 'Facebook',
+  photocard: 'ফটোকার্ড',
+  print: 'ছাপা',
+  other: 'অন্যান্য',
+}
+
+/** r50 — each client's private results page, its off-site entries, and the site audience. */
+function InsightLinks() {
+  const [list, setList] = useState<AdInsightClient[] | null>(null)
+  const [audience, setAudience] = useState<AdAudience | null>(null)
+  const [err, setErr] = useState('')
+  const [open, setOpen] = useState(0)
+  const [copied, setCopied] = useState(0)
+  const load = () => {
+    AdsApi.insight()
+      .then((r) => {
+        setList(r.clients)
+        setAudience(r.audience)
+      })
+      .catch((e) => setErr(errText(e, 'ক্লায়েন্টের তালিকা আসেনি।')))
+  }
+  useEffect(load, [])
+
+  const make = async (c: AdInsightClient, rotate = false) => {
+    try {
+      const r = await AdsApi.insightLink(c.id, rotate)
+      setList((l) => (l ? l.map((x) => (x.id === c.id ? { ...x, link: r.link } : x)) : l))
+      return r.link
+    } catch (e) {
+      setErr(errText(e, 'লিংক হয়নি।'))
+      return ''
+    }
+  }
+  const copy = async (c: AdInsightClient) => {
+    const link = c.link || (await make(c))
+    if (!link) return
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopied(c.id)
+      setTimeout(() => setCopied(0), 1800)
+    } catch {
+      window.prompt('লিংকটি কপি করুন', link)
+    }
+  }
+  const wa = async (c: AdInsightClient) => {
+    const link = c.link || (await make(c))
+    if (!link) return
+    const to = (c.whatsapp || c.phone || '').replace(/[^\d]/g, '')
+    const text = `আসসালামু আলাইকুম। মিহা নিউজে আপনার বিজ্ঞাপনের ফলাফল এই লিংকে সবসময় সরাসরি দেখতে পাবেন (প্রতি মিনিটে হালনাগাদ হয়):\n${link}`
+    window.open(`https://wa.me/${to.startsWith('0') ? '88' + to : to}?text=${encodeURIComponent(text)}`, '_blank', 'noopener')
+  }
+
+  return (
+    <>
+      <Card>
+        <p className="text-[13.5px] font-semibold">ক্লায়েন্টের নিজস্ব ফলাফলের পাতা</p>
+        <p className="text-[12px] text-neutral-500 mb-3">
+          কোনো জায়গায় ক্লায়েন্ট বেছে সংরক্ষণ করলেই তাঁর গোপন লিংক তৈরি হয়ে যায়। লিংকে লগইন লাগে না; ইমপ্রেশন, নিশ্চিত দেখা, ক্লিক, ডিভাইস, সময়, সাইটের অংশ, আনুমানিক
+          পূর্বাভাস ও পরামর্শ রঙিন চার্টে দেখায়, প্রতি মিনিটে হালনাগাদ হয়। “নতুন লিংক” দিলে পুরোনোটি আর কাজ করে না।
+        </p>
+        {err && <Banner kind="error">{err}</Banner>}
+        {!list ? (
+          <Spinner />
+        ) : list.length === 0 ? (
+          <p className="text-[12.5px] text-neutral-400">এখনো কোনো ক্লায়েন্ট নেই।</p>
+        ) : (
+          <ul className="divide-y divide-neutral-100" data-testid="insight-links">
+            {list.map((c) => (
+              <li key={c.id} className="py-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-[13.5px] mr-1">{c.name}</span>
+                  {c.slots.length > 0 && <Badge tone="emerald">{bnNumber(c.slots.length)}টি জায়গা</Badge>}
+                  {!c.active && !c.link && <span className="text-[11.5px] text-neutral-400">এখন কোনো জায়গা নেই</span>}
+                  <span className="ml-auto flex flex-wrap gap-1.5">
+                    {c.link && (
+                      <a className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 px-2.5 py-1 text-[12px]" href={c.link} target="_blank" rel="noopener noreferrer">
+                        <IconExternalLink className="w-3.5 h-3.5" /> খুলুন
+                      </a>
+                    )}
+                    <button type="button" className="rounded-lg border border-neutral-200 px-2.5 py-1 text-[12px]" onClick={() => void copy(c)}>
+                      {copied === c.id ? 'কপি হয়েছে ✓' : c.link ? 'লিংক কপি' : 'লিংক তৈরি ও কপি'}
+                    </button>
+                    <button type="button" className="rounded-lg bg-[#128c4a] px-2.5 py-1 text-[12px] text-white" onClick={() => void wa(c)}>
+                      WhatsApp-এ পাঠান
+                    </button>
+                    {c.link && (
+                      <button
+                        type="button"
+                        className="rounded-lg border border-neutral-200 px-2.5 py-1 text-[12px] text-neutral-500"
+                        onClick={() => {
+                          if (window.confirm('নতুন লিংক দিলে আগের লিংক আর খুলবে না। চালিয়ে যাবেন?')) void make(c, true)
+                        }}
+                      >
+                        নতুন লিংক
+                      </button>
+                    )}
+                    <button type="button" className="rounded-lg border border-neutral-200 px-2.5 py-1 text-[12px]" onClick={() => setOpen((o) => (o === c.id ? 0 : c.id))}>
+                      অন্যান্য প্রচার ({bnNumber(c.offsite.length)})
+                    </button>
+                  </span>
+                </div>
+                {c.slots.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {c.slots.map((s) => (
+                      <code key={s.slot} className={`rounded px-1.5 py-0.5 text-[11px] ${s.live ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-500'}`} title={s.label}>
+                        {s.tid}
+                      </code>
+                    ))}
+                  </div>
+                )}
+                {open === c.id && (
+                  <OffsiteEditor
+                    client={c}
+                    onSaved={(entries) => setList((l) => (l ? l.map((x) => (x.id === c.id ? { ...x, offsite: entries } : x)) : l))}
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+      <AudienceCard value={audience} onSaved={setAudience} />
+    </>
+  )
+}
+
+function OffsiteEditor({ client, onSaved }: { client: AdInsightClient; onSaved: (e: AdOffsiteEntry[]) => void }) {
+  const blank: AdOffsiteEntry = { date: today(), kind: 'video', title: '', link: '', views: 0, clicks: 0, note: '' }
+  const [rows, setRows] = useState<AdOffsiteEntry[]>(client.offsite)
+  const [draft, setDraft] = useState<AdOffsiteEntry>(blank)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const save = async (next: AdOffsiteEntry[]) => {
+    setBusy(true)
+    setMsg('')
+    try {
+      const r = await AdsApi.saveOffsite(client.id, next)
+      setRows(r.entries)
+      onSaved(r.entries)
+      setMsg('সংরক্ষিত ✓')
+    } catch (e) {
+      setMsg(errText(e, 'হয়নি।'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="mt-3 rounded-xl bg-neutral-50 p-3 space-y-3" data-testid="offsite-editor">
+      <p className="text-[12px] text-neutral-600">
+        ভিডিওর কোণের বিজ্ঞাপন YouTube/Facebook-এ কতবার দেখা হলো, ছাপা বিজ্ঞাপন ইত্যাদি — নিজে বসান। ক্লায়েন্টের পাতায় এগুলো “প্রকাশকের দেওয়া হিসাব” নামে আলাদা দেখায়, ওয়েবসাইটের
+        স্বয়ংক্রিয় হিসাবের সঙ্গে মেশানো হয় না। প্ল্যাটফর্মে যে সংখ্যা দেখাচ্ছে ঠিক সেটাই দিন।
+      </p>
+      {rows.length > 0 && (
+        <ul className="space-y-1.5 text-[12.5px]">
+          {rows.map((r, i) => (
+            <li key={r.id ?? i} className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-2.5 py-1.5">
+              <Badge tone="blue">{KIND_LABEL[r.kind]}</Badge>
+              <span className="font-medium">{r.title || r.link}</span>
+              <span className="text-neutral-500">
+                {r.date} · {bnNumber(r.views)} দেখা{r.clicks ? ` · ${bnNumber(r.clicks)} ক্লিক` : ''}
+              </span>
+              <button type="button" className="ml-auto text-red-600" aria-label="মুছুন" onClick={() => void save(rows.filter((_, k) => k !== i))} disabled={busy}>
+                <IconTrash className="w-4 h-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="grid gap-2 sm:grid-cols-6 text-[12.5px]">
+        <input type="date" className={inputClass + ' sm:col-span-1'} value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} />
+        <select className={inputClass + ' sm:col-span-1'} value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value as AdOffsiteEntry['kind'] })}>
+          {(Object.keys(KIND_LABEL) as AdOffsiteEntry['kind'][]).map((k) => (
+            <option key={k} value={k}>
+              {KIND_LABEL[k]}
+            </option>
+          ))}
+        </select>
+        <input className={inputClass + ' sm:col-span-2'} placeholder="শিরোনাম (যেমন ভিডিওর নাম)" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+        <input className={inputClass + ' sm:col-span-2'} placeholder="লিংক (ঐচ্ছিক)" value={draft.link} onChange={(e) => setDraft({ ...draft, link: e.target.value })} />
+        <input type="number" min={0} className={inputClass + ' sm:col-span-1'} placeholder="দেখা" value={draft.views || ''} onChange={(e) => setDraft({ ...draft, views: Number(e.target.value) || 0 })} />
+        <input type="number" min={0} className={inputClass + ' sm:col-span-1'} placeholder="ক্লিক (ঐচ্ছিক)" value={draft.clicks || ''} onChange={(e) => setDraft({ ...draft, clicks: Number(e.target.value) || 0 })} />
+        <input className={inputClass + ' sm:col-span-3'} placeholder="নোট (যেমন: YouTube Studio, ২৮ নভেম্বর পর্যন্ত)" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
+        <Button
+          className="sm:col-span-1"
+          disabled={busy || (!draft.title.trim() && !draft.link.trim())}
+          onClick={() => {
+            void save([draft, ...rows])
+            setDraft(blank)
+          }}
+        >
+          <IconPlus className="w-4 h-4" /> যোগ
+        </Button>
+      </div>
+      {msg && <p className="text-[12px] text-neutral-600">{msg}</p>}
+    </div>
+  )
+}
+
+const AGES = ['13-17', '18-24', '25-34', '35-44', '45-54', '55+'] as const
+
+function AudienceCard({ value, onSaved }: { value: AdAudience | null; onSaved: (a: AdAudience) => void }) {
+  const empty: AdAudience = { on: false, male: 0, female: 0, ages: { '13-17': 0, '18-24': 0, '25-34': 0, '35-44': 0, '45-54': 0, '55+': 0 }, source: 'Google Analytics', updated: today() }
+  const [a, setA] = useState<AdAudience>(value ?? empty)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  useEffect(() => setA(value ?? empty), [value]) // eslint-disable-line react-hooks/exhaustive-deps
+  const save = async () => {
+    setBusy(true)
+    setMsg('')
+    try {
+      const r = await AdsApi.saveAudience(a)
+      onSaved(r.audience)
+      setMsg('সংরক্ষিত ✓')
+    } catch (e) {
+      setMsg(errText(e, 'হয়নি।'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const n = (v: string) => Math.max(0, Math.min(100, Number(v) || 0))
+  return (
+    <Card>
+      <p className="text-[13.5px] font-semibold">পাঠকের লিঙ্গ ও বয়স (সাইটের গড়)</p>
+      <p className="text-[12px] text-neutral-500 mb-3">
+        মিহা কোনো পাঠকের লিঙ্গ বা বয়স সংগ্রহ করে না, তাই এটা স্বয়ংক্রিয়ভাবে হয় না। Google Analytics-এ (Google signals চালু থাকলে) Demographics রিপোর্টে সাইটের পাঠকের হিসাব
+        থাকে — সেখান থেকে সংখ্যাগুলো বসালে ক্লায়েন্টের পাতায় “মিহার সব পাঠকের গড়” লেবেলসহ দেখাবে। এটা নির্দিষ্ট বিজ্ঞাপনের দর্শকের হিসাব নয়, পাতাতেও তা বলা থাকে।
+      </p>
+      <label className="flex items-center gap-2 text-[13px] mb-3">
+        <input type="checkbox" checked={a.on} onChange={(e) => setA({ ...a, on: e.target.checked })} /> ক্লায়েন্টের পাতায় দেখান
+      </label>
+      <div className="grid gap-2 grid-cols-2 sm:grid-cols-4 text-[12.5px]">
+        <label className="space-y-1">
+          <span className="block">পুরুষ %</span>
+          <input type="number" min={0} max={100} className={inputClass} value={a.male} onChange={(e) => setA({ ...a, male: n(e.target.value) })} />
+        </label>
+        <label className="space-y-1">
+          <span className="block">নারী %</span>
+          <input type="number" min={0} max={100} className={inputClass} value={a.female} onChange={(e) => setA({ ...a, female: n(e.target.value) })} />
+        </label>
+        <label className="space-y-1">
+          <span className="block">উৎস</span>
+          <input className={inputClass} value={a.source} onChange={(e) => setA({ ...a, source: e.target.value })} />
+        </label>
+        <label className="space-y-1">
+          <span className="block">যে তারিখের হিসাব</span>
+          <input type="date" className={inputClass} value={a.updated} onChange={(e) => setA({ ...a, updated: e.target.value })} />
+        </label>
+        {AGES.map((k) => (
+          <label key={k} className="space-y-1">
+            <span className="block">{bnNumber(k)} বছর %</span>
+            <input type="number" min={0} max={100} className={inputClass} value={a.ages[k]} onChange={(e) => setA({ ...a, ages: { ...a.ages, [k]: n(e.target.value) } })} />
+          </label>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <Button onClick={() => void save()} disabled={busy}>
+          {busy ? 'সংরক্ষণ হচ্ছে…' : 'সংরক্ষণ করুন'}
+        </Button>
+        {msg && <span className="text-[12.5px] text-neutral-600">{msg}</span>}
+      </div>
+    </Card>
   )
 }
 
