@@ -183,8 +183,13 @@ function meeha_glance_item_html( $post_id ) {
 	return $out . '</div></li>';
 }
 
-/** Items grouped by day (Asia/Dhaka). */
-function meeha_glance_groups_html( $ids ) {
+/**
+ * Items grouped by day (Asia/Dhaka).
+ *
+ * @param int[]  $ids Posts.
+ * @param string $ad  r50 — ad box to put after the 6th item (first server render only).
+ */
+function meeha_glance_groups_html( $ids, $ad = '' ) {
 	if ( ! $ids ) {
 		return '';
 	}
@@ -195,6 +200,7 @@ function meeha_glance_groups_html( $ids ) {
 		$groups[ $day ][] = $id;
 	}
 	$out = '';
+	$n   = 0;
 	foreach ( $groups as $day => $day_ids ) {
 		list( $rel, $label ) = meeha_glance_day_label( $day );
 		$out .= '<section class="m-gl__day" data-day="' . esc_attr( $day ) . '">'
@@ -202,6 +208,9 @@ function meeha_glance_groups_html( $ids ) {
 			. '<ol class="m-gl__items" role="list">';
 		foreach ( $day_ids as $id ) {
 			$out .= meeha_glance_item_html( $id );
+			if ( 6 === ++$n && '' !== $ad ) {
+				$out .= '<li class="m-gl__ad">' . $ad . '</li>';
+			}
 		}
 		$out .= '</ol></section>';
 	}
@@ -309,7 +318,7 @@ function meeha_at_a_glance_shortcode( $atts = array() ) {
 			<div class="m-gl__panel">
 				<p class="m-gl__status" role="status" aria-live="polite" data-glance-status><?php echo esc_html( meeha_glance_status( $r['found'], $a ) ); ?></p>
 				<div class="m-gl__list" data-glance-list>
-					<?php echo meeha_glance_groups_html( $r['ids'] ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?>
+					<?php echo meeha_glance_groups_html( $r['ids'], function_exists( 'meeha_ad' ) ? meeha_ad( 'glance_infeed' ) : '' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside; r50 ad after the 6th item ?>
 				</div>
 				<?php if ( ! $r['found'] ) : ?>
 					<p class="m-gl__empty" data-glance-empty><a href="<?php echo esc_url( $base ); ?>">সব ফিল্টার মুছে আবার দেখুন</a></p>
@@ -319,9 +328,14 @@ function meeha_at_a_glance_shortcode( $atts = array() ) {
 				</div>
 			</div>
 		</div>
-		<?php if ( $show_area ) : ?>
-			<aside class="m-gl__aside" aria-label="এলাকার খবর">
+		<?php
+		$meeha_gl_side = function_exists( 'meeha_ad' ) ? meeha_ad( 'glance_side' ) : ''; // r50
+		if ( $show_area || '' !== $meeha_gl_side ) :
+			?>
+			<aside class="m-gl__aside" aria-label="<?php echo $show_area ? 'এলাকার খবর' : 'বিজ্ঞাপন'; ?>">
 				<?php
+				echo $meeha_gl_side; // phpcs:ignore WordPress.Security.EscapeOutput -- built in meeha_ad().
+				if ( $show_area ) :
 				meeha_render_area_widget(
 					array(
 						'title'        => 'আমার এলাকার খবর',
@@ -330,6 +344,7 @@ function meeha_at_a_glance_shortcode( $atts = array() ) {
 						'id'           => 'm-gl-area',
 					)
 				);
+				endif;
 				?>
 			</aside>
 		<?php endif; ?>

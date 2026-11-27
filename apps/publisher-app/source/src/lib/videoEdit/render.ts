@@ -58,6 +58,23 @@ export interface RenderResult {
   height: number
   /** A frame from early in the news (for the thumbnail). */
   poster: Blob | null
+  /** r48: where the time went, in seconds — shown after the render so slow spots can be found. */
+  timing: RenderTiming
+}
+
+/** r48: seconds spent in each part of a render. */
+export interface RenderTiming {
+  total: number
+  /** reading pictures from the source file(s) */
+  decode: number
+  /** painting frames, titles, captions… */
+  draw: number
+  /** the video encoder */
+  encode: number
+  /** mixing and encoding the sound */
+  audio: number
+  /** the first pass that measures loudness */
+  loudness: number
 }
 
 export class RenderCancelled extends Error {
@@ -224,19 +241,26 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
     const music = cfg.audio.music !== 'none' ? await musicBuffer(cfg.audio.music) : null
     const voices = await prepareVoices(cfg, tl, job.voices ?? [])
     let gain = 1
+    const t0 = performance.now()
+    const timing: RenderTiming = { total: 0, decode: 0, draw: 0, encode: 0, audio: 0, loudness: 0 }
     if (cfg.audio.loudness !== 'off') {
-      // first pass: measure the finished mix, then play it again at the target
+      // first pass: measure the finished mix, then play it again at the target.
+      // r48: a long video is measured from samples — two seconds out of every six (a third of
+      // the sound) gives the same level to within a fraction of a dB for speech, and the first
+      // pass takes a third of the time. Short videos (≤ 90 s) are still measured whole.
       const meter = new LoudnessMeter()
       const probe = newMixState(music)
       const pre = audioReaders(io, used, cfg)
-      for (let a = 0; a < total - 1e-6; a += 2) {
+      const stride = total > 90 ? 6 : 2
+      for (let a = 0; a < total - 1e-6; a += stride) {
         check()
         const buf = await mixWindow(tl, cfg, pre, cues, a, Math.min(total, a + 2), probe, voices)
         meter.feed(buf.getChannelData(0), buf.getChannelData(1))
-        job.onProgress?.({ stage: 'loudness', ratio: Math.min(1, (a + 2) / total), done: a, total, eta: null })
+        job.onProgress?.({ stage: 'loudness', ratio: Math.min(1, (a + stride) / total), done: a, total, eta: null })
       }
       gain = normalizeGain(meter.integrated(), Number(cfg.audio.loudness))
     }
+    timing.loudness = (performance.now() - t0) / 1000
     const readers = audioReaders(io, used, cfg)
     const mix = newMixState(music, gain, cfg.audio.loudness !== 'off')
 
@@ -248,12 +272,14 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
     const started = performance.now()
 
     const pumpAudio = async (until: number) => {
+      const a0 = performance.now()
       while (audioDone < Math.min(until, total) - 1e-6) {
         const t1 = Math.min(total, audioDone + AUDIO_WIN)
         const buf = await mixWindow(tl, cfg, readers, cues, audioDone, t1, mix, voices)
         await asrc.add(buf)
         audioDone = t1
       }
+      timing.audio += (performance.now() - a0) / 1000
     }
 
     // Output frame i belongs to the segment playing at i / FPS.
@@ -293,6 +319,7 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
           check()
           const T = f / FPS
           let pic: Picture | null = null
+          const d0 = performance.now()
           if (pics && (seg.rate !== 0 || !last)) {
             const r = await pics.next()
             const wc: WrappedCanvas | null = r.done ? null : r.value
@@ -304,7 +331,11 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
             const wc: WrappedCanvas | null = r.done ? null : r.value
             if (wc) lastPip = { src: wc.canvas as CanvasImageSource, w: wc.canvas.width, h: wc.canvas.height }
           }
+          const d1 = performance.now()
+          timing.decode += (d1 - d0) / 1000
           drawOutputFrame(ctx, env, seg, T, pic, lastPip)
+          const d2 = performance.now()
+          timing.draw += (d2 - d1) / 1000
           if (!poster && !posterPending && T >= job.posterAt) {
             posterPending = new Promise<void>((resolve) =>
               canvas.toBlob(
@@ -318,6 +349,7 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
             )
           }
           await vsrc.add(T, 1 / FPS)
+          timing.encode += (performance.now() - d2) / 1000
           if (T + 1 / FPS > audioDone - 0.5) await pumpAudio(T + AUDIO_WIN)
           if (f % 10 === 0) {
             const ratio = (f + 1) / frameCount
@@ -337,6 +369,7 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
 
     job.onProgress?.({ stage: 'finish', ratio: 1, done: total, total, eta: 0 })
     await output.finalize()
+    timing.total = (performance.now() - t0) / 1000
     const mime = container === 'mp4' ? 'video/mp4' : 'video/webm'
     return {
       blob: new Blob([target.buffer!], { type: mime }),
@@ -346,6 +379,7 @@ export async function renderEdit(job: RenderJob): Promise<RenderResult> {
       width: W,
       height: H,
       poster,
+      timing,
     }
   } catch (err) {
     if (outputRef && outputRef.state !== 'finalized' && outputRef.state !== 'canceled') await outputRef.cancel().catch(() => undefined)

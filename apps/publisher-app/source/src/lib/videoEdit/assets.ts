@@ -147,9 +147,14 @@ export async function loadLogo(custom?: Blob | null): Promise<LogoAsset> {
   // animated mark-then-wordmark; anything else is treated as one piece.
   const markW = b.firstGap > 0 ? b.firstGap - b.x0 : w
   const splittable = markW > h * 0.6 && markW < h * 1.6 && b.gapEnd > 0
+  // r50 (field report: "the logo is blank on the second render"): keep the logo as ImageBitmaps,
+  // not as loose <canvas> elements — Chrome can drop a canvas's pixels when the graphics
+  // process resets under a long hardware encode, and the next render then drew an empty logo.
+  const white = tint(color, w, h, '#ffffff')
+  const [colorBmp, whiteBmp] = await Promise.all([createImageBitmap(color), createImageBitmap(white)]).catch(() => [color, white] as const)
   return {
-    color,
-    white: tint(color, w, h, '#ffffff'),
+    color: colorBmp,
+    white: whiteBmp,
     w,
     h,
     markW: splittable ? markW : w,

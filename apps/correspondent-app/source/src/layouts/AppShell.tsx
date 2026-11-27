@@ -1,4 +1,5 @@
 import HdUploads from '../components/HdUploads'
+import { hdQueue } from '../lib/clipPipeline'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { IconChat, IconEdit, IconHome, IconNews, IconUser, IconWallet } from '../components/Icon'
@@ -24,6 +25,11 @@ export default function AppShell() {
   const navigate = useNavigate()
   // The video editor is part of the "লিখুন" tab (its segmented control).
   const inVideoEditor = pathname.startsWith('/app/video')
+
+  // r50: HD originals left waiting when the app was closed go up again now
+  useEffect(() => {
+    if (profile) void hdQueue.restore()
+  }, [profile])
 
   // Android app: a tapped notice opens its screen (also on a cold start)
   useEffect(() => {

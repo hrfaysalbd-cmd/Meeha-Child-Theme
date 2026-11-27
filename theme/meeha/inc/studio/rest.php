@@ -242,12 +242,13 @@ function meeha_studio_quote_data( $p ) {
 	foreach ( array( '_meeha_quote_photo', '_meeha_speaker_photo' ) as $k ) {
 		$v = get_post_meta( $p->ID, $k, true );
 		if ( $v ) {
-			$photo = is_numeric( $v ) ? (string) wp_get_attachment_image_url( (int) $v, 'medium' ) : esc_url_raw( (string) $v );
+			// r50: 'large', not 'medium' (300 px) — the photo-led quote designs draw the face 500–900 px wide, so it came out blurry
+			$photo = is_numeric( $v ) ? (string) wp_get_attachment_image_url( (int) $v, 'large' ) : esc_url_raw( (string) $v );
 			break;
 		}
 	}
 	if ( ! $photo && has_post_thumbnail( $p ) ) {
-		$photo = (string) get_the_post_thumbnail_url( $p, 'medium' );
+		$photo = (string) get_the_post_thumbnail_url( $p, 'large' );
 	}
 	$year = '';
 	foreach ( array( '_meeha_quote_year', '_meeha_year' ) as $k ) {

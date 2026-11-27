@@ -142,7 +142,7 @@ add_action(
 			function ( $post ) {
 				wp_nonce_field( 'meeha_page_options', 'meeha_page_options_nonce' );
 				printf(
-					'<label><input type="checkbox" name="meeha_hide_title" value="1"%s> শিরোনাম লুকান</label><p class="description">শর্টকোড নিজেই শিরোনাম দেখালে (যেমন সাহিত্য পাতা) টিক দিন।</p>',
+					'<label><input type="checkbox" name="meeha_hide_title" value="1"%s> শিরোনাম লুকান</label><p class="description">শর্টকোড নিজেই শিরোনাম দেখালে (যেমন সাহিত্য পাতা) টিক দিন।</p><p class="description">হেডার-ফুটার ছাড়া ল্যান্ডিং পেজ: “পাতার বৈশিষ্ট্য › টেমপ্লেট” থেকে <strong>পাতা — ফাঁকা ক্যানভাস</strong> বাছুন।</p>',
 					checked( (bool) get_post_meta( $post->ID, '_meeha_hide_title', true ), true, false )
 				);
 			},

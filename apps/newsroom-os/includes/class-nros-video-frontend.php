@@ -413,6 +413,7 @@ class NROS_Video_Frontend {
 						<button type="button" data-net="copy" class="mvr-copy"><?php echo self::icon( 'link' ); // phpcs:ignore ?><span>লিংক কপি</span></button>
 					</div>
 					<p class="mvr-keys"><kbd>↑</kbd><kbd>↓</kbd> আগের ও পরের ভিডিও <kbd>স্পেস</kbd> চালান/থামান <kbd>M</kbd> শব্দ</p>
+					<?php echo function_exists( 'meeha_ad' ) ? meeha_ad( 'video_side' ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- r50: theme ad box (wide desktop only, where this column shows). ?>
 				</section>
 
 				<div class="mvr-col">
@@ -470,6 +471,11 @@ class NROS_Video_Frontend {
 					</div>
 				</aside>
 			</div></div>
+			<?php
+			// r50 — a banner under the player (desktop and tablet; phones keep the full-screen reels clean).
+			$below = function_exists( 'meeha_ad' ) ? meeha_ad( 'video_below' ) : '';
+			echo '' !== $below ? '<div class="mvr-adbelow">' . $below . '</div>' : ''; // phpcs:ignore WordPress.Security.EscapeOutput
+			?>
 
 			<div class="mvr-scrim" hidden></div>
 				<div class="mvr-share" role="dialog" aria-modal="true" aria-labelledby="mvr-share-h" hidden>

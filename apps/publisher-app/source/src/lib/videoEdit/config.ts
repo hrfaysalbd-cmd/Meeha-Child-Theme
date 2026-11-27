@@ -497,6 +497,48 @@ export interface EditConfig {
     bottom: number
     /** Round 27: 'lively' adds a light sweep and accent motion; 'calm' is the old look. */
     motion: FrameMotion
+    /** r48: title size on top of the automatic fit (0.7–1.5, 1 = automatic). */
+    titleScale: number
+    /** r48: the title's typeface — 'sans' (Noto Sans Bengali) or 'display' (Baloo Da 2, rounder and heavier). */
+    titleFont: 'sans' | 'display'
+    /** r49: the tag on the frame — the design's own ('auto'), your own words ('custom') or none ('off'). */
+    badgeMode: 'auto' | 'custom' | 'off'
+    badge: string
+  }
+  /**
+   * r49 — a small client ad in a corner of the picture, opposite the animated logo
+   * (a transparent PNG/WebP logo or a short banner). Size is its height as % of the shorter side.
+   */
+  cornerAd: {
+    on: boolean
+    image: MediaRef | null
+    /**
+     * r49.2 — a short moving ad (MP4/WebM, up to 15 s) that loops in the box instead of the
+     * still image. An animated GIF/WebP picked as `image` moves on its own too.
+     */
+    clip: MediaRef | null
+    corner: 'auto' | Corner
+    size: number
+    plate: boolean
+    label: boolean
+    opacity: number
+    /** 'always' stays on; 'cycle' shows for `stay` seconds every `every` seconds. */
+    show: 'always' | 'cycle'
+    every: number
+    stay: number
+    /**
+     * r49.1 — the ad's headline (and an optional second line, e.g. an offer or phone number)
+     * that takes turns with the image inside the same corner box, all through the video.
+     * With no image the box shows only the text.
+     */
+    text: string
+    sub: string
+    /** Seconds each side (image / headline) stays before the box turns to the other. */
+    swap: number
+    /** How the box turns: flip (like a card), roll (up), fade. */
+    anim: 'flip' | 'roll' | 'fade'
+    /** The client's colour: the small bar beside the headline. */
+    accent: string
   }
   /** Round 28: the Meeha News watermark that fades from place to place over the news. */
   watermark: {
@@ -554,7 +596,8 @@ export const DEFAULT_CONFIG: EditConfig = {
   fit: 'blur',
   quality: '1080',
   fileSize: 'balanced',
-  frame: { id: 'none', title: '', kicker: '', date: true, footer: 'ticker', ticker: '', adText: '', adImage: null, size: 'auto', top: 1, bottom: 1, motion: 'lively', titlePos: 'top' },
+  frame: { id: 'none', title: '', kicker: '', date: true, footer: 'ticker', ticker: '', adText: '', adImage: null, size: 'auto', top: 1, bottom: 1, motion: 'lively', titlePos: 'top', titleScale: 1, titleFont: 'sans', badgeMode: 'auto', badge: '' },
+  cornerAd: { on: false, image: null, clip: null, corner: 'auto', size: 7.5, plate: true, label: true, opacity: 1, show: 'always', every: 30, stay: 12, text: '', sub: '', swap: 4, anim: 'flip', accent: '#E30613' },
   logo: { on: false, style: 'reveal', corner: 'tr', size: 6, every: 12, plate: true, opacity: 1 },
   watermark: { on: true, style: 'hop', size: 6, every: 9, opacity: 0.42, site: true },
   intro: { id: 'none', text: '', clip: null, cover: true },
@@ -830,6 +873,9 @@ export const LIMITS = {
   pipLabel: 30,
   thumbTitle: 90,
   thumbBadge: 20,
+  frameBadge: 24,
+  cornerAdText: 48,
+  cornerAdSub: 32,
   thumbSub: 60,
   thumbLayers: 12,
   thumbLayerText: 40,
@@ -999,6 +1045,29 @@ export function normalizeConfig(raw: unknown): EditConfig {
       titlePos: oneOf(frame.titlePos, ['top', 'bottom'] as const, 'top'),
       bottom: num(frame.bottom, 1, 1, 2),
       motion: oneOf(frame.motion, ['lively', 'calm'] as const, d.frame.motion),
+      // r49: up to 200% — the title band grows with it, so a bigger title always gets bigger
+      titleScale: num(frame.titleScale, 1, 0.7, 2),
+      titleFont: oneOf(frame.titleFont, ['sans', 'display'] as const, 'sans'),
+      badgeMode: oneOf(frame.badgeMode, ['auto', 'custom', 'off'] as const, 'auto'),
+      badge: str(frame.badge, LIMITS.frameBadge),
+    },
+    cornerAd: {
+      on: bool(o.cornerAd?.on, d.cornerAd.on),
+      image: mediaRef(o.cornerAd?.image),
+      clip: mediaRef(o.cornerAd?.clip),
+      corner: oneOf(o.cornerAd?.corner, ['auto', 'tr', 'tl', 'br', 'bl'] as const, 'auto'),
+      size: num(o.cornerAd?.size, d.cornerAd.size, 4, 20),
+      plate: bool(o.cornerAd?.plate, d.cornerAd.plate),
+      label: bool(o.cornerAd?.label, d.cornerAd.label),
+      opacity: num(o.cornerAd?.opacity, d.cornerAd.opacity, 0.3, 1),
+      show: oneOf(o.cornerAd?.show, ['always', 'cycle'] as const, 'always'),
+      every: num(o.cornerAd?.every, d.cornerAd.every, 10, 300),
+      stay: num(o.cornerAd?.stay, d.cornerAd.stay, 3, 120),
+      text: str(o.cornerAd?.text, LIMITS.cornerAdText),
+      sub: str(o.cornerAd?.sub, LIMITS.cornerAdSub),
+      swap: num(o.cornerAd?.swap, d.cornerAd.swap, 2, 15),
+      anim: oneOf(o.cornerAd?.anim, ['flip', 'roll', 'fade'] as const, 'flip'),
+      accent: typeof o.cornerAd?.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(o.cornerAd.accent) ? o.cornerAd.accent : d.cornerAd.accent,
     },
     watermark: {
       on: bool(o.watermark?.on, d.watermark.on),

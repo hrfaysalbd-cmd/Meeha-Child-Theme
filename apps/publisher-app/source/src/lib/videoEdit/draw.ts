@@ -17,9 +17,10 @@ import { drawFreezeOverlay, drawSticker, drawTransition, transitionAt, transitio
 import { BRAND, FONT_BODY, FONT_DISPLAY, type LogoAsset } from './assets'
 import type { SfxId } from './sfxlib'
 import { EMPTY_HOUSE, drawHouseAd, netIcon, type HouseAdId, type HouseInfo } from './houseads'
-import { clamp, ease, fillRoundRect, fitText, lerp, rnd, win, type Ctx } from './motion'
+import { HEADER_ART, clamp, ease, fillRoundRect, fitText, lerp, rnd, win, type Ctx } from './motion'
 import { PACK_SCENE_SFX, PACK_THEMES, drawLowerThird, drawPackScene, isLowerThird, packSettledAt } from './pack'
-import { pipActive, segSource, segSourceEnd, type Layout, type Rect, type SceneId, type Segment, type Timeline } from './timeline'
+import { adClipFrame, type AdClip } from './adclip'
+import { pipActive, segSource, segSourceEnd, titleGrow, type Layout, type Rect, type SceneId, type Segment, type Timeline } from './timeline'
 
 export interface Picture {
   src: CanvasImageSource
@@ -29,10 +30,14 @@ export interface Picture {
 
 export interface DrawEnv {
   cfg: EditConfig
+  /** r49.2 — the corner ad's moving clip (video / animated GIF-WebP), looped. */
+  cornerClip?: AdClip | null
   L: Layout
   tl: Timeline
   logo: LogoAsset
   adImage: Picture | null
+  /** r49: the client's corner ad (beside / opposite the logo). */
+  cornerAd?: Picture | null
   /** Header title (custom text, else the post title). */
   title: string
   /** Intro title (custom intro text, else the header title). */
@@ -802,25 +807,27 @@ const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
       ])
       ctx.fillRect(r.x, r.y, r.w, r.h)
       // two ribbons drifting at the right end
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(r.x, r.y, r.w, r.h)
-      ctx.clip()
-      const drift = Math.sin(t * 0.8) * 18 * s
-      const rib = (x: number, w: number, color: string) => {
+      if (HEADER_ART) {
+        ctx.save()
         ctx.beginPath()
-        ctx.moveTo(x + r.h * 0.5, r.y)
-        ctx.lineTo(x + r.h * 0.5 + w, r.y)
-        ctx.lineTo(x + w, r.y + r.h)
-        ctx.lineTo(x, r.y + r.h)
-        ctx.closePath()
-        ctx.fillStyle = color
-        ctx.fill()
+        ctx.rect(r.x, r.y, r.w, r.h)
+        ctx.clip()
+        const drift = Math.sin(t * 0.8) * 18 * s
+        const rib = (x: number, w: number, color: string) => {
+          ctx.beginPath()
+          ctx.moveTo(x + r.h * 0.5, r.y)
+          ctx.lineTo(x + r.h * 0.5 + w, r.y)
+          ctx.lineTo(x + w, r.y + r.h)
+          ctx.lineTo(x, r.y + r.h)
+          ctx.closePath()
+          ctx.fillStyle = color
+          ctx.fill()
+        }
+        rib(r.x + r.w - 150 * s + drift, 46 * s, 'rgba(249,115,22,0.85)')
+        rib(r.x + r.w - 92 * s + drift * 0.6, 24 * s, 'rgba(2,90,178,0.85)')
+        rib(r.x + r.w - 220 * s - drift * 0.5, 14 * s, 'rgba(2,90,178,0.18)')
+        ctx.restore()
       }
-      rib(r.x + r.w - 150 * s + drift, 46 * s, 'rgba(249,115,22,0.85)')
-      rib(r.x + r.w - 92 * s + drift * 0.6, 24 * s, 'rgba(2,90,178,0.85)')
-      rib(r.x + r.w - 220 * s - drift * 0.5, 14 * s, 'rgba(2,90,178,0.18)')
-      ctx.restore()
     },
     footerBg: (ctx, r) => {
       ctx.fillStyle = BRAND.blue
@@ -1257,16 +1264,18 @@ const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
       ], -0.3)
       ctx.fillRect(r.x, r.y, r.w, r.h)
       // the red disc of the flag, rising gently at the right
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(r.x, r.y, r.w, r.h)
-      ctx.clip()
-      const rr = r.h * 0.42
-      ctx.fillStyle = '#F42A41'
-      ctx.beginPath()
-      ctx.arc(r.x + r.w - rr * 1.6, r.y + r.h * 0.55 - Math.min(1, t / 1.5) * r.h * 0.05, rr, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.restore()
+      if (HEADER_ART) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(r.x, r.y, r.w, r.h)
+        ctx.clip()
+        const rr = r.h * 0.42
+        ctx.fillStyle = '#F42A41'
+        ctx.beginPath()
+        ctx.arc(r.x + r.w - rr * 1.6, r.y + r.h * 0.55 - Math.min(1, t / 1.5) * r.h * 0.05, rr, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+      }
       sweep(ctx, r, t, 7, 0.1)
     },
     footerBg: (ctx, r, _t, s) => {
@@ -1293,30 +1302,32 @@ const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
         [1, '#38A3E8'],
       ], Math.PI / 2)
       ctx.fillRect(r.x, r.y, r.w, r.h)
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(r.x, r.y, r.w, r.h)
-      ctx.clip()
-      // a sun behind slow clouds at the right
-      const sx = r.x + r.w - r.h * 0.9
-      const sy = r.y + r.h * 0.45
-      ctx.fillStyle = 'rgba(255,214,90,0.9)'
-      ctx.beginPath()
-      ctx.arc(sx, sy, r.h * 0.26, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.fillStyle = 'rgba(255,255,255,0.75)'
-      const zone = Math.min(r.w * 0.3, r.h * 2.2)
-      for (let i = 0; i < 3; i++) {
-        const cx = r.x + r.w - zone + ((zone * (0.1 + i * 0.3) + t * (10 + i * 5) * s) % (zone * 0.85))
-        const cy = r.y + r.h * (0.35 + (i % 2) * 0.3)
-        const cr = Math.min(r.h * (0.1 + (i % 3) * 0.025), zone * 0.07)
+      if (HEADER_ART) {
+        ctx.save()
         ctx.beginPath()
-        ctx.arc(cx, cy, cr, 0, Math.PI * 2)
-        ctx.arc(cx + cr * 1.1, cy - cr * 0.3, cr * 1.2, 0, Math.PI * 2)
-        ctx.arc(cx + cr * 2.2, cy, cr * 0.9, 0, Math.PI * 2)
+        ctx.rect(r.x, r.y, r.w, r.h)
+        ctx.clip()
+        // a sun behind slow clouds at the right
+        const sx = r.x + r.w - r.h * 0.9
+        const sy = r.y + r.h * 0.45
+        ctx.fillStyle = 'rgba(255,214,90,0.9)'
+        ctx.beginPath()
+        ctx.arc(sx, sy, r.h * 0.26, 0, Math.PI * 2)
         ctx.fill()
+        ctx.fillStyle = 'rgba(255,255,255,0.75)'
+        const zone = Math.min(r.w * 0.3, r.h * 2.2)
+        for (let i = 0; i < 3; i++) {
+          const cx = r.x + r.w - zone + ((zone * (0.1 + i * 0.3) + t * (10 + i * 5) * s) % (zone * 0.85))
+          const cy = r.y + r.h * (0.35 + (i % 2) * 0.3)
+          const cr = Math.min(r.h * (0.1 + (i % 3) * 0.025), zone * 0.07)
+          ctx.beginPath()
+          ctx.arc(cx, cy, cr, 0, Math.PI * 2)
+          ctx.arc(cx + cr * 1.1, cy - cr * 0.3, cr * 1.2, 0, Math.PI * 2)
+          ctx.arc(cx + cr * 2.2, cy, cr * 0.9, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        ctx.restore()
       }
-      ctx.restore()
       sweep(ctx, r, t, 8, 0.1)
     },
     footerBg: (ctx, r, _t, s) => {
@@ -1399,40 +1410,42 @@ const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
         [1, '#0EA5A0'],
       ], -0.3)
       ctx.fillRect(r.x, r.y, r.w, r.h)
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(r.x, r.y, r.w, r.h)
-      ctx.clip()
-      // a heartbeat line running across the right half
-      const w = Math.max(0, Math.min(r.w * 0.3, r.h * 3.3) - r.h * 0.9)
-      const x0 = r.x + r.w - w - r.h * 0.9
-      const cy = r.y + r.h * 0.55
-      const head = (t * 0.35) % 1
-      ctx.strokeStyle = 'rgba(255,255,255,0.55)'
-      ctx.lineWidth = 4 * s
-      ctx.lineJoin = 'round'
-      ctx.beginPath()
-      const n = 60
-      for (let i = 0; i <= n; i++) {
-        const u = i / n
-        const ph = (u * 3) % 1
-        let y = 0
-        if (ph > 0.4 && ph < 0.45) y = -0.3
-        else if (ph >= 0.45 && ph < 0.5) y = 0.45
-        else if (ph >= 0.5 && ph < 0.55) y = -0.15
-        const x = x0 + u * w
-        const fade = u <= head ? 1 : 0.25
-        if (i === 0) ctx.moveTo(x, cy + y * r.h)
-        else ctx.lineTo(x, cy + y * r.h * fade)
+      if (HEADER_ART) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(r.x, r.y, r.w, r.h)
+        ctx.clip()
+        // a heartbeat line running across the right half
+        const w = Math.max(0, Math.min(r.w * 0.3, r.h * 3.3) - r.h * 0.9)
+        const x0 = r.x + r.w - w - r.h * 0.9
+        const cy = r.y + r.h * 0.55
+        const head = (t * 0.35) % 1
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)'
+        ctx.lineWidth = 4 * s
+        ctx.lineJoin = 'round'
+        ctx.beginPath()
+        const n = 60
+        for (let i = 0; i <= n; i++) {
+          const u = i / n
+          const ph = (u * 3) % 1
+          let y = 0
+          if (ph > 0.4 && ph < 0.45) y = -0.3
+          else if (ph >= 0.45 && ph < 0.5) y = 0.45
+          else if (ph >= 0.5 && ph < 0.55) y = -0.15
+          const x = x0 + u * w
+          const fade = u <= head ? 1 : 0.25
+          if (i === 0) ctx.moveTo(x, cy + y * r.h)
+          else ctx.lineTo(x, cy + y * r.h * fade)
+        }
+        ctx.stroke()
+        // the white cross
+        const cx = r.x + r.w - r.h * 0.45
+        const k = r.h * 0.11
+        ctx.fillStyle = 'rgba(255,255,255,0.9)'
+        ctx.fillRect(cx - k, r.y + r.h * 0.18, k * 2, k * 6)
+        ctx.fillRect(cx - k * 3, r.y + r.h * 0.18 + k * 2, k * 6, k * 2)
+        ctx.restore()
       }
-      ctx.stroke()
-      // the white cross
-      const cx = r.x + r.w - r.h * 0.45
-      const k = r.h * 0.11
-      ctx.fillStyle = 'rgba(255,255,255,0.9)'
-      ctx.fillRect(cx - k, r.y + r.h * 0.18, k * 2, k * 6)
-      ctx.fillRect(cx - k * 3, r.y + r.h * 0.18 + k * 2, k * 6, k * 2)
-      ctx.restore()
     },
     footerBg: (ctx, r, _t, s) => {
       ctx.fillStyle = '#FFFFFF'
@@ -1458,32 +1471,34 @@ const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
         [1, '#0B1E4A'],
       ], 0)
       ctx.fillRect(r.x, r.y, r.w, r.h)
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(r.x, r.y, r.w, r.h)
-      ctx.clip()
-      // circuit traces with pulses of light running along them
-      ctx.strokeStyle = 'rgba(34,211,238,0.22)'
-      ctx.lineWidth = 2 * s
-      for (let i = 0; i < 7; i++) {
-        const y = r.y + r.h * (0.12 + i * 0.13)
-        const x0 = r.x + r.w * (0.68 + rnd(i) * 0.08)
-        const bend = r.x + r.w * (0.8 + rnd(i + 9) * 0.1)
+      if (HEADER_ART) {
+        ctx.save()
         ctx.beginPath()
-        ctx.moveTo(x0, y)
-        ctx.lineTo(bend, y)
-        ctx.lineTo(bend + 20 * s, y + 20 * s * (i % 2 ? 1 : -1))
-        ctx.lineTo(r.x + r.w, y + 20 * s * (i % 2 ? 1 : -1))
-        ctx.stroke()
-        const p = (t * (0.25 + rnd(i + 3) * 0.2) + rnd(i + 5)) % 1
-        const px = x0 + (r.x + r.w - x0) * p
-        const py = px < bend ? y : y + 20 * s * (i % 2 ? 1 : -1)
-        ctx.fillStyle = 'rgba(34,211,238,0.9)'
-        ctx.beginPath()
-        ctx.arc(px, py, 4 * s, 0, Math.PI * 2)
-        ctx.fill()
+        ctx.rect(r.x, r.y, r.w, r.h)
+        ctx.clip()
+        // circuit traces with pulses of light running along them
+        ctx.strokeStyle = 'rgba(34,211,238,0.22)'
+        ctx.lineWidth = 2 * s
+        for (let i = 0; i < 7; i++) {
+          const y = r.y + r.h * (0.12 + i * 0.13)
+          const x0 = r.x + r.w * (0.68 + rnd(i) * 0.08)
+          const bend = r.x + r.w * (0.8 + rnd(i + 9) * 0.1)
+          ctx.beginPath()
+          ctx.moveTo(x0, y)
+          ctx.lineTo(bend, y)
+          ctx.lineTo(bend + 20 * s, y + 20 * s * (i % 2 ? 1 : -1))
+          ctx.lineTo(r.x + r.w, y + 20 * s * (i % 2 ? 1 : -1))
+          ctx.stroke()
+          const p = (t * (0.25 + rnd(i + 3) * 0.2) + rnd(i + 5)) % 1
+          const px = x0 + (r.x + r.w - x0) * p
+          const py = px < bend ? y : y + 20 * s * (i % 2 ? 1 : -1)
+          ctx.fillStyle = 'rgba(34,211,238,0.9)'
+          ctx.beginPath()
+          ctx.arc(px, py, 4 * s, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        ctx.restore()
       }
-      ctx.restore()
       sweep(ctx, r, t, 6, 0.08)
     },
     footerBg: (ctx, r, _t, s) => {
@@ -1510,33 +1525,35 @@ const THEMES: Record<Exclude<FrameId, 'none'>, Theme> = {
         [1, NIL.royal],
       ], -0.2)
       ctx.fillRect(r.x, r.y, r.w, r.h)
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(r.x, r.y, r.w, r.h)
-      ctx.clip()
-      // a turning wire globe at the right
-      const R = r.h * 0.62
-      const cx = r.x + r.w - R * 0.9
-      const cy = r.y + r.h * 0.6
-      ctx.strokeStyle = 'rgba(255,255,255,0.22)'
-      ctx.lineWidth = 2 * s
-      ctx.beginPath()
-      ctx.arc(cx, cy, R, 0, Math.PI * 2)
-      ctx.stroke()
-      for (let i = 0; i < 5; i++) {
-        const ph = ((i / 5) * Math.PI + t * 0.5) % Math.PI
+      if (HEADER_ART) {
+        ctx.save()
         ctx.beginPath()
-        ctx.ellipse(cx, cy, Math.max(0.5, Math.abs(Math.cos(ph)) * R), R, 0, 0, Math.PI * 2)
-        ctx.stroke()
-      }
-      for (let i = -2; i <= 2; i++) {
-        const y = cy + (R * i) / 3
-        const rw = Math.sqrt(Math.max(0, R * R - (y - cy) * (y - cy)))
+        ctx.rect(r.x, r.y, r.w, r.h)
+        ctx.clip()
+        // a turning wire globe at the right
+        const R = r.h * 0.62
+        const cx = r.x + r.w - R * 0.9
+        const cy = r.y + r.h * 0.6
+        ctx.strokeStyle = 'rgba(255,255,255,0.22)'
+        ctx.lineWidth = 2 * s
         ctx.beginPath()
-        ctx.ellipse(cx, y, rw, rw * 0.1, 0, 0, Math.PI * 2)
+        ctx.arc(cx, cy, R, 0, Math.PI * 2)
         ctx.stroke()
+        for (let i = 0; i < 5; i++) {
+          const ph = ((i / 5) * Math.PI + t * 0.5) % Math.PI
+          ctx.beginPath()
+          ctx.ellipse(cx, cy, Math.max(0.5, Math.abs(Math.cos(ph)) * R), R, 0, 0, Math.PI * 2)
+          ctx.stroke()
+        }
+        for (let i = -2; i <= 2; i++) {
+          const y = cy + (R * i) / 3
+          const rw = Math.sqrt(Math.max(0, R * R - (y - cy) * (y - cy)))
+          ctx.beginPath()
+          ctx.ellipse(cx, y, rw, rw * 0.1, 0, 0, Math.PI * 2)
+          ctx.stroke()
+        }
+        ctx.restore()
       }
-      ctx.restore()
       sweep(ctx, r, t, 7, 0.1)
     },
     footerBg: (ctx, r, _t, s) => {
@@ -1755,6 +1772,29 @@ export function themeOf(id: FrameId): Theme | null {
 // Header band
 // ---------------------------------------------------------------------------
 
+/**
+ * r49 — the frame's tag: the design's own word ("নির্বাচন", "খেলা"…), the publisher's own words
+ * (any frame works for any news — no frame is tied to one category), or none.
+ */
+/** r50 — the design's own tag word (for the studio's tag chips). */
+export function frameOwnTag(id: FrameId): string {
+  return id === 'none' ? '' : (THEMES[id]?.badge?.text ?? '')
+}
+
+function frameBadge(env: DrawEnv, theme: Theme): Theme['badge'] {
+  const f = env.cfg.frame
+  if (f.badgeMode === 'off') return undefined
+  if (f.badgeMode === 'custom') {
+    const text = (f.badge || '').trim()
+    if (!text) return undefined
+    const base = theme.badge
+    // a "gold" (text-only) tag keeps its look; otherwise the design's colours on a tape
+    if (base) return { ...base, text }
+    return { text, bg: theme.accent, fg: '#FFFFFF', kind: 'tape' }
+  }
+  return theme.badge
+}
+
 function drawBadge(ctx: Ctx, theme: Theme, x: number, cy: number, h: number, t: number, s: number, appear: number) {
   const b = theme.badge!
   ctx.save()
@@ -1877,8 +1917,12 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   const open = t0
   const t = t0 + FRAME_SETTLE
   // round 29: a taller band (frame.top) makes everything in it bigger, not just the title
-  const hk = clamp(r.h / (210 * s0), 1, 2.2)
+  // r49: the part of the height added for a bigger title (titleGrow) goes to the title only
+  // r50: judged from the band as it really is — a tall reel or a big footer can squeeze it
+  const units = r.h / (210 * s0)
+  const hk = clamp(Math.min(env.cfg.frame.top, units / titleGrow(env.cfg)), 1, 2.2)
   const s = s0 * (1 + (hk - 1) * 0.55)
+  const badge = frameBadge(env, theme)
   const enter = win(t, 0, 0.5)
   // background wipes in from the left on the first frames of the video
   ctx.save()
@@ -1902,8 +1946,9 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   const minimal = env.cfg.frame.id === 'minimal'
   // room kept free for the campus frame's ribbons
   const fid = env.cfg.frame.id
-  const extraR =
-    fid === 'campus'
+  const extraR = !HEADER_ART
+    ? 0
+    : fid === 'campus'
       ? 170 * s
       : fid === 'national'
         ? Math.min(r.h * 0.9, 190 * s)
@@ -1923,8 +1968,8 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   }
 
   let hasRow = false
-  if (theme.badge) {
-    const w = drawBadge(ctx, theme, x, rowCy, rowH, t, s, win(t, 0.2, 0.55))
+  if (badge) {
+    const w = drawBadge(ctx, { ...theme, badge }, x, rowCy, rowH, t, s, win(t, 0.2, 0.55))
     x += w + 16 * s
     hasRow = true
   }
@@ -1955,20 +2000,10 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   const top = hasRow ? r.y + 84 * s : r.y + 18 * s
   const bottom = r.y + r.h - 20 * s
   const avail = bottom - top
-  const font = (px: number) => bodyFont(700, px)
-  // round 29: the biggest size that shows the whole title in 1, 2 or 3 lines.
-  // r47 (field report): long Bengali titles used to bottom out at a tiny size next to a big
-  // frame — the caps and the floor are higher now, and three lines are always allowed, so the
-  // title stays in proportion with the band instead of shrinking to fit two lines.
-  const tries = [1, 2, 3]
-  let fit = fitText(ctx, title, font, maxW, 3, Math.min(54 * s0 * hk, avail / 2.2), 30 * s0)
-  for (const n of tries) {
-    const cap = n === 1 ? Math.min(68 * s0 * hk, avail * 0.8) : Math.min((n === 2 ? 58 : 50) * s0 * hk, avail / (n * 1.15))
-    const f2 = fitText(ctx, title, font, maxW, n, cap, Math.min(cap, (n === 1 ? 44 : 30) * s0))
-    ctx.font = font(f2.size)
-    const whole = f2.lines.length > 0 && !f2.lines[f2.lines.length - 1].endsWith('…') && f2.lines.every((l) => ctx.measureText(l).width <= maxW + 0.5)
-    if (whole && f2.size > fit.size) fit = f2
-  }
+  const font = env.cfg.frame.titleFont === 'display' ? (px: number) => `800 ${px}px ${FONT_DISPLAY}` : (px: number) => bodyFont(700, px)
+  // the room the title would have at 100% (the band without the part added for a bigger title)
+  const availBase = Math.max(avail * 0.35, avail - (r.h - 210 * s0 * Math.max(1, Math.min(env.cfg.frame.top, units))))
+  const fit = headerFit(ctx, title, font, maxW, avail, availBase, s0, hk, env.cfg.frame.titleScale)
   const blockH = fit.lines.length * fit.lineHeight
   const y0 = top + (avail - blockH) / 2
   ctx.save()
@@ -1990,7 +2025,7 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   // lively: a TV-style colour bar wipes across each line and leaves the text behind it
   // (round 29: the text is already there; the bar runs over it once at the start)
   fit.lines.forEach((line, i) => {
-    const lw = Math.min(maxW, ctx.measureText(line).width)
+    const lw = Math.min(maxW, fit.widths[i])
     const cy = y0 + fit.lineHeight * (i + 0.5)
     const a = 0.25 + i * 0.12
     const grow = ease.outCubic(win(open, a, a + 0.32))
@@ -2004,6 +2039,97 @@ function drawHeader(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
     }
   })
   ctx.restore()
+}
+
+/**
+ * r48 — the header title's size and line breaks, worked out once per title/size/width and then
+ * reused: it used to be measured again on every frame (a few hundred measureText calls per frame,
+ * 36,000 frames in a 20-minute video). `scale` is the publisher's size slider on top of the fit.
+ */
+const headerFitCache = new Map<string, { size: number; lines: string[]; lineHeight: number; widths: number[] }>()
+
+/** The 100% title: the biggest size that shows the whole title in 1–4 lines (round 29 / r47 rules). */
+function headerBaseFit(ctx: Ctx, title: string, font: (px: number) => string, maxW: number, avail: number, s0: number, hk: number) {
+  let fit = fitText(ctx, title, font, maxW, 3, Math.min(54 * s0 * hk, avail / 2.2), 30 * s0)
+  for (const n of [1, 2, 3, 4]) {
+    const cap = n === 1 ? Math.min(68 * s0 * hk, avail * 0.8) : Math.min((n === 2 ? 58 : n === 3 ? 50 : 44) * s0 * hk, avail / (n * 1.15))
+    const f2 = fitText(ctx, title, font, maxW, n, cap, Math.min(cap, (n === 1 ? 44 : 30) * s0))
+    ctx.font = font(f2.size)
+    const whole = f2.lines.length > 0 && !f2.lines[f2.lines.length - 1].endsWith('…') && f2.lines.every((l) => ctx.measureText(l).width <= maxW + 0.5)
+    if (whole && f2.size > fit.size) fit = f2
+  }
+  return intoBox(ctx, title, font, maxW, avail, fit, s0)
+}
+
+/** Shrinks a fitted title until all its lines fit the band's height (6 lines at most). */
+function intoBox(ctx: Ctx, title: string, font: (px: number) => string, maxW: number, avail: number, fit: { size: number; lines: string[]; lineHeight: number }, s0: number) {
+  if (fit.lines.length * fit.lineHeight <= avail + 0.5) return fit
+  const words = title.split(/\s+/).filter(Boolean)
+  for (let size = fit.size * 0.96; size >= 14 * s0; size *= 0.96) {
+    ctx.font = font(size)
+    const lines = wrapWords(ctx, words, maxW)
+    if (lines.length <= 6 && lines.length * size * 1.22 <= avail + 0.5 && lines.every((l) => ctx.measureText(l).width <= maxW + 0.5)) {
+      return { size, lines, lineHeight: size * 1.22 }
+    }
+  }
+  return fit
+}
+
+/**
+ * r48 — the header title's size and line breaks, worked out once per title/size/width and then
+ * reused (it used to be measured on every frame).
+ * r50 (field report: "the title stops at a fixed edge, the letters don't grow"): the size slider
+ * now multiplies the real 100% letter size. A bigger title wraps onto more lines (up to 6) and
+ * uses the taller band; only when even that has no room does it settle at the biggest size that
+ * fits. Before, the caps were scaled but the width still held the letters back.
+ */
+function headerFit(ctx: Ctx, title: string, font: (px: number) => string, maxW: number, avail: number, availBase: number, s0: number, hk: number, scale: number) {
+  const k = scale > 0 ? scale : 1
+  const key = `${font(10)}|${title}|${Math.round(maxW)}|${Math.round(avail)}|${Math.round(availBase)}|${s0.toFixed(4)}|${hk.toFixed(4)}|${k}`
+  const hit = headerFitCache.get(key)
+  if (hit) return hit
+  const base = headerBaseFit(ctx, title, font, maxW, Math.min(avail, availBase), s0, hk)
+  let fit = base
+  if (Math.abs(k - 1) > 0.001) {
+    const words = title.split(/\s+/).filter(Boolean)
+    const target = base.size * k
+    const floor = k > 1 ? base.size : target * 0.85
+    const step = Math.max(0.5, (target - floor) / 24)
+    let found: typeof base | null = null
+    for (let size = target; size >= floor - 0.01; size -= step) {
+      ctx.font = font(size)
+      const lines = wrapWords(ctx, words, maxW)
+      const lh = size * 1.22
+      if (lines.length <= 6 && lines.length * lh <= avail + 0.5 && lines.every((l) => ctx.measureText(l).width <= maxW + 0.5)) {
+        found = { size, lines, lineHeight: lh }
+        break
+      }
+    }
+    if (found) fit = found
+  }
+  // r50: never taller than the band (a long title in a reel used to spill over the top and bottom)
+  fit = intoBox(ctx, title, font, maxW, avail, fit, s0)
+  ctx.font = font(fit.size)
+  const out = { size: fit.size, lines: fit.lines, lineHeight: fit.lineHeight, widths: fit.lines.map((l) => ctx.measureText(l).width) }
+  if (headerFitCache.size > 200) headerFitCache.clear()
+  headerFitCache.set(key, out)
+  return out
+}
+
+/** Greedy word wrap (a single over-long word stays on its own line). */
+function wrapWords(ctx: Ctx, words: string[], maxW: number) {
+  const lines: string[] = []
+  let cur = ''
+  for (const w of words) {
+    const t = cur ? `${cur} ${w}` : w
+    if (!cur || ctx.measureText(t).width <= maxW) cur = t
+    else {
+      lines.push(cur)
+      cur = w
+    }
+  }
+  if (cur) lines.push(cur)
+  return lines
 }
 
 // ---------------------------------------------------------------------------
@@ -2075,7 +2201,8 @@ function drawFooter(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   if (f.footer === 'ad-image' && env.adImage) {
     ctx.save()
     ctx.globalAlpha = fade
-    drawPicture(ctx, env, env.adImage, r, 'cover')
+    // r49: the whole banner shows (no cropping), on a soft blurred copy of itself
+    drawPicture(ctx, env, env.adImage, r, 'blur')
     ctx.font = bodyFont(700, 18 * s)
     const tw = ctx.measureText('বিজ্ঞাপন').width + 16 * s
     fillRoundRect(ctx, r.x + 8 * s, r.y + 8 * s, tw, 28 * s, 6 * s, 'rgba(0,0,0,0.6)')
@@ -2115,7 +2242,9 @@ function drawFooter(ctx: Ctx, env: DrawEnv, theme: Theme, r: Rect, t0: number) {
   }
 
   const isAd = f.footer === 'ad-text'
-  const label = isAd ? 'বিজ্ঞাপন' : info?.label ?? 'শিরোনাম'
+  // r49: the ticker's label follows the publisher's own tag (a frame is not tied to one category)
+  const ownTag = f.badgeMode === 'custom' && f.badge.trim() ? f.badge.trim() : ''
+  const label = isAd ? 'বিজ্ঞাপন' : ownTag || (f.badgeMode === 'off' ? 'শিরোনাম' : info?.label ?? 'শিরোনাম')
   const lw = drawLabel(ctx, label, r, theme.labelBg, theme.labelFg, s, win(t, 0.3, 0.7), fk)
   if (lively) lightSweep(ctx, { x: r.x, y: r.y, w: lw, h: r.h }, t, 6, 1.5, 0.35)
   const text = (isAd ? f.adText : env.ticker).trim()
@@ -2355,6 +2484,271 @@ export function drawWatermark(ctx: Ctx, env: DrawEnv, t: number) {
  * pulse:  the full logo, with a light sweep + small bounce every `every` s.
  * static: the full logo, fading in once.
  */
+/** r49 — which corner the client's ad takes ('auto' = the logo's side mirrored). */
+export function cornerAdCorner(cfg: EditConfig): 'tr' | 'tl' | 'br' | 'bl' {
+  const c = cfg.cornerAd.corner
+  if (c !== 'auto') return c
+  if (!cfg.logo.on) return 'tl'
+  const lc = cfg.logo.corner
+  return lc === 'tr' ? 'tl' : lc === 'tl' ? 'tr' : lc === 'br' ? 'bl' : 'br'
+}
+
+/** Cut a line to `maxW` with an ellipsis. */
+function fitLine(ctx: Ctx, s: string, maxW: number) {
+  if (ctx.measureText(s).width <= maxW) return s
+  let t = s
+  while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1)
+  return t.trimEnd() + '…'
+}
+
+/** Split a headline into two balanced lines at a word gap. */
+function twoLines(ctx: Ctx, s: string): [string, string] {
+  const words = s.split(/\s+/).filter(Boolean)
+  if (words.length < 2) return [s, '']
+  let best: [string, string] = [s, '']
+  let bestW = Infinity
+  for (let i = 1; i < words.length; i++) {
+    const l1 = words.slice(0, i).join(' ')
+    const l2 = words.slice(i).join(' ')
+    const w = Math.max(ctx.measureText(l1).width, ctx.measureText(l2).width)
+    if (w < bestW) {
+      bestW = w
+      best = [l1, l2]
+    }
+  }
+  return best
+}
+
+interface CornerText {
+  lines: string[]
+  fs: number
+  sub: string
+  subFs: number
+  w: number
+}
+
+/** Lay out the headline side of the corner ad inside a box of height `boxH`, at most `maxW` wide. */
+function cornerAdText(ctx: Ctx, title: string, sub: string, boxH: number, maxW: number, lead: number): CornerText {
+  const padX = boxH * 0.2
+  const room = maxW - padX * 2 - lead
+  let lines = [title]
+  let fs = boxH * (sub ? 0.36 : 0.44)
+  const subFs = boxH * 0.24
+  ctx.font = bodyFont(800, fs)
+  if (!sub && ctx.measureText(title).width > room) {
+    // a long headline: two lines first, then smaller letters
+    fs = boxH * 0.3
+    ctx.font = bodyFont(800, fs)
+    const two = twoLines(ctx, title)
+    lines = two[1] ? two : [title]
+  }
+  let tw = Math.max(...lines.map((l) => ctx.measureText(l).width))
+  if (tw > room) {
+    fs = Math.max(fs * 0.7, fs * (room / tw))
+    ctx.font = bodyFont(800, fs)
+  }
+  lines = lines.map((l) => fitLine(ctx, l, room))
+  tw = Math.max(...lines.map((l) => ctx.measureText(l).width))
+  let sw = 0
+  let subLine = ''
+  if (sub) {
+    ctx.font = bodyFont(600, subFs)
+    subLine = fitLine(ctx, sub, room)
+    sw = ctx.measureText(subLine).width
+  }
+  return { lines, fs, sub: subLine, subFs, w: Math.min(maxW, Math.max(tw, sw) + padX * 2 + lead) }
+}
+
+/**
+ * r49 — the client's small ad in a corner of the picture, opposite the logo: a transparent PNG
+ * logo or a short banner, on a white card (or bare), with a tiny "বিজ্ঞাপন" tag. It comes in
+ * softly, and in 'cycle' mode shows for `stay` seconds every `every` seconds.
+ * r49.1 — the box can also carry the ad's headline (and a second line): image and headline take
+ * turns in the same box every `swap` seconds (flip / roll / fade), over and over through the
+ * video. With no image it shows only the headline.
+ */
+export function drawCornerAd(ctx: Ctx, env: DrawEnv, t: number) {
+  const ca = env.cfg.cornerAd
+  const clip = env.cornerClip && env.cornerClip.frames.length ? env.cornerClip : null
+  const pic = clip ? adClipFrame(clip, 0) : env.cornerAd && env.cornerAd.w > 0 && env.cornerAd.h > 0 ? env.cornerAd : null
+  const title = ca.text.trim()
+  if (!ca.on || (!pic && !title)) return
+  const t0 = 1
+  if (t < t0) return
+  const lt = t - t0
+  let vis = win(lt, 0, 0.6)
+  let faceT = lt
+  if (ca.show === 'cycle') {
+    const c = lt % Math.max(ca.every, ca.stay + 2)
+    vis = Math.min(win(c, 0, 0.6), 1 - win(c, ca.stay, ca.stay + 0.6))
+    faceT = c
+  }
+  if (vis <= 0) return
+  const v = env.L.video
+  const short = Math.min(v.w, v.h)
+  const maxW = v.w * 0.42
+  let h = (ca.size / 100) * short
+  let w = pic ? (pic.w / pic.h) * h : 0
+  if (w > maxW) {
+    h *= maxW / w
+    w = maxW
+  }
+  // the box keeps one height for both sides; the headline side needs a plate even when the image has none
+  const pad = ca.plate || !pic ? h * 0.14 : 0
+  const boxH = Math.max(h + pad * 2, (ca.size / 100) * short * 1.1)
+  const m = short * 0.035
+  const corner = cornerAdCorner(env.cfg)
+  const right = corner === 'tr' || corner === 'br'
+  const bottom = corner === 'br' || corner === 'bl'
+  const tagH = ca.label ? Math.max(10, boxH * 0.2, short * 0.022) : 0
+  const lead = boxH * 0.1 + boxH * 0.12
+  const txt = title ? cornerAdText(ctx, title, ca.sub.trim(), boxH, maxW, lead) : null
+
+  type Face = 'img' | 'text'
+  const faces: Face[] = []
+  if (pic) faces.push('img')
+  if (txt) faces.push('text')
+  const faceW = (f: Face) => (f === 'img' ? w + pad * 2 : txt!.w)
+
+  // which side shows now, and how far the turn to it has gone
+  const D = 0.6
+  let cur: Face = faces[0]
+  let prev: Face = faces[0]
+  let tp = 1
+  let since = faceT
+  if (faces.length === 2) {
+    const k = Math.floor(faceT / ca.swap)
+    since = faceT - k * ca.swap
+    cur = faces[k % 2]
+    prev = faces[(k + 1) % 2]
+    tp = k === 0 ? 1 : Math.min(1, since / D)
+  }
+  const turning = tp < 1
+  const te = ease.inOutCubic(tp)
+
+  let push = 0
+  if (env.cfg.logo.on && env.cfg.logo.corner === corner) push = (env.cfg.logo.size / 100) * short * (env.cfg.logo.plate ? 1.52 : 1) + m * 0.5
+  const by = bottom ? v.y + v.h - m - boxH - push - tagH : v.y + m + push
+  const edge = right ? v.x + v.w - m : v.x + m
+  const xFor = (bw: number) => (right ? edge - bw : edge)
+  const radius = Math.min(boxH * 0.18, 14 * env.L.s)
+  const plated = (f: Face) => f === 'text' || ca.plate
+
+  const card = (f: Face, x: number, bw: number, y: number, alpha: number) => {
+    if (alpha <= 0) return
+    ctx.save()
+    ctx.globalAlpha *= alpha
+    if (plated(f)) {
+      ctx.shadowColor = 'rgba(0,0,0,0.28)'
+      ctx.shadowBlur = boxH * 0.16
+      ctx.shadowOffsetY = boxH * 0.04
+      fillRoundRect(ctx, x, y, bw, boxH, radius, ca.plate ? '#FFFFFF' : 'rgba(10,14,22,0.78)')
+      ctx.shadowColor = 'transparent'
+      ctx.shadowBlur = 0
+      ctx.shadowOffsetY = 0
+    }
+    if (f === 'img' && pic) {
+      if (!ca.plate) {
+        ctx.shadowColor = 'rgba(0,0,0,0.45)'
+        ctx.shadowBlur = h * 0.12
+      }
+      // a moving ad plays on a loop from the moment the box comes in
+      const fp = clip ? adClipFrame(clip, faceT) : pic
+      ctx.drawImage(fp.src, x + (bw - w) / 2, y + (boxH - h) / 2, w, h)
+      ctx.shadowColor = 'transparent'
+      ctx.shadowBlur = 0
+    } else if (f === 'text' && txt) {
+      const padX = boxH * 0.2
+      const barW = boxH * 0.1
+      fillRoundRect(ctx, x + padX * 0.7, y + boxH * 0.2, barW, boxH * 0.6, barW / 2, ca.accent)
+      const tx = x + padX * 0.7 + barW + boxH * 0.12
+      const lh = txt.fs * 1.18
+      const blockH = txt.lines.length * lh + (txt.sub ? txt.subFs * 1.25 : 0)
+      let ty = y + (boxH - blockH) / 2
+      ctx.textBaseline = 'middle'
+      ctx.fillStyle = ca.plate ? '#111827' : '#FFFFFF'
+      ctx.font = bodyFont(800, txt.fs)
+      for (const l of txt.lines) {
+        ctx.fillText(l, tx, ty + lh * 0.55)
+        ty += lh
+      }
+      if (txt.sub) {
+        ctx.font = bodyFont(600, txt.subFs)
+        ctx.fillStyle = ca.plate ? ca.accent : 'rgba(255,255,255,0.85)'
+        ctx.fillText(txt.sub, tx, ty + txt.subFs * 0.68)
+      }
+    }
+    // a light shine passes over the box once each time a side settles
+    const sp = (since - D) / 0.9
+    if (faces.length === 2 && sp > 0 && sp < 1 && plated(f)) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.roundRect(x, y, bw, boxH, radius)
+      ctx.clip()
+      const sx = x - boxH + (bw + boxH * 2) * ease.inOutCubic(sp)
+      const g = ctx.createLinearGradient(sx - boxH * 0.6, y, sx + boxH * 0.6, y + boxH)
+      g.addColorStop(0, 'rgba(255,255,255,0)')
+      g.addColorStop(0.5, ca.plate ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.18)')
+      g.addColorStop(1, 'rgba(255,255,255,0)')
+      ctx.fillStyle = g
+      ctx.fillRect(x, y, bw, boxH)
+      ctx.restore()
+    }
+    ctx.restore()
+  }
+
+  ctx.save()
+  const ve = ease.outCubic(vis)
+  ctx.globalAlpha = ca.opacity * ve
+  let bw = faceW(cur)
+  if (ca.anim === 'flip') {
+    // the whole card turns round its middle; it pops in at the start
+    const half = tp < 0.5
+    const f = turning && half ? prev : cur
+    bw = faceW(f)
+    const x = xFor(bw)
+    const sx = turning ? Math.max(0.02, Math.abs(Math.cos(Math.PI * tp))) : 1
+    const pop = vis < 1 ? 0.6 + 0.4 * ease.outBack(vis) : 1
+    const cx = x + bw / 2
+    const cy = by + boxH / 2
+    ctx.save()
+    ctx.translate(cx, cy)
+    ctx.scale(sx * pop, pop)
+    ctx.translate(-cx, -cy)
+    card(f, x, bw, by, 1)
+    ctx.restore()
+  } else {
+    const slide = ca.anim === 'roll' ? (1 - ve) * (right ? 1 : -1) * short * 0.04 : 0
+    ctx.translate(slide, 0)
+    bw = turning ? faceW(prev) + (faceW(cur) - faceW(prev)) * te : faceW(cur)
+    const x = xFor(bw)
+    if (!turning) card(cur, x, bw, by, 1)
+    else if (ca.anim === 'roll') {
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(x - boxH, by, bw + boxH * 2, boxH)
+      ctx.clip()
+      card(prev, x, bw, by - boxH * te, 1 - te)
+      card(cur, x, bw, by + boxH * (1 - te), te)
+      ctx.restore()
+    } else {
+      card(prev, x, bw, by, 1 - te)
+      card(cur, x, bw, by, te)
+    }
+  }
+  if (ca.label) {
+    ctx.font = bodyFont(700, tagH * 0.72)
+    const tw = ctx.measureText('বিজ্ঞাপন').width + tagH * 0.7
+    const tx = right ? edge - tw : edge
+    const ty = by + boxH + tagH * 0.18
+    fillRoundRect(ctx, tx, ty, tw, tagH, tagH * 0.3, 'rgba(0,0,0,0.55)')
+    ctx.fillStyle = '#FFFFFF'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('বিজ্ঞাপন', tx + tagH * 0.35, ty + tagH * 0.54)
+  }
+  ctx.restore()
+}
+
 export function drawLogoBug(ctx: Ctx, env: DrawEnv, t: number) {
   const lg = env.cfg.logo
   if (!lg.on) return
@@ -2688,7 +3082,14 @@ function logoPill(ctx: Ctx, env: DrawEnv, cx: number, cy: number, h: number, app
   ctx.restore()
 }
 
+/** r50 — an intro scene's big word follows the frame tag the publisher wrote (else its own word). */
+function introTag(env: DrawEnv, own: string) {
+  const f = env.cfg.frame
+  return f.badgeMode === 'custom' && f.badge.trim() ? f.badge.trim() : own
+}
+
 function sceneBreaking(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
+  const brk = introTag(env, 'ব্রেকিং')
   const { W, H } = env.L
   const s = Math.min(W, H) / 1080
   const cx = W / 2
@@ -2739,7 +3140,7 @@ function sceneBreaking(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
     ctx.font = dispFont(800, 210 * s)
     let size = 210 * s
     const maxW = W * 0.86
-    const w0 = ctx.measureText('ব্রেকিং').width
+    const w0 = ctx.measureText(brk).width
     if (w0 > maxW) size *= maxW / w0
     ctx.font = dispFont(800, size)
     const sc = lerp(2.3, 1, ease.outCubic(slam))
@@ -2752,15 +3153,15 @@ function sceneBreaking(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
     if (glitch) {
       ctx.globalCompositeOperation = 'lighter'
       ctx.fillStyle = 'rgba(0,255,255,0.6)'
-      ctx.fillText('ব্রেকিং', -8 * s, 0)
+      ctx.fillText(brk, -8 * s, 0)
       ctx.fillStyle = 'rgba(255,0,80,0.6)'
-      ctx.fillText('ব্রেকিং', 8 * s, 0)
+      ctx.fillText(brk, 8 * s, 0)
       ctx.globalCompositeOperation = 'source-over'
     }
     ctx.shadowColor = 'rgba(0,0,0,0.35)'
     ctx.shadowBlur = 24 * s
     ctx.fillStyle = '#FFFFFF'
-    ctx.fillText('ব্রেকিং', 0, 0)
+    ctx.fillText(brk, 0, 0)
     ctx.restore()
   }
   // "নিউজ" box slides in
@@ -2920,7 +3321,7 @@ function sceneSpecial(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
     ctx.save()
     let size = 120 * s
     ctx.font = dispFont(800, size)
-    const text = 'বিশেষ প্রতিবেদন'
+    const text = introTag(env, 'বিশেষ প্রতিবেদন')
     const tw = ctx.measureText(text).width
     if (tw > W * 0.8) size *= (W * 0.8) / tw
     ctx.font = dispFont(800, size)
@@ -3579,7 +3980,7 @@ function sceneInvestigation(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
   g.addColorStop(1, 'rgba(255,230,160,0)')
   ctx.fillStyle = g
   ctx.fillRect(0, 0, W, H)
-  const word = 'অনুসন্ধান'
+  const word = introTag(env, 'অনুসন্ধান')
   const chars = [...word]
   const n = Math.floor(chars.length * win(t, 0.3, 1.2))
   ctx.save()
@@ -3956,7 +4357,7 @@ function sceneShatter(ctx: Ctx, env: DrawEnv, t: number, dur: number) {
     ctx.fillStyle = '#FFFFFF'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText('ব্রেকিং নিউজ', 0, 4 * s, sw * 0.92)
+    ctx.fillText(introTag(env, 'ব্রেকিং নিউজ'), 0, 4 * s, sw * 0.92)
     ctx.restore()
   }
   ctx.restore()
@@ -4684,6 +5085,7 @@ function drawMain(ctx: Ctx, env: DrawEnv, seg: Segment, local: number, pic: Pict
   }
 
   drawLogoBug(ctx, env, mainT)
+  drawCornerAd(ctx, env, mainT)
   drawWatermark(ctx, env, mainT)
   const srcEnd = env.tl.segments.reduce((m, x) => (x.kind === 'main' ? Math.max(m, segSourceEnd(x)) : m), 0)
   const stacks: Record<string, number> = {}

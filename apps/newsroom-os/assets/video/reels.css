@@ -224,7 +224,7 @@
 	.mvr-top > * { pointer-events: auto; }
 	.mvr-back { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: rgba(0, 0, 0, .34); color: #fff; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 	.mvr-sound { top: calc(10px + var(--st)); right: calc(12px + var(--sr)); }
-	.mvr-info, .mvr-nav, .mvr-tabs, .mvr-queue { display: none; }
+	.mvr-info, .mvr-nav, .mvr-tabs, .mvr-queue, .mvr-adbelow { display: none; }
 	.mvr-side { display: contents; }
 	.mvr-rail { position: absolute; right: calc(6px + var(--sr)); bottom: calc(132px + var(--sb)); }
 	.mvr-ic { background: rgba(0, 0, 0, .26); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }

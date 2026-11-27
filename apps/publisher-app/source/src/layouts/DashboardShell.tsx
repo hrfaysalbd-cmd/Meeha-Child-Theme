@@ -29,6 +29,7 @@ import {
   IconLock,
   IconAd,
   IconBolt,
+  IconTrash,
 } from '../components/Icon'
 import { NotificationsProvider, useNotifications } from '../lib/notifications'
 import NotificationBell, { NotificationToasts } from '../components/NotificationBell'
@@ -73,6 +74,7 @@ const NAV: NavItem[] = [
   { to: '/app/ad-clients', label: 'বিজ্ঞাপনদাতা', icon: IconBuildingStore },
   { to: '/app/ads', label: 'বিজ্ঞাপন ব্যবস্থাপনা', icon: IconAd },
   { to: '/app/alerts', label: 'নিউজ এলার্ট', icon: IconBolt },
+  { to: '/app/storage', label: 'স্টোরেজ ম্যানেজার', icon: IconTrash, publisherOnly: true },
   { to: '/app/campus', label: 'শিক্ষা/ক্যাম্পাস', icon: IconListDetails },
   { to: '/app/finance', label: 'ফাইন্যান্স', icon: IconWalletCoins, count: 'withdrawals' },
   { to: '/app/investigations', label: 'তদন্ত', icon: IconShieldSearch },
@@ -131,6 +133,8 @@ function Shell() {
   const counts = { ...(liveCounts ?? {}), inbox: unreadInbox + chat.unread } as Partial<Record<keyof NotificationCounts | 'inbox', number>>
   const navigate = useNavigate()
   const location = useLocation()
+  // r48: the video studio gets the whole width of a desktop screen (a bigger preview)
+  const wide = /\/edit-video\/?$/.test(location.pathname)
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const items = NAV.filter((n) => (!n.publisherOnly || isPublisher) && (!n.profileDesk || !!profile?.can?.profile_desk) && (!n.viewInsights || !!profile?.can?.view_insights))
@@ -231,14 +235,14 @@ function Shell() {
           <InboxButton placement="sheet" />
           <NotificationBell placement="sheet" />
         </header>
-        <header className="hidden lg:flex relative z-30 justify-end max-w-[1400px] w-full mx-auto px-8 pt-4">
+        <header className={`hidden lg:flex relative z-30 justify-end w-full mx-auto pt-4 ${wide ? 'max-w-[1920px] px-5' : 'max-w-[1400px] px-8'}`}>
           <div className="flex items-center gap-0.5 rounded-full bg-white shadow-sm ring-1 ring-neutral-200/80 px-0.5">
             <InboxButton placement="dropdown" />
             <NotificationBell placement="dropdown" />
           </div>
         </header>
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 lg:pt-2 pb-[calc(76px+env(safe-area-inset-bottom))] lg:pb-8 max-w-[1400px] w-full mx-auto">
+        <main className={`flex-1 p-4 sm:p-6 lg:pt-2 pb-[calc(76px+env(safe-area-inset-bottom))] lg:pb-8 w-full mx-auto ${wide ? 'lg:px-5 max-w-[1920px]' : 'lg:p-8 max-w-[1400px]'}`}>
           <Outlet />
         </main>
       </div>

@@ -301,6 +301,62 @@
 .m-ad__box img { width: 100%; height: 100%; object-fit: cover; background: none; border-radius: inherit; }
 .m-ad__box > :where(div, ins, iframe) { max-width: 100%; }
 .m-adrow, .m-adband { min-width: 0; }
+/* r49 — the box takes the creative's own shape (no cropping of 320×50, 728×90 …); the phone picture's ratio on phones */
+.m-ad .m-ad__box.m-ad__box--fit { aspect-ratio: var(--ar-m, var(--ar)); max-width: var(--aw-m, var(--aw, 100%)); margin-inline: auto; }
+@media (min-width: 768px) { .m-ad .m-ad__box.m-ad__box--fit { aspect-ratio: var(--ar); max-width: var(--aw, 100%); } }
+.m-ad .m-ad__box--fit img { object-fit: contain; }
+.m-ad__box { position: relative; }
+.m-ad__label { font-size: 10px; letter-spacing: .02em; }
+.m-ad--lside .m-ad__label { justify-self: start; }
+/* the small ⓘ on the creative's corner: hover (mouse) or tap (focus) shows "বিজ্ঞাপন" */
+.m-ad__i { position: absolute; top: 3px; right: 3px; z-index: 2; display: grid; place-items: center; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.88); color: #4b5563; font: italic 700 10px/1 Georgia, serif; box-shadow: 0 0 0 1px rgba(0,0,0,.12); cursor: help; opacity: .85; }
+.m-ad__i:hover, .m-ad__i:focus-visible { opacity: 1; }
+.m-ad__tip { position: absolute; top: 3px; right: 22px; z-index: 2; padding: 1px 7px; border-radius: 9px; background: rgba(17,24,39,.86); color: #fff; font-size: 10.5px; line-height: 16px; white-space: nowrap; opacity: 0; transform: translateX(4px); transition: opacity .15s, transform .15s; pointer-events: none; }
+.m-ad__i:hover + .m-ad__tip, .m-ad__i:focus + .m-ad__tip, .m-ad__box:hover > .m-ad__tip { opacity: 1; transform: none; }
+/* r49 — floating bar, corner box and pop-up (each with a close button) */
+.m-ad--float { max-width: 320px; } .m-ad--float .m-ad__box { aspect-ratio: 320 / 50; }
+@media (min-width: 768px) { .m-ad--float { max-width: 728px; } .m-ad--float .m-ad__box { aspect-ratio: 728 / 90; } }
+.m-ad--corner { max-width: 300px; } .m-ad--corner .m-ad__box { aspect-ratio: 300 / 250; }
+.m-ad--popup { max-width: min(600px, 92vw); } .m-ad--popup .m-ad__box { aspect-ratio: 6 / 5; max-height: 78vh; }
+.m-float { position: fixed; z-index: 60; transition: transform .35s cubic-bezier(.2,.8,.2,1), opacity .35s; opacity: 0; }
+.m-float.is-on { opacity: 1; transform: none !important; }
+.m-float--bottom { left: 0; right: 0; bottom: 0; display: grid; justify-items: center; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: var(--m-paper); box-shadow: 0 -6px 20px rgba(0,0,0,.12); transform: translateY(110%); }
+/* r50 — side box: slides in from the right; the arrow tab tucks it into the right edge and pulls it out again. */
+.m-sidead { --sw: 300px; --tab: 62px; position: fixed; z-index: 58; right: 0; top: 42%; width: var(--sw); transform: translate(calc(100% + var(--tab) + 8px), -50%); transition: transform .5s cubic-bezier(.2,.8,.2,1); }
+.m-sidead.is-on { transform: translate(0, -50%); }
+.m-sidead.is-on.is-tucked { transform: translate(100%, -50%); }
+.m-sidead__box { padding: 6px; border-radius: 14px 0 0 14px; background: var(--m-paper); box-shadow: -8px 10px 30px rgba(0,0,0,.2); max-height: 70vh; overflow: hidden; }
+.m-sidead__box .m-ad { gap: 2px; max-width: none; }
+.m-sidead__tab { position: absolute; top: 12px; right: 100%; display: grid; justify-items: center; gap: 1px; width: var(--tab); padding: 8px 2px 7px; border: 0; border-radius: 12px 0 0 12px; background: #111827; color: #fff; box-shadow: -4px 6px 16px rgba(0,0,0,.22); cursor: pointer; font: inherit; }
+.m-sidead__ar { transition: transform .35s; }
+.m-sidead.is-tucked .m-sidead__ar { transform: rotate(180deg); }
+.m-sidead__t { font-size: 9.5px; line-height: 1.3; text-align: center; white-space: nowrap; letter-spacing: -.01em; }
+.m-sidead__t--out, .m-sidead.is-tucked .m-sidead__t--in { display: none; }
+.m-sidead.is-tucked .m-sidead__t--out { display: block; }
+.m-sidead__tab:focus-visible { outline: 2px solid var(--m-blue); outline-offset: 2px; }
+@media (max-width: 767.98px) {
+  /* phones: about half the screen wide, a fair height (the creative's own ratio, at most 60% of the screen) */
+  .m-sidead { --sw: clamp(160px, 50vw, 240px); --tab: 56px; top: 44%; }
+  .m-sidead__box { padding: 4px; max-height: 60vh; }
+  .m-sidead__t { font-size: 8.5px; }
+}
+html.m-adpop-open .m-sidead { visibility: hidden; }
+@media print { .m-sidead, .m-float, .m-adpop { display: none !important; } }
+.m-float .m-ad { gap: 2px; }
+.m-float__x { position: absolute; z-index: 3; top: -12px; right: 10px; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: #111827; color: #fff; font: 700 17px/1 system-ui, sans-serif; box-shadow: 0 2px 8px rgba(0,0,0,.25); cursor: pointer; }
+.m-float--side .m-float__x { top: -10px; right: -10px; }
+.m-float__x:focus-visible { outline: 2px solid var(--m-blue); outline-offset: 2px; }
+.m-adpop { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px; background: rgba(15,23,42,.62); opacity: 0; transition: opacity .25s; }
+.m-adpop.is-on { opacity: 1; }
+.m-adpop__card { position: relative; width: min(600px, 92vw); padding: 8px; border-radius: 14px; background: var(--m-paper); box-shadow: 0 24px 60px rgba(0,0,0,.35); transform: scale(.94); transition: transform .3s cubic-bezier(.2,.8,.2,1); }
+.m-adpop.is-on .m-adpop__card { transform: none; }
+.m-adpop .m-ad { max-width: none; }
+.m-adpop__x { top: -12px; right: -12px; width: 32px; height: 32px; font-size: 20px; }
+html.m-adpop-open { overflow: hidden; }
+html.m-float-open .m-footer { padding-bottom: calc(var(--m-float-h, 70px) + 16px); }
+/* the assistant bubble and other bottom-right buttons step up above the floating bar */
+html.m-float-open .m-as { bottom: calc(var(--m-float-h, 70px) + 12px + env(safe-area-inset-bottom)) !important; }
+@media (prefers-reduced-motion: reduce) { .m-float, .m-sidead, .m-sidead__ar, .m-adpop, .m-adpop__card { transition: none; } }
 .m-story__kicker { justify-self: start; }
 .m-story__flag .m-icon { width: 14px; height: 14px; }
 
@@ -376,3 +432,8 @@
 .m-prose .wp-block-file__button { padding: 6px 14px; border-radius: var(--m-r-pill); background: var(--m-blue); color: var(--m-on-blue); text-decoration: none; font-size: var(--m-fs-sm); }
 .m-prose .wp-block-details summary { cursor: pointer; font-weight: 600; color: var(--m-ink); }
 .m-prose .wp-block-shortcode { margin: 0; }
+/* r50 — ad boxes inside lists: the উক্তি grid (full row) and the একনজর timeline */
+.m-qgrid > .m-qgrid__ad { grid-column: 1 / -1; display: grid; justify-items: center; padding: 4px 0; }
+.m-gl__ad { list-style: none; margin: 14px 0; display: grid; justify-items: center; }
+.m-gl__aside > .m-ad { margin-bottom: 18px; }
+.m-qinfo .m-ad, .m-qactions ~ .m-ad { margin: 18px 0 0; }

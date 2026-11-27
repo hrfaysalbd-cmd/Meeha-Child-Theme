@@ -241,7 +241,8 @@ function meeha_html_join( $segs ) {
  *  - never adjacent to a figure/media, pull quote/blockquote, heading, list or another insertion: the segment
  *    right after the boundary must be a paragraph (shifts forward to the next valid boundary);
  *  - ad 1 after ¶N1 (opinion: never before ¶4), needs ≥ 1 paragraph after it; ad 2 after ¶N2, needs ≥ 3 paragraphs
- *    after it and ≥ 3 paragraphs after ad 1; max 2 ads; none on literature;
+ *    after it and ≥ 3 paragraphs after ad 1; none on literature;
+ *  - r50: ad 3 only in long reads (≥ 18 paragraphs), after ¶14 and ≥ 5 paragraphs after ad 2, ≥ 4 after it;
  *  - read-also after ¶N3 (needs ≥ 1 paragraph after), never at the same boundary as an ad.
  *
  * @param array $segs Segments.
@@ -254,6 +255,7 @@ function meeha_single_plan_inserts( $segs, $args ) {
 		array(
 			'ad1'      => 3,
 			'ad2'      => 8,
+			'ad3'      => 0,
 			'readalso' => 5,
 			'variant'  => 'news',
 		)
@@ -301,6 +303,7 @@ function meeha_single_plan_inserts( $segs, $args ) {
 	};
 
 	$ad1_k = 0;
+	$ad2_k = 0;
 	if ( 'literature' !== $args['variant'] && (int) $args['ad1'] > 0 ) {
 		$from = (int) $args['ad1'];
 		if ( 'opinion' === $args['variant'] ) {
@@ -320,8 +323,17 @@ function meeha_single_plan_inserts( $segs, $args ) {
 		}
 		$hit = $find( $from, 3 );
 		if ( $hit ) {
+			$ad2_k             = $hit[0];
 			$taken[ $hit[1] ]  = true;
 			$plan[ $hit[1] ][] = 'ad2';
+		}
+	}
+	// r50 — a third box only in long reads (18+ paragraphs), ≥ 5 paragraphs after ad 2 and ≥ 4 left after it.
+	if ( 'literature' !== $args['variant'] && (int) $args['ad3'] > 0 && $total >= 18 && ! empty( $ad2_k ) ) {
+		$hit = $find( max( (int) $args['ad3'], $ad2_k + 5 ), 4 );
+		if ( $hit ) {
+			$taken[ $hit[1] ]  = true;
+			$plan[ $hit[1] ][] = 'ad3';
 		}
 	}
 	if ( (int) $args['readalso'] > 0 ) {
@@ -494,6 +506,7 @@ function meeha_single_process_content( $html, $post, $args = array() ) {
 		array(
 			'ad1'      => $args['ads'] ? (int) meeha_single_opt( 'ad_para_1', 3 ) : 0,
 			'ad2'      => $args['ads'] ? (int) meeha_single_opt( 'ad_para_2', 8 ) : 0,
+			'ad3'      => $args['ads'] ? 14 : 0,
 			'readalso' => $args['readalso_post'] ? (int) meeha_single_opt( 'readalso_para', 5 ) : 0,
 			'variant'  => $args['variant'],
 		)
@@ -509,6 +522,8 @@ function meeha_single_process_content( $html, $post, $args = array() ) {
 				$snippet[ $k ] = function_exists( 'meeha_ad' ) ? meeha_ad( 'article_1' ) : '';
 			} elseif ( 'ad2' === $k ) {
 				$snippet[ $k ] = function_exists( 'meeha_ad' ) ? meeha_ad( 'article_2' ) : '';
+			} elseif ( 'ad3' === $k ) {
+				$snippet[ $k ] = function_exists( 'meeha_ad' ) ? meeha_ad( 'article_3' ) : '';
 			} elseif ( 'readalso' === $k ) {
 				$snippet[ $k ] = meeha_single_readalso_html( $args['readalso_post'] );
 			}

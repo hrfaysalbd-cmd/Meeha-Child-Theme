@@ -55,6 +55,49 @@ class NROS_Ads_Manager {
 		);
 		register_rest_route(
 			NROS_API_NS,
+			'/admin/ads-manager/globals',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'save_globals' ),
+				'permission_callback' => array( 'NROS_Core', 'require_publisher' ),
+			)
+		);
+		register_rest_route(
+			NROS_API_NS,
+			'/admin/ads-manager/reader',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'save_reader' ),
+				'permission_callback' => array( 'NROS_Core', 'require_publisher' ),
+			)
+		);
+		register_rest_route(
+			NROS_API_NS,
+			'/admin/ads-manager/library',
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( __CLASS__, 'library' ),
+					'permission_callback' => array( 'NROS_Core', 'require_staff' ),
+				),
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( __CLASS__, 'library_mark' ),
+					'permission_callback' => array( 'NROS_Core', 'require_publisher' ),
+				),
+			)
+		);
+		register_rest_route(
+			NROS_API_NS,
+			'/admin/ads-manager/create-page',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'create_page' ),
+				'permission_callback' => array( 'NROS_Core', 'require_publisher' ),
+			)
+		);
+		register_rest_route(
+			NROS_API_NS,
 			'/admin/ads-manager/enable-house',
 			array(
 				'methods'             => 'POST',
@@ -119,6 +162,9 @@ class NROS_Ads_Manager {
 			'leader' => 'ডেস্কটপ ৯৭০×৯০ বা ৭২৮×৯০ · মোবাইল ৩২০×১০০ (বা ৩২০×৫০)',
 			'mpu'    => '৩০০×২৫০ (মিডিয়াম রেক্ট্যাঙ্গেল)',
 			'half'   => '৩০০×৬০০ (হাফ পেজ) — ৩০০×২৫০-ও চলে',
+			'float'  => 'মোবাইল ৩২০×৫০ (বা ৩২০×১০০) · ডেস্কটপ ৭২৮×৯০ — পর্দার নিচে ভাসে, ক্রস চাপলে বন্ধ',
+			'corner' => '৩০০×২৫০ — ডান পাশ থেকে আসে (ফোনে পর্দার অর্ধেক চওড়া), তীর চাপলে ভিতরে ঢোকে',
+			'popup'  => 'ডেস্কটপ ৬০০×৫০০ · মোবাইল ৩০০×২৫০ বা ৩২০×৪৮০ — কয়েক সেকেন্ড পরে খোলে, ক্রস সহ',
 		);
 		return isset( $map[ $size ] ) ? $map[ $size ] : '';
 	}
@@ -144,6 +190,21 @@ class NROS_Ads_Manager {
 		}
 		if ( 0 === strpos( $slot, 'footer' ) ) {
 			return 'footer';
+		}
+		if ( 0 === strpos( $slot, 'video' ) ) {
+			return 'video';
+		}
+		if ( 0 === strpos( $slot, 'glance' ) ) {
+			return 'glance';
+		}
+		if ( 0 === strpos( $slot, 'quote' ) ) {
+			return 'quotes';
+		}
+		if ( 0 === strpos( $slot, 'lit_' ) ) {
+			return 'lit';
+		}
+		if ( 0 === strpos( $slot, 'float' ) || 'popup' === $slot ) {
+			return 'floating';
 		}
 		return 'other';
 	}
@@ -181,6 +242,9 @@ class NROS_Ads_Manager {
 				'code'      => isset( $o[ $id . '_code' ] ) ? (string) $o[ $id . '_code' ] : '',
 				'shortcode' => isset( $o[ $id . '_shortcode' ] ) ? (string) $o[ $id . '_shortcode' ] : '',
 				'gam'       => isset( $o[ $id . '_gam' ] ) ? (string) $o[ $id . '_gam' ] : '',
+				'client'    => isset( $o[ $id . '_client' ] ) ? absint( $o[ $id . '_client' ] ) : 0,
+				'mobile_ok' => in_array( $def[1], array( 'leader', 'float', 'popup' ), true ),
+				'live'      => self::is_live( $o, $id ),
 			);
 		}
 		$strip = array();
@@ -211,8 +275,15 @@ class NROS_Ads_Manager {
 				);
 			}
 		}
+		$specs = function_exists( 'meeha_ad_specs' ) ? array_values( (array) meeha_ad_specs() ) : array();
 		return array(
 			'theme_ok'   => true,
+			'globals'    => self::globals( $o ),
+			'reader'     => self::reader(),
+			'clients'    => self::clients(),
+			'specs'      => $specs,
+			'stats'      => class_exists( 'NROS_Ad_Stats' ) ? NROS_Ad_Stats::summary( 7 ) : null,
+			'pages'      => self::landing_pages(),
 			'slots'      => $slots,
 			'strip'      => $strip,
 			'house'      => $house,
@@ -282,6 +353,7 @@ class NROS_Ads_Manager {
 			'label'     => function ( $v ) { return empty( $v ) ? 0 : 1; },
 			'shortcode' => 'sanitize_text_field',
 			'gam'       => 'sanitize_text_field',
+			'client'    => 'absint',
 		);
 		foreach ( $map as $key => $fn ) {
 			if ( null !== $request->get_param( $key ) ) {
@@ -305,6 +377,15 @@ class NROS_Ads_Manager {
 			return new WP_Error( 'nros_empty', 'কিছু পাঠানো হয়নি।', array( 'status' => 400 ) );
 		}
 		meeha_opt_update( 'ads', $values );
+		// r50 — a placement sold to a client makes that client's private results page (once).
+		if ( ! empty( $values[ $slot . '_client' ] ) && class_exists( 'NROS_Ad_Insight' ) ) {
+			NROS_Ad_Insight::link( (int) $values[ $slot . '_client' ] );
+		}
+		foreach ( array( $slot . '_image', $slot . '_image_m' ) as $k ) {
+			if ( ! empty( $values[ $k ] ) ) {
+				self::mark_creative( $values[ $k ] );
+			}
+		}
 		return array( 'ok' => true, 'slot' => $slot );
 	}
 
@@ -340,6 +421,11 @@ class NROS_Ads_Manager {
 			);
 		}
 		meeha_opt_update( 'ads', array( 'card_strip' => $clean ) );
+		foreach ( $clean as $row ) {
+			if ( $row['image'] ) {
+				self::mark_creative( $row['image'] );
+			}
+		}
 		return array( 'ok' => true, 'count' => count( $clean ) );
 	}
 
@@ -379,6 +465,10 @@ class NROS_Ads_Manager {
 		$i      = 0;
 		$done   = array();
 		foreach ( meeha_ad_slots() as $slot => $def ) {
+			// Floating bars and the pop-up interrupt reading — they are switched on only on purpose.
+			if ( in_array( $def[1], array( 'float', 'corner', 'popup' ), true ) ) {
+				continue;
+			}
 			$values[ $slot . '_on' ] = 1;
 			$configured = ! empty( $o[ $slot . '_image' ] ) || ! empty( $o[ $slot . '_code' ] ) || ! empty( $o[ $slot . '_shortcode' ] ) || ! empty( $o[ $slot . '_gam' ] ) || ! empty( $o[ $slot . '_house' ] );
 			if ( $configured ) {
@@ -393,5 +483,385 @@ class NROS_Ads_Manager {
 		}
 		meeha_opt_update( 'ads', $values );
 		return array( 'ok' => true, 'slots' => $done );
+	}
+
+	/**
+	 * Is a slot showing right now (on, inside its dates, has something to show)?
+	 *
+	 * @param array  $o    Ads options.
+	 * @param string $slot Slot.
+	 * @return bool
+	 */
+	private static function is_live( $o, $slot ) {
+		if ( empty( $o[ $slot . '_on' ] ) ) {
+			return false;
+		}
+		$today = current_time( 'Y-m-d' );
+		if ( ! empty( $o[ $slot . '_start' ] ) && $today < $o[ $slot . '_start' ] ) {
+			return false;
+		}
+		if ( ! empty( $o[ $slot . '_end' ] ) && $today > $o[ $slot . '_end' ] ) {
+			return false;
+		}
+		$type = isset( $o[ $slot . '_type' ] ) ? $o[ $slot . '_type' ] : 'image';
+		$map  = array( 'image' => '_image', 'house' => '_house', 'html' => '_code', 'shortcode' => '_shortcode', 'gam' => '_gam' );
+		return isset( $map[ $type ] ) && ! empty( $o[ $slot . $map[ $type ] ] );
+	}
+
+	/**
+	 * Site-wide ad settings.
+	 *
+	 * @param array $o Ads options.
+	 * @return array
+	 */
+	private static function globals( $o ) {
+		$g = function ( $k, $d ) use ( $o ) {
+			return isset( $o[ $k ] ) && '' !== $o[ $k ] ? $o[ $k ] : $d;
+		};
+		return array(
+			'label_style' => (string) $g( 'label_style', 'corner' ),
+			'popup_delay' => (int) $g( 'popup_delay', 6 ),
+			'popup_every' => (int) $g( 'popup_every', 12 ),
+			'popup_pages' => (string) $g( 'popup_pages', 'all' ),
+			'float_every' => (int) $g( 'float_every', 6 ),
+			'side_delay'  => (int) $g( 'side_delay', 8 ),
+			'utm_on'      => ! isset( $o['utm_on'] ) || ! empty( $o['utm_on'] ),
+			'lit_ads'     => (string) $g( 'lit_ads', 'gentle' ),
+			'ad_phone'    => (string) $g( 'ad_phone', '' ),
+			'ad_whatsapp' => (string) $g( 'ad_whatsapp', '' ),
+			'ad_email'    => (string) $g( 'ad_email', '' ),
+			'stats_on'    => ! isset( $o['stats_on'] ) || ! empty( $o['stats_on'] ),
+		);
+	}
+
+	/**
+	 * POST /admin/ads-manager/globals.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return array|WP_Error
+	 */
+	public static function save_globals( $request ) {
+		if ( ! self::theme_ok() ) {
+			return self::no_theme();
+		}
+		$num = function ( $min, $max ) {
+			return function ( $v ) use ( $min, $max ) {
+				return max( $min, min( $max, (int) $v ) );
+			};
+		};
+		$map = array(
+			'label_style' => function ( $v ) { return in_array( $v, array( 'corner', 'side', 'top', 'none' ), true ) ? $v : 'corner'; },
+			'popup_delay' => $num( 0, 120 ),
+			'popup_every' => $num( 1, 720 ),
+			'popup_pages' => function ( $v ) { return in_array( $v, array( 'all', 'single', 'home' ), true ) ? $v : 'all'; },
+			'float_every' => $num( 1, 720 ),
+			'side_delay'  => $num( 0, 120 ),
+			'utm_on'      => function ( $v ) { return empty( $v ) ? 0 : 1; },
+			'lit_ads'     => function ( $v ) { return in_array( $v, array( 'gentle', 'none' ), true ) ? $v : 'gentle'; },
+			'ad_phone'    => 'sanitize_text_field',
+			'ad_whatsapp' => function ( $v ) { return preg_replace( '/[^\d]/', '', (string) $v ); },
+			'ad_email'    => 'sanitize_email',
+			'stats_on'    => function ( $v ) { return empty( $v ) ? 0 : 1; },
+		);
+		$values = array();
+		foreach ( $map as $k => $fn ) {
+			if ( null !== $request->get_param( $k ) ) {
+				$values[ $k ] = call_user_func( $fn, $request->get_param( $k ) );
+			}
+		}
+		if ( ! $values ) {
+			return new WP_Error( 'nros_empty', 'কিছু পাঠানো হয়নি।', array( 'status' => 400 ) );
+		}
+		meeha_opt_update( 'ads', $values );
+		delete_transient( 'meeha_adv_numbers' );
+		return array( 'ok' => true, 'globals' => self::globals( meeha_opt( 'ads' ) ) );
+	}
+
+	/**
+	 * Reader-side photocard ads (the strip under "ফটোকার্ড ডাউনলোড" on news and quote pages).
+	 *
+	 * @return array
+	 */
+	private static function reader() {
+		$get = function ( $k, $d ) {
+			if ( function_exists( 'meeha_studio_opt' ) ) {
+				return meeha_studio_opt( $k, $d );
+			}
+			return function_exists( 'meeha_opt' ) ? meeha_opt( 'photocard', $k, $d ) : $d;
+		};
+		return array(
+			'available'   => function_exists( 'meeha_studio_opt' ),
+			'news_on'     => ! empty( $get( 'news_reader_ad', 0 ) ),
+			'news_image'  => self::image( $get( 'news_reader_ad_image', 0 ) ),
+			'quote_on'    => ! empty( $get( 'quote_reader_ad', 0 ) ),
+			'quote_image' => self::image( $get( 'quote_reader_ad_image', 0 ) ),
+			'news_client'  => absint( $get( 'news_reader_ad_client', 0 ) ),
+			'quote_client' => absint( $get( 'quote_reader_ad_client', 0 ) ),
+		);
+	}
+
+	/**
+	 * POST /admin/ads-manager/reader {news_on, news_image, quote_on, quote_image}.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return array|WP_Error
+	 */
+	public static function save_reader( $request ) {
+		if ( ! self::theme_ok() ) {
+			return self::no_theme();
+		}
+		$map    = array(
+			'news_on'     => 'news_reader_ad',
+			'news_image'  => 'news_reader_ad_image',
+			'quote_on'    => 'quote_reader_ad',
+			'quote_image' => 'quote_reader_ad_image',
+			'news_client'  => 'news_reader_ad_client',
+			'quote_client' => 'quote_reader_ad_client',
+		);
+		$values = array();
+		foreach ( $map as $in => $key ) {
+			$v = $request->get_param( $in );
+			if ( null === $v ) {
+				continue;
+			}
+			if ( '_on' === substr( $in, -3 ) ) {
+				$values[ $key ] = empty( $v ) ? 0 : 1;
+			} elseif ( '_client' === substr( $in, -7 ) ) {
+				$values[ $key ] = absint( $v );
+				if ( $values[ $key ] && class_exists( 'NROS_Ad_Insight' ) ) {
+					NROS_Ad_Insight::link( $values[ $key ] ); // r50 — the client's results page is ready at once
+				}
+			} else {
+				$values[ $key ] = absint( $v );
+				$ok             = self::check_creative( $values[ $key ] );
+				if ( is_wp_error( $ok ) ) {
+					return $ok;
+				}
+				if ( $values[ $key ] ) {
+					self::mark_creative( $values[ $key ] );
+				}
+			}
+		}
+		if ( ! $values ) {
+			return new WP_Error( 'nros_empty', 'কিছু পাঠানো হয়নি।', array( 'status' => 400 ) );
+		}
+		meeha_opt_update( 'photocard', $values );
+		return array( 'ok' => true, 'reader' => self::reader() );
+	}
+
+	/**
+	 * Active ad clients for the "কোন ক্লায়েন্টের বিজ্ঞাপন" select.
+	 *
+	 * @return array
+	 */
+	private static function clients() {
+		global $wpdb;
+		$rows = (array) $wpdb->get_results( "SELECT id, business_name, phone, status FROM {$wpdb->prefix}nros_ad_clients ORDER BY business_name ASC LIMIT 500", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$out  = array();
+		foreach ( $rows as $r ) {
+			$out[] = array(
+				'id'     => (int) $r['id'],
+				'name'   => (string) $r['business_name'],
+				'phone'  => (string) $r['phone'],
+				'status' => (string) $r['status'],
+			);
+		}
+		return $out;
+	}
+
+	/**
+	 * Remember an image as an ad creative, so the ad gallery shows it again.
+	 *
+	 * @param int $id Attachment.
+	 */
+	private static function mark_creative( $id ) {
+		$id = absint( $id );
+		if ( $id && 'attachment' === get_post_type( $id ) ) {
+			update_post_meta( $id, '_nros_ad_creative', time() );
+		}
+	}
+
+	/**
+	 * Every image an ad uses now (slots, strip, reader cards, the video studio's ad picks).
+	 *
+	 * @return int[]
+	 */
+	private static function used_ids() {
+		$ids = array();
+		$o   = function_exists( 'meeha_opt' ) ? meeha_opt( 'ads' ) : array();
+		foreach ( (array) $o as $k => $v ) {
+			if ( preg_match( '/_image(_m)?$/', (string) $k ) && absint( $v ) ) {
+				$ids[] = absint( $v );
+			}
+		}
+		foreach ( (array) ( isset( $o['card_strip'] ) ? $o['card_strip'] : array() ) as $row ) {
+			if ( ! empty( $row['image'] ) ) {
+				$ids[] = absint( $row['image'] );
+			}
+		}
+		$r = self::reader();
+		foreach ( array( 'news_image', 'quote_image' ) as $k ) {
+			if ( $r[ $k ] ) {
+				$ids[] = (int) $r[ $k ]['id'];
+			}
+		}
+		return array_values( array_unique( array_filter( $ids ) ) );
+	}
+
+	/**
+	 * GET /admin/ads-manager/library?offset=&search= — the ad image gallery (in use first, then
+	 * every image ever used or uploaded as an ad), shaped like /admin/media.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return array
+	 */
+	public static function library( $request ) {
+		$offset = max( 0, (int) $request->get_param( 'offset' ) );
+		$search = sanitize_text_field( (string) $request->get_param( 'search' ) );
+		$used   = self::used_ids();
+		foreach ( $used as $id ) {
+			if ( ! get_post_meta( $id, '_nros_ad_creative', true ) ) {
+				self::mark_creative( $id );
+			}
+		}
+		$args = array(
+			'post_type'      => 'attachment',
+			'post_status'    => 'inherit',
+			'post_mime_type' => 'image',
+			'posts_per_page' => 30,
+			'offset'         => $offset,
+			'meta_key'       => '_nros_ad_creative', // phpcs:ignore WordPress.DB.SlowDBQuery
+			'orderby'        => 'meta_value_num',
+			'order'          => 'DESC',
+			'no_found_rows'  => false,
+		);
+		if ( '' !== $search ) {
+			$args['s'] = $search;
+		}
+		$q     = new WP_Query( $args );
+		$items = array();
+		foreach ( $q->posts as $p ) {
+			$img = self::image( $p->ID );
+			if ( ! $img ) {
+				continue;
+			}
+			$thumb   = wp_get_attachment_image_src( $p->ID, 'medium' );
+			$items[] = array_merge(
+				$img,
+				array(
+					'thumb'   => $thumb ? $thumb[0] : $img['url'],
+					'alt'     => (string) get_post_meta( $p->ID, '_wp_attachment_image_alt', true ),
+					'caption' => (string) $p->post_excerpt,
+					'title'   => (string) $p->post_title,
+					'date'    => (string) $p->post_date,
+					'in_use'  => in_array( (int) $p->ID, $used, true ),
+				)
+			);
+		}
+		return array(
+			'items'    => $items,
+			'total'    => (int) $q->found_posts,
+			'has_more' => $offset + count( $q->posts ) < (int) $q->found_posts,
+		);
+	}
+
+	/**
+	 * POST /admin/ads-manager/library {id, remove?} — add an uploaded image to the ad gallery,
+	 * or take it out of the gallery (the file itself stays in the media library).
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return array|WP_Error
+	 */
+	public static function library_mark( $request ) {
+		$id = absint( $request->get_param( 'id' ) );
+		if ( ! $id || 'attachment' !== get_post_type( $id ) ) {
+			return new WP_Error( 'nros_bad_id', 'ছবি পাওয়া যায়নি।', array( 'status' => 404 ) );
+		}
+		if ( $request->get_param( 'remove' ) ) {
+			if ( in_array( $id, self::used_ids(), true ) ) {
+				return new WP_Error( 'nros_in_use', 'এই ছবিটি এখন একটি বিজ্ঞাপনে চলছে — আগে সেখান থেকে সরান।', array( 'status' => 409 ) );
+			}
+			delete_post_meta( $id, '_nros_ad_creative' );
+			return array( 'ok' => true, 'removed' => $id );
+		}
+		$ok = self::check_creative( $id );
+		if ( is_wp_error( $ok ) ) {
+			return $ok;
+		}
+		self::mark_creative( $id );
+		return array( 'ok' => true, 'image' => self::image( $id ) );
+	}
+
+	/**
+	 * Pages that already show the advertising landing page / spec sheet / app landing.
+	 *
+	 * @return array
+	 */
+	private static function landing_pages() {
+		global $wpdb;
+		$out = array();
+		// The app page may use the older alias [meeha_correspondent_app] (e.g. meeha.news/app/).
+		foreach ( array( 'advertise' => array( 'meeha_advertise' ), 'specs' => array( 'meeha_ad_specs' ), 'app' => array( 'meeha_app_landing', 'meeha_correspondent_app' ) ) as $kind => $tags ) {
+			$id = 0;
+			foreach ( $tags as $tag ) {
+				$id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'page' AND post_status IN ('publish','draft','private') AND post_content LIKE %s ORDER BY post_status = 'publish' DESC, ID ASC LIMIT 1", '%[' . $wpdb->esc_like( $tag ) . '%' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+				if ( $id ) {
+					break;
+				}
+			}
+			$out[ $kind ] = $id ? array(
+				'id'     => $id,
+				'url'    => (string) get_permalink( $id ),
+				'status' => (string) get_post_status( $id ),
+				'title'  => (string) get_the_title( $id ),
+				'canvas' => 'page-canvas.php' === get_post_meta( $id, '_wp_page_template', true ),
+			) : null;
+		}
+		return $out;
+	}
+
+	/**
+	 * POST /admin/ads-manager/create-page {kind: advertise|specs|app} — one click makes the page
+	 * (full-width canvas template, title hidden) or, if it exists, switches it to the canvas.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return array|WP_Error
+	 */
+	public static function create_page( $request ) {
+		$kind = sanitize_key( (string) $request->get_param( 'kind' ) );
+		$defs = array(
+			'advertise' => array( 'বিজ্ঞাপন দিন', 'advertise-with-us', '[meeha_advertise]' ),
+			'specs'     => array( 'বিজ্ঞাপনের মাপ ও নিয়ম', 'ad-specs', '[meeha_ad_specs]' ),
+			'app'       => array( 'মিহা সংবাদদাতা অ্যাপ', 'correspondent-app', '[meeha_app_landing]' ),
+		);
+		if ( ! isset( $defs[ $kind ] ) ) {
+			return new WP_Error( 'nros_bad_kind', 'অজানা পাতা।', array( 'status' => 400 ) );
+		}
+		$have = self::landing_pages();
+		$canv = '' !== locate_template( 'page-canvas.php' );
+		if ( $have[ $kind ] ) {
+			$id = (int) $have[ $kind ]['id'];
+		} else {
+			$id = wp_insert_post(
+				array(
+					'post_type'    => 'page',
+					'post_status'  => 'publish',
+					'post_title'   => $defs[ $kind ][0],
+					'post_name'    => $defs[ $kind ][1],
+					'post_content' => $defs[ $kind ][2],
+				),
+				true
+			);
+			if ( is_wp_error( $id ) ) {
+				return $id;
+			}
+		}
+		if ( $canv ) {
+			update_post_meta( $id, '_wp_page_template', 'page-canvas.php' );
+			// The shortcodes carry their own big heading.
+			update_post_meta( $id, '_meeha_hide_title', 1 );
+		}
+		$pages = self::landing_pages();
+		return array( 'ok' => true, 'page' => $pages[ $kind ], 'canvas' => $canv );
 	}
 }

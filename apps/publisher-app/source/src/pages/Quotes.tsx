@@ -22,6 +22,7 @@ import {
 } from '../lib/api'
 import { useAuth } from '../lib/AuthContext'
 import MediaGallery from '../components/MediaGallery'
+import { AddToCrm, SpeakerSearch } from '../components/SpeakerPicker'
 import { Badge, Banner, Button, Card, EmptyState, Field, Modal, PageHeader, Spinner, bnDate, bnNumber, inputClass } from '../components/ui'
 import { IconExternalLink, IconLibraryPhoto, IconPhoto, IconPhotoPlus, IconPlus, IconQuote, IconSearch, IconX } from '../components/Icon'
 
@@ -338,6 +339,7 @@ function QuoteForm({
   const [formError, setFormError] = useState('')
   const [uploading, setUploading] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(false)
+  const [pickedFrom, setPickedFrom] = useState<'' | 'team' | 'crm' | 'past'>('')
   const [newType, setNewType] = useState<{ name: string; frame: QuoteFrame } | null>(null)
   const [typeSaving, setTypeSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -435,14 +437,31 @@ function QuoteForm({
           <span className="block text-[11px] text-neutral-400 mt-1">৯০ অক্ষরের মধ্যে হলে কার্ডে সবচেয়ে ভালো দেখায়; বড় উক্তিও চলবে।</span>
         </label>
 
+        <SpeakerSearch
+          onPick={(p) => {
+            set({ speaker: p.name, role: p.role || v.role, ...(p.photo_id ? { photo_id: p.photo_id } : {}) })
+            if (p.photo_id) setPhotoUrl(p.photo_url)
+            setPickedFrom(p.src)
+          }}
+        />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
           <Field label="বক্তা">
-            <input className={inputClass} value={v.speaker} onChange={(e) => set({ speaker: e.target.value })} placeholder="যেমন: কাজী নজরুল ইসলাম" data-testid="quote-speaker" />
+            <input
+              className={inputClass}
+              value={v.speaker}
+              onChange={(e) => {
+                set({ speaker: e.target.value })
+                setPickedFrom('')
+              }}
+              placeholder="যেমন: কাজী নজরুল ইসলাম"
+              data-testid="quote-speaker"
+            />
           </Field>
           <Field label="পরিচয় / উপাধি">
             <input className={inputClass} value={v.role} onChange={(e) => set({ role: e.target.value })} placeholder="যেমন: জাতীয় কবি" />
           </Field>
         </div>
+        {pickedFrom !== 'crm' && pickedFrom !== 'team' && <AddToCrm name={v.speaker} role={v.role} photoId={v.photo_id} />}
 
         <div className="mb-3.5">
           <span className="block text-[12.5px] font-medium text-neutral-600 mb-1.5">উক্তির ধরন (কার্ডের ফ্রেম)</span>

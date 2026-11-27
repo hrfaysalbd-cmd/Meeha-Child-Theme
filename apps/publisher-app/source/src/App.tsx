@@ -45,6 +45,7 @@ const Tips = lazy(() => import('./pages/Tips'))
 const AdsManager = lazy(() => import('./pages/AdsManager'))
 // r47 — নিউজ এলার্ট: visitor web-push settings
 const Alerts = lazy(() => import('./pages/Alerts'))
+const Storage = lazy(() => import('./pages/Storage'))
 // r47 — শিক্ষা/ক্যাম্পাস: the campus run from here
 const Campus = lazy(() => import('./pages/Campus'))
 
@@ -198,6 +199,14 @@ export default function App() {
           element={
             <Suspense fallback={<Spinner className="mt-10" />}>
               <Alerts />
+            </Suspense>
+          }
+        />
+        <Route
+          path="storage"
+          element={
+            <Suspense fallback={<Spinner className="mt-10" />}>
+              <Storage />
             </Suspense>
           }
         />

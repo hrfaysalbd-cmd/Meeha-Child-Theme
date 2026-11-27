@@ -37,6 +37,9 @@
 	.mvr .mvr-stage :focus-visible { outline-color: var(--g-lite); }
 	.mvr-end { color: var(--mute); height: 80px; }
 	.mvr-err { width: min(80%, 320px); }
+	/* r50 — theme ad boxes on the video page */
+	.mvr-adbelow { max-width: 1000px; margin: 28px auto 0; padding: 0 24px; }
+	.mvr-info .m-ad { width: 100%; max-width: 300px; margin: 4px 0 0; }
 
 	/* side panel: "আরও ভিডিও" queue + comments */
 	.mvr-side { width: min(100%, 560px); height: 540px; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; background: #fff; }

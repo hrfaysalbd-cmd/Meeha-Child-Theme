@@ -70,6 +70,7 @@ while ( have_posts() ) :
 					)
 				);
 				meeha_quote_poll_form( $meeha_q );
+				echo function_exists( 'meeha_ad' ) ? meeha_ad( 'quote_single' ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- built in meeha_ad(). r50
 				?>
 			</div>
 		</div>

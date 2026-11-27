@@ -110,6 +110,7 @@ class NROS_App_Landing {
 			'sos'      => '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
 			'pin'      => '<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/>',
 			'users'    => '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
+			'id'       => '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16a3 3 0 0 1 6 0M14 10h4M14 13h3"/>',
 			'check'    => '<path d="M20 6 9 17l-5-5"/>',
 			'lock'     => '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
 			'phone'    => '<rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/>',
@@ -164,14 +165,17 @@ class NROS_App_Landing {
 
 		$features = array(
 			array( 'pen', 'red', 'সংবাদ লিখুন, এক চাপে পাঠান', 'ছবি, ক্যাটেগরি আর এলাকা বেছে সরাসরি ডেস্কে পাঠান। খসড়া জমা থাকে, পরে শেষ করুন।' ),
-			array( 'video', 'violet', 'ভিডিও সংবাদ', 'ফোনের ভিডিও বা ইউটিউব লিংক দিয়ে ভিডিও খবর পাঠান। বড় ফাইলও টুকরো করে ওঠে, নেট গেলে আবার চলে।' ),
+			array( 'video', 'violet', 'ভিডিও সংবাদ, আগে দ্রুত পরে HD', 'আগে হালকা ৭২০p কপি উঠে যায়, ডেস্ক কাজ শুরু করে; পুরো HD পেছনে উঠতে থাকে। বড় ফাইল টুকরো করে ওঠে, নেট গেলে আবার চলে।' ),
 			array( 'live', 'rose', 'ঘটনাস্থল থেকে লাইভ', 'ডেস্ক আপনাকে লাইভে যুক্ত করলে ঘটনাস্থল থেকেই মুহূর্তের আপডেট দিন।' ),
 			array( 'chat', 'blue', 'ডেস্কের সাথে চ্যাট', 'মিহা পরিবার, বিভাগ আর নিউজ ডেস্কের রুম। ছবি, ফাইল, ভয়েস মেসেজ আর জরুরি/মিটিং লেবেল।' ),
 			array( 'bell', 'amber', 'সঙ্গে সঙ্গে নোটিফিকেশন', 'সংবাদ প্রকাশ, ফেরত, জরুরি মেসেজ, অ্যাপ বন্ধ থাকলেও ফোনে খবর আসে।' ),
 			array( 'wallet', 'green', 'আয়ের পুরো হিসাব', 'প্রতিটি সংবাদ ও ভিডিওর পেমেন্ট, বোনাস আর ব্যালান্স। বিকাশ, নগদ বা রকেটে উত্তোলনের অনুরোধ।' ),
 			array( 'chart', 'cyan', 'আপনার ড্যাশবোর্ড', 'কত মানুষ পড়ল, লাইক, কমেন্ট, শেয়ার, দিন-সপ্তাহ-মাসের চার্টে এক নজরে।' ),
-			array( 'trophy', 'orange', 'ব্যাজ ও লেখার ধারা', 'টানা লেখার ধারা আর নতুন নতুন ব্যাজ। প্রতিদিন একটু এগিয়ে থাকার অনুপ্রেরণা।' ),
 			array( 'handshake', 'teal', 'বিজ্ঞাপনে বাড়তি আয়', 'এলাকার বিজ্ঞাপনদাতার তথ্য অ্যাপেই জমা দিন, চুক্তি হলে কমিশন পান।' ),
+			array( 'sos', 'rose', 'মাঠে নিরাপত্তা: SOS ও চেক-ইন', 'বিপদে SOS চেপে ধরলেই লোকেশনসহ ডেস্কে সংকেত যায়। ঝুঁকির কাজে চেক-ইন করুন, সময়মতো না ফিরলে ডেস্ক খোঁজ নেবে।' ),
+			array( 'pin', 'green', 'মাঠের কাজ, আগেই টাকা লেখা', 'ডেস্কের দেওয়া কাজ নিন, টাকা আর যাতায়াত ভাতা আগেই লেখা থাকে। কাজ গৃহীত হলে আয়ে যোগ হয়।' ),
+			array( 'id', 'blue', 'মিহা আইডি কার্ড', 'অ্যাপ থেকেই আইডি কার্ডের আবেদন, পেমেন্ট আর নবায়ন। কার্ডের কিউআর কোডে যে কেউ যাচাই করতে পারেন।' ),
+			array( 'pen', 'violet', 'মিহা কলম', 'সাংবাদিক না হয়েও লেখক হিসেবে যুক্ত হোন। কবিতা, গল্প, মতামত পাঠান, লেখকদের নিজস্ব রুমে আলাপ করুন।' ),
 		);
 
 		$shots = array(
@@ -294,10 +298,10 @@ class NROS_App_Landing {
 		<p class="mhl-note"><?php echo $i( 'zap' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> নতুন ভার্সন এলে অ্যাপ নিজেই জানাবে, এক চাপে আপডেট।</p>
 	</section>
 
-	<!-- ============ সাংবাদিক সেইফ (COMING SOON) ============ -->
+	<!-- ============ সাংবাদিক সেইফ (r44, shipped) ============ -->
 	<section class="mhl-safe" id="mhl-safe">
 		<div class="mhl-safe-in">
-			<span class="mhl-soon">শিগগির আসছে</span>
+			<span class="mhl-soon">এখন অ্যাপে</span>
 			<div class="mhl-safe-head">
 				<span class="mhl-shield"><?php echo $i( 'shield' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
 				<div>
@@ -305,14 +309,14 @@ class NROS_App_Landing {
 					<p>বিপদে কেউ একা নন, পাশে আছে পুরো মিহা পরিবার।</p>
 				</div>
 			</div>
-			<p class="mhl-safe-lead">মাঠে কাজ করতে গিয়ে হুমকি, হামলা বা বিপদে পড়লে এক চাপে সাহায্য চাওয়ার ব্যবস্থা আমরা বানাচ্ছি। পরিকল্পনায় যা আছে:</p>
+			<p class="mhl-safe-lead">মাঠে কাজ করতে গিয়ে হুমকি, হামলা বা বিপদে পড়লে অ্যাপের "মাঠ" অংশ থেকেই সাহায্য চাওয়া যায়:</p>
 			<ul class="mhl-safe-list">
-				<li><?php echo $i( 'sos' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><div><b>এক চাপে SOS</b><span>বিপদের সংকেত সঙ্গে সঙ্গে ডেস্ক আর নিরাপত্তা দায়িত্বপ্রাপ্তদের কাছে।</span></div></li>
-				<li><?php echo $i( 'users' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><div><b>কাছের সহকর্মীরা জানবেন</b><span>আশপাশের মিহা সংবাদদাতারা সতর্কবার্তা পাবেন, এগিয়ে আসতে পারবেন।</span></div></li>
-				<li><?php echo $i( 'chat' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><div><b>উদ্ধার রুম</b><span>সাহায্যে যুক্তদের নিয়ে আলাদা রুম, নিরাপদে ফেরা পর্যন্ত।</span></div></li>
-				<li><?php echo $i( 'pin' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><div><b>অবস্থান জানানো</b><span>কোথায় আছেন, দরকারে সাহায্যকারীরা জানতে পারবেন।</span></div></li>
+				<li><?php echo $i( 'sos' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><div><b>SOS চেপে ধরুন</b><span>প্রায় দুই সেকেন্ড চেপে ধরলে সংকেত যায় (পকেটে ভুল চাপে যায় না)। ডেস্কের সবাই সঙ্গে সঙ্গে নোটিশ পান।</span></div></li>
+				<li><?php echo $i( 'pin' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><div><b>লোকেশনসহ</b><span>অনুমতি দিলে আপনি কোথায় আছেন, সেটাও SOS-এর সঙ্গে যায়।</span></div></li>
+				<li><?php echo $i( 'shield' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><div><b>ঝুঁকির কাজে চেক-ইন</b><span>কোথায় যাচ্ছেন আর কখন ফিরবেন লিখে রাখুন। সময়মতো "আমি নিরাপদ" না চাপলে ডেস্ককে জানানো হয়।</span></div></li>
+				<li><?php echo $i( 'users' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><div><b>জরুরি যোগাযোগ</b><span>চেক-ইনে একজন জরুরি যোগাযোগের নম্বর রাখা যায়, দরকারে ডেস্ক তাঁকে খুঁজে পায়।</span></div></li>
 			</ul>
-			<p class="mhl-safe-foot">অ্যাপটি এখনই নামিয়ে রাখুন, সেইফ মডিউল এলে আপডেটেই পেয়ে যাবেন।</p>
+			<p class="mhl-safe-foot">বিপদ গুরুতর হলে দেরি না করে ৯৯৯-এ ফোন করুন। অ্যাপ সঙ্গে থাকে, ৯৯৯-এর বিকল্প নয়।</p>
 		</div>
 	</section>
 
